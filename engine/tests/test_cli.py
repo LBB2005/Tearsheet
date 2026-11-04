@@ -1,0 +1,89 @@
+"""The Phase 0 terminal commands (design item 12)."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+from tearsheet import cli, config
+from tearsheet.db import open_database
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["--data-dir", "/x", "set-setting", "primary_tool", "claude"],
+        ["set-setting", "--data-dir", "/x", "primary_tool", "claude"],
+        ["--data-dir", "/x", "lockdown-check"],
+        ["lockdown-check", "--data-dir", "/x", "--short"],
+    ],
+)
+def test_data_dir_works_before_or_after_the_command(argv):
+    assert cli.build_parser().parse_args(argv).data_dir == "/x"
+
+
+def test_data_dir_falls_back_to_the_default(tmp_path, monkeypatch):
+    args = cli.build_parser().parse_args(["lockdown-check"])
+    assert getattr(args, "data_dir", None) is None
+    assert config.resolve_data_dir(None) == config.DEFAULT_DATA_DIR
+    monkeypatch.setenv(config.DATA_DIR_ENV, str(tmp_path / "env-dir"))
+    assert config.resolve_data_dir(None) == tmp_path / "env-dir"
+    assert config.resolve_data_dir(str(tmp_path / "flag")) == tmp_path / "flag"
+
+
+def test_set_setting_checks_and_stores_the_value(tmp_path, capsys):
+    data = tmp_path / "data"
+    assert (
+        cli.main(["--data-dir", str(data), "set-setting", "sec_contact_email", "liam@example.com"])
+        == 0
+    )
+    assert "Set sec_contact_email" in capsys.readouterr().out
+    assert (
+        cli.main(["--data-dir", str(data), "set-setting", "sec_contact_email", "not-an-email"]) == 2
+    )
+    assert "email" in capsys.readouterr().err
+    db = open_database(data / "tearsheet.sqlite")
+    assert config.Settings(db.conn).get("sec_contact_email") == "liam@example.com"
+    db.close()
+
+
+def test_set_key_reads_a_hidden_prompt_and_never_prints_the_key(monkeypatch, capsys, tmp_path):
+    monkeypatch.setattr(cli.getpass, "getpass", lambda prompt: "  massive-secret-123  ")
+    assert cli.main(["--data-dir", str(tmp_path), "set-key", "massive"]) == 0
+    out = capsys.readouterr()
+    assert "massive-secret-123" not in out.out + out.err
+    assert config.get_key("massive") == "massive-secret-123"
+
+
+def test_set_key_with_nothing_entered_saves_nothing(monkeypatch, tmp_path):
+    monkeypatch.setattr(cli.getpass, "getpass", lambda prompt: "")
+    assert cli.main(["--data-dir", str(tmp_path), "set-key", "fred"]) == 1
+    assert config.get_key("fred") is None
+
+
+def test_lockdown_check_on_codex_says_phase_2_and_checks_nothing(tmp_path, capsys):
+    assert cli.main(["--data-dir", str(tmp_path), "lockdown-check", "--tool", "codex"]) == 2
+    assert "Phase 2" in capsys.readouterr().out
+
+
+def test_lockdown_check_without_claude_code_explains(tmp_path, capsys):
+    assert cli.main(["--data-dir", str(tmp_path), "lockdown-check", "--tool", "claude"]) == 2
+    assert "wasn't found" in capsys.readouterr().err
+
+
+def test_commands_refuse_a_newer_database(tmp_path, capsys):
+    import sqlite3
+
+    data = tmp_path / "data"
+    open_database(data / "tearsheet.sqlite").close()
+    raw = sqlite3.connect(data / "tearsheet.sqlite")
+    raw.execute("PRAGMA user_version = 999")
+    raw.close()
+    assert cli.main(["--data-dir", str(data), "set-setting", "primary_tool", "claude"]) == 2
+    assert "newer Tearsheet" in capsys.readouterr().err
+
+
+def test_never_touches_the_real_default_folder(tmp_path):
+    assert str(config.DEFAULT_DATA_DIR).startswith(str(tmp_path))
+    assert not Path.home().joinpath(".tearsheet-canary").exists()

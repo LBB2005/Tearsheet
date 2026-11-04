@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# The desktop app (Phase 1c)
+node_modules/
+app/out/
+app/dist/
+
+# Local data and secrets. Keys live in the macOS Keychain, never in files.
+.env
+.env.*
+*.key
+*.pem
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.sqlite.*.bak
+
+# macOS
+.DS_Store

@@ -1,0 +1,26 @@
+# Continuous integration (design item 52). Phase 0 steps only: the coverage bar arrives in
+# Phase 1b, the app's typecheck and tests in Phase 1c, and replay of the stored test runs in
+# Phase 1b.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  engine:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: engine
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.15"
+      - name: Install
+        run: uv sync --locked
+      - name: Lint
+        run: uv run ruff check . ../scripts && uv run ruff format --check . ../scripts
+      - name: Offline tests
+        run: uv run pytest

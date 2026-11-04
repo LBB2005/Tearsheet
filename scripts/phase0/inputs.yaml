@@ -1,0 +1,314 @@
+# Hand-written inputs for the four Phase 0 scripts (design item 12, "Hand-written inputs").
+# The lock-down check doesn't use this file; its prompts ship with the engine.
+#
+# The 5 tickers are in 5 different GICS sectors, each with a fixed list of its 40 largest
+# sector peers. Built on 2026-11-03 from the SPDR (SPY) holdings file dated 2026-11-02
+# (index weights) joined with Wikipedia's S&P 500 list (GICS sector and SEC CIK), because
+# the iShares IVV file returned a web page instead of the CSV that day. Only these five
+# sectors have more than 40 members, which a 40-peer list needs.
+# Tickers use the dotted form (BRK.B); each provider's spelling is confirmed in Phase 0.
+
+companies:
+  - ticker: AAPL
+    cik: 320193
+    name: "Apple Inc."
+    sector: Information Technology
+    index_weight: 7.5960
+    peers:  # the 40 largest Information Technology members by SPY weight, largest first
+      - {cik: 1045810, ticker: NVDA, name: "Nvidia", weight: 7.5227}
+      - {cik: 789019, ticker: MSFT, name: "Microsoft", weight: 5.7928}
+      - {cik: 1730168, ticker: AVGO, name: "Broadcom", weight: 2.3584}
+      - {cik: 723125, ticker: MU, name: "Micron Technology", weight: 1.4484}
+      - {cik: 2488, ticker: AMD, name: "Advanced Micro Devices", weight: 1.1725}
+      - {cik: 1321655, ticker: PLTR, name: "Palantir Technologies", weight: 0.6314}
+      - {cik: 858877, ticker: CSCO, name: "Cisco", weight: 0.6162}
+      - {cik: 50863, ticker: INTC, name: "Intel", weight: 0.4585}
+      - {cik: 6951, ticker: AMAT, name: "Applied Materials", weight: 0.4576}
+      - {cik: 1327567, ticker: PANW, name: "Palo Alto Networks", weight: 0.4412}
+      - {cik: 707549, ticker: LRCX, name: "Lam Research", weight: 0.4382}
+      - {cik: 97476, ticker: TXN, name: "Texas Instruments", weight: 0.4241}
+      - {cik: 1535527, ticker: CRWD, name: "CrowdStrike", weight: 0.3790}
+      - {cik: 51143, ticker: IBM, name: "IBM", weight: 0.3658}
+      - {cik: 1341439, ticker: ORCL, name: "Oracle Corporation", weight: 0.3168}
+      - {cik: 6281, ticker: ADI, name: "Analog Devices", weight: 0.3095}
+      - {cik: 319201, ticker: KLAC, name: "KLA Corporation", weight: 0.3076}
+      - {cik: 820313, ticker: APH, name: "Amphenol", weight: 0.3030}
+      - {cik: 1108524, ticker: CRM, name: "Salesforce", weight: 0.2849}
+      - {cik: 804328, ticker: QCOM, name: "Qualcomm", weight: 0.2662}
+      - {cik: 1596532, ticker: ANET, name: "Arista Networks", weight: 0.2642}
+      - {cik: 1467373, ticker: ACN, name: "Accenture", weight: 0.2459}
+      - {cik: 2023554, ticker: SNDK, name: "Sandisk", weight: 0.2413}
+      - {cik: 1835632, ticker: MRVL, name: "Marvell Technology", weight: 0.2310}
+      - {cik: 1137789, ticker: STX, name: "Seagate Technology", weight: 0.2069}
+      - {cik: 106040, ticker: WDC, name: "Western Digital", weight: 0.1877}
+      - {cik: 1571996, ticker: DELL, name: "Dell Technologies", weight: 0.1826}
+      - {cik: 1373715, ticker: NOW, name: "ServiceNow", weight: 0.1685}
+      - {cik: 796343, ticker: ADBE, name: "Adobe Inc.", weight: 0.1535}
+      - {cik: 24741, ticker: GLW, name: "Corning Inc.", weight: 0.1501}
+      - {cik: 896878, ticker: INTU, name: "Intuit", weight: 0.1479}
+      - {cik: 813672, ticker: CDNS, name: "Cadence Design Systems", weight: 0.1395}
+      - {cik: 883241, ticker: SNPS, name: "Synopsys", weight: 0.1372}
+      - {cik: 68505, ticker: MSI, name: "Motorola Solutions", weight: 0.1238}
+      - {cik: 1262039, ticker: FTNT, name: "Fortinet", weight: 0.1196}
+      - {cik: 1561550, ticker: DDOG, name: "Datadog", weight: 0.1113}
+      - {cik: 1645590, ticker: HPE, name: "Hewlett Packard Enterprise", weight: 0.1044}
+      - {cik: 1413447, ticker: NXPI, name: "NXP Semiconductors", weight: 0.0997}
+      - {cik: 1385157, ticker: TEL, name: "TE Connectivity", weight: 0.0968}
+      - {cik: 1280452, ticker: MPWR, name: "Monolithic Power Systems", weight: 0.0942}
+  - ticker: AMZN
+    cik: 1018724
+    name: "Amazon"
+    sector: Consumer Discretionary
+    index_weight: 3.7090
+    peers:  # the 40 largest Consumer Discretionary members by SPY weight, largest first
+      - {cik: 1318605, ticker: TSLA, name: "Tesla, Inc.", weight: 1.7509}
+      - {cik: 354950, ticker: HD, name: "Home Depot (The)", weight: 0.5231}
+      - {cik: 63908, ticker: MCD, name: "McDonald's", weight: 0.2894}
+      - {cik: 109198, ticker: TJX, name: "TJX Companies", weight: 0.2395}
+      - {cik: 60667, ticker: LOW, name: "Lowe's", weight: 0.1880}
+      - {cik: 829224, ticker: SBUX, name: "Starbucks", weight: 0.1831}
+      - {cik: 1075531, ticker: BKNG, name: "Booking Holdings", weight: 0.1774}
+      - {cik: 1048286, ticker: MAR, name: "Marriott International", weight: 0.1366}
+      - {cik: 1585689, ticker: HLT, name: "Hilton Worldwide", weight: 0.1260}
+      - {cik: 884887, ticker: RCL, name: "Royal Caribbean Group", weight: 0.1225}
+      - {cik: 1467858, ticker: GM, name: "General Motors", weight: 0.1211}
+      - {cik: 745732, ticker: ROST, name: "Ross Stores", weight: 0.1135}
+      - {cik: 898173, ticker: ORLY, name: "O'Reilly Automotive", weight: 0.1128}
+      - {cik: 1559720, ticker: ABNB, name: "Airbnb", weight: 0.1103}
+      - {cik: 1792789, ticker: DASH, name: "DoorDash", weight: 0.1100}
+      - {cik: 866787, ticker: AZO, name: "AutoZone", weight: 0.0815}
+      - {cik: 1690820, ticker: CVNA, name: "Carvana", weight: 0.0795}
+      - {cik: 37996, ticker: F, name: "Ford Motor Company", weight: 0.0760}
+      - {cik: 1065088, ticker: EBAY, name: "eBay Inc.", weight: 0.0745}
+      - {cik: 320187, ticker: NKE, name: "Nike, Inc.", weight: 0.0724}
+      - {cik: 1121788, ticker: GRMN, name: "Garmin", weight: 0.0699}
+      - {cik: 1041061, ticker: YUM, name: "Yum! Brands", weight: 0.0661}
+      - {cik: 1058090, ticker: CMG, name: "Chipotle Mexican Grill", weight: 0.0638}
+      - {cik: 882184, ticker: DHI, name: "D. R. Horton", weight: 0.0596}
+      - {cik: 815097, ticker: CCL, name: "Carnival Corporation", weight: 0.0589}
+      - {cik: 1324424, ticker: EXPE, name: "Expedia Group", weight: 0.0528}
+      - {cik: 719955, ticker: WSM, name: "Williams-Sonoma, Inc.", weight: 0.0471}
+      - {cik: 1403568, ticker: ULTA, name: "Ulta Beauty", weight: 0.0419}
+      - {cik: 940944, ticker: DRI, name: "Darden Restaurants", weight: 0.0389}
+      - {cik: 822416, ticker: PHM, name: "PulteGroup", weight: 0.0378}
+      - {cik: 1116132, ticker: TPR, name: "Tapestry, Inc.", weight: 0.0368}
+      - {cik: 764478, ticker: BBY, name: "Best Buy", weight: 0.0292}
+      - {cik: 916365, ticker: TSCO, name: "Tractor Supply", weight: 0.0285}
+      - {cik: 920760, ticker: LEN, name: "Lennar", weight: 0.0269}
+      - {cik: 40987, ticker: GPC, name: "Genuine Parts Company", weight: 0.0264}
+      - {cik: 46080, ticker: HAS, name: "Hasbro", weight: 0.0257}
+      - {cik: 906163, ticker: NVR, name: "NVR, Inc.", weight: 0.0245}
+      - {cik: 1037038, ticker: RL, name: "Ralph Lauren Corporation", weight: 0.0231}
+      - {cik: 910521, ticker: DECK, name: "Deckers Brands", weight: 0.0176}
+      - {cik: 1397187, ticker: LULU, name: "Lululemon Athletica", weight: 0.0174}
+  - ticker: JPM
+    cik: 19617
+    name: "JPMorgan Chase"
+    sector: Financials
+    index_weight: 1.3928
+    peers:  # the 40 largest Financials members by SPY weight, largest first
+      - {cik: 1067983, ticker: BRK.B, name: "Berkshire Hathaway", weight: 1.5934}
+      - {cik: 1403161, ticker: V, name: "Visa Inc.", weight: 1.1157}
+      - {cik: 1141391, ticker: MA, name: "Mastercard", weight: 0.8188}
+      - {cik: 70858, ticker: BAC, name: "Bank of America", weight: 0.4961}
+      - {cik: 886982, ticker: GS, name: "Goldman Sachs", weight: 0.4023}
+      - {cik: 72971, ticker: WFC, name: "Wells Fargo", weight: 0.3998}
+      - {cik: 895421, ticker: MS, name: "Morgan Stanley", weight: 0.3412}
+      - {cik: 831001, ticker: C, name: "Citigroup", weight: 0.3178}
+      - {cik: 4962, ticker: AXP, name: "American Express", weight: 0.2656}
+      - {cik: 2012383, ticker: BLK, name: "BlackRock", weight: 0.2584}
+      - {cik: 316709, ticker: SCHW, name: "Charles Schwab Corporation", weight: 0.2220}
+      - {cik: 64040, ticker: SPGI, name: "S&P Global", weight: 0.2207}
+      - {cik: 80661, ticker: PGR, name: "Progressive Corporation", weight: 0.2091}
+      - {cik: 896159, ticker: CB, name: "Chubb Limited", weight: 0.1995}
+      - {cik: 927628, ticker: COF, name: "Capital One", weight: 0.1991}
+      - {cik: 1156375, ticker: CME, name: "CME Group", weight: 0.1691}
+      - {cik: 1390777, ticker: BNY, name: "BNY Mellon", weight: 0.1540}
+      - {cik: 62709, ticker: MRSH, name: "Marsh McLennan", weight: 0.1507}
+      - {cik: 1571949, ticker: ICE, name: "Intercontinental Exchange", weight: 0.1487}
+      - {cik: 36104, ticker: USB, name: "U.S. Bancorp", weight: 0.1449}
+      - {cik: 713676, ticker: PNC, name: "PNC Financial Services", weight: 0.1421}
+      - {cik: 1393818, ticker: BX, name: "Blackstone Inc.", weight: 0.1387}
+      - {cik: 86312, ticker: TRV, name: "Travelers Companies (The)", weight: 0.1277}
+      - {cik: 1059556, ticker: MCO, name: "Moody's Corporation", weight: 0.1159}
+      - {cik: 354190, ticker: AJG, name: "Arthur J. Gallagher & Co.", weight: 0.1099}
+      - {cik: 315293, ticker: AON, name: "Aon plc", weight: 0.1085}
+      - {cik: 1404912, ticker: KKR, name: "KKR & Co.", weight: 0.1045}
+      - {cik: 899051, ticker: ALL, name: "Allstate", weight: 0.1024}
+      - {cik: 1783879, ticker: HOOD, name: "Robinhood Markets", weight: 0.1020}
+      - {cik: 92230, ticker: TFC, name: "Truist Financial", weight: 0.0940}
+      - {cik: 1858681, ticker: APO, name: "Apollo Global Management", weight: 0.0868}
+      - {cik: 4977, ticker: AFL, name: "Aflac", weight: 0.0855}
+      - {cik: 1099219, ticker: MET, name: "MetLife", weight: 0.0822}
+      - {cik: 1633917, ticker: PYPL, name: "PayPal", weight: 0.0771}
+      - {cik: 35527, ticker: FITB, name: "Fifth Third Bancorp", weight: 0.0766}
+      - {cik: 1120193, ticker: NDAQ, name: "Nasdaq, Inc.", weight: 0.0737}
+      - {cik: 1408198, ticker: MSCI, name: "MSCI", weight: 0.0715}
+      - {cik: 93751, ticker: STT, name: "State Street Corporation", weight: 0.0713}
+      - {cik: 820027, ticker: AMP, name: "Ameriprise Financial", weight: 0.0683}
+      - {cik: 5272, ticker: AIG, name: "American International Group", weight: 0.0662}
+  - ticker: JNJ
+    cik: 200406
+    name: "Johnson & Johnson"
+    sector: Health Care
+    index_weight: 1.0032
+    peers:  # the 40 largest Health Care members by SPY weight, largest first
+      - {cik: 59478, ticker: LLY, name: "Lilly (Eli)", weight: 1.7370}
+      - {cik: 1551152, ticker: ABBV, name: "AbbVie", weight: 0.7854}
+      - {cik: 310158, ticker: MRK, name: "Merck & Co.", weight: 0.5633}
+      - {cik: 731766, ticker: UNH, name: "UnitedHealth Group", weight: 0.5531}
+      - {cik: 97745, ticker: TMO, name: "Thermo Fisher Scientific", weight: 0.3885}
+      - {cik: 318154, ticker: AMGN, name: "Amgen", weight: 0.3870}
+      - {cik: 882095, ticker: GILD, name: "Gilead Sciences", weight: 0.3251}
+      - {cik: 1800, ticker: ABT, name: "Abbott Laboratories", weight: 0.2931}
+      - {cik: 78003, ticker: PFE, name: "Pfizer", weight: 0.2690}
+      - {cik: 1035267, ticker: ISRG, name: "Intuitive Surgical", weight: 0.2373}
+      - {cik: 313616, ticker: DHR, name: "Danaher Corporation", weight: 0.2193}
+      - {cik: 875320, ticker: VRTX, name: "Vertex Pharmaceuticals", weight: 0.2156}
+      - {cik: 14272, ticker: BMY, name: "Bristol Myers Squibb", weight: 0.1980}
+      - {cik: 1613103, ticker: MDT, name: "Medtronic", weight: 0.1873}
+      - {cik: 927653, ticker: MCK, name: "McKesson", weight: 0.1793}
+      - {cik: 64803, ticker: CVS, name: "CVS Health", weight: 0.1740}
+      - {cik: 310764, ticker: SYK, name: "Stryker Corporation", weight: 0.1647}
+      - {cik: 872589, ticker: REGN, name: "Regeneron Pharmaceuticals", weight: 0.1447}
+      - {cik: 1156039, ticker: ELV, name: "Elevance Health", weight: 0.1377}
+      - {cik: 1682852, ticker: MRNA, name: "Moderna", weight: 0.1261}
+      - {cik: 1739940, ticker: CI, name: "Cigna", weight: 0.1199}
+      - {cik: 860730, ticker: HCA, name: "HCA Healthcare", weight: 0.1059}
+      - {cik: 1140859, ticker: COR, name: "Cencora", weight: 0.0991}
+      - {cik: 885725, ticker: BSX, name: "Boston Scientific", weight: 0.0986}
+      - {cik: 721371, ticker: CAH, name: "Cardinal Health", weight: 0.0907}
+      - {cik: 10795, ticker: BDX, name: "Becton Dickinson", weight: 0.0830}
+      - {cik: 1099800, ticker: EW, name: "Edwards Lifesciences", weight: 0.0828}
+      - {cik: 874716, ticker: IDXX, name: "Idexx Laboratories", weight: 0.0817}
+      - {cik: 49071, ticker: HUM, name: "Humana", weight: 0.0760}
+      - {cik: 1090872, ticker: A, name: "Agilent Technologies", weight: 0.0749}
+      - {cik: 1393052, ticker: VEEV, name: "Veeva Systems", weight: 0.0705}
+      - {cik: 1000697, ticker: WAT, name: "Waters Corporation", weight: 0.0680}
+      - {cik: 1478242, ticker: IQV, name: "IQVIA", weight: 0.0652}
+      - {cik: 875045, ticker: BIIB, name: "Biogen", weight: 0.0568}
+      - {cik: 1932393, ticker: GEHC, name: "GE HealthCare", weight: 0.0552}
+      - {cik: 1555280, ticker: ZTS, name: "Zoetis", weight: 0.0528}
+      - {cik: 1110803, ticker: ILMN, name: "Illumina, Inc.", weight: 0.0526}
+      - {cik: 1037646, ticker: MTD, name: "Mettler Toledo", weight: 0.0520}
+      - {cik: 943819, ticker: RMD, name: "ResMed", weight: 0.0517}
+      - {cik: 1071739, ticker: CNC, name: "Centene Corporation", weight: 0.0505}
+  - ticker: CAT
+    cik: 18230
+    name: "Caterpillar Inc."
+    sector: Industrials
+    index_weight: 0.4340
+    peers:  # the 40 largest Industrials members by SPY weight, largest first
+      - {cik: 40545, ticker: GE, name: "GE Aerospace", weight: 0.5042}
+      - {cik: 101829, ticker: RTX, name: "RTX Corporation", weight: 0.4202}
+      - {cik: 1996810, ticker: GEV, name: "GE Vernova", weight: 0.3534}
+      - {cik: 100885, ticker: UNP, name: "Union Pacific Corporation", weight: 0.2806}
+      - {cik: 315189, ticker: DE, name: "Deere & Company", weight: 0.2580}
+      - {cik: 1551182, ticker: ETN, name: "Eaton Corporation", weight: 0.2189}
+      - {cik: 12927, ticker: BA, name: "Boeing", weight: 0.2131}
+      - {cik: 1543151, ticker: UBER, name: "Uber", weight: 0.2095}
+      - {cik: 936468, ticker: LMT, name: "Lockheed Martin", weight: 0.2009}
+      - {cik: 8670, ticker: ADP, name: "Automatic Data Processing", weight: 0.1825}
+      - {cik: 76334, ticker: PH, name: "Parker Hannifin", weight: 0.1801}
+      - {cik: 277948, ticker: CSX, name: "CSX Corporation", weight: 0.1468}
+      - {cik: 40533, ticker: GD, name: "General Dynamics", weight: 0.1461}
+      - {cik: 1050915, ticker: PWR, name: "Quanta Services", weight: 0.1439}
+      - {cik: 32604, ticker: EMR, name: "Emerson Electric", weight: 0.1426}
+      - {cik: 66740, ticker: MMM, name: "3M", weight: 0.1412}
+      - {cik: 1466258, ticker: TT, name: "Trane Technologies", weight: 0.1401}
+      - {cik: 833444, ticker: JCI, name: "Johnson Controls", weight: 0.1367}
+      - {cik: 823768, ticker: WM, name: "Waste Management", weight: 0.1359}
+      - {cik: 1674101, ticker: VRT, name: "Vertiv", weight: 0.1327}
+      - {cik: 4281, ticker: HWM, name: "Howmet Aerospace", weight: 0.1304}
+      - {cik: 1090727, ticker: UPS, name: "United Parcel Service", weight: 0.1263}
+      - {cik: 702165, ticker: NSC, name: "Norfolk Southern", weight: 0.1194}
+      - {cik: 723254, ticker: CTAS, name: "Cintas", weight: 0.1189}
+      - {cik: 49826, ticker: ITW, name: "Illinois Tool Works", weight: 0.1156}
+      - {cik: 1133421, ticker: NOC, name: "Northrop Grumman", weight: 0.1143}
+      - {cik: 1067701, ticker: URI, name: "United Rentals", weight: 0.1125}
+      - {cik: 773840, ticker: HON, name: "Honeywell Technologies", weight: 0.1093}
+      - {cik: 1048911, ticker: FDX, name: "FedEx", weight: 0.1077}
+      - {cik: 26172, ticker: CMI, name: "Cummins", weight: 0.1058}
+      - {cik: 1260221, ticker: TDG, name: "TransDigm Group", weight: 0.1029}
+      - {cik: 815556, ticker: FAST, name: "Fastenal", weight: 0.0930}
+      - {cik: 277135, ticker: GWW, name: "W. W. Grainger", weight: 0.0918}
+      - {cik: 1664703, ticker: BE, name: "Bloom Energy", weight: 0.0889}
+      - {cik: 1037868, ticker: AME, name: "Ametek", weight: 0.0855}
+      - {cik: 75362, ticker: PCAR, name: "Paccar", weight: 0.0834}
+      - {cik: 202058, ticker: LHX, name: "L3Harris", weight: 0.0801}
+      - {cik: 2089271, ticker: HONA, name: "Honeywell Aerospace", weight: 0.0772}
+      - {cik: 27904, ticker: DAL, name: "Delta Air Lines", weight: 0.0761}
+      - {cik: 1024478, ticker: ROK, name: "Rockwell Automation", weight: 0.0755}
+
+# Draft news allowlist (Technical Plan §9). An entry is a site, or one section of a site.
+# Some of these are often paywalled; the news script measures how many pages can be read.
+allowlist:
+  - reuters.com
+  - apnews.com
+  - cnbc.com
+  - marketwatch.com
+  - finance.yahoo.com
+  - fortune.com
+  - axios.com
+  - bbc.com/news/business
+  - theguardian.com/business
+  - npr.org
+  - fool.com
+  - investopedia.com/news
+  - barrons.com
+  - wsj.com
+  - ft.com
+  - bloomberg.com
+  - nytimes.com
+  - techcrunch.com
+  - theverge.com
+  - arstechnica.com
+  - statnews.com
+  - fiercepharma.com
+  - fiercebiotech.com
+  - americanbanker.com
+  - bankingdive.com
+  - supplychaindive.com
+  - constructiondive.com
+  - retaildive.com
+  - businesswire.com
+  - prnewswire.com
+  - globenewswire.com
+  - goldmansachs.com/insights
+  - morganstanley.com/insights
+  - jpmorgan.com/insights
+  - blackrock.com/corporate/insights
+  - schwab.com/learn/story
+
+# Draft link-search prompt (item 7). Code fills {company}, {ticker}, {start}, {end} and
+# {sites}. Only the links in the answer are used, never its wording.
+link_search_prompt: |
+  Find recent news coverage and commentary about {company} (ticker {ticker}) published
+  between {start} and {end}. Use web search. Look on these sites: {sites}.
+  Return up to 20 links to individual articles, newest first: news stories, analysis,
+  interviews and commentary from banks or fund managers. Leave out home pages, topic or
+  tag pages, video pages, stock-quote pages and press-release lists. For each link give
+  its full address, the article's title and the publisher, as the page shows them.
+
+# Draft extraction prompt (step 10). One call per filing section.
+extraction_prompt: |
+  You are reading one section of {company}'s {form} filing with SEC: {section}.
+  Pull out the evidence a research report on the company would need: the main risks,
+  the drivers of its results, management's guidance and outlook, its competition,
+  industry trends it describes, and notable events. Write each item as one plain
+  statement in your own words, and cite the IDs of the source paragraphs that support it.
+  Rules:
+  - Use only the source paragraphs. Do not add outside knowledge.
+  - Do not write any numbers, amounts or percentages; describe direction and size in
+    words ("rose", "a large share") instead. Code supplies every number later.
+  - Return at most 12 items, the most important first. If the section has nothing useful,
+    return an empty list.
+
+# Draft narration prompt (step 11), used once per company by the usage script for a
+# narration-sized call on section 4.
+narration_prompt: |
+  Write section 4 of a research report on {company}: "Business and competitive position".
+  Use only the evidence items and the source paragraphs given. Write 5 to 8 sentences in
+  plain language. Each sentence cites the IDs of the paragraphs that support it, and is
+  labelled positive, negative or neutral about the stock. Do not write any digits or
+  number words. Do not give advice or a rating. Set "section" to "business".

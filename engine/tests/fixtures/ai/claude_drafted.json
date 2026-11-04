@@ -1,0 +1,65 @@
+[
+  {
+    "tool": "claude",
+    "signal": "Invalid API key · Please run /login",
+    "expected": "AIAuthError",
+    "source": "drafted; replace with Phase 0 recordings (scripts/phase0/signals.py)"
+  },
+  {
+    "tool": "claude",
+    "signal": "Not logged in · Please run /login",
+    "expected": "AIAuthError",
+    "source": "drafted"
+  },
+  {
+    "tool": "claude",
+    "signal": "OAuth token has expired. Please obtain a new token or refresh your existing token.",
+    "expected": "AIAuthError",
+    "source": "drafted"
+  },
+  {
+    "tool": "claude",
+    "signal": "assistant_error=authentication_failed | Failed to authenticate | subtype=success",
+    "expected": "AIAuthError",
+    "source": "drafted from the Agent SDK's AssistantMessage.error values"
+  },
+  {
+    "tool": "claude",
+    "signal": "Claude AI usage limit reached|1793768400",
+    "expected": "AIUsageLimit",
+    "reset_at": "2026-11-04T05:00:00+00:00",
+    "source": "drafted; replace with a saved usage-limit message (logs/ai-signals/)"
+  },
+  {
+    "tool": "claude",
+    "signal": "You've hit your limit · resets 3pm (America/New_York)",
+    "expected": "AIUsageLimit",
+    "reset_at": "3pm (America/New_York)",
+    "source": "drafted"
+  },
+  {
+    "tool": "claude",
+    "signal": "rate_limit_status=rejected resets_at=1793768400",
+    "expected": "AIUsageLimit",
+    "reset_at": "2026-11-04T05:00:00+00:00",
+    "source": "drafted from the Agent SDK's RateLimitEvent"
+  },
+  {
+    "tool": "claude",
+    "signal": "API Error: 529 {\"type\":\"error\",\"error\":{\"type\":\"overloaded_error\",\"message\":\"Overloaded\"}}",
+    "expected": "AIUnavailable",
+    "source": "drafted"
+  },
+  {
+    "tool": "claude",
+    "signal": "API Error: 500 Internal server error",
+    "expected": "AIUnavailable",
+    "source": "drafted"
+  },
+  {
+    "tool": "claude",
+    "signal": "Something unexpected happened in the program",
+    "expected": "AIUnavailable",
+    "source": "an unknown error"
+  }
+]

@@ -1,0 +1,64 @@
+# Tearsheet
+
+A Mac app for personal research. You type an S&P 500 company name or ticker, and get one research report in which every claim is cited.
+
+**What it is.** Code builds every number: the metrics, the factor score, the Buy/Hold/Sell rating and the 12-month price range, all from public data. Your own AI tool, Claude Code or Codex, signed in to the subscription you already pay for, reads the filings and articles and writes the cited narrative. It runs with no tools, and it is never asked for a number. Code and a second AI pass check every claim before you see it.
+
+**What it is not.** It doesn't claim to beat the market, and it doesn't trade. It gives no advice tailored to you. For large US stocks, the best published models explain under 5% of a stock's 12-month return. So Tearsheet aims to be accurate, traceable and honest about uncertainty, not to out-predict anyone.
+
+> **Not financial advice.** Reports are general research, not personalised investment advice. Check the sources and make your own decisions.
+
+## Status
+
+**Phase 0: week-one tests.** The engine has what those tests need: the shared HTTP client, the raw-data store, the SEC client, the article downloader, the Claude Code connector and three commands (`lockdown-check`, `set-key` and `set-setting`). The full report arrives in Phase 1, and the Mac window after it. The design is in [docs/designs/tearsheet.md](docs/designs/tearsheet.md), and the Phase 0 results go in [docs/phase0-results.md](docs/phase0-results.md).
+
+## Requirements
+
+*   macOS, with Python 3.12 and [`uv`](https://docs.astral.sh/uv/).
+*   Claude Code, installed and signed in (`claude auth login`). Codex support arrives in Phase 2.
+*   Free keys for Massive (prices), FRED (economic series) and Alpha Vantage (analyst consensus). They are stored in the macOS Keychain under the service name `Tearsheet`, never in files.
+*   A contact email for SEC, which asks every program for one.
+
+## Terminal mode
+
+From the repository root:
+
+```bash
+cd engine && uv sync && cd ..
+uv run --project engine tearsheet-engine set-key massive
+uv run --project engine tearsheet-engine set-setting sec_contact_email you@example.com
+uv run --project engine tearsheet-engine lockdown-check
+```
+
+`set-key` reads the key from a hidden prompt. `lockdown-check` checks that Claude Code runs with no tools, no user settings and your subscription sign-in. Every command takes `--data-dir`. The default data folder is `~/Library/Application Support/Tearsheet/`.
+
+The Phase 0 test scripts and their commands are listed in [docs/phase0-results.md](docs/phase0-results.md).
+
+## What leaves your Mac
+
+Nothing leaves your Mac except what this table lists (design, Technical Plan §12). Reports, the prediction log and raw downloads stay on your computer.
+
+| Service | Key needed | Cost | What is sent |
+| :-- | :-- | :-- | :-- |
+| SEC EDGAR | None (each request carries the contact email you enter) | Free | Requests for the company's and peers' filings |
+| iShares (BlackRock) | None | Free | A download of the IVV holdings file, at most once a day |
+| Massive | Your free key | Free plan | The tickers researched and their peers |
+| FRED | Your free key | Free | Requests for the listed economic series |
+| Alpha Vantage | Your free key | Free (25 calls a day) | The ticker researched (analyst consensus) |
+| Article sites on the allowlist | None | Free | Page requests |
+| Claude Code (Anthropic) or Codex (OpenAI) | Your own sign-in | Your existing subscription | Filing and article text, the computed numbers sent with that text, and draft sections. Whether each tool keeps its own session history of these calls is checked in Phase 0. |
+| Benzinga through Massive | Only if you choose the paid analyst option | $99/month | The ticker researched |
+
+## Development
+
+```bash
+cd engine
+uv run pytest
+uv run ruff check . ../scripts
+```
+
+The tests run offline. Tests marked `live` are skipped unless you run `uv run pytest -m live`.
+
+## License
+
+MIT. See [LICENSE](LICENSE).

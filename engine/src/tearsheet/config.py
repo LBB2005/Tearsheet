@@ -1,0 +1,249 @@
+"""Settings, paths and keys (design item 3).
+
+Values marked "confirmed in Phase 0" are the believed values. Each has a row in
+docs/phase0-results.md, and is changed here once the live test settles it.
+"""
+
+from __future__ import annotations
+
+import os
+import re
+import shutil
+import sqlite3
+from collections.abc import Callable
+from dataclasses import dataclass
+from pathlib import Path
+
+import keyring
+
+from tearsheet import ENGINE_VERSION
+
+# --- Paths -------------------------------------------------------------------
+
+DEFAULT_DATA_DIR = Path.home() / "Library" / "Application Support" / "Tearsheet"
+DEFAULT_BACKUP_DIR = Path.home() / "Tearsheet Backups"
+DATA_DIR_ENV = "TEARSHEET_DATA_DIR"
+
+
+@dataclass(frozen=True)
+class Paths:
+    """Where one data folder keeps its database, raw downloads and logs."""
+
+    data_dir: Path
+
+    @property
+    def db(self) -> Path:
+        return self.data_dir / "tearsheet.sqlite"
+
+    @property
+    def raw(self) -> Path:
+        return self.data_dir / "raw"
+
+    @property
+    def logs(self) -> Path:
+        return self.data_dir / "logs"
+
+    def ensure(self) -> Paths:
+        for folder in (self.data_dir, self.raw, self.logs):
+            folder.mkdir(parents=True, exist_ok=True)
+        return self
+
+
+def resolve_data_dir(cli_value: str | os.PathLike[str] | None = None) -> Path:
+    """`--data-dir`, then `TEARSHEET_DATA_DIR`, then the default folder."""
+    chosen = cli_value or os.environ.get(DATA_DIR_ENV)
+    return Path(chosen).expanduser() if chosen else DEFAULT_DATA_DIR
+
+
+# --- Keys (macOS Keychain) ---------------------------------------------------
+
+KEYCHAIN_SERVICE = "Tearsheet"
+KEY_SERVICES = ("massive", "fred", "alphavantage")
+
+
+def _check_key_service(service: str) -> None:
+    if service not in KEY_SERVICES:
+        raise ValueError(f"Unknown key '{service}'. Keys are: {', '.join(KEY_SERVICES)}.")
+
+
+def get_key(service: str) -> str | None:
+    """Read one data key from the Keychain. Keys are never logged or sent to the window."""
+    _check_key_service(service)
+    return keyring.get_password(KEYCHAIN_SERVICE, service)
+
+
+def set_key(service: str, value: str) -> None:
+    _check_key_service(service)
+    keyring.set_password(KEYCHAIN_SERVICE, service, value)
+
+
+# --- Run limits (Technical Plan §3, item 8) ----------------------------------
+
+CALL_BUDGET = 50
+AI_CALLS_IN_PARALLEL = 3
+AI_CALL_TIME_LIMIT_S = 300
+AI_RETRY_WAIT_S = 30
+TOOL_VERSION_TIME_LIMIT_S = 5
+
+# The model for each step on Claude Code: the smaller model reads, the larger one writes.
+# Confirmed in Phase 0 (believed: the program accepts these aliases).
+CLAUDE_MODELS = {
+    "extract": "haiku",
+    "narrate": "sonnet",
+    "skeptic": "sonnet",
+    "link_search": "sonnet",
+}
+# Codex's models are chosen when its connector is built (Phase 2).
+
+# --- Raw-data folder (Technical Plan §6) -------------------------------------
+
+RAW_CAP_BYTES = 5 * 1024**3
+RAW_CAP_WARN_SHARE = 0.9
+
+# --- Outside services (item 4) -----------------------------------------------
+
+SEC_REQUESTS_PER_SECOND = 8
+# Massive's free plan. Confirmed in Phase 0.
+MASSIVE_CALLS_PER_MINUTE = 5
+MASSIVE_HISTORY_YEARS = 2
+ALPHAVANTAGE_CALLS_PER_DAY = 25
+
+# Massive's address and endpoints, believed to be Polygon's paths. Confirmed in Phase 0;
+# they move to data/prices.py in Phase 1.
+MASSIVE_BASE_URL = "https://api.massive.com"
+MASSIVE_DAILY_BARS = "/v2/aggs/ticker/{ticker}/range/1/day/{start}/{end}"
+MASSIVE_DIVIDENDS = "/v3/reference/dividends"
+MASSIVE_SPLITS = "/v3/reference/splits"
+MASSIVE_DAILY_SUMMARY = "/v2/aggs/grouped/locale/us/market/stocks/{day}"
+
+
+# --- Settings ----------------------------------------------------------------
+
+
+class SettingMissing(Exception):
+    """A setting the user must enter once is not set. The message says how to set it."""
+
+
+_EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def _email(value: str) -> str:
+    if not _EMAIL.match(value):
+        raise ValueError("That doesn't look like an email address.")
+    return value
+
+
+def _choice(*options: str) -> Callable[[str], str]:
+    def check(value: str) -> str:
+        if value not in options:
+            raise ValueError(f"Choose one of: {', '.join(options)}.")
+        return value
+
+    return check
+
+
+def _positive_number(value: str) -> str:
+    try:
+        number = float(value)
+    except ValueError:
+        raise ValueError("Enter a number.") from None
+    if number <= 0:
+        raise ValueError("Enter a number above zero.")
+    return value
+
+
+@dataclass(frozen=True)
+class SettingSpec:
+    description: str
+    check: Callable[[str], str]
+
+
+# The settings a user may change with `set-setting`. Internal values (such as the
+# Alpha Vantage day count) share the settings table but are not listed here.
+SETTINGS: dict[str, SettingSpec] = {
+    "sec_contact_email": SettingSpec(
+        "The contact email SEC sees on every request (SEC asks every program for one).", _email
+    ),
+    "primary_tool": SettingSpec(
+        "The AI tool that runs reports: claude or codex.", _choice("claude", "codex")
+    ),
+    "claude_mode": SettingSpec(
+        "How the engine runs Claude Code: sdk (the Agent SDK) or cli (the program directly).",
+        _choice("sdk", "cli"),
+    ),
+    "claude_billing": SettingSpec(
+        "subscription (the default) or api. Only api passes ANTHROPIC_API_KEY to Claude Code.",
+        _choice("subscription", "api"),
+    ),
+    "raw_cap_gb": SettingSpec(
+        "The raw-data folder's size cap, in GB (default 5).", _positive_number
+    ),
+    "massive_calls_per_minute": SettingSpec(
+        "Massive's call limit per minute (default 5, the free plan).", _positive_number
+    ),
+}
+
+
+class Settings:
+    """Reads and writes the `settings` table. The engine is its only writer."""
+
+    def __init__(self, conn: sqlite3.Connection):
+        self._conn = conn
+
+    def get(self, key: str, default: str | None = None) -> str | None:
+        row = self._conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+        return row[0] if row else default
+
+    def set(self, key: str, value: str) -> str:
+        """Set a user setting after checking it. Returns the stored value."""
+        spec = SETTINGS.get(key)
+        if spec is None:
+            raise ValueError(f"Unknown setting '{key}'. Settings are: {', '.join(SETTINGS)}.")
+        stored = spec.check(value.strip())
+        self.set_internal(key, stored)
+        return stored
+
+    def set_internal(self, key: str, value: str) -> None:
+        with self._conn:
+            self._conn.execute(
+                "INSERT INTO settings (key, value) VALUES (?, ?) "
+                "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                (key, value),
+            )
+
+    def number(self, key: str, default: float) -> float:
+        value = self.get(key)
+        return float(value) if value is not None else default
+
+
+def sec_user_agent(settings: Settings) -> str:
+    """`Tearsheet/<version> <email>`. No email is built in."""
+    email = settings.get("sec_contact_email")
+    if not email:
+        raise SettingMissing(
+            "SEC asks every program for a contact email. Set yours once with: "
+            "tearsheet-engine set-setting sec_contact_email you@example.com"
+        )
+    return f"Tearsheet/{ENGINE_VERSION} {email}"
+
+
+# --- AI tools ------------------------------------------------------------------
+
+CLAUDE_BIN_ENV = "TEARSHEET_CLAUDE_BIN"
+CODEX_BIN_ENV = "TEARSHEET_CODEX_BIN"
+PATH_ENV = "TEARSHEET_PATH"
+_PROGRAM_ENV = {"claude": CLAUDE_BIN_ENV, "codex": CODEX_BIN_ENV}
+
+
+def tool_search_path() -> str:
+    """The PATH passed in by the app, or this process's PATH in terminal mode."""
+    return os.environ.get(PATH_ENV) or os.environ.get("PATH", "")
+
+
+def find_program(tool: str) -> Path | None:
+    """The app passes each program's path; in terminal mode it is looked up on PATH."""
+    passed = os.environ.get(_PROGRAM_ENV[tool])
+    if passed:
+        return Path(passed)
+    found = shutil.which(tool, path=tool_search_path())
+    return Path(found) if found else None
