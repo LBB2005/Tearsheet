@@ -1,0 +1,376 @@
+{
+  "tool": "claude",
+  "allowlist": [
+    "reuters.com",
+    "apnews.com",
+    "cnbc.com",
+    "marketwatch.com",
+    "finance.yahoo.com",
+    "fortune.com",
+    "axios.com",
+    "bbc.com/news/business",
+    "theguardian.com/business",
+    "npr.org",
+    "fool.com",
+    "investopedia.com/news",
+    "barrons.com",
+    "wsj.com",
+    "ft.com",
+    "bloomberg.com",
+    "nytimes.com",
+    "techcrunch.com",
+    "theverge.com",
+    "arstechnica.com",
+    "statnews.com",
+    "fiercepharma.com",
+    "fiercebiotech.com",
+    "americanbanker.com",
+    "bankingdive.com",
+    "supplychaindive.com",
+    "constructiondive.com",
+    "retaildive.com",
+    "businesswire.com",
+    "prnewswire.com",
+    "globenewswire.com",
+    "goldmansachs.com/insights",
+    "morganstanley.com/insights",
+    "jpmorgan.com/insights",
+    "blackrock.com/corporate/insights",
+    "schwab.com/learn/story"
+  ],
+  "tickers": [
+    {
+      "ticker": "AAPL",
+      "run_id": "phase0-news-AAPL-20261105T014252Z",
+      "suggested": 3,
+      "kept": 3,
+      "allowlist_share": 1.0,
+      "readable": 1,
+      "readable_share": 0.333,
+      "readable_in_30_days": 1,
+      "not_read": {
+        "paywalled": 2
+      },
+      "off_allowlist_sites": [],
+      "articles": [
+        {
+          "url": "https://www.cnbc.com/2026/11/02/apple-aapl-q4-2026-earnings-live-updates.html",
+          "published": "2026-11-02",
+          "words": 419
+        }
+      ],
+      "raw_bytes_stored": 382717,
+      "passed": false
+    },
+    {
+      "ticker": "AMZN",
+      "run_id": "phase0-news-AMZN-20261105T014323Z",
+      "suggested": 8,
+      "kept": 8,
+      "allowlist_share": 1.0,
+      "readable": 7,
+      "readable_share": 0.875,
+      "readable_in_30_days": 7,
+      "not_read": {
+        "fewer than 150 words": 1
+      },
+      "off_allowlist_sites": [],
+      "articles": [
+        {
+          "url": "https://finance.yahoo.com/markets/stocks/articles/amazon-climbs-5-upgrade-fuels-165737997.html",
+          "published": "2026-11-02",
+          "words": 459
+        },
+        {
+          "url": "https://www.fool.com/investing/2026/10/30/amazon-s-earnings-dip-one-furlong-in-a-long-race/",
+          "published": "2026-10-30",
+          "words": 575
+        },
+        {
+          "url": "https://finance.yahoo.com/markets/stocks/articles/stock-market-today-oct-30-213502210.html",
+          "published": "2026-10-30",
+          "words": 398
+        },
+        {
+          "url": "https://www.cnbc.com/2026/10/29/amazon-amzn-q3-earnings-report-2026.html",
+          "published": "2026-10-29",
+          "words": 700
+        },
+        {
+          "url": "https://www.fool.com/investing/2026/10/29/aws-jumps-39-as-amazons-cash-flow-sinks-rapid-earn/",
+          "published": "2026-10-29",
+          "words": 291
+        },
+        {
+          "url": "https://finance.yahoo.com/markets/stocks/articles/amazon-stocks-edge-higher-ahead-173238108.html",
+          "published": "2026-10-28",
+          "words": 236
+        },
+        {
+          "url": "https://finance.yahoo.com/markets/stocks/articles/amazon-com-amzn-undervalued-investors-180936160.html",
+          "published": "2026-10-27",
+          "words": 409
+        }
+      ],
+      "raw_bytes_stored": 1130118,
+      "passed": true
+    },
+    {
+      "ticker": "JPM",
+      "run_id": "phase0-news-JPM-20261105T014351Z",
+      "suggested": 10,
+      "kept": 10,
+      "allowlist_share": 1.0,
+      "readable": 5,
+      "readable_share": 0.5,
+      "readable_in_30_days": 5,
+      "not_read": {
+        "paywalled": 5
+      },
+      "off_allowlist_sites": [],
+      "articles": [
+        {
+          "url": "https://www.fool.com/investing/2026/11/02/bank-stocks-buy-buyback-plans-30-billion/",
+          "published": "2026-11-02",
+          "words": 704
+        },
+        {
+          "url": "https://www.fool.com/earnings/takeaways/2026/10/16/jpmorgan-chase-3-key-takeaways-for-long-term-investors/",
+          "published": "2026-10-16",
+          "words": 479
+        },
+        {
+          "url": "https://www.cnbc.com/2026/10/13/jpmorgan-ai-agents-account-access.html",
+          "published": "2026-10-13",
+          "words": 590
+        },
+        {
+          "url": "https://www.cnbc.com/2026/10/13/bank-earnings-live-updates.html",
+          "published": "2026-10-13",
+          "words": 156
+        },
+        {
+          "url": "https://www.fool.com/earnings/call-transcripts/2026/10/13/jpmorgan-chase-jpm-q3-2026-earnings-call-transcript/",
+          "published": "2026-10-13",
+          "words": 11196
+        }
+      ],
+      "raw_bytes_stored": 851623,
+      "passed": true
+    },
+    {
+      "ticker": "JNJ",
+      "run_id": "phase0-news-JNJ-20261105T014502Z",
+      "suggested": 9,
+      "kept": 9,
+      "allowlist_share": 1.0,
+      "readable": 7,
+      "readable_share": 0.778,
+      "readable_in_30_days": 6,
+      "not_read": {
+        "paywalled": 1,
+        "refused download (HTTP 404)": 1
+      },
+      "off_allowlist_sites": [],
+      "articles": [
+        {
+          "url": "https://www.fool.com/earnings/takeaways/2026/10/16/johnson-johnson-3-key-takeaways-for-long-term-investors/",
+          "published": "2026-10-16",
+          "words": 497
+        },
+        {
+          "url": "https://www.fool.com/earnings/call-transcripts/2026/10/13/jj-jnj-q3-2026-earnings-call-transcript/",
+          "published": "2026-10-13",
+          "words": 10768
+        },
+        {
+          "url": "https://www.cnbc.com/2026/10/13/jnj-earnings-q3-2026.html",
+          "published": "2026-10-13",
+          "words": 574
+        },
+        {
+          "url": "https://finance.yahoo.com/healthcare/articles/johnson-johnson-beats-third-quarter-123822189.html",
+          "published": "2026-10-13",
+          "words": 347
+        },
+        {
+          "url": "https://finance.yahoo.com/healthcare/articles/johnson-johnson-jnj-said-q3-160303117.html",
+          "published": "2026-10-13",
+          "words": 360
+        },
+        {
+          "url": "https://finance.yahoo.com/healthcare/articles/johnson-johnson-q3-2026-earnings-165031406.html",
+          "published": "2026-10-13",
+          "words": 387
+        },
+        {
+          "url": "https://finance.yahoo.com/healthcare/articles/j-j-talks-sell-depuy-135349181.html",
+          "published": "2026-09-14",
+          "words": 337
+        }
+      ],
+      "raw_bytes_stored": 1093031,
+      "passed": true
+    },
+    {
+      "ticker": "CAT",
+      "run_id": "phase0-news-CAT-20261105T014536Z",
+      "suggested": 6,
+      "kept": 6,
+      "allowlist_share": 1.0,
+      "readable": 5,
+      "readable_share": 0.833,
+      "readable_in_30_days": 5,
+      "not_read": {
+        "paywalled": 1
+      },
+      "off_allowlist_sites": [],
+      "articles": [
+        {
+          "url": "https://finance.yahoo.com/markets/stocks/articles/caterpillar-stock-slumps-9-despite-131620508.html",
+          "published": "2026-10-29",
+          "words": 373
+        },
+        {
+          "url": "https://finance.yahoo.com/markets/stocks/articles/why-caterpillar-cat-shares-falling-193634648.html",
+          "published": "2026-10-29",
+          "words": 387
+        },
+        {
+          "url": "https://finance.yahoo.com/markets/stocks/articles/caterpillar-sales-17-margin-hits-172551142.html",
+          "published": "2026-10-29",
+          "words": 453
+        },
+        {
+          "url": "https://finance.yahoo.com/markets/stocks/articles/caterpillar-fell-nearly-25-over-111546445.html",
+          "published": "2026-10-30",
+          "words": 473
+        },
+        {
+          "url": "https://finance.yahoo.com/markets/stocks/articles/caterpillar-cat-reports-next-week-130021104.html",
+          "published": "2026-10-22",
+          "words": 444
+        }
+      ],
+      "raw_bytes_stored": 969055,
+      "passed": true
+    }
+  ],
+  "calls": [
+    {
+      "tool": "claude",
+      "program_version": "2.1.317 (Claude Code)",
+      "model_id": "claude-sonnet-5-5",
+      "prompt_version": "draft",
+      "task": "link_search",
+      "attempt": 1,
+      "outcome": "ok",
+      "duration_s": 27.9,
+      "tokens": {
+        "input_tokens": 8,
+        "cache_creation_input_tokens": 6422,
+        "cache_read_input_tokens": 11395,
+        "output_tokens": 1057
+      },
+      "rate_limit": {
+        "status": "allowed",
+        "resets_at": 1794402000,
+        "type": "seven_day",
+        "utilization": null
+      },
+      "counted": true
+    },
+    {
+      "tool": "claude",
+      "program_version": "2.1.317 (Claude Code)",
+      "model_id": "claude-sonnet-5-5",
+      "prompt_version": "draft",
+      "task": "link_search",
+      "attempt": 1,
+      "outcome": "ok",
+      "duration_s": 22.983,
+      "tokens": {
+        "input_tokens": 8,
+        "cache_creation_input_tokens": 3852,
+        "cache_read_input_tokens": 9252,
+        "output_tokens": 1511
+      },
+      "rate_limit": {
+        "status": "allowed",
+        "resets_at": 1794402000,
+        "type": "seven_day",
+        "utilization": null
+      },
+      "counted": true
+    },
+    {
+      "tool": "claude",
+      "program_version": "2.1.317 (Claude Code)",
+      "model_id": "claude-sonnet-5-5",
+      "prompt_version": "draft",
+      "task": "link_search",
+      "attempt": 1,
+      "outcome": "ok",
+      "duration_s": 62.477,
+      "tokens": {
+        "input_tokens": 14,
+        "cache_creation_input_tokens": 11473,
+        "cache_read_input_tokens": 44279,
+        "output_tokens": 2152
+      },
+      "rate_limit": {
+        "status": "allowed",
+        "resets_at": 1794402000,
+        "type": "seven_day",
+        "utilization": null
+      },
+      "counted": true
+    },
+    {
+      "tool": "claude",
+      "program_version": "2.1.317 (Claude Code)",
+      "model_id": "claude-sonnet-5-5",
+      "prompt_version": "draft",
+      "task": "link_search",
+      "attempt": 1,
+      "outcome": "ok",
+      "duration_s": 28.164,
+      "tokens": {
+        "input_tokens": 8,
+        "cache_creation_input_tokens": 6540,
+        "cache_read_input_tokens": 15399,
+        "output_tokens": 1423
+      },
+      "rate_limit": {
+        "status": "allowed",
+        "resets_at": 1794402000,
+        "type": "seven_day",
+        "utilization": null
+      },
+      "counted": true
+    },
+    {
+      "tool": "claude",
+      "program_version": "2.1.317 (Claude Code)",
+      "model_id": "claude-sonnet-5-5",
+      "prompt_version": "draft",
+      "task": "link_search",
+      "attempt": 1,
+      "outcome": "ok",
+      "duration_s": 41.255,
+      "tokens": {
+        "input_tokens": 14,
+        "cache_creation_input_tokens": 8388,
+        "cache_read_input_tokens": 35617,
+        "output_tokens": 1817
+      },
+      "rate_limit": {
+        "status": "allowed",
+        "resets_at": 1794402000,
+        "type": "seven_day",
+        "utilization": null
+      },
+      "counted": true
+    }
+  ]
+}

@@ -105,8 +105,10 @@ RAW_CAP_WARN_SHARE = 0.9
 SEC_REQUESTS_PER_SECOND = 8
 # Massive's free plan. Confirmed in Phase 0.
 MASSIVE_CALLS_PER_MINUTE = 5
-MASSIVE_HISTORY_YEARS = 2
+MASSIVE_HISTORY_YEARS = 5  # confirmed in Phase 0 (2026-11-04): SPY starts 2021-11-05
 ALPHAVANTAGE_CALLS_PER_DAY = 25
+# Seen in Phase 0 (2026-11-05): two calls in the same second got "1 request per second".
+ALPHAVANTAGE_REQUESTS_PER_SECOND = 1
 
 # Massive's address and endpoints, believed to be Polygon's paths. Confirmed in Phase 0;
 # they move to data/prices.py in Phase 1.

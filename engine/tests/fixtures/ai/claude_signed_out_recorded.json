@@ -1,0 +1,6 @@
+{
+  "tool": "claude",
+  "signal": "assistant_error=authentication_failed | Claude Code returned an error result: Not logged in \u00b7 Please run /login (exit code: 1)  | Not logged in \u00b7 Please run /login | subtype=success",
+  "expected": "AIAuthError",
+  "source": "recorded by scripts/phase0/signals.py on 2026-11-04"
+}

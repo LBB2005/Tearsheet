@@ -373,6 +373,9 @@ class HttpClient:
             ),
             "alphavantage": Service(
                 "alphavantage",
+                limiter=RateLimiter.per_second(
+                    config.ALPHAVANTAGE_REQUESTS_PER_SECOND, clock=clock, sleep=sleep
+                ),
                 daily=DailyCounter(settings, "alphavantage", config.ALPHAVANTAGE_CALLS_PER_DAY)
                 if settings
                 else None,

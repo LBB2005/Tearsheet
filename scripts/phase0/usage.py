@@ -111,7 +111,8 @@ def history_folders() -> set[str]:
 
 
 def per_call(before: float | None, after: float | None, calls: int) -> float | None:
-    if before is None or after is None or calls == 0:
+    # A reading that goes down is a typo or a window that reset mid-test: not measurable.
+    if before is None or after is None or calls == 0 or after < before:
         return None
     return (after - before) / calls
 

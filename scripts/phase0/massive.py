@@ -151,9 +151,7 @@ async def daily_summary(calls: Calls, session: date, calls_per_minute: float) ->
         "session": str(session),
         "available": bool(rows),
         "stocks_in_summary": len(rows),
-        "projected_backfill_minutes": round(BACKFILL_CALLS * 60 / calls_per_minute, 1)
-        if rows
-        else None,
+        "projected_backfill_minutes": round(BACKFILL_CALLS / calls_per_minute, 1) if rows else None,
     }
 
 

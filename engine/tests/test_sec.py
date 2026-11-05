@@ -15,9 +15,10 @@ from tearsheet.data.sec import (
     Filing,
     SECClient,
     auditor_report,
-    has_open_market_purchase,
+    filed_for_months,
     parse_filing_index,
     press_release_filings,
+    purchase_months,
     split_sections,
     year_earlier,
 )
@@ -66,6 +67,15 @@ def submissions(cik: int) -> dict:
 FORMS = {r[0].replace("-", ""): (r[1], r[5]) for cik in [COMPANY, *PEERS] for r in rows_for(cik)}
 
 
+def form4_xml(code: str, transaction_date: str) -> bytes:
+    return (
+        "<ownershipDocument><nonDerivativeTable><nonDerivativeTransaction>"
+        f"<transactionDate><value>{transaction_date}</value></transactionDate>"
+        f"<transactionCoding><transactionCode>{code}</transactionCode></transactionCoding>"
+        "</nonDerivativeTransaction></nonDerivativeTable></ownershipDocument>"
+    ).encode()
+
+
 def index_page(cik: str, folder: str) -> str:
     form, primary = FORMS[folder]
     rows = [(form, primary)]
@@ -90,10 +100,10 @@ def archive(request: httpx.Request) -> httpx.Response:
     if name.endswith("-index.htm"):
         return httpx.Response(200, html=index_page(cik, folder))
     if name.endswith(".xml"):
-        xml = "<ownershipDocument><nonDerivativeTable><nonDerivativeTransaction><transactionCoding>"
-        xml += "<transactionCode>S</transactionCode></transactionCoding></nonDerivativeTransaction>"
-        xml += "</nonDerivativeTable></ownershipDocument>"
-        return httpx.Response(200, content=xml.encode(), headers={"content-type": "text/xml"})
+        # A file named buy-YYYY-MM-DD.xml reports an open-market purchase on that date.
+        bought = re.match(r"buy-(\d{4}-\d{2}-\d{2})\.xml$", name)
+        xml = form4_xml("P", bought.group(1)) if bought else form4_xml("S", "2026-08-29")
+        return httpx.Response(200, content=xml, headers={"content-type": "text/xml"})
     return httpx.Response(200, html=f"<html><body><p>{name}</p></body></html>")
 
 
@@ -156,6 +166,52 @@ def test_first_run_fetches_the_report_filings(database, tmp_path):
     assert requests["company_facts"] == 3
     assert requests["submissions"] == 3
     assert requests["form4"] == 1
+
+
+def test_a_recent_purchase_fetches_only_the_same_months_in_earlier_years(
+    database, tmp_path, monkeypatch
+):
+    # A purchase on 2026-10-02 (recent). The routine test asks whether this insider bought
+    # in October of each prior year, so only older Form 4s filed in October (or in the
+    # first days of November, for late-October trades) are needed. Phase 0 found CAT
+    # fetching all 292 older Form 4s instead.
+    stem = f"{COMPANY:010d}"
+    form4s = [
+        ("26-000020", "2026-10-06", "xslF345X05/buy-2026-10-02.xml"),  # recent, a purchase
+        ("25-000020", "2025-10-03", "xslF345X05/a.xml"),  # October: needed
+        ("25-000021", "2025-11-04", "xslF345X05/b.xml"),  # early November: needed
+        ("25-000022", "2025-06-10", "xslF345X05/c.xml"),  # June: not needed
+        ("24-000020", "2024-10-15", "xslF345X05/d.xml"),  # October: needed
+        ("24-000021", "2024-11-20", "xslF345X05/e.xml"),  # late November: not needed
+        ("23-000020", "2023-10-20", "xslF345X05/f.xml"),  # October: needed
+    ]
+    original = rows_for
+
+    def with_form4s(cik: int):
+        rows = original(cik)
+        if cik == COMPANY:
+            rows += [(f"{stem}-{acc}", "4", filed, "", "", doc) for acc, filed, doc in form4s]
+        return rows
+
+    monkeypatch.setattr(f"{__name__}.rows_for", with_form4s)
+    with respx.mock as mock:
+        mock_edgar(mock)
+        bundle, requests = fetch(
+            database,
+            tmp_path / "raw",
+            run_id="first",
+            today=TODAY,
+            now=datetime(2026, 11, 3, 15, tzinfo=UTC),
+        )
+    assert bundle.form4_purchase
+    fetched = {
+        row[0].rsplit("/", 1)[-1]
+        for row in database.conn.execute(
+            "SELECT request_key FROM fetch_log WHERE request_key LIKE '%.xml'"
+        )
+    }
+    assert fetched == {"wk-form4_1.xml", "buy-2026-10-02.xml", "a.xml", "b.xml", "d.xml", "f.xml"}
+    assert requests["form4"] == 6
 
 
 def test_a_second_run_on_the_same_day_makes_no_requests(database, tmp_path):
@@ -250,6 +306,35 @@ def test_edgartools_reads_only_stored_documents(rawstore, monkeypatch):
     assert attempts == []
 
 
+REPORT_HEADING = "Report of Independent Registered Public Accounting Firm"
+REPORT_START = f"{REPORT_HEADING}\n\nTo the Board of Directors and Shareholders of Bank Co.:\n\n"
+
+
+def test_the_auditors_report_is_found_outside_item_8():
+    # JPM's 10-K (Phase 0): items are out of order, so edgartools puts the auditor's report
+    # at the end of "Item 7", while "Item 8" starts at the income statement. A
+    # table-of-contents mention in Item 15 must not be taken for the report.
+    sections = {
+        "Item 7": f"{FILLER}\n\n{REPORT_START}We have audited the accompanying balance sheets.",
+        "Item 8": "Year ended December 31, (in millions)  2025  2024\nRevenue  9,615  8,910",
+        "Item 15": f"Audited financial statements:\n{REPORT_HEADING}  162\nNote 1  170",
+    }
+    report = auditor_report(sections)
+    assert report is not None and report.startswith(REPORT_START)
+
+
+def test_the_auditors_report_in_item_8_comes_first():
+    sections = {
+        "Item 7": f"{REPORT_START}An earlier copy.",
+        "Item 8": f"{FILLER}\n\n{REPORT_START}We have audited the accompanying balance sheets.",
+    }
+    assert auditor_report(sections).endswith("We have audited the accompanying balance sheets.")
+
+
+def test_no_auditors_report_gives_none():
+    assert auditor_report({"Item 8": "Revenue  9,615", "Item 15": f"{REPORT_HEADING}  162"}) is None
+
+
 # --- choosing filings and reading index pages ---------------------------------------------------
 
 
@@ -310,12 +395,26 @@ def test_filing_index_reads_document_types_and_ixbrl_links():
     )
 
 
-@pytest.mark.parametrize(("code", "expected"), [("P", True), ("S", False)])
-def test_form4_purchase_detection(code, expected):
+@pytest.mark.parametrize(("code", "expected"), [("P", {10}), ("S", set())])
+def test_form4_purchase_months(code, expected):
+    filed = date(2026, 11, 2)
+    assert purchase_months(form4_xml(code, "2026-10-30"), filed) == expected
+    assert purchase_months(b"not xml", filed) == set()
+
+
+def test_a_purchase_without_a_trade_date_counts_in_the_filing_month():
     xml = (
-        "<ownershipDocument><nonDerivativeTable><nonDerivativeTransaction><transactionCoding>"
-        f"<transactionCode>{code}</transactionCode></transactionCoding></nonDerivativeTransaction>"
-        "</nonDerivativeTable></ownershipDocument>"
-    ).encode()
-    assert has_open_market_purchase(xml) is expected
-    assert has_open_market_purchase(b"not xml") is False
+        b"<ownershipDocument><nonDerivativeTable><nonDerivativeTransaction><transactionCoding>"
+        b"<transactionCode>P</transactionCode></transactionCoding></nonDerivativeTransaction>"
+        b"</nonDerivativeTable></ownershipDocument>"
+    )
+    assert purchase_months(xml, date(2026, 11, 2)) == {11}
+
+
+@pytest.mark.parametrize(
+    ("filed", "expected"),
+    [("2025-10-15", True), ("2025-11-05", True), ("2025-11-06", False), ("2025-06-10", False)],
+)
+def test_older_form4s_are_kept_for_the_purchase_months(filed, expected):
+    assert filed_for_months(date.fromisoformat(filed), {10}) is expected
+    assert filed_for_months(date(2026, 1, 3), {12})  # a late-December trade, filed in January

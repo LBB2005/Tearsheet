@@ -44,6 +44,9 @@ MAJOR_EVENT_DAYS = 365
 MAX_PRESS_RELEASES = 5
 FORM4_RECENT_DAYS = 183
 FORM4_HISTORY_DAYS = 3 * 365
+# A Form 4 is due 2 business days after the trade, so a late-month trade can be filed in
+# the first days of the next month.
+FORM4_FILING_LAG_DAYS = 5
 # How far back the company's filing list must reach: last year's 10-K is filed
 # 12 to 24 months before today.
 FILING_HISTORY_DAYS = 800
@@ -256,14 +259,26 @@ def form4_xml_name(primary_document: str) -> str:
     return primary_document.rsplit("/", 1)[-1]
 
 
-def has_open_market_purchase(xml: bytes) -> bool:
-    """Whether a Form 4 reports a purchase (transaction code P) of non-derivative shares."""
+def purchase_months(xml: bytes, filed: date) -> set[int]:
+    """The calendar months of a Form 4's open-market purchases (code P): each trade's own
+    date, or the filing date when the trade has none."""
     try:
         root = ET.fromstring(xml)
     except ET.ParseError:
-        return False
-    path = ".//nonDerivativeTable/nonDerivativeTransaction/transactionCoding/transactionCode"
-    return any((code.text or "").strip() == "P" for code in root.iterfind(path))
+        return set()
+    months = set()
+    for trade in root.iterfind(".//nonDerivativeTable/nonDerivativeTransaction"):
+        if (trade.findtext("transactionCoding/transactionCode") or "").strip() != "P":
+            continue
+        traded = _date((trade.findtext("transactionDate/value") or "").strip()[:10] or None)
+        months.add((traded or filed).month)
+    return months
+
+
+def filed_for_months(filed: date, months: set[int]) -> bool:
+    """Whether a Form 4 filed on `filed` can report a trade in one of `months`."""
+    previous = 12 if filed.month == 1 else filed.month - 1
+    return filed.month in months or (filed.day <= FORM4_FILING_LAG_DAYS and previous in months)
 
 
 # --- the client ----------------------------------------------------------------------
@@ -376,15 +391,15 @@ class SECClient:
             docs.append(StoredDoc(role, filing, doc_type, url, raw_hash))
         return docs
 
-    async def form4s(self, filings: list[Filing]) -> tuple[int, bool]:
-        """Fetch each Form 4's XML once. Returns (count, whether any reports a purchase)."""
-        purchase = False
+    async def form4s(self, filings: list[Filing]) -> tuple[int, set[int]]:
+        """Fetch each Form 4's XML once. Returns (count, the calendar months of any purchases)."""
+        months: set[int] = set()
         for f in filings:
             _, body = await self._permanent(
                 f.url(form4_xml_name(f.primary_document)), "form4", "xml"
             )
-            purchase = purchase or has_open_market_purchase(body)
-        return len(filings), purchase
+            months |= purchase_months(body, f.filed)
+        return len(filings), months
 
     async def fetch_for_report(
         self, cik: int, peer_ciks: list[int], *, trend_peers: int = 3
@@ -431,15 +446,21 @@ class SECClient:
 
         recent_cutoff = today - timedelta(days=FORM4_RECENT_DAYS)
         recent_form4s = [f for f in filings if f.form == "4" and f.filed >= recent_cutoff]
-        count, purchase = await self.form4s(recent_form4s)
-        if purchase:
+        count, months = await self.form4s(recent_form4s)
+        if months:
+            # The routine test asks whether the buyer also bought in the same calendar month
+            # in each of the 3 prior years, so only those months' Form 4s are needed.
             history = await self.filings(
                 cik, since=recent_cutoff - timedelta(days=FORM4_HISTORY_DAYS)
             )
-            older = [f for f in history if f.form == "4" and f.filed < recent_cutoff]
+            older = [
+                f
+                for f in history
+                if f.form == "4" and f.filed < recent_cutoff and filed_for_months(f.filed, months)
+            ]
             more, _ = await self.form4s(older)
             count += more
-        bundle.form4_count, bundle.form4_purchase = count, purchase
+        bundle.form4_count, bundle.form4_purchase = count, bool(months)
 
         for i, peer in enumerate(peer_ciks):
             bundle.facts[peer] = (await self.company_facts(peer))[0]
@@ -459,6 +480,9 @@ class SECClient:
 
 AUDITOR_HEADING = re.compile(
     r"report\s+of\s+independent\s+registered\s+public\s+accounting\s+firm", re.I
+)
+AUDITOR_ADDRESS = re.compile(
+    r"[\s:]{0,40}to\s+the\s+(board\s+of\s+directors|shareholders|stockholders)", re.I
 )
 AUDITOR_REPORT_CHARS = 20_000
 
@@ -491,8 +515,25 @@ def split_sections(html: bytes | str, form: str) -> dict[str, str]:
     return sections
 
 
+def _report_start(text: str, *, addressed: bool) -> int | None:
+    """Where the auditor's heading starts; with `addressed`, only a heading followed by the
+    report's "To the Board of Directors..." line, which skips table-of-contents mentions."""
+    for match in AUDITOR_HEADING.finditer(text):
+        if not addressed or AUDITOR_ADDRESS.match(text, match.end()):
+            return match.start()
+    return None
+
+
 def auditor_report(sections: dict[str, str]) -> str | None:
-    """The auditor's report inside Item 8, when the heading is found."""
-    text = sections.get("Item 8", "")
-    match = AUDITOR_HEADING.search(text)
-    return text[match.start() : match.start() + AUDITOR_REPORT_CHARS] if match else None
+    """The auditor's report: in Item 8 when it's there, otherwise in whichever section holds
+    it. Some 10-Ks don't follow item order (JPM's, Phase 0), so edgartools can file the
+    report under another item."""
+    item_8 = sections.get("Item 8", "")
+    candidates = [(item_8, True)]
+    candidates += [(text, True) for key, text in sections.items() if key != "Item 8"]
+    candidates.append((item_8, False))
+    for text, addressed in candidates:
+        start = _report_start(text, addressed=addressed)
+        if start is not None:
+            return text[start : start + AUDITOR_REPORT_CHARS]
+    return None

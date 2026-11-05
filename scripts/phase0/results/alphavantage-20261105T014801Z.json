@@ -1,0 +1,17 @@
+{
+  "error_fields_believed": [
+    "Note",
+    "Information",
+    "Error Message"
+  ],
+  "answers": {
+    "overview": {
+      "accepted_as_data": false,
+      "reason": "alphavantage: Alpha Vantage refused the call (a rate-limit or key error): Thank you for using Alpha Vantage! This is a premium endpoint. You may subscribe to any of the premium plans at https://www.alphavantage.co/premium/ to instantly unlock all premium endpoints (https://www.alphavantage.co/query?function=OVERVIEW&symbol=IBM)"
+    },
+    "wrong request": {
+      "accepted_as_data": false,
+      "reason": "alphavantage: Alpha Vantage refused the call (a rate-limit or key error): Thank you for using Alpha Vantage! Please consider spreading out your free API requests more sparingly (1 request per second). You may subscribe to any of the premium plans at https://www.alphavantage.co/premium/ to lift the free key rate limit (25 requests per day), raise the per-second burst limit, and instantly unlock all premium endpoints (https://www.alphavantage.co/query?function=TEARSHEET_TEST&symbol=IBM)"
+    }
+  }
+}
