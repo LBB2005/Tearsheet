@@ -139,7 +139,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         out_dir = paths.data_dir / "reports"
 
         def progress(step: str, state: str) -> None:
-            if state == "start":
+            if state == "started":
                 print(f"  {step} ...", flush=True)
 
         kind = "full method, Phase 1b" if args.full else "thin slice, Phase 1a"
@@ -228,7 +228,7 @@ def cmd_resume(args: argparse.Namespace) -> int:
             )
 
         def progress(step: str, state: str) -> None:
-            if state == "start":
+            if state == "started":
                 print(f"  {step} ...", flush=True)
 
         try:
@@ -424,6 +424,13 @@ def cmd_spot_check(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_serve(args: argparse.Namespace) -> int:
+    from tearsheet.server import serve
+
+    paths = config.Paths(config.resolve_data_dir(getattr(args, "data_dir", None)))
+    return asyncio.run(serve(paths))
+
+
 def build_parser() -> argparse.ArgumentParser:
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument(
@@ -478,6 +485,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     again.add_argument("run_id")
     again.set_defaults(handler=cmd_replay)
+
+    serve = commands.add_parser(
+        "serve",
+        parents=[common],
+        help="the engine for the Mac app (JSON-RPC on standard input and output)",
+    )
+    serve.set_defaults(handler=cmd_serve)
 
     goal = commands.add_parser("goal1", parents=[common], help="the Goal 1 tally")
     goal.set_defaults(handler=cmd_goal1)

@@ -946,3 +946,60 @@ def test_sections_come_in_report_order(database, tmp_path):
     ]
     assert order == sorted(order)
     assert "not built yet" not in html and "narrative still from filings only" not in html
+
+
+# --- for the app: progress, cancel, and the error that stopped a run ------------------------
+
+
+def test_progress_reports_each_step_started_and_done(database, tmp_path):
+    events = []
+    run = Run(
+        database.conn,
+        FakeData(),
+        None,
+        load(),
+        now=NOW,
+        out_dir=None,
+        progress=lambda s, st: events.append((s, st)),
+    )
+    asyncio.run(run.run("T0"))
+    assert ("resolve", "started") in events and ("resolve", "done") in events
+    assert (
+        events.index(("resolve", "started"))
+        < events.index(("resolve", "done"))
+        < events.index(("fetch", "started"))
+    )
+    assert ("save", "done") in events
+
+
+def test_a_cancelled_run_stops_between_steps(database, tmp_path):
+    from tearsheet.pipeline import RunCancelled
+
+    holder = {}
+
+    def cancel_at_score(step, state):
+        if step == "score" and state == "started":
+            holder["run"].cancel()
+
+    run = Run(
+        database.conn, FakeData(), None, load(), now=NOW, out_dir=None, progress=cancel_at_score
+    )
+    holder["run"] = run
+    with pytest.raises(RunCancelled):
+        asyncio.run(run.run("T0"))
+    row = database.conn.execute("SELECT status, last_step_done FROM runs").fetchone()
+    # The cancel arrives as "score" starts: that step finishes, and the run stops before "value".
+    assert (row["status"], row["last_step_done"]) == ("cancelled", "score")
+
+
+def test_the_error_that_stopped_the_ai_steps_is_kept(database, tmp_path):
+    def limited(request):
+        if request.task == "narrate":
+            return AIUsageLimit(
+                "You've hit your limit. Resets 3am", reset_at="2026-11-06T03:00:00-05:00"
+            )
+        return fake_ai(request)
+
+    run, result, _ = run_slice(database, tmp_path, default=limited)
+    assert result.status == "stopped"
+    assert run.stop_error.code == "USAGE_LIMIT" and run.stop_error.reset_at.startswith("2026-11-06")

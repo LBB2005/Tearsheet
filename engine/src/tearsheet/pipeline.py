@@ -155,6 +155,10 @@ ARTICLE_CAP = 15
 ARTICLE_FLOOR = 5
 
 
+class RunCancelled(Exception):
+    """The user cancelled the run; checked between steps and before each AI call."""
+
+
 class RunFailed(Exception):
     def __init__(self, step: str, message: str):
         super().__init__(f"{step}: {message}")
@@ -291,6 +295,8 @@ class Run:
         self.store = PriceStore(conn)
         self.members: dict[int, MemberData] = {}
         self.ai_stopped: str | None = None
+        self.stop_error: AIError | None = None
+        self.cancel_requested = False
         self.dropped: list[str] = []
 
     # --- bookkeeping ------------------------------------------------------------------------
@@ -321,6 +327,7 @@ class Run:
             self.conn.execute(
                 "UPDATE runs SET last_step_done = ? WHERE run_id = ?", (step, self.run_id)
             )
+        self.progress(step, "done")
 
     def _finish(self, status: str, failed_step: str | None = None) -> None:
         calls = self.ai.sent if self.ai is not None else 0
@@ -343,7 +350,13 @@ class Run:
             )
 
     def _step(self, name: str) -> None:
-        self.progress(name, "start")
+        if self.cancel_requested:
+            raise RunCancelled(name)
+        self.progress(name, "started")
+
+    def cancel(self) -> None:
+        """Ask the run to stop at the next step or AI call."""
+        self.cancel_requested = True
 
     # --- the run ----------------------------------------------------------------------------
 
@@ -500,6 +513,9 @@ class Run:
             status = "done" if complete else ("stopped" if self.ai_stopped else "done_incomplete")
             self._finish(status)
             return RunResult(self.run_id, report_id, status, html_path, rating.rating, self.notes)
+        except RunCancelled:
+            self._finish("cancelled")
+            raise
         except RunFailed as exc:
             self._finish("failed", exc.step)
             raise
@@ -982,6 +998,9 @@ class Run:
     # --- steps 10-13 ------------------------------------------------------------------------
 
     async def _ai_call(self, label: str, coro):
+        if self.cancel_requested:
+            coro.close()
+            raise RunCancelled(label)
         if self.ai is None or self.ai_stopped:
             coro.close()  # never started, so nothing to clean up
             return None
@@ -989,9 +1008,11 @@ class Run:
             return await coro
         except STOPPING as exc:
             self.ai_stopped = str(exc)
+            self.stop_error = exc
             self.notes.append(f"The AI steps stopped: {exc}")
         except AIBudgetExhausted as exc:
             self.ai_stopped = str(exc)
+            self.stop_error = exc
             self.notes.append(f"The call budget ran out, so the narrative is incomplete: {exc}")
         except AIError as exc:
             self.dropped.append(f"{label}: {exc}")
@@ -1672,7 +1693,7 @@ def mark_interrupted(conn: sqlite3.Connection) -> int:
         ).rowcount
 
 
-def resume_run(
+def prepare_resume(
     conn: sqlite3.Connection,
     run_id: str,
     *,
@@ -1680,7 +1701,7 @@ def resume_run(
     ai: AIClient | None,
     out_dir: Path | None,
     progress: Callable[[str, str], None] | None = None,
-) -> RunResult:
+) -> tuple[Run, str]:
     """Continue a stopped or interrupted run (item 34). Steps 1-8 are re-run from the run's own
     stored inputs, with its stored methodology, so their numbers can't change; the AI steps
     then carry on with the same tool, and saved evidence means no filing is read again."""
@@ -1725,4 +1746,19 @@ def resume_run(
         progress=progress,
         run_id=run_id,
     )
-    return asyncio.run(again.run(resolved["ticker"], resume=True))
+    return again, resolved["ticker"]
+
+
+def resume_run(
+    conn: sqlite3.Connection,
+    run_id: str,
+    *,
+    raw_dir: Path,
+    ai: AIClient | None,
+    out_dir: Path | None,
+    progress: Callable[[str, str], None] | None = None,
+) -> RunResult:
+    run, ticker = prepare_resume(
+        conn, run_id, raw_dir=raw_dir, ai=ai, out_dir=out_dir, progress=progress
+    )
+    return asyncio.run(run.run(ticker, resume=True))

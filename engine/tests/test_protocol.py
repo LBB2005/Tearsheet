@@ -1,0 +1,253 @@
+"""The app ↔ engine protocol (design item 37, Technical Plan §2)."""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import subprocess
+import sys
+from contextlib import asynccontextmanager
+
+import pytest
+
+from tearsheet import ENGINE_VERSION, PROTOCOL_VERSION, config
+from tearsheet.ai.client import AIClient, AIUsageLimit, ToolState
+from tearsheet.protocol import ERROR_CODES, METHODS, schema
+from tearsheet.server import Server
+from tests.fakes.ai import FakeConnector
+from tests.test_pipeline import NOW, FakeData, clean_ai
+
+
+class Harness:
+    def __init__(self, tmp_path, *, ai_default=clean_ai, data_cls=FakeData, delay_s: float = 0.0):
+        self.messages: list[dict] = []
+        self.paths = config.Paths(tmp_path / "data").ensure()
+        self.ai_default = ai_default
+
+        @asynccontextmanager
+        async def data_factory(run_id, conn, rawstore):
+            yield data_cls()
+
+        def ai_factory(conn, tool):
+            state = ToolState(conn, "claude")
+            state.record_check(version="1.0", model_ids=["fake-small"], form="full", passed=True)
+            return AIClient(
+                FakeConnector(default=self.ai_default, delay_s=delay_s), state, retry_wait_s=0
+            )
+
+        self.server = Server(
+            self.paths,
+            write=self.messages.append,
+            data_factory=data_factory,
+            ai_factory=ai_factory,
+            now=lambda: NOW,
+        )
+
+    async def call(self, method: str, params: dict | None = None, *, id_: int = 1) -> dict:
+        await self.server.handle(
+            json.dumps({"jsonrpc": "2.0", "id": id_, "method": method, "params": params or {}})
+        )
+        return next(m for m in reversed(self.messages) if m.get("id") == id_)
+
+    async def finish(self) -> None:
+        await self.server.wait_for_job()
+
+    def notes(self, method: str) -> list[dict]:
+        return [m["params"] for m in self.messages if m.get("method") == method]
+
+
+def run(coro):
+    return asyncio.run(coro)
+
+
+def test_hello_comes_first(tmp_path):
+    h = Harness(tmp_path)
+    run(h.server.start())
+    first = h.messages[0]
+    assert first["method"] == "hello" and "id" not in first
+    assert first["params"]["engine_version"] == ENGINE_VERSION
+    assert first["params"]["protocol_version"] == PROTOCOL_VERSION
+    assert len(first["params"]["methodology_hash"]) == 64
+    h.server.close()
+
+
+def test_run_report_then_report_ready_and_get_report(tmp_path):
+    h = Harness(tmp_path)
+
+    async def go():
+        await h.server.start()
+        started = await h.call("run_report", {"query": "T0"})
+        await h.finish()
+        ready = h.notes("report_ready")
+        got = await h.call("get_report", {"report_id": ready[0]["report_id"]}, id_=2)
+        listed = await h.call("list_reports", {}, id_=3)
+        return started, ready, got, listed
+
+    started, ready, got, listed = run(go())
+    assert started["result"]["run_id"].startswith("run-")
+    assert ready[0]["run_id"] == started["result"]["run_id"]
+    progress = h.notes("progress")
+    assert {p["state"] for p in progress} >= {"started", "done"}
+    assert progress[0]["step"] == 1 and progress[0]["step_name"] == "resolve"
+    html = got["result"]["html"]
+    assert "tearsheet://flag/" in html  # app mode
+    assert got["result"]["ticker"] == "T0"
+    assert listed["result"][0]["report_id"] == ready[0]["report_id"]
+    assert listed["result"][0]["rating"] in ("Buy", "Hold", "Sell")
+    h.server.close()
+
+
+def test_one_job_at_a_time(tmp_path):
+    h = Harness(tmp_path, delay_s=0.05)  # slow enough that the first run is still going
+
+    async def go():
+        await h.server.start()
+        await h.call("run_report", {"query": "T0"})
+        second = await h.call("run_report", {"query": "T1"}, id_=2)
+        await h.finish()
+        return second
+
+    second = run(go())
+    assert second["error"]["code"] == -32000
+    assert second["error"]["data"]["code"] == "RUN_IN_PROGRESS"
+    h.server.close()
+
+
+def test_a_company_outside_the_index_is_not_covered(tmp_path):
+    h = Harness(tmp_path)
+
+    async def go():
+        await h.server.start()
+        return await h.call("run_report", {"query": "Zzzz Widgets"})
+
+    reply = run(go())
+    assert reply["error"]["data"]["code"] == "NOT_COVERED"
+    h.server.close()
+
+
+def test_a_usage_limit_sends_run_failed_with_the_reset_time(tmp_path):
+    def limited(request):
+        if request.task == "narrate":
+            return AIUsageLimit(
+                "You've hit your limit. Resets 3am", reset_at="2026-11-06T03:00:00-05:00"
+            )
+        return clean_ai(request)
+
+    h = Harness(tmp_path, ai_default=limited)
+
+    async def go():
+        await h.server.start()
+        await h.call("run_report", {"query": "T0"})
+        await h.finish()
+
+    run(go())
+    failed = h.notes("run_failed")
+    assert (
+        failed
+        and failed[0]["code"] == "USAGE_LIMIT"
+        and failed[0]["reset_at"].startswith("2026-11-06")
+    )
+    assert h.notes("report_ready")  # the partial report is still saved
+    h.server.close()
+
+
+def test_flag_reread_settings_and_keys(tmp_path, monkeypatch):
+    h = Harness(tmp_path)
+
+    async def go():
+        await h.server.start()
+        await h.call("run_report", {"query": "T0"})
+        await h.finish()
+        report_id = h.notes("report_ready")[0]["report_id"]
+        claim = h.server.db.conn.execute(
+            "SELECT claim_id FROM claims WHERE removed = 0 AND report_id = ? LIMIT 1", (report_id,)
+        ).fetchone()[0]
+        flagged = await h.call("flag_claim", {"claim_id": claim, "note": "looks off"}, id_=2)
+        reread = await h.call("reread_filing", {"accession": "0001-26-000001"}, id_=3)
+        key = await h.call("set_key", {"service": "fred", "key": "abc123secret"}, id_=4)
+        setting = await h.call("set_setting", {"key": "goal1_round", "value": "2"}, id_=5)
+        bad = await h.call("set_setting", {"key": "massive_calls_per_minute", "value": "9"}, id_=6)
+        settings = await h.call("get_settings", {}, id_=7)
+        return flagged, reread, key, setting, bad, settings
+
+    flagged, reread, key, setting, bad, settings = run(go())
+    assert flagged["result"]["review_id"].startswith("rev-")
+    assert reread["result"]["deleted"] > 0
+    assert key["result"] == {"ok": True}
+    assert config.get_key("fred") == "abc123secret"
+    assert all("abc123secret" not in json.dumps(m) for m in h.messages)
+    assert setting["result"] == {"ok": True}
+    assert bad["error"]["code"] == -32602
+    s = settings["result"]
+    assert s["keys"]["fred"] == "set" and s["keys"]["massive"] == "missing"
+    assert s["raw_cap"] > 0 and "backup_in_icloud" in s and s["services"]
+    h.server.close()
+
+
+def test_unknown_methods_and_bad_requests(tmp_path):
+    h = Harness(tmp_path)
+
+    async def go():
+        await h.server.start()
+        await h.server.handle("not json")
+        await h.call("no_such_method", {}, id_=2)
+        await h.call("get_report", {"report_id": 5, "extra": 1}, id_=3)
+        await h.call("get_report", {"report_id": "rep-none"}, id_=4)
+
+    run(go())
+    errors = {m.get("id"): m["error"]["code"] for m in h.messages if "error" in m}
+    assert errors == {None: -32700, 2: -32601, 3: -32602, 4: -32000}
+    h.server.close()
+
+
+def test_every_method_and_error_code_is_declared():
+    assert set(METHODS) >= {
+        "run_report",
+        "cancel",
+        "resume",
+        "get_report",
+        "list_reports",
+        "list_predictions",
+        "flag_claim",
+        "reread_filing",
+        "set_key",
+        "get_settings",
+        "set_setting",
+    }
+    assert set(ERROR_CODES) == {
+        "NOT_COVERED",
+        "RUN_IN_PROGRESS",
+        "NO_TOOL",
+        "NOT_RESUMABLE",
+        "USAGE_LIMIT",
+        "AUTH_EXPIRED",
+        "LOCKDOWN_FAILED",
+        "AI_UNAVAILABLE",
+        "BUDGET_EXHAUSTED",
+        "SEC_BLOCKED",
+        "ENGINE_ERROR",
+    }
+    s = schema()
+    assert "Hello" in s["$defs"] and "RunReportParams" in s["$defs"]
+
+
+def test_serve_writes_only_protocol_messages_to_standard_output(tmp_path):
+    lines = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "list_reports", "params": {}}) + "\n"
+    out = subprocess.run(
+        [sys.executable, "-m", "tearsheet.cli", "--data-dir", str(tmp_path / "d"), "serve"],
+        input=lines,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    messages = [json.loads(line) for line in out.stdout.splitlines()]
+    assert messages[0]["method"] == "hello"
+    assert messages[1] == {"jsonrpc": "2.0", "id": 1, "result": []}
+    assert all(m.get("jsonrpc") == "2.0" for m in messages)
+
+
+@pytest.mark.parametrize("state", ["started", "done", "skipped", "retrying", "failed"])
+def test_progress_states(state):
+    from tearsheet.protocol import Progress
+
+    assert Progress(run_id="r", step=1, step_name="resolve", state=state).state == state

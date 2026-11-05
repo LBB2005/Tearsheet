@@ -10,7 +10,7 @@ A Mac app for personal research. You type an S&P 500 company name or ticker, and
 
 ## Status
 
-**Phase 1, in progress.** Phase 0's week-one tests are done, apart from the next-day SEC repeat ([docs/phase0-results.md](docs/phase0-results.md)). The engine writes a report from the terminal. `run TICKER` writes the thin slice (Phase 1a), and `run TICKER --full` writes the full method's code steps and all six AI-written sections. No predictions are logged yet. Progress and open questions: [docs/phase1-progress.md](docs/phase1-progress.md). The design is in [docs/designs/tearsheet.md](docs/designs/tearsheet.md). The Mac window comes in Phase 1c.
+**Phase 1, in progress.** Phase 0's week-one tests are done, apart from the next-day SEC repeat ([docs/phase0-results.md](docs/phase0-results.md)). The engine writes a report from the terminal. `run TICKER` writes the thin slice (Phase 1a), and `run TICKER --full` writes the full method's code steps and all six AI-written sections. No predictions are logged yet. Progress and open questions: [docs/phase1-progress.md](docs/phase1-progress.md). The design is in [docs/designs/tearsheet.md](docs/designs/tearsheet.md). A plain Mac window (Phase 1c) runs reports, shows them and flags claims; see [The Mac app](#the-mac-app).
 
 ## Requirements
 
@@ -42,6 +42,16 @@ uv run --project engine tearsheet-engine goal1
 `run` prints the path of the HTML report. `replay` re-runs a run's code steps from its stored inputs and checks that the numbers are identical. `spot-check` walks you through the citations to check and asks the Goal 1 question, and `goal1` prints the tally. `set-key` reads the key from a hidden prompt. `lockdown-check` checks that Claude Code runs with no tools, no user settings and your subscription sign-in. Every command takes `--data-dir`. The default data folder is `~/Library/Application Support/Tearsheet/`.
 
 The Phase 0 test scripts and their commands are listed in [docs/phase0-results.md](docs/phase0-results.md).
+
+## The Mac app
+
+A plain window for the same engine (Phase 1c): New report, Progress, Reports (with "flag this claim"), the prediction log, Settings and Connections. From the repository root:
+
+```bash
+cd app && npm install && npm run build && npm start
+```
+
+It starts the engine with `uv run tearsheet-engine serve` from this repository, and uses the same data folder as terminal mode. `npm run dev` runs it with hot reload. A signed app you can double-click comes in Phase 3.
 
 ## What leaves your Mac
 

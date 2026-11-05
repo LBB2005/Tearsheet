@@ -1,6 +1,6 @@
-# Continuous integration (design item 52). Phase 0 steps only: the coverage bar arrives in
-# Phase 1b, the app's typecheck and tests in Phase 1c, and replay of the stored test runs in
-# Phase 1b.
+# Continuous integration (design item 52): the engine's lint and offline tests, and the app's
+# typecheck, tests and generated protocol types. Still to add: the coverage bar and replay of the
+# stored test runs (Phase 1b, with the golden set).
 name: CI
 
 on:
@@ -24,3 +24,31 @@ jobs:
         run: uv run ruff check . ../scripts && uv run ruff format --check . ../scripts
       - name: Offline tests
         run: uv run pytest
+
+  app:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.15"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install
+        working-directory: app
+        run: npm ci
+      - name: Typecheck
+        working-directory: app
+        run: npm run typecheck
+      - name: Tests
+        working-directory: app
+        run: npm test
+      - name: Generated protocol types are up to date (item 46)
+        run: |
+          (cd engine && uv sync --locked)
+          (cd app && npm run gen-types)
+          git diff --exit-code app/src/shared/protocol.ts
+      - name: Build
+        working-directory: app
+        run: npm run build

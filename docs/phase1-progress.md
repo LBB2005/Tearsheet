@@ -1,6 +1,6 @@
 # Phase 1 progress (overnight build, 4–5 Nov 2026)
 
-*   **Status:** Phase 1a, the thin slice, is built and works end to end offline. Phase 1b is well under way. A `--full` mode adds every metric, all three valuation methods, the red-flag caps, all six AI-written sections from their design sources, and the skeptic with one rewrite. The six sections are: 4 business, 5 risks, 6 results with the earnings release, 7 news with articles and press releases, 8 trends from the 3 largest peers and FRED, and What to watch. `replay` and `resume` work, and so do the Goal 1 commands (`flag`, `spot-check`, `goal1`). The prediction log is built but not switched on. **Nothing is committed** (you allowed keep-awake only). Nothing was checked against live services: no live Claude Code calls, no SEC repeat.
+*   **Status:** Phase 1a, the thin slice, is built and works end to end, and so does a plain Mac app (Phase 1c, below). Phase 1b is well under way. A `--full` mode adds every metric, all three valuation methods, the red-flag caps, all six AI-written sections from their design sources, and the skeptic with one rewrite. The six sections are: 4 business, 5 risks, 6 results with the earnings release, 7 news with articles and press releases, 8 trends from the 3 largest peers and FRED, and What to watch. `replay` and `resume` work, and so do the Goal 1 commands (`flag`, `spot-check`, `goal1`). The prediction log is built but not switched on. **Nothing is committed** (you allowed keep-awake only). Nothing was checked against live services: no live Claude Code calls, no SEC repeat.
 *   **Tests:** 403 offline tests pass (up from 152), including a full-mode run through the **live** data source with every service mocked (SEC, iShares, Massive, FRED). So the live wiring has run at least once., and `ruff check` and `ruff format --check` are clean.
 
 ## Try it
@@ -48,6 +48,22 @@ The live command is `tearsheet-engine run AAPL`. It downloads from SEC, Massive 
 | 34 Resume | `pipeline.resume_run`, `cli.py resume`, `mark_interrupted` | `tearsheet-engine resume <run ID>` continues a stopped or interrupted run under the same run ID and AI tool. Steps 1–8 are re-run from the run's own stored inputs and methodology (as in replay), so the numbers can't change. Saved evidence means no filing is read again. The report is saved as a new version. Runs still marked running are marked interrupted when `run` or `resume` starts. News articles aren't re-read on resume. |
 | 36 Goal 1 | `goal1.py`, `cli.py` (`flag`, `spot-check`, `goal1`) | One add-only `claim_reviews` table with the label mapping in item 36 (**please confirm it**). Every citation is checked in the first 3 counted reports, then 5 at random (seeded by the report ID). The tally covers reports, companies, sectors, bank or REIT, confirmed errors, failed citations, the yes share, and the outside-checker trigger. Full-method reports record the `goal1_round` setting. |
 | 35 Prediction log | `predictions.py` | The official-run rule (30 × 24-hour window), write-once rows, no-valuation Hold, previous rating, backup after each, CSV/JSON export. **Not called by runs yet**: rows can never be deleted, so it should be switched on only when the full method is done and you agree. |
+
+## Phase 1c: the Mac app (5 Nov 2026)
+
+*   **Engine side (item 37):** `tearsheet-engine serve` speaks JSON-RPC on standard input and output. It sends `hello` first, writes only protocol messages to standard output, and allows one run at a time. It handles every request in item 37 and sends `progress`, `report_ready` and `run_failed`, with the error codes. `protocol.py` defines the messages; `scripts/gen-types.sh` generates `app/src/shared/protocol.ts` from them.
+*   **App (items 41–47):** Electron 33, electron-vite, React and TypeScript, in `app/`.
+    *   The PATH fix, tool detection and the engine process manager, which restarts the engine if it crashes.
+    *   The fixed bridge of named calls, and the window security settings: context isolation, the sandbox, no Node, and its own content-security policy.
+    *   Six screens: New report, Progress (with Resume and Cancel), Reports (the report in a frame with an empty `sandbox` attribute, plus the flag note box), Prediction log, Settings and Connections.
+*   **Checked by driving the real app** (Playwright against the built app, on your data folder):
+    *   your Apple report displays;
+    *   all 38 "flag this claim" links reach the handler and open the note box, and the frame stays on the report;
+    *   Connections finds Claude Code 2.1.317 and Codex, both signed in;
+    *   Settings shows the keys as set without showing them.
+*   **Not driven yet:** a whole new report from the window. That would spend about 40 Claude Code calls. The engine side of that flow is covered by `test_protocol.py`.
+*   **The early Phase 1c check (item 47) found one problem.** The window's policy `frame-src 'self'` blocked the frame's `tearsheet://` links before Electron's `will-frame-navigate` event fired. The window now lets the frame *start* `tearsheet:` and `https:` navigations, and the main process cancels every one of them (`navigation.ts`, tested). The design's policy line should say `frame-src 'self' tearsheet: https:`.
+*   **Tests:** 420 engine tests and 11 app tests. CI runs the app job (typecheck, tests, the check that the generated types match, and the build) on macOS.
 
 ## The first live run (Apple, 5 Nov 2026, `run AAPL --full`)
 

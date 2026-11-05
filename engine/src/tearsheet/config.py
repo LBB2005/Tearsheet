@@ -156,6 +156,13 @@ def _positive_number(value: str) -> str:
     return value
 
 
+def _folder(value: str) -> str:
+    path = Path(value).expanduser()
+    if not path.is_absolute():
+        raise ValueError("Give the backup folder as a full path, such as ~/Tearsheet Backups.")
+    return str(path)
+
+
 @dataclass(frozen=True)
 class SettingSpec:
     description: str
@@ -184,6 +191,10 @@ SETTINGS: dict[str, SettingSpec] = {
     ),
     "massive_calls_per_minute": SettingSpec(
         "Massive's call limit per minute (default 5, the free plan).", _positive_number
+    ),
+    "backup_dir": SettingSpec(
+        "The folder for database backups (default ~/Tearsheet Backups/, which iCloud doesn't sync).",
+        _folder,
     ),
     "goal1_round": SettingSpec(
         "The Goal 1 round new full reports count toward (default 1). Raise it to restart the test after a fix.",
