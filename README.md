@@ -10,7 +10,7 @@ A Mac app for personal research. You type an S&P 500 company name or ticker, and
 
 ## Status
 
-**Phase 0: week-one tests.** The engine has what those tests need: the shared HTTP client, the raw-data store, the SEC client, the article downloader, the Claude Code connector and three commands (`lockdown-check`, `set-key` and `set-setting`). The full report arrives in Phase 1, and the Mac window after it. The design is in [docs/designs/tearsheet.md](docs/designs/tearsheet.md), and the Phase 0 results go in [docs/phase0-results.md](docs/phase0-results.md).
+**Phase 1, in progress.** Phase 0's week-one tests are done, apart from the next-day SEC repeat ([docs/phase0-results.md](docs/phase0-results.md)). The engine writes a report from the terminal. `run TICKER` writes the thin slice (Phase 1a), and `run TICKER --full` writes the full method's code steps and all six AI-written sections. No predictions are logged yet. Progress and open questions: [docs/phase1-progress.md](docs/phase1-progress.md). The design is in [docs/designs/tearsheet.md](docs/designs/tearsheet.md). The Mac window comes in Phase 1c.
 
 ## Requirements
 
@@ -30,7 +30,16 @@ uv run --project engine tearsheet-engine set-setting sec_contact_email you@examp
 uv run --project engine tearsheet-engine lockdown-check
 ```
 
-`set-key` reads the key from a hidden prompt. `lockdown-check` checks that Claude Code runs with no tools, no user settings and your subscription sign-in. Every command takes `--data-dir`. The default data folder is `~/Library/Application Support/Tearsheet/`.
+Then:
+
+```bash
+uv run --project engine tearsheet-engine run AAPL --full
+uv run --project engine tearsheet-engine replay <run ID>
+uv run --project engine tearsheet-engine spot-check
+uv run --project engine tearsheet-engine goal1
+```
+
+`run` prints the path of the HTML report. `replay` re-runs a run's code steps from its stored inputs and checks that the numbers are identical. `spot-check` walks you through the citations to check and asks the Goal 1 question, and `goal1` prints the tally. `set-key` reads the key from a hidden prompt. `lockdown-check` checks that Claude Code runs with no tools, no user settings and your subscription sign-in. Every command takes `--data-dir`. The default data folder is `~/Library/Application Support/Tearsheet/`.
 
 The Phase 0 test scripts and their commands are listed in [docs/phase0-results.md](docs/phase0-results.md).
 

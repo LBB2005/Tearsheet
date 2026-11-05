@@ -1,0 +1,432 @@
+"""Where a run's inputs come from (Technical Plan §3 steps 1-2).
+
+`LiveData` downloads through the one HTTP client and the raw store. `StoredData` reads the
+downloads already in a data folder's raw store, with no network, for offline checks of the
+code steps (the Phase 0 SEC and Massive folders hold a whole sector's inputs).
+"""
+
+from __future__ import annotations
+
+import gzip
+import json
+import sqlite3
+from dataclasses import dataclass
+from datetime import date, timedelta
+from pathlib import Path
+from typing import Any, Protocol
+
+from tearsheet.data import sec as sec_data
+from tearsheet.data.membership import Refreshed, load_bundled
+from tearsheet.data.prices import FIRST_FILL_MONTHS, SPY_CIK, SPY_FILL_YEARS, PriceStore
+from tearsheet.resolve import sec_ticker_map, ticker_for
+
+
+@dataclass(frozen=True)
+class Doc:
+    role: str  # "10-K", "10-Q", ...
+    form: str
+    accession: str
+    url: str
+    index_url: str
+    filed: date
+    body: bytes
+    exhibit_13: bytes | None = None
+
+
+class DataSource(Protocol):
+    async def sec_tickers(self) -> dict[str, int]: ...
+    async def holdings(self, sec_tickers: dict[str, int], *, today: date) -> Refreshed: ...
+    async def submissions(self, cik: int) -> dict[str, Any]: ...
+    async def company_facts(self, cik: int) -> dict[str, Any]: ...
+    async def filing_documents(self, cik: int, *, today: date) -> list[Doc]: ...
+    async def fill_prices(
+        self, store: PriceStore, members: dict[int, str], *, end: date
+    ) -> None: ...
+    async def risk_free(self, day: date) -> tuple[date, float] | None: ...
+    def request_counts(self) -> dict[str, int]: ...
+
+
+def _report_docs(filings: list[sec_data.Filing], body_of, exhibits_of) -> list[Doc]:
+    out = []
+    latest_k = sec_data.latest(filings, "10-K")
+    chosen_by_role = {
+        "10-K": latest_k,
+        "10-Q": sec_data.latest(filings, "10-Q"),
+        "10-K prior": sec_data.previous(filings, latest_k) if latest_k else None,
+    }
+    for role, chosen in chosen_by_role.items():
+        form = chosen.form if chosen else role
+        if chosen is None or not chosen.primary_document:
+            continue
+        url = chosen.url(chosen.primary_document)
+        body = body_of(url)
+        if body is None:
+            continue
+        out.append(
+            Doc(
+                role,
+                form,
+                chosen.accession,
+                url,
+                chosen.index_url,
+                chosen.filed,
+                body,
+                exhibits_of(chosen) if form == "10-K" else None,
+            )
+        )
+    return out
+
+
+def _release_filings(
+    filings: list[sec_data.Filing], today: date
+) -> list[tuple[str, sec_data.Filing]]:
+    """The latest earnings 8-K, and the press-release 8-Ks (item 7), by role."""
+    earnings = sec_data.latest(filings, "8-K", item=sec_data.EARNINGS_ITEM)
+    out = [("earnings 8-K", earnings)] if earnings else []
+    out += [
+        (f"press {f.accession}", f)
+        for _, f in sec_data.press_release_filings(filings, today, exclude=earnings)
+    ]
+    return out
+
+
+# --- stored (offline) ----------------------------------------------------------------------
+
+
+class StoredData:
+    """Inputs from data folders already filled by earlier downloads, with no network."""
+
+    def __init__(self, folders: list[Path], *, risk_free: float, risk_free_date: date):
+        self._dbs = [(f, sqlite3.connect(f / "tearsheet.sqlite")) for f in folders]
+        self._risk_free = (risk_free_date, risk_free)
+
+    def _body(self, url: str | None = None, *, like: str | None = None) -> bytes | None:
+        for folder, conn in self._dbs:
+            if url is not None:
+                row = conn.execute(
+                    "SELECT raw_hash FROM fetch_log WHERE request_key = ? ORDER BY fetched_at DESC LIMIT 1",
+                    (url,),
+                ).fetchone()
+            else:
+                row = conn.execute(
+                    "SELECT raw_hash FROM fetch_log WHERE request_key LIKE ? ORDER BY fetched_at DESC LIMIT 1",
+                    (like,),
+                ).fetchone()
+            if row:
+                h = row[0]
+                return gzip.decompress((folder / "raw" / h[:2] / f"{h}.gz").read_bytes())
+        return None
+
+    async def sec_tickers(self) -> dict[str, int]:
+        body = self._body(sec_data.TICKERS_URL)
+        return sec_ticker_map(json.loads(body)) if body else {}
+
+    async def holdings(self, sec_tickers: dict[str, int], *, today: date) -> Refreshed:
+        bundled = load_bundled()
+        return Refreshed(bundled, "Stored inputs: the bundled S&P 500 list was used.")
+
+    async def submissions(self, cik: int) -> dict[str, Any]:
+        body = self._body(sec_data.SUBMISSIONS_URL.format(cik=cik))
+        return json.loads(body) if body else {}
+
+    async def company_facts(self, cik: int) -> dict[str, Any]:
+        body = self._body(sec_data.COMPANY_FACTS_URL.format(cik=cik))
+        if body is None:
+            raise LookupError(f"no stored company facts for CIK {cik}")
+        return json.loads(body)
+
+    async def filing_documents(self, cik: int, *, today: date) -> list[Doc]:
+        subs = await self.submissions(cik)
+        filings = sec_data.filings_from(subs.get("filings", {}).get("recent", {}), cik)
+
+        def exhibits(f: sec_data.Filing) -> bytes | None:
+            return None
+
+        docs = _report_docs(filings, lambda url: self._body(url), exhibits)
+        for role, filing in _release_filings(filings, today):
+            index = self._body(filing.index_url)
+            if index is None:
+                continue
+            entries = sec_data.parse_filing_index(index.decode("utf-8", errors="replace"))
+            wanted = [e for e in entries if sec_data.EX_99_1.match(e.doc_type)]
+            if not wanted and role.startswith("press "):
+                wanted = [e for e in entries if e.doc_type == filing.form]
+            for entry in wanted[:1]:
+                body = self._body(entry.url)
+                if body is not None:
+                    docs.append(
+                        Doc(
+                            role,
+                            "8-K",
+                            filing.accession,
+                            entry.url,
+                            filing.index_url,
+                            filing.filed,
+                            body,
+                        )
+                    )
+        return docs
+
+    async def fill_prices(self, store: PriceStore, members: dict[int, str], *, end: date) -> None:
+        tickers = {ticker_for("massive", t): (cik, "") for cik, t in members.items()}
+        tickers["SPY"] = (SPY_CIK, "")
+        for massive_ticker, (cik, share_class) in tickers.items():
+            for _, conn in self._dbs:
+                pattern = f"https://api.massive.com/v2/aggs/ticker/{massive_ticker}/range/1/day/%"
+                for (key,) in conn.execute(
+                    "SELECT DISTINCT request_key FROM fetch_log WHERE request_key LIKE ?",
+                    (pattern,),
+                ):
+                    bars = self._body(key)
+                    if bars:
+                        store.store_bars(cik, share_class, json.loads(bars), raw_hash="stored")
+            dividends = self._body(
+                like=f"https://api.massive.com/v3/reference/dividends?%ticker={massive_ticker}&%"
+            )
+            if dividends:
+                store.store_dividends(cik, share_class, json.loads(dividends))
+        for _folder, conn in self._dbs:
+            for (key,) in conn.execute(
+                "SELECT DISTINCT request_key FROM fetch_log WHERE request_key LIKE 'https://api.massive.com/v3/reference/splits%'"
+            ):
+                body = self._body(key)
+                if body:
+                    store.store_splits(json.loads(body), tickers)
+
+    async def risk_free(self, day: date) -> tuple[date, float] | None:
+        return self._risk_free
+
+    async def form4_trades(self, cik: int, *, today: date) -> list[tuple[str, date, str]]:
+        subs = await self.submissions(cik)
+        filings = sec_data.filings_from(subs.get("filings", {}).get("recent", {}), cik)
+        trades = []
+        for f in filings:
+            if f.form != "4":
+                continue
+            body = self._body(f.url(sec_data.form4_xml_name(f.primary_document)))
+            if body is not None:
+                trades += sec_data.form4_trades(body, f.filed)
+        return trades
+
+    async def peer_documents(self, ciks: list[int], *, today: date) -> list[Doc]:
+        out = []
+        for cik in ciks:
+            subs = await self.submissions(cik)
+            filings = sec_data.filings_from(subs.get("filings", {}).get("recent", {}), cik)
+            chosen = sec_data.latest(filings, "10-K")
+            if chosen is None:
+                continue
+            url = chosen.url(chosen.primary_document)
+            body = self._body(url)
+            if body is not None:
+                out.append(
+                    Doc(
+                        f"peer {cik}",
+                        "10-K",
+                        chosen.accession,
+                        url,
+                        chosen.index_url,
+                        chosen.filed,
+                        body,
+                    )
+                )
+        return out
+
+    def request_counts(self) -> dict[str, int]:
+        return {}
+
+
+# --- live ----------------------------------------------------------------------------------
+
+
+class LiveData:
+    """Downloads through the run's HTTP client (SEC, Massive, FRED, iShares)."""
+
+    def __init__(self, http, rawstore, conn: sqlite3.Connection, *, fred_key: str | None):
+        from tearsheet.data.sec import SECClient
+
+        self.http = http
+        self.rawstore = rawstore
+        self.conn = conn
+        self.sec = SECClient(http, rawstore)
+        self._fred_key = fred_key
+
+    async def sec_tickers(self) -> dict[str, int]:
+        return sec_ticker_map(await self.sec.company_tickers())
+
+    async def holdings(self, sec_tickers: dict[str, int], *, today: date) -> Refreshed:
+        from tearsheet.data.membership import refresh
+
+        return await refresh(self.http, self.rawstore, self.conn, sec_tickers, today=today)
+
+    async def submissions(self, cik: int) -> dict[str, Any]:
+        return await self.sec.submissions(cik)
+
+    async def company_facts(self, cik: int) -> dict[str, Any]:
+        return (await self.sec.company_facts(cik))[1]
+
+    async def filing_documents(self, cik: int, *, today: date) -> list[Doc]:
+        filings = await self.sec.filings(
+            cik, since=today - timedelta(days=sec_data.FILING_HISTORY_DAYS)
+        )
+        bodies: dict[str, bytes] = {}
+        latest_k = sec_data.latest(filings, "10-K")
+        for form, chosen in (
+            ("10-K", latest_k),
+            ("10-Q", sec_data.latest(filings, "10-Q")),
+            ("10-K", sec_data.previous(filings, latest_k) if latest_k else None),
+        ):
+            if chosen is None:
+                continue
+            docs = await self.sec.filing_documents(
+                form, chosen, exhibit=sec_data.EX_13 if form == "10-K" else None
+            )
+            for d in docs:
+                bodies[d.url] = self.rawstore.get(d.raw_hash)
+
+        def exhibits(f: sec_data.Filing) -> bytes | None:
+            for url, body in bodies.items():
+                if f.folder in url and url != f.url(f.primary_document):
+                    return body
+            return None
+
+        docs = _report_docs(filings, bodies.get, exhibits)
+        for role, filing in _release_filings(filings, today):
+            fetched = await self.sec.filing_documents(
+                role, filing, primary=False, exhibit=sec_data.EX_99_1
+            )
+            if not fetched and role.startswith("press "):
+                fetched = await self.sec.filing_documents(role, filing, primary=True)
+            for d in fetched[:1]:
+                docs.append(
+                    Doc(
+                        role,
+                        "8-K",
+                        filing.accession,
+                        d.url,
+                        filing.index_url,
+                        filing.filed,
+                        self.rawstore.get(d.raw_hash),
+                    )
+                )
+        return docs
+
+    async def fill_prices(self, store: PriceStore, members: dict[int, str], *, end: date) -> None:
+        from tearsheet.data.prices import fetch_company, fetch_splits, needed_start
+
+        tickers = {ticker_for("massive", t): (cik, "") for cik, t in members.items()}
+        tickers["SPY"] = (SPY_CIK, "")
+        earliest = end
+        for massive_ticker, (cik, share_class) in tickers.items():
+            months = SPY_FILL_YEARS * 12 if cik == SPY_CIK else FIRST_FILL_MONTHS
+            start = needed_start(store, cik, share_class, end, months=months)
+            if start is None:
+                continue
+            earliest = min(earliest, start)
+            await fetch_company(
+                self.http, store, cik, share_class, massive_ticker, start=start, end=end
+            )
+        if earliest < end:
+            await fetch_splits(self.http, store, tickers, start=earliest, end=end)
+
+    async def risk_free(self, day: date) -> tuple[date, float] | None:
+        from tearsheet.data.fred import fetch_series, value_on
+
+        if not self._fred_key:
+            return None
+        series = await fetch_series(
+            self.http, "DGS10", api_key=self._fred_key, start=day - timedelta(days=30)
+        )
+        found = value_on(series, day)
+        return (found[0], found[1] / 100) if found else None
+
+    async def peer_documents(self, ciks: list[int], *, today: date) -> list[Doc]:
+        out = []
+        for cik in ciks:
+            filings = await self.sec.filings(
+                cik, since=today - timedelta(days=sec_data.FILING_HISTORY_DAYS)
+            )
+            chosen = sec_data.latest(filings, "10-K")
+            if chosen is None:
+                continue
+            for d in await self.sec.filing_documents("peer 10-K", chosen, exhibit=sec_data.EX_13):
+                if d.doc_type == "10-K":
+                    out.append(
+                        Doc(
+                            f"peer {cik}",
+                            "10-K",
+                            chosen.accession,
+                            d.url,
+                            chosen.index_url,
+                            chosen.filed,
+                            self.rawstore.get(d.raw_hash),
+                        )
+                    )
+        return out
+
+    async def form4_trades(self, cik: int, *, today: date) -> list[tuple[str, date, str]]:
+        """Form 4 trades: the last 6 months, plus older filings in the purchase months when a
+        recent purchase appears (the routine test, item 25)."""
+        recent_cut = today - timedelta(days=sec_data.FORM4_RECENT_DAYS)
+        filings = await self.sec.filings(
+            cik, since=recent_cut - timedelta(days=sec_data.FORM4_HISTORY_DAYS)
+        )
+        recent = [f for f in filings if f.form == "4" and f.filed >= recent_cut]
+        trades = [
+            t
+            for f, body in await self.sec.form4_documents(recent)
+            for t in sec_data.form4_trades(body, f.filed)
+        ]
+        months = {d.month for _, d, code in trades if code == "P"}
+        if months:
+            older = [
+                f
+                for f in filings
+                if f.form == "4"
+                and f.filed < recent_cut
+                and sec_data.filed_for_months(f.filed, months)
+            ]
+            trades += [
+                t
+                for f, body in await self.sec.form4_documents(older)
+                for t in sec_data.form4_trades(body, f.filed)
+            ]
+        return trades
+
+    async def macro(self, day: date) -> dict[str, tuple[str, float, date]]:
+        """The FRED series for section 8: rates as percents, and 12-month changes for the
+        price and dollar indexes."""
+        from tearsheet.data.fred import fetch_series, value_on
+
+        if not self._fred_key:
+            return {}
+        out: dict[str, tuple[str, float, date]] = {}
+        for series_id, change in (
+            ("UNRATE", False),
+            ("A191RL1Q225SBEA", False),
+            ("DGS10", False),
+            ("CPIAUCSL", True),
+            ("DTWEXBGS", True),
+        ):
+            series = await fetch_series(
+                self.http, series_id, api_key=self._fred_key, start=day - timedelta(days=500)
+            )
+            latest = value_on(series, day)
+            if latest is None:
+                continue
+            if change:
+                before = value_on(series, latest[0] - timedelta(days=365))
+                if before is None or not before[1]:
+                    continue
+                out[series_id] = ("percent", latest[1] / before[1] - 1, latest[0])
+            else:
+                out[series_id] = ("percent", latest[1] / 100, latest[0])
+        return out
+
+    async def fetch_article(self, url: str, allowlist):
+        from tearsheet.data.articles import fetch_article
+
+        return await fetch_article(self.http, url, allowlist)
+
+    def request_counts(self) -> dict[str, int]:
+        return {f"{svc}:{kind}": n for (svc, kind), n in self.http.requests.items()}

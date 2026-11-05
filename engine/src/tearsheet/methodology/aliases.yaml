@@ -1,0 +1,11 @@
+# Brand names → SEC CIK (Technical Plan §3 step 1). Reference version.
+aliases:
+  google: 1652044       # Alphabet
+  youtube: 1652044
+  facebook: 1326801     # Meta Platforms
+  instagram: 1326801
+  whatsapp: 1326801
+  coke: 21344           # Coca-Cola
+  chase: 19617          # JPMorgan Chase
+  berkshire: 1067983    # Berkshire Hathaway
+  j&j: 200406           # Johnson & Johnson

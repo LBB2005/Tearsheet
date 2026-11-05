@@ -1,0 +1,55 @@
+# Valuation settings (Technical Plan §8; design item 27). In the methodology hash.
+# Drafter defaults.
+
+# Cost of equity from the stock's annualized 12-month volatility (Morningstar's fixed
+# table). Each range includes its lower end.
+cost_of_equity:
+  - {below: 0.20, rate: 0.075}
+  - {below: 0.28, rate: 0.09}
+  - {below: 0.40, rate: 0.11}
+  - {below: null, rate: 0.135}
+
+risk_free_series: DGS10
+
+tax_rate:
+  floor: 0.0
+  cap: 0.30
+  default: 0.21
+
+# Cost of debt = interest expense ÷ average total debt, kept between the 10-year yield and
+# the 10-year yield plus this spread.
+cost_of_debt_max_spread: 0.06
+
+dcf:
+  years: 10
+  growth_years: 5            # growth held flat for years 1-5, then fades to terminal by year 10
+  margin_years: 5            # margin reaches the peer median in year 5
+  history_years: 3           # 3-year compound annual revenue growth
+  growth_cap_percentile: 90
+  growth_floor: -0.10
+  terminal_growth_cap: 0.025
+  min_rate_over_terminal: 0.03
+
+residual_income:
+  years: 10
+
+multiples:
+  trim_share: 0.10
+  min_peers: 5
+
+# Funds from operations for REITs (Phase 1b): net income + real-estate depreciation −
+# gains on property sales. Checked on the golden REIT.
+ffo_tags:
+  depreciation:
+    - DepreciationAndAmortizationRealEstate
+    - RealEstateDepreciationAndAmortization
+    - DepreciationDepletionAndAmortization
+  gains:
+    - GainLossOnSaleOfRealEstateInvestmentProperty
+    - GainsLossesOnSalesOfInvestmentRealEstate
+    - GainLossOnDispositionOfAssets
+
+# Uncertainty triggers from the valuation (item 27).
+triggers:
+  terminal_share: 0.85
+  method_spread: 0.40

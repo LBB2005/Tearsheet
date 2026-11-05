@@ -105,7 +105,9 @@ RAW_CAP_WARN_SHARE = 0.9
 SEC_REQUESTS_PER_SECOND = 8
 # Massive's free plan. Confirmed in Phase 0.
 MASSIVE_CALLS_PER_MINUTE = 5
-MASSIVE_HISTORY_YEARS = 5  # confirmed in Phase 0 (2026-11-04): SPY starts 2021-11-05
+MASSIVE_HISTORY_YEARS = (
+    2  # the plan page says 2 (2026-11-05); the API served 5, which is not promised
+)
 ALPHAVANTAGE_CALLS_PER_DAY = 25
 # Seen in Phase 0 (2026-11-05): two calls in the same second got "1 request per second".
 ALPHAVANTAGE_REQUESTS_PER_SECOND = 1
@@ -182,6 +184,10 @@ SETTINGS: dict[str, SettingSpec] = {
     ),
     "massive_calls_per_minute": SettingSpec(
         "Massive's call limit per minute (default 5, the free plan).", _positive_number
+    ),
+    "goal1_round": SettingSpec(
+        "The Goal 1 round new full reports count toward (default 1). Raise it to restart the test after a fix.",
+        _positive_number,
     ),
 }
 

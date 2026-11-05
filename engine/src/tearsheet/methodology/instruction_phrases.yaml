@@ -1,0 +1,12 @@
+# Patterns that mark a paragraph for the skeptic (Technical Plan §9). Reference version.
+# Case-insensitive regular expressions.
+patterns:
+  - 'ignore (all )?(the )?previous instructions'
+  - 'ignore (all )?(the )?(above|prior) instructions'
+  - 'disregard (all )?(the )?(above|previous|prior)'
+  - 'system prompt'
+  - 'you are now'
+  - 'as an ai (language )?model'
+  - 'new instructions:'
+  - 'do not tell the user'
+  - 'rate (this|the) (stock|company) (a )?(buy|strong buy)'

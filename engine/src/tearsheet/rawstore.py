@@ -118,6 +118,11 @@ class RawStore:
     def get(self, raw_hash: str) -> bytes:
         return gzip.decompress(self.path_for(raw_hash).read_bytes())
 
+    @staticmethod
+    def read(raw_dir: Path, raw_hash: str) -> bytes:
+        """Read one stored file without a database connection (for replay, which writes nothing)."""
+        return gzip.decompress((raw_dir / raw_hash[:2] / f"{raw_hash}.gz").read_bytes())
+
     def _latest_row(self, url: str) -> sqlite3.Row | None:
         return self._conn.execute(
             "SELECT provider, request_key, raw_hash, fetched_at FROM fetch_log "

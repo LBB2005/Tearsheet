@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="{{ csp | safe }}">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ r.company }} ({{ r.ticker }}): Tearsheet report</title>
+<style>
+  body { font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; max-width: 52rem; margin: 2rem auto; padding: 0 1rem; color: #1d1d1f; background: #fff; }
+  h1 { font-size: 1.6rem; margin-bottom: .2rem; }
+  h2 { font-size: 1.2rem; margin-top: 2rem; border-bottom: 1px solid #ddd; padding-bottom: .2rem; }
+  .meta, .note, .claim-id { color: #666; font-size: .85rem; }
+  .box { border: 1px solid #ddd; border-radius: 6px; padding: .6rem 1rem; margin: 1rem 0; background: #fafafa; }
+  table { border-collapse: collapse; margin: .5rem 0; }
+  td, th { padding: .2rem .8rem .2rem 0; text-align: left; vertical-align: top; }
+  details { margin: .1rem 0 .6rem 1rem; font-size: .9rem; }
+  details p { color: #333; background: #f5f5f7; padding: .4rem .6rem; border-radius: 4px; }
+  .disclaimer { font-size: .85rem; color: #555; }
+</style>
+</head>
+<body>
+<h1>{{ r.company }} ({{ r.ticker }})</h1>
+<p class="meta">Report run {{ r.run_at }}.{% if r.mode_note %} {{ r.mode_note }}{% endif %}</p>
+<p class="disclaimer">General research, not personalised investment advice. Check the sources and make your own decisions.</p>
+
+{% for s in r.sections %}
+<section id="{{ s.key }}">
+<h2>{% if s.number %}{{ s.number }}. {% endif %}{{ s.title }}</h2>
+{% for para in s.paragraphs %}<p>{{ para }}</p>{% endfor %}
+{% if s.table %}
+<table>
+{% for row in s.table %}<tr>{% for cell in row %}<td>{{ cell }}</td>{% endfor %}</tr>{% endfor %}
+</table>
+{% endif %}
+{% if s.links %}
+<ul>
+{% for l in s.links %}<li>{% if safe_url(l.url) %}<a href="{{ safe_url(l.url) }}">{{ l.title }}</a>{% else %}{{ l.title }}{% endif %} ({{ l.publisher }}{% if l.published %}, {{ l.published }}{% endif %}){% if l.note %} <span class="note">{{ l.note }}</span>{% endif %}</li>{% endfor %}
+</ul>
+{% endif %}
+{% for sent in s.sentences %}
+<p>{{ sent.text }}{% if sent.note %} <span class="note">(Checker's note: {{ sent.note }})</span>{% endif %}
+{% if mode == "file" %} <span class="claim-id">[{{ sent.id }}]</span>{% endif %}
+{% if mode == "app" %} <a href="tearsheet://flag/{{ sent.id }}">flag this claim</a>{% endif %}</p>
+{% for c in sent.citations %}
+<details><summary>Source {{ loop.index }}{% if safe_url(c.url) %}: <a href="{{ safe_url(c.url) }}">filing</a>{% endif %}</summary><p>{{ c.text }}</p></details>
+{% endfor %}
+{% endfor %}
+</section>
+{% endfor %}
+
+<div class="box">
+<strong>Checks that ran:</strong> {{ r.checks | join(", ") }}. Skeptic: {{ r.skeptic }}.
+{% if r.cuts %}<br>Call budget: {{ r.cuts }}{% endif %}
+</div>
+<div class="box">
+<strong>Removed claims:</strong>
+{% if r.removed %}
+<ul>{% for c in r.removed %}<li>{% if mode == "file" %}[{{ c.id }}] {% endif %}{{ c.text }} <span class="note">({{ c.reasons | join("; ") }})</span></li>{% endfor %}</ul>
+<p class="note">By direction: {% for k, v in r.direction_split.items() %}{{ k }} {{ v }}{% if not loop.last %}, {% endif %}{% endfor %}.</p>
+{% else %} none.{% endif %}
+</div>
+
+<section id="methodology">
+<h2>9. Methodology and sources</h2>
+{% for line in r.methodology %}<p>{{ line }}</p>{% endfor %}
+<p>Filings used:</p>
+<ul>
+{% for f in r.filings %}<li>{{ f.form }}{% if safe_url(f.url) %}: <a href="{{ safe_url(f.url) }}">{{ f.accession }}</a>{% else %} {{ f.accession }}{% endif %}{% if mode == "app" %} (<a href="tearsheet://reread/{{ f.accession }}">re-read this filing</a>){% endif %}</li>{% endfor %}
+</ul>
+</section>
+</body>
+</html>

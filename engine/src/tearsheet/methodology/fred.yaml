@@ -1,0 +1,8 @@
+# Public-domain FRED series for the macro part of section 8 (Technical Plan §9).
+# Reference version. The 10-year yield for valuation is named in valuation.yaml.
+series:
+  - {id: CPIAUCSL, name: "Consumer prices (CPI)", units: index}
+  - {id: UNRATE, name: "Unemployment rate", units: percent}
+  - {id: A191RL1Q225SBEA, name: "Real GDP growth", units: percent}
+  - {id: DTWEXBGS, name: "Trade-weighted US dollar", units: index}
+  - {id: DGS10, name: "10-year Treasury yield", units: percent}

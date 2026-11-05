@@ -1,0 +1,22 @@
+# Peer-group rules (Technical Plan §7; design items 24 and 27). In the methodology hash.
+peer_cap: 40
+trend_peers: 3
+
+# Financial classes by SEC SIC code (item 27). Liam approves these lists in Phase 1b.
+financial_classes:
+  bank:
+    codes: [6021, 6022, 6029, 6035, 6036, 6211]
+    ranges: [[6111, 6199]]
+  insurer:
+    codes: [6411]
+    ranges: [[6311, 6399]]
+  reit:
+    codes: [6798]
+    ranges: []
+    # REITs filed under other SIC codes, by CIK. Drafted in Phase 1b.
+    overrides: []
+
+# Only used if the holdings file has no sector column (Technical Plan §7). The bundled
+# list carries GICS sectors, so this map is empty.
+sic_sectors: {}
+sector_overrides: {}

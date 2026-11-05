@@ -57,16 +57,18 @@ class EvidenceItem(Strict):
     paragraph_ids: list[str] = Field(min_length=1)
 
 
-class EvidenceList(Strict):
-    items: list[EvidenceItem]
-
-
 class QuotedValue(Strict):
     kind: Literal["date", "price_target", "rating_change"]
     paragraph_id: str
     quote: str
     # The exact part of the quote that holds the one value, such as "$250".
     value_text: str
+
+
+class EvidenceList(Strict):
+    items: list[EvidenceItem]
+    # Dates, price targets and rating changes, only as verbatim quotes (item 29).
+    quotes: list[QuotedValue] = Field(default_factory=list)
 
 
 class Stance(StrEnum):

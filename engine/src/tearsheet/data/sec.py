@@ -275,6 +275,24 @@ def purchase_months(xml: bytes, filed: date) -> set[int]:
     return months
 
 
+def form4_trades(xml: bytes, filed: date) -> list[tuple[str, date, str]]:
+    """(owner, trade date, transaction code) for each non-derivative trade on a Form 4. A trade
+    with no date of its own takes the filing date."""
+    try:
+        root = ET.fromstring(xml)
+    except ET.ParseError:
+        return []
+    owner = (
+        root.findtext(".//reportingOwner/reportingOwnerId/rptOwnerName") or ""
+    ).strip() or "an insider"
+    trades = []
+    for trade in root.iterfind(".//nonDerivativeTable/nonDerivativeTransaction"):
+        code = (trade.findtext("transactionCoding/transactionCode") or "").strip()
+        traded = _date((trade.findtext("transactionDate/value") or "").strip()[:10] or None)
+        trades.append((owner, traded or filed, code))
+    return trades
+
+
 def filed_for_months(filed: date, months: set[int]) -> bool:
     """Whether a Form 4 filed on `filed` can report a trade in one of `months`."""
     previous = 12 if filed.month == 1 else filed.month - 1
@@ -390,6 +408,16 @@ class SECClient:
             raw_hash, _ = await self._permanent(url, kind, "text")
             docs.append(StoredDoc(role, filing, doc_type, url, raw_hash))
         return docs
+
+    async def form4_documents(self, filings: list[Filing]) -> list[tuple[Filing, bytes]]:
+        """Each Form 4's XML, fetched once and then reused."""
+        out = []
+        for f in filings:
+            _, body = await self._permanent(
+                f.url(form4_xml_name(f.primary_document)), "form4", "xml"
+            )
+            out.append((f, body))
+        return out
 
     async def form4s(self, filings: list[Filing]) -> tuple[int, set[int]]:
         """Fetch each Form 4's XML once. Returns (count, the calendar months of any purchases)."""

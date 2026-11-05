@@ -418,3 +418,22 @@ def test_a_purchase_without_a_trade_date_counts_in_the_filing_month():
 def test_older_form4s_are_kept_for_the_purchase_months(filed, expected):
     assert filed_for_months(date.fromisoformat(filed), {10}) is expected
     assert filed_for_months(date(2026, 1, 3), {12})  # a late-December trade, filed in January
+
+
+def test_form4_trades_reads_the_owner_dates_and_codes():
+    from tearsheet.data.sec import form4_trades
+
+    xml = (
+        b"<ownershipDocument><reportingOwner><reportingOwnerId><rptOwnerName>Fish James C Jr</rptOwnerName>"
+        b"</reportingOwnerId></reportingOwner><nonDerivativeTable>"
+        b"<nonDerivativeTransaction><transactionDate><value>2026-11-02</value></transactionDate>"
+        b"<transactionCoding><transactionCode>P</transactionCode></transactionCoding></nonDerivativeTransaction>"
+        b"<nonDerivativeTransaction><transactionDate><value>2026-11-03</value></transactionDate>"
+        b"<transactionCoding><transactionCode>S</transactionCode></transactionCoding></nonDerivativeTransaction>"
+        b"</nonDerivativeTable></ownershipDocument>"
+    )
+    assert form4_trades(xml, date(2026, 11, 4)) == [
+        ("Fish James C Jr", date(2026, 11, 2), "P"),
+        ("Fish James C Jr", date(2026, 11, 3), "S"),
+    ]
+    assert form4_trades(b"not xml", date(2026, 11, 4)) == []

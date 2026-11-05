@@ -1,0 +1,44 @@
+# News sites and site sections, grouped by source type (Technical Plan §9). Reference
+# version. Liam's edits go in allowlist.local.yaml in the app data folder, which is layered
+# on top. An entry is a site, or one section of a site.
+news_outlets:
+  - reuters.com
+  - apnews.com
+  - cnbc.com
+  - marketwatch.com
+  - finance.yahoo.com
+  - fortune.com
+  - axios.com
+  - bbc.com/news/business
+  - theguardian.com/business
+  - npr.org
+  - fool.com
+  - investopedia.com/news
+  - barrons.com
+  - wsj.com
+  - ft.com
+  - bloomberg.com
+  - nytimes.com
+  - techcrunch.com
+  - theverge.com
+  - arstechnica.com
+  - statnews.com
+  - fiercepharma.com
+  - fiercebiotech.com
+  - americanbanker.com
+  - bankingdive.com
+  - supplychaindive.com
+  - constructiondive.com
+  - retaildive.com
+bank_research:
+  - goldmansachs.com/insights
+  - morganstanley.com/insights
+  - jpmorgan.com/insights
+fund_letters:
+  - blackrock.com/corporate/insights
+  - schwab.com/learn/story
+short_seller_reports: []
+press_releases:
+  - businesswire.com
+  - prnewswire.com
+  - globenewswire.com

@@ -1,0 +1,144 @@
+# The numeric guard's lists (Technical Plan §11; design item 33). Reference version.
+# Company names come from SEC at run time.
+
+# Names that may contain digits.
+names:
+  - "S&P 500"
+  - "S&P 400"
+  - "S&P 600"
+  - "Russell 1000"
+  - "Russell 2000"
+  - "Russell 3000"
+  - "Nasdaq-100"
+  - "Nasdaq 100"
+  - "Dow Jones 30"
+  - "10-K"
+  - "10-Q"
+  - "8-K"
+  - "20-F"
+  - "Form 4"
+  - "Form 10-K"
+  - "Form 10-Q"
+  - "Form 8-K"
+  - "Schedule 13D"
+  - "Rule 10b5-1"
+  - "401(k)"
+  - "3M"
+  - "Exhibit 13"
+  - "Exhibit 99.1"
+  - "Item 1"
+  - "Item 1A"
+  - "Item 1B"
+  - "Item 1C"
+  - "Item 2"
+  - "Item 3"
+  - "Item 4"
+  - "Item 5"
+  - "Item 7"
+  - "Item 7A"
+  - "Item 8"
+  - "Item 9A"
+  - "Part I"
+  - "Part II"
+  - "COVID-19"
+  - "5G"
+  - "4G"
+  - "3D"
+  - "Web3"
+
+# Blocked number words. Matched as whole words, case-insensitive.
+number_words:
+  - zero
+  - two
+  - three
+  - four
+  - five
+  - six
+  - seven
+  - eight
+  - nine
+  - ten
+  - eleven
+  - twelve
+  - thirteen
+  - fourteen
+  - fifteen
+  - sixteen
+  - seventeen
+  - eighteen
+  - nineteen
+  - twenty
+  - thirty
+  - forty
+  - fifty
+  - sixty
+  - seventy
+  - eighty
+  - ninety
+  - hundred
+  - hundreds
+  - thousand
+  - thousands
+  - million
+  - millions
+  - billion
+  - billions
+  - trillion
+  - trillions
+  - dozen
+  - dozens
+  - twice
+  - double
+  - doubled
+  - doubling
+  - triple
+  - tripled
+  - quadrupled
+  - halved
+  - half
+  - third
+  - thirds
+  - quarter
+# Allowed phrases that contain a blocked word.
+number_word_exceptions:
+  - "first half"
+  - "second half"
+  - "third party"
+  - "third-party"
+  - "third quarter"
+  - "first quarter"
+  - "second quarter"
+  - "fourth quarter"
+  - "the quarter"
+  - "quarterly"
+# "single-digit", "double-digit" and "triple-digit", with or without low, mid or high.
+digit_words: [single, double, triple]
+
+# A four-digit year is allowed right after one of these words.
+year_context:
+  - in
+  - since
+  - by
+  - during
+  - fiscal
+  - FY
+  - calendar
+  - through
+  - until
+  - from
+  - to
+  - between
+  - before
+  - after
+  - early
+  - mid
+  - late
+  - "end of"
+year_min: 1990
+year_ahead: 5
+
+# Quarter and fiscal-year forms.
+quarter_patterns:
+  - '\bQ[1-4](\s+(FY)?\d{2,4})?\b'
+  - '\bFY\d{2}(\d{2})?\b'
+  - '\b[1-4]Q\d{2}\b'

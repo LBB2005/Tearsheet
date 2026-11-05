@@ -1,0 +1,43 @@
+# Rating lines and uncertainty cut-offs (Technical Plan §7; items 23 and 28).
+# In the methodology hash. Drafter defaults.
+
+# Uncertainty from the stock's annualized 12-month volatility. Each range includes its
+# lower end; the last level has no upper end. Each uncertainty trigger raises the level one
+# step, up to extreme.
+uncertainty_levels: [low, medium, high, very_high, extreme]
+volatility_cutoffs:
+  - {level: low, below: 0.20}
+  - {level: medium, below: 0.30}
+  - {level: high, below: 0.45}
+  - {level: very_high, below: null}
+
+# Gap-percentile lines by uncertainty level.
+percentile_lines:
+  low: {buy: 60, sell: 40}
+  medium: {buy: 65, sell: 35}
+  high: {buy: 70, sell: 30}
+  very_high: {buy: 75, sell: 25}
+  extreme: {buy: 80, sell: 20}
+
+# The score must also be at or above (Buy) or at or below (Sell) these percentiles.
+score_lines: {buy: 60, sell: 40}
+
+min_valued_peers: 15
+
+# Risk-factor red flag (item 23): change score above this, with paragraphs matched at the
+# cut-off or above.
+risk_factor_change_threshold: 0.30
+paragraph_match_cutoff: 0.8
+
+# The 12-month range (Technical Plan §7).
+range:
+  value_gap_years: 3                    # the value-gap part is one-third: gaps close over about 3 years
+  volatility_days: 252
+  peer_volatility_blend: 0.5            # moved halfway toward the peer median
+  z_10_90: 1.2816
+
+# The internal probability of beating the peer group: logged and graded, not shown.
+probability:
+  shared_variance: 0.4
+  floor: 0.25
+  cap: 0.75

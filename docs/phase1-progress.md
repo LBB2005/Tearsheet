@@ -1,0 +1,93 @@
+# Phase 1 progress (overnight build, 4–5 Nov 2026)
+
+*   **Status:** Phase 1a, the thin slice, is built and works end to end offline. Phase 1b is well under way. A `--full` mode adds every metric, all three valuation methods, the red-flag caps, all six AI-written sections from their design sources, and the skeptic with one rewrite. The six sections are: 4 business, 5 risks, 6 results with the earnings release, 7 news with articles and press releases, 8 trends from the 3 largest peers and FRED, and What to watch. `replay` and `resume` work, and so do the Goal 1 commands (`flag`, `spot-check`, `goal1`). The prediction log is built but not switched on. **Nothing is committed** (you allowed keep-awake only). Nothing was checked against live services: no live Claude Code calls, no SEC repeat.
+*   **Tests:** 394 offline tests pass (up from 152), including a full-mode run through the **live** data source with every service mocked (SEC, iShares, Massive, FRED). So the live wiring has run at least once., and `ruff check` and `ruff format --check` are clean.
+
+## Try it
+
+These run offline, on the data the Phase 0 tests downloaded, with no AI calls. Run them from `~/code/Tearsheet`:
+
+```bash
+uv run --project engine tearsheet-engine --data-dir /tmp/tearsheet-try run AAPL --no-ai --stored "$HOME/Library/Application Support/Tearsheet/phase0/sec-20261104T225557Z" "$HOME/Library/Application Support/Tearsheet/phase0/massive-20261104T234606Z"
+```
+
+```bash
+uv run --project engine tearsheet-engine --data-dir /tmp/tearsheet-try run AAPL --no-ai --full --stored "$HOME/Library/Application Support/Tearsheet/phase0/sec-20261104T225557Z" "$HOME/Library/Application Support/Tearsheet/phase0/massive-20261104T234606Z"
+```
+
+Each run prints the path of an HTML report. Only the information technology sector has stored prices (from the Massive test), so only AAPL and its peers work offline.
+
+The live command is `tearsheet-engine run AAPL`. It downloads from SEC, Massive and FRED. It hasn't been run yet. Running it is your step.
+
+*   **Slice:** about 7 Claude Code calls (4 to extract, 3 to write).
+*   **`--full`:** about 25–45 calls. That's 1 link search; 12 filing extractions (5 company sections, the earnings release, up to 5 press releases and 3 peers' MD&A); up to 15 articles; 6 sections; 6 skeptic checks; and up to 6 rewrites. Article reads are cut first if a run would pass the 50-call budget.
+*   **Offline full-mode smoke test** (Apple's stored filings, scripted AI): 24 calls in about 6 seconds.
+
+## What was built (design items)
+
+| Item | Files | Notes |
+| :-- | :-- | :-- |
+| 14–15 Methodology bundle | `methodology/*.yaml`, `methodology/__init__.py` | Drafter defaults from the design. The methodology hash and reference version ignore comments and key order. Copies are stored per run. |
+| 16–17 Database | `db/migrations/0002_report.sql`, `db.backup` | All the report tables. Predictions are write-once and claim reviews add-only, both enforced by triggers. Backups keep 10 copies. |
+| 18 S&P 500 list | `data/membership.py`, `data/sp500_bundled.csv`, `scripts/build_sp500_bundled.py` | The bundled list, as you chose: 500 companies (503 tickers) from the SPY file plus Wikipedia's sectors and CIKs. IVV is tried first, then the last good copy, then the bundled list. |
+| 19 Prices | `data/prices.py` | Total return with dividends reinvested, splits, the 40% split check, and NYSE staleness. |
+| 20 FRED, analysts | `data/fred.py`, `data/analyst.py` | Analyst consensus is left out, as you chose; the report says so. |
+| 21 Resolve | `resolve.py` | Ticker, then alias, then close name match. Rated class and provider spellings. |
+| 22 Normalize | `normalize.py` | Trailing 12 months, point in time, tag preference with stale-tag detection, split adjustment. Checked by hand against Apple's, Nvidia's and Microsoft's real filings. |
+| 23 Text layer | `text/parse.py`, `text/compare.py` | Sections, paragraph IDs, the Exhibit 13 fallback, marked instruction-like paragraphs, year-over-year change score. |
+| 24–26 Peers, metrics, score | `peers.py`, `metrics.py`, `scoring.py` | All 15 metrics; the slice uses one per factor. Momentum scaling uses SPY. |
+| 27–28 Valuation, rating | `valuation/{dcf,residual_income,multiples,financials,combine,range}.py`, `rating.py` | All three methods. Banks and insurers: residual income + P/E. REITs: residual income + price ÷ FFO, with FFO from the tags in `valuation.yaml`, labelled an approximation. Range, uncertainty, trigger prices, probability, peer mix. |
+| 25 Red flags | `flags.py` | The 4 rules, and the insider-buying note (open-market purchases in the last 6 months that aren't routine), fed by Form 4 owners, dates and codes (`sec.form4_trades`). On Apple's stored Form 4s: no non-routine purchases. |
+| 29–31 AI steps | `extract.py`, `narrate.py`, `prompts.py`, `ai/prompts/{extract,narrate}.md` | Evidence cache, 60,000-token split, cited-ID and quote checks. |
+| 31–33 Render and checks | `render.py`, `templates/report.html.j2`, `verify/{numeric_guard,citations,quotes,flow}.py` | Escaped HTML with its own content-security policy. Numeric guard, citation check, decision flow. |
+| 34 Pipeline | `pipeline.py`, `sources.py`, `cli.py run` | Live and stored data sources. Step outputs saved, usage-limit stop, failed calls dropped per section. |
+| 7, 9 News (full mode) | `pipeline.py` news step, `ai/prompts/news_search.md`, `sources.py fetch_article` | Link search with web search only, the allowlist filter, the 15-article cap with the budget cut, articles saved, one extraction per article. Article text reaches only section 7. The prompt now asks for links spread across sites (the Phase 0 Apple finding). |
+| 31 Sections 6–8 (full mode) | `pipeline.py`, `sources.py` (`peer_documents`, `macro`, releases) | Section 6 from the 10-Q MD&A, 10-K Item 7 and the earnings release (8-K Exhibit 99.1). Section 7 adds the press-release 8-Ks. Section 8 is built from the 3 largest peers' 10-K Item 7, the company's own trend items, and FRED (unemployment, real GDP growth, the 10-year yield, and 12-month changes in prices and the dollar). The FRED values use a new `{{macro:…}}` placeholder. Peer text reaches only section 8. |
+| 33 Skeptic (full mode) | `verify/skeptic.py`, `ai/prompts/skeptic.md`, `pipeline.verify` | Self-checked (same tool, fresh session). Unsupported claims are removed; tone shows as a note. One rewrite when more than 30% of claims are removed or marked tone. |
+| 38 Replay | `replay.py`, `cli.py replay`, `RawStore.read` | `tearsheet-engine replay <run ID>` copies the database into memory (opened read-only), re-runs steps 1–8 from only that run's logged inputs with the methodology from the run's stored copy, and compares every step output and every metric for exact equality. It exits non-zero on a difference at the same method code version. Live runs now store their methodology copies. |
+| 34 Resume | `pipeline.resume_run`, `cli.py resume`, `mark_interrupted` | `tearsheet-engine resume <run ID>` continues a stopped or interrupted run under the same run ID and AI tool. Steps 1–8 are re-run from the run's own stored inputs and methodology (as in replay), so the numbers can't change. Saved evidence means no filing is read again. The report is saved as a new version. Runs still marked running are marked interrupted when `run` or `resume` starts. News articles aren't re-read on resume. |
+| 36 Goal 1 | `goal1.py`, `cli.py` (`flag`, `spot-check`, `goal1`) | One add-only `claim_reviews` table with the label mapping in item 36 (**please confirm it**). Every citation is checked in the first 3 counted reports, then 5 at random (seeded by the report ID). The tally covers reports, companies, sectors, bank or REIT, confirmed errors, failed citations, the yes share, and the outside-checker trigger. Full-method reports record the `goal1_round` setting. |
+| 35 Prediction log | `predictions.py` | The official-run rule (30 × 24-hour window), write-once rows, no-valuation Hold, previous rating, backup after each, CSV/JSON export. **Not called by runs yet**: rows can never be deleted, so it should be switched on only when the full method is done and you agree. |
+
+## What the offline runs showed (AAPL, stored data from 4 Nov)
+
+*   **Speed.** The whole slice run takes about 3 seconds, so valuing 40 peers is far under the 3-minute goal (item 34's end-of-1a measurement). The other end-of-1a measurement, the usage script on 3 real slice reports, needs live runs.
+*   **Slice:** Hold. Score at the 65th percentile. DCF value $144 against a price of $349.51. Uncertainty high (medium volatility, plus the "one method" trigger). Buy trigger $247.40.
+*   **Full method:** score at the 79th percentile. DCF $144, residual income $723, multiples $285, so the estimated value is $285. Gap percentile 70.
+    *   That would be a **Buy**, but the risk-factor red flag caps it at **Hold** (see below).
+    *   Peer mix: 8 Buy, 26 Hold, 7 Sell.
+*   **The checks work as designed.** In the smoke test, the numeric guard removed "Revenue doubled", the citation check removed a sentence citing a paragraph that wasn't sent, and both show in "Removed claims" with the direction split.
+
+## Questions for you (calibration, Phase 1b)
+
+1.  **The risk-factor red flag fires on Apple.** Apple's 2026 Item 1A scores 39% change against the 30% line, with a 0.8 match cut-off.
+    *   The section grew from 9,782 to 12,332 words.
+    *   **It's real rewording, not a parsing artifact.** Only 1 of the 47 unmatched paragraphs appears word for word in last year's text. Apple rewrote much of the section, including new tariff and AI-competition text.
+    *   At a 0.7 cut-off the score is 29.6%.
+    *   The rule as designed flags heavy *rewording*, which doesn't always mean new *risk*. Options:
+        *   keep it;
+        *   raise the threshold;
+        *   lower the match cut-off;
+        *   count only *added* words, not rewording.
+    *   I'd measure it on the golden set before choosing.
+2.  **Residual income for heavy-buyback companies.** Apple's tiny book value gives a return on equity of 142%, so residual income values it at $723. The design only makes the method "not meaningful" when book value is zero or below. You may want a cap on starting return on equity, or a "not meaningful" rule above some level.
+3.  **The DCF is far below price for big tech:** Apple $144, Microsoft $222 against $556. The main reason is reinvestment at the *peer median* sales-to-capital (about 1.0), when Apple's own is about 3. It's the design's rule, and the rating is relative to peers, but it's worth a look on the golden set.
+
+## Decisions I took (none change a design rule)
+
+*   **The value-gap share is stored as `value_gap_years: 3`** in `rating_lines.yaml`, rather than 0.333…, so trigger prices come out exact.
+*   **EBIT fallback.** When a company has no operating-income line (IBM, KLA), EBIT = pre-tax income + interest expense, and the tags are shown.
+*   **Stale XBRL tags.** A tag whose newest value is more than 400 days older than the company's newest period is ignored. Example: Apple stopped using `InterestExpense` in 2023.
+*   **When a close counts.** A session's close counts as available from 7pm New York time. Phase 0 saw the 4 Nov close by 6:46pm.
+*   **Market value is approximate for multi-class companies.** It's the rated class's price × all shares outstanding; per-class prices come later.
+*   **A section with no evidence from its sources isn't sent to the AI.** Nothing could pass the citation check, so the call would be wasted. The report says so.
+*   **No rewrites in the slice.** The full mode allows one per section, as designed.
+*   **A new placeholder family, `{{macro:<FRED series>}}`,** for the economic series in section 8. The design lists metric, value, price, date, consensus and quote.
+
+## Still to build in Phase 1b
+
+*   Switching on the prediction log (your call).
+*   Replay of step 12 (rendering): its output isn't saved as a step yet.
+*   The golden set (item 40).
+*   Per-class market value.
+*   Phase 1c: the app window.

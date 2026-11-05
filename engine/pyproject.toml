@@ -46,6 +46,10 @@ addopts = "-m 'not live'"
 markers = [
     "live: needs the network or a signed-in AI tool; skipped unless run with -m live",
 ]
+filterwarnings = [
+    # exchange_calendars on pandas 3; not our code.
+    "ignore:Series.values returning an ndarray",
+]
 
 [tool.ruff]
 line-length = 100

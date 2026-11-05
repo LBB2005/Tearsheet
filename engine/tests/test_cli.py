@@ -87,3 +87,25 @@ def test_commands_refuse_a_newer_database(tmp_path, capsys):
 def test_never_touches_the_real_default_folder(tmp_path):
     assert str(config.DEFAULT_DATA_DIR).startswith(str(tmp_path))
     assert not Path.home().joinpath(".tearsheet-canary").exists()
+
+
+def test_run_offline_with_no_ai(monkeypatch, tmp_path, capsys):
+    from tearsheet import pipeline
+    from tearsheet.pipeline import RunResult
+
+    seen = {}
+
+    async def fake_run(self, query):
+        seen["query"], seen["ai"], seen["data"] = query, self.ai, type(self.data).__name__
+        return RunResult(
+            self.run_id, "rep-1", "done_incomplete", tmp_path / "r.html", "Hold", ["a note"]
+        )
+
+    monkeypatch.setattr(pipeline.Run, "run", fake_run)
+    code = cli.main(
+        ["--data-dir", str(tmp_path / "d"), "run", "AAPL", "--no-ai", "--stored", str(tmp_path)]
+    )
+    out = capsys.readouterr().out
+    assert code == 0
+    assert seen == {"query": "AAPL", "ai": None, "data": "StoredData"}
+    assert "Rating: Hold" in out and "a note" in out and "r.html" in out

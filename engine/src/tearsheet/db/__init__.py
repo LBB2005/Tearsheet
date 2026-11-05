@@ -74,6 +74,26 @@ def _copy_before_upgrade(conn: sqlite3.Connection, path: Path, current: int) -> 
     return copy_path
 
 
+BACKUPS_KEPT = 10
+
+
+def backup(conn: sqlite3.Connection, folder: Path, *, stamp: str | None = None) -> Path:
+    """A live copy of the database with SQLite's online backup (design item 16). Keeps the
+    newest `BACKUPS_KEPT` copies in `folder`."""
+    folder.mkdir(parents=True, exist_ok=True)
+    stamp = stamp or datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    target = folder / f"tearsheet-{stamp}.sqlite"
+    copy = sqlite3.connect(target)
+    try:
+        conn.backup(copy)
+    finally:
+        copy.close()
+    copies = sorted(folder.glob("tearsheet-*.sqlite"))
+    for old in copies[:-BACKUPS_KEPT]:
+        old.unlink()
+    return target
+
+
 def open_database(path: Path) -> Database:
     """Open the database, upgrading it if this engine knows newer migrations.
 

@@ -1,0 +1,34 @@
+# Factor weights (Technical Plan §7; design item 26). In the methodology hash.
+# Drafter defaults. A change applies only to new predictions.
+factors:
+  profitability:
+    weight: 0.30
+    metrics: [gross_profit_to_assets, return_on_invested_capital, operating_margin]
+  momentum:
+    weight: 0.25
+    metrics: [momentum_12m]
+  valuation:
+    weight: 0.20
+    metrics: [earnings_yield, free_cash_flow_yield, ebit_to_ev, sales_to_ev]
+  capital_discipline:
+    weight: 0.10
+    metrics: [net_share_issuance, asset_growth]
+  balance_sheet:
+    weight: 0.075
+    metrics: [net_debt_to_ebitda, interest_coverage]
+  earnings_quality:
+    weight: 0.075
+    metrics: [accruals_to_assets, operating_cash_flow_to_net_income]
+
+# Banks and insurers: return on equity replaces the three profitability metrics (item 25).
+financials_profitability: [return_on_equity]
+
+# Momentum scaling (item 26): when SPY's 12-month return is negative and its 1-month
+# volatility is in the top fifth of its recent history, momentum's weight is halved.
+momentum_scaling:
+  spy_return_days: 252
+  volatility_days: 21
+  history_days: 480
+  min_history_days: 252
+  top_percentile: 80
+  weight_multiplier: 0.5

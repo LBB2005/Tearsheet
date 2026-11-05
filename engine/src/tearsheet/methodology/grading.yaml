@@ -1,0 +1,4 @@
+# Grading rules (Technical Plan §10). Versioned on their own, stored on each grade row.
+# Grading is built in Phase 2; the rules table is filled in then.
+version: 1
+horizons_months: [3, 6, 12]
