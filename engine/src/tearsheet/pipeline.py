@@ -1550,6 +1550,8 @@ class Run:
             ]
             sections.append(news)
         sections.append(ai_section(SectionKey.WATCH, None, "What to watch", watch_lines))
+        # Report order: sections 1-8, then the What to watch block just before section 9.
+        sections.sort(key=lambda s: s["number"] if s["number"] is not None else 8.5)
 
         methodology = [
             RATING_DEFINITION,
@@ -1558,7 +1560,7 @@ class Run:
             (
                 "Thin slice (Phase 1a): one metric per factor, DCF only, filing extraction only (no news), the numeric guard and the citation check; no skeptic and no logged prediction."
                 if self.mode == "slice"
-                else "Full method (Phase 1b code steps): every metric, all three valuation methods and the red-flag caps. News, the skeptic and logged predictions are not built yet, so no prediction is logged."
+                else "Full method (Phase 1b): every metric, all three valuation methods, the red-flag caps, news and the skeptic. Logging predictions isn't switched on yet, so no prediction is logged."
             ),
             f"Prices as of {format_value('date', self.price_date)}. 10-year Treasury yield: {self._fmt_pct(self.risk_free)}.",
         ]
@@ -1580,7 +1582,7 @@ class Run:
             "run_at": self.now.strftime("%-d %b %Y %H:%M UTC"),
             "mode_note": "Thin-slice report (Phase 1a)."
             if self.mode == "slice"
-            else "Full-method report (Phase 1b code steps; narrative still from filings only).",
+            else "Full-method report (Phase 1b). No prediction is logged yet.",
             "sections": sections,
             "removed": [
                 {"id": c.sentence_id, "text": c.text, "reasons": c.reasons} for c in removed

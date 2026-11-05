@@ -1,7 +1,7 @@
 # Phase 1 progress (overnight build, 4–5 Nov 2026)
 
 *   **Status:** Phase 1a, the thin slice, is built and works end to end offline. Phase 1b is well under way. A `--full` mode adds every metric, all three valuation methods, the red-flag caps, all six AI-written sections from their design sources, and the skeptic with one rewrite. The six sections are: 4 business, 5 risks, 6 results with the earnings release, 7 news with articles and press releases, 8 trends from the 3 largest peers and FRED, and What to watch. `replay` and `resume` work, and so do the Goal 1 commands (`flag`, `spot-check`, `goal1`). The prediction log is built but not switched on. **Nothing is committed** (you allowed keep-awake only). Nothing was checked against live services: no live Claude Code calls, no SEC repeat.
-*   **Tests:** 394 offline tests pass (up from 152), including a full-mode run through the **live** data source with every service mocked (SEC, iShares, Massive, FRED). So the live wiring has run at least once., and `ruff check` and `ruff format --check` are clean.
+*   **Tests:** 403 offline tests pass (up from 152), including a full-mode run through the **live** data source with every service mocked (SEC, iShares, Massive, FRED). So the live wiring has run at least once., and `ruff check` and `ruff format --check` are clean.
 
 ## Try it
 
@@ -48,6 +48,19 @@ The live command is `tearsheet-engine run AAPL`. It downloads from SEC, Massive 
 | 34 Resume | `pipeline.resume_run`, `cli.py resume`, `mark_interrupted` | `tearsheet-engine resume <run ID>` continues a stopped or interrupted run under the same run ID and AI tool. Steps 1–8 are re-run from the run's own stored inputs and methodology (as in replay), so the numbers can't change. Saved evidence means no filing is read again. The report is saved as a new version. Runs still marked running are marked interrupted when `run` or `resume` starts. News articles aren't re-read on resume. |
 | 36 Goal 1 | `goal1.py`, `cli.py` (`flag`, `spot-check`, `goal1`) | One add-only `claim_reviews` table with the label mapping in item 36 (**please confirm it**). Every citation is checked in the first 3 counted reports, then 5 at random (seeded by the report ID). The tally covers reports, companies, sectors, bank or REIT, confirmed errors, failed citations, the yes share, and the outside-checker trigger. Full-method reports record the `goal1_round` setting. |
 | 35 Prediction log | `predictions.py` | The official-run rule (30 × 24-hour window), write-once rows, no-valuation Hold, previous rating, backup after each, CSV/JSON export. **Not called by runs yet**: rows can never be deleted, so it should be switched on only when the full method is done and you agree. |
+
+## The first live run (Apple, 5 Nov 2026, `run AAPL --full`)
+
+*   **Status:** done, in 27 minutes, most of it the one-time price download for 41 stocks at Massive's 5 calls a minute. 38 Claude Code calls on Haiku 5.5 and Sonnet 5.5, under the 50-call budget.
+*   **Rating:** Hold, capped by the risk-factor flag. Same numbers as the offline run: score at the 79th percentile, estimated value $285.03 against a price of $349.51.
+*   **News:** 13 links suggested and 9 articles read; 4 were paywalled. That compares with 1 article for Apple in Phase 0, so the spread-across-sites prompt fixed it.
+*   **Writing:** 38 sentences kept and 17 removed. The kept text is specific and cited: memory-cost pressure, App Store rulings, Google search licensing, AI capex at peers.
+*   **Three problems found and fixed** (403 tests):
+    1.  The numeric guard blocked period names like "September-quarter record" and "fourth-quarter margin". Hyphenated forms now count like spaced ones, and a month followed by "quarter" is a period name. This was 9 of the 17 removals.
+    2.  The skeptic saw raw placeholders. It now sees the filled-in values, with a note that code computed them.
+    3.  "10-year Treasury yield" was blocked, so it's now on the names list.
+    *   Also fixed: section 8 was printed before section 7, and two lines of mode wording were out of date.
+*   **The 7 remaining removals were correct.** They stated numbers in words or digits ("twelve months", "three fiscal years", "12 months"), or the skeptic found them unsupported.
 
 ## What the offline runs showed (AAPL, stored data from 4 Nov)
 

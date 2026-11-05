@@ -881,3 +881,68 @@ def test_the_insider_buying_note_shows_in_section_5(database, tmp_path):
     run, result = run_full(database, tmp_path, data=WithInsiders())
     html = result.html_path.read_text()
     assert "Insider buying: Jane Director bought shares on the open market" in html
+
+
+def test_the_skeptic_sees_filled_values_and_knows_code_made_them(database, tmp_path):
+    # The first live Apple report (2026-11-05): the skeptic saw raw {{metric:...}} placeholders
+    # and marked those claims unsupported.
+    state = ToolState(database.conn, "claude")
+    state.record_check(version="1.0", model_ids=["fake-small"], form="full", passed=True)
+    connector = FakeConnector(default=clean_ai)
+    run = Run(
+        database.conn,
+        FakeData(),
+        AIClient(connector, state, retry_wait_s=0),
+        load(),
+        mode="full",
+        now=NOW,
+        out_dir=None,
+    )
+    asyncio.run(run.run("T0"))
+    checks = [r for r in connector.requests if r.task == "skeptic"]
+    assert checks
+    for r in checks:
+        claims = r.instructions.split("judge only the rest of each claim):", 1)[1].split(
+            "Evidence items", 1
+        )[0]
+        assert "{{" not in claims
+        assert "Operating margin was" in claims and "%" in claims
+        assert "computed by code" in r.instructions
+
+
+class NewsAndTrends(WithNews, WithTrends):
+    pass
+
+
+def test_sections_come_in_report_order(database, tmp_path):
+    def both(request):
+        if request.task == "link_search":
+            return news_ai(request)
+        return trends_ai(request)
+
+    state = ToolState(database.conn, "claude")
+    state.record_check(version="1.0", model_ids=["fake-small"], form="full", passed=True)
+    run = Run(
+        database.conn,
+        NewsAndTrends(),
+        AIClient(FakeConnector(default=both), state, retry_wait_s=0),
+        load(),
+        mode="full",
+        now=NOW,
+        out_dir=tmp_path / "r",
+    )
+    html = asyncio.run(run.run("T0")).html_path.read_text()
+    order = [
+        html.index(h)
+        for h in (
+            "4. The business",
+            "5. Risks",
+            "6. Recent results",
+            "7. News and views",
+            "8. Industry trends",
+            "What to watch",
+            "9. Methodology",
+        )
+    ]
+    assert order == sorted(order)
+    assert "not built yet" not in html and "narrative still from filings only" not in html

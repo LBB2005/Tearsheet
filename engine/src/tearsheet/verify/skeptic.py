@@ -35,9 +35,11 @@ async def skeptic_section(
         prompt.text,
         f"Section: {section}.",
         f"The rating, score and range from code: {rating_summary}",
-        "Claims:\n"
+        "Claims (figures in them were computed by code from the filings' financial data and need no "
+        "support from the cited paragraphs; judge only the rest of each claim):\n"
         + "\n".join(
-            f"- {c.sentence_id}: {c.text} (cites: {', '.join(c.citations)})" for c in claims
+            f"- {c.sentence_id}: {c.filled or c.text} (cites: {', '.join(c.citations)})"
+            for c in claims
         ),
         "Evidence items given to the writer:\n"
         + ("\n".join(f"- [{i.type}] {i.statement}" for i in evidence) or "- none"),

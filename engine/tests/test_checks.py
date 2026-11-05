@@ -33,6 +33,12 @@ PARA = {
         "It works with third-party suppliers.",
         "The S&P 500 rose.",
         "One product line grew.",
+        # Found in the first live Apple report (2026-11-05): period names, not quantities.
+        "The fourth-quarter gross margin rose.",
+        "iPhone set a September-quarter record.",
+        "Apple guided December quarter revenue higher.",
+        "It was his first quarter as CEO.",
+        "The 10-year Treasury yield was {{macro:DGS10}}.",
     ],
 )
 def test_allowed(text):
@@ -53,6 +59,8 @@ def test_allowed(text):
         "Sales of the Pixel 9 were strong.",  # not in a cited paragraph
         "Half of revenue is services.",
         "It sold millions of phones.",
+        "A quarter of sales come from China.",
+        "Lead times can exceed twelve months.",
     ],
 )
 def test_blocked(text):

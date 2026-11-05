@@ -37,7 +37,13 @@ class NumericGuard:
         )
         words = sorted(lists["number_words"], key=len, reverse=True)
         self.number_words = re.compile(r"\b(" + "|".join(map(re.escape, words)) + r")\b", re.I)
-        self.exceptions = sorted(lists["number_word_exceptions"], key=len, reverse=True)
+        self.exceptions = [
+            re.compile(
+                r"\b" + r"[- ]".join(map(re.escape, phrase.replace("-", " ").split())) + r"\b", re.I
+            )
+            for phrase in sorted(lists["number_word_exceptions"], key=len, reverse=True)
+        ]
+        self.periods = [re.compile(p, re.I) for p in lists.get("period_patterns", [])]
         digit = "|".join(lists["digit_words"])
         self.digit_words = re.compile(rf"\b((low|mid|high)[- ])?({digit})[- ]digits?\b", re.I)
         context = "|".join(
@@ -100,8 +106,8 @@ class NumericGuard:
         if any(ch.isdigit() for ch in text):
             reasons.append("a number outside a placeholder")
         cleaned = text
-        for phrase in self.exceptions:
-            cleaned = re.sub(rf"\b{re.escape(phrase)}\b", " ", cleaned, flags=re.I)
+        for pattern in [*self.periods, *self.exceptions]:
+            cleaned = pattern.sub(" ", cleaned)
         if self.digit_words.search(cleaned):
             reasons.append(f"a number word: {self.digit_words.search(cleaned).group(0)!r}")
         else:

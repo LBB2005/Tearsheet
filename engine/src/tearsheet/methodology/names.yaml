@@ -45,6 +45,9 @@ names:
   - "4G"
   - "3D"
   - "Web3"
+  - "10-year Treasury"
+  - "2-year Treasury"
+  - "30-year Treasury"
 
 # Blocked number words. Matched as whole words, case-insensitive.
 number_words:
@@ -111,6 +114,10 @@ number_word_exceptions:
   - "fourth quarter"
   - "the quarter"
   - "quarterly"
+# Exceptions match with a space or a hyphen ("fourth quarter", "fourth-quarter"). A month
+# followed by "quarter" names a period ("September quarter"), not a quantity.
+period_patterns:
+  - '\b(January|February|March|April|May|June|July|August|September|October|November|December)[- ]quarters?\b'
 # "single-digit", "double-digit" and "triple-digit", with or without low, mid or high.
 digit_words: [single, double, triple]
 

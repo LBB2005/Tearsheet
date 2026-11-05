@@ -142,7 +142,7 @@ def cmd_run(args: argparse.Namespace) -> int:
             if state == "start":
                 print(f"  {step} ...", flush=True)
 
-        kind = "full method, Phase 1b code steps" if args.full else "thin slice, Phase 1a"
+        kind = "full method, Phase 1b" if args.full else "thin slice, Phase 1a"
         print(f"Report on {args.ticker} ({kind}){' with no AI' if ai is None else ''}.")
         if args.stored:
             today = datetime.now(UTC).date()
