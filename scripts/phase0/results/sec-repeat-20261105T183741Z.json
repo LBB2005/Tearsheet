@@ -1,0 +1,103 @@
+{
+  "run": "repeat",
+  "data_dir": "/Users/liamblackshaw-brown/Library/Application Support/Tearsheet/phase0/sec-20261104T225557Z",
+  "tickers": [
+    {
+      "ticker": "AAPL",
+      "run_id": "phase0-sec-repeat-AAPL-20261105T183520Z",
+      "requests": 46,
+      "requests_by_type": {
+        "company_facts": 41,
+        "company_tickers": 1,
+        "submissions": 4
+      },
+      "statuses": {
+        "200": 46
+      },
+      "form4_filings": 30,
+      "form4_purchase_found": false,
+      "documents": 14,
+      "raw_bytes_stored": 47469,
+      "minutes": 0.4,
+      "error": null,
+      "passed": true
+    },
+    {
+      "ticker": "AMZN",
+      "run_id": "phase0-sec-repeat-AMZN-20261105T183544Z",
+      "requests": 45,
+      "requests_by_type": {
+        "company_facts": 41,
+        "submissions": 4
+      },
+      "statuses": {
+        "200": 45
+      },
+      "form4_filings": 29,
+      "form4_purchase_found": false,
+      "documents": 15,
+      "raw_bytes_stored": 779696,
+      "minutes": 0.32,
+      "error": null,
+      "passed": true
+    },
+    {
+      "ticker": "JPM",
+      "run_id": "phase0-sec-repeat-JPM-20261105T183603Z",
+      "requests": 58,
+      "requests_by_type": {
+        "company_facts": 41,
+        "submissions": 17
+      },
+      "statuses": {
+        "200": 58
+      },
+      "form4_filings": 25,
+      "form4_purchase_found": false,
+      "documents": 16,
+      "raw_bytes_stored": 4029157,
+      "minutes": 0.68,
+      "error": null,
+      "passed": true
+    },
+    {
+      "ticker": "JNJ",
+      "run_id": "phase0-sec-repeat-JNJ-20261105T183644Z",
+      "requests": 45,
+      "requests_by_type": {
+        "company_facts": 41,
+        "submissions": 4
+      },
+      "statuses": {
+        "200": 45
+      },
+      "form4_filings": 13,
+      "form4_purchase_found": false,
+      "documents": 13,
+      "raw_bytes_stored": 903152,
+      "minutes": 0.39,
+      "error": null,
+      "passed": true
+    },
+    {
+      "ticker": "CAT",
+      "run_id": "phase0-sec-repeat-CAT-20261105T183708Z",
+      "requests": 45,
+      "requests_by_type": {
+        "company_facts": 41,
+        "submissions": 4
+      },
+      "statuses": {
+        "200": 45
+      },
+      "form4_filings": 70,
+      "form4_purchase_found": true,
+      "documents": 18,
+      "raw_bytes_stored": 378761,
+      "minutes": 0.56,
+      "error": null,
+      "passed": true
+    }
+  ],
+  "ivv": null
+}
