@@ -1,9 +1,12 @@
 // The window ↔ main bridge (design item 45): a fixed set of named calls, and nothing else.
 
-import { BrowserWindow, ipcMain } from 'electron'
+import { spawn } from 'node:child_process'
+
+import { BrowserWindow, ipcMain, shell } from 'electron'
 
 import type { Engine } from './engine'
 import { EngineError } from './engine'
+import { isAllowedExternal } from './external'
 import { getTools } from './probe'
 
 // Window call name → engine method.
@@ -19,7 +22,13 @@ export const CALLS: Record<string, string> = {
   setKey: 'set_key',
   getSettings: 'get_settings',
   setSetting: 'set_setting',
-  gradeDue: 'grade_due'
+  gradeDue: 'grade_due',
+  listCompanies: 'list_companies',
+  searchCompanies: 'search_companies',
+  getChart: 'get_chart',
+  fetchHistory: 'fetch_history',
+  checkKey: 'check_key',
+  runSafetyCheck: 'run_safety_check'
 }
 
 export interface CallResult {
@@ -44,6 +53,19 @@ export function registerIpc(window: BrowserWindow, engine: Engine, pathValue: st
     }
   })
   ipcMain.handle('tearsheet:getTools', (_event, force: boolean) => getTools(pathValue, Boolean(force)))
+  // Open Terminal only opens the app; nothing is typed or run in it.
+  ipcMain.handle('tearsheet:openTerminal', () => {
+    spawn('/usr/bin/open', ['/System/Applications/Utilities/Terminal.app'], { stdio: 'ignore', detached: true }).unref()
+  })
+  ipcMain.handle('tearsheet:openExternal', async (_event, url: unknown) => {
+    if (typeof url !== 'string' || !isAllowedExternal(url)) return false
+    await shell.openExternal(url)
+    return true
+  })
+  ipcMain.handle('tearsheet:find', (_event, text: unknown, forward: unknown) => {
+    if (typeof text === 'string' && text) window.webContents.findInPage(text, { forward: forward !== false })
+  })
+  ipcMain.handle('tearsheet:stopFind', () => window.webContents.stopFindInPage('clearSelection'))
   engine.on('notification', (note) => window.webContents.send('tearsheet:notification', note))
   engine.on('crashed', (runId) => window.webContents.send('tearsheet:notification', { method: 'engine_restarted', params: { run_id: runId } }))
   engine.on('fatal', (message) => window.webContents.send('tearsheet:notification', { method: 'engine_fatal', params: { message } }))

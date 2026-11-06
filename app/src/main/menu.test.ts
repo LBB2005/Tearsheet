@@ -1,0 +1,28 @@
+import type { MenuItemConstructorOptions } from 'electron'
+import { expect, test, vi } from 'vitest'
+
+import { menuTemplate, type MenuCommand } from './menu'
+
+function walk(items: MenuItemConstructorOptions[]): MenuItemConstructorOptions[] {
+  return items.flatMap((i) => [i, ...(Array.isArray(i.submenu) ? walk(i.submenu) : [])])
+}
+
+test('every shortcut in the spec is in the menu', () => {
+  const accelerators = walk(menuTemplate(() => undefined, false)).map((i) => i.accelerator)
+  for (const a of ['CmdOrCtrl+K', 'CmdOrCtrl+N', 'CmdOrCtrl+1', 'CmdOrCtrl+2', 'CmdOrCtrl+3', 'CmdOrCtrl+[', 'CmdOrCtrl+]', 'Ctrl+Cmd+S', 'CmdOrCtrl+F', 'CmdOrCtrl+,']) {
+    expect(accelerators).toContain(a)
+  }
+})
+
+test('clicking View > Chart sends chart', () => {
+  const send = vi.fn<(c: MenuCommand) => void>()
+  const chart = walk(menuTemplate(send, false)).find((i) => i.label === 'Chart')
+  ;(chart?.click as () => void)()
+  expect(send).toHaveBeenCalledWith('chart')
+})
+
+test('developer tools only in dev', () => {
+  const has = (dev: boolean) => walk(menuTemplate(() => undefined, dev)).some((i) => i.role === 'toggleDevTools')
+  expect(has(true)).toBe(true)
+  expect(has(false)).toBe(false)
+})

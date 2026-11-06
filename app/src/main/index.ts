@@ -5,12 +5,13 @@
 
 import { join, resolve } from 'node:path'
 
-import { app, BrowserWindow, shell } from 'electron'
+import { app, BrowserWindow, Menu, shell } from 'electron'
 
 import { dockUpdate, NO_RUN } from './dockProgress'
 import { Engine, type Notification } from './engine'
 import { registerIpc } from './ipc'
 import { loginShellPath } from './loginShellPath'
+import { menuTemplate } from './menu'
 import { navigationAction } from './navigation'
 import { getTools } from './probe'
 
@@ -70,9 +71,14 @@ async function createWindow(): Promise<void> {
   })
 
   const window = new BrowserWindow({
-    width: 1200,
-    height: 880,
+    width: 1280,
+    height: 840,
+    minWidth: 820,
+    minHeight: 600,
     title: 'Tearsheet',
+    titleBarStyle: 'hiddenInset',
+    trafficLightPosition: { x: 18, y: 18 },
+    backgroundColor: '#0A0D14',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -81,6 +87,7 @@ async function createWindow(): Promise<void> {
     }
   })
   registerIpc(window, engine, fixedPath)
+  Menu.setApplicationMenu(Menu.buildFromTemplate(menuTemplate((command) => window.webContents.send('tearsheet:menu', command), !app.isPackaged)))
   showProgressInDock(window, engine)
   engine.start()
 
