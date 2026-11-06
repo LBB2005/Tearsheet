@@ -1,4 +1,5 @@
-import { FanMark } from '../fan/FanMark'
+import { fillForSteps } from '../mark/drawing'
+import { Mark } from '../mark/Mark'
 
 export interface RunState {
   runId: string
@@ -35,7 +36,7 @@ export function Progress({ run, onResumed }: { run: RunState | null; onResumed: 
   return (
     <section>
       <h2>Progress</h2>
-      <FanMark mode="run" size={128} className="fm-progress" steps={run.steps} ready={Boolean(run.reportId)} failed={Boolean(run.failure)} />
+      <Mark size={128} fill={run.reportId ? 1 : fillForSteps(run.steps)} />
       <p className="muted">Run {run.runId}</p>
       <ol className="steps">
         {STEPS.map(([key, label], i) => {

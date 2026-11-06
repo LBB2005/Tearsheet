@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 
 import type { EngineNotification } from '../preload/api'
-import { readyPauseMs } from './fan/FanMark'
+import { readyPauseMs } from './motion'
 import { Connections } from './views/Connections'
 import { Log } from './views/Log'
 import { Progress, type RunState } from './views/Progress'
