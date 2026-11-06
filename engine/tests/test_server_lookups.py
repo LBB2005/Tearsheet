@@ -184,3 +184,82 @@ def test_server_clients_share_one_massive_limiter(tmp_path, database, rawstore):
     first, second = run(go())
     assert first is second is limiter
     h.server.close()
+
+
+# --- the company a run resolved (the run view's title and the sidebar's "writing…" row) -----
+
+
+def test_run_report_returns_the_company_the_engine_resolved(tmp_path):
+    from tearsheet.protocol import RunStarted
+
+    h = Harness(tmp_path)
+
+    async def go():
+        await h.server.start()
+        by_ticker = await h.call("run_report", {"query": "t0"})
+        await h.finish()
+        by_name = await h.call("run_report", {"query": "Company 1"}, id_=2)
+        await h.finish()
+        return by_ticker, by_name
+
+    by_ticker, by_name = run(go())
+    first = by_ticker["result"]
+    assert first["run_id"].startswith("run-")
+    assert (first["ticker"], first["name"]) == ("T0", "Company 0")
+    assert (by_name["result"]["ticker"], by_name["result"]["name"]) == ("T1", "Company 1")
+    RunStarted.model_validate(first)
+    h.server.close()
+
+
+def test_resume_returns_the_runs_company_too(tmp_path, monkeypatch):
+    from tearsheet.ai.client import AIUsageLimit
+    from tearsheet.data import membership
+    from tests.test_pipeline import clean_ai
+    from tests.test_replay import LoggedData
+
+    monkeypatch.setattr(membership, "MIN_ROWS", 1)
+
+    def limited(request):
+        if request.task == "narrate":
+            return AIUsageLimit("You've hit your limit. Resets 3am")
+        return clean_ai(request)
+
+    h = Harness(tmp_path, ai_default=limited)
+
+    @asynccontextmanager
+    async def logged(run_id, conn, rawstore):
+        yield LoggedData(rawstore, run_id)
+
+    h.server.data_factory = logged
+
+    async def go():
+        await h.server.start()
+        started = await h.call("run_report", {"query": "T0"})
+        await h.finish()
+        h.ai_default = clean_ai
+        resumed = await h.call("resume", {"run_id": started["result"]["run_id"]}, id_=2)
+        await h.finish()
+        return started, resumed
+
+    started, resumed = run(go())
+    assert h.notes("run_failed")[0]["code"] == "USAGE_LIMIT"
+    assert resumed["result"] == {**started["result"]}
+    assert resumed["result"]["ticker"] == "T0"
+    h.server.close()
+
+
+def test_a_runs_company_prefers_the_look_up_lists_name(database):
+    from tearsheet.companies import run_company
+    from tests.test_companies import add_report
+
+    conn = database.conn
+    add_report(conn, "run-n", "rep-n", 1045810, "NVDA", "2026-11-05T19:00:00+00:00")
+    with conn:
+        conn.execute("UPDATE companies SET name = 'NVIDIA CORP' WHERE cik = 1045810")
+    add_report(conn, "run-z", "rep-z", 1000, "T0", "2026-11-05T19:00:00+00:00")
+
+    assert run_company(conn, "run-n") == {"ticker": "NVDA", "name": "Nvidia"}
+    # Outside the bundled list, the name SEC gave the company.
+    assert run_company(conn, "run-z") == {"ticker": "T0", "name": "T0 Inc."}
+    # A run that stopped before step 1 finished has no company yet.
+    assert run_company(conn, "run-none") == {"ticker": None, "name": None}

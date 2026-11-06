@@ -441,7 +441,7 @@ class Server:
             return run, p.query, False
 
         await self._start_job(run_id, make_run, wait_for_resolve=True)
-        return {"run_id": run_id}
+        return {"run_id": run_id, **self._run_company(run_id)}
 
     async def m_resume(self, p) -> dict[str, Any]:
         from tearsheet.pipeline import prepare_resume
@@ -481,7 +481,13 @@ class Server:
             )
         finally:
             self.data_factory = factory
-        return {"run_id": p.run_id}
+        return {"run_id": p.run_id, **self._run_company(p.run_id)}
+
+    def _run_company(self, run_id: str) -> dict[str, str | None]:
+        """The company the run resolved, so the app names the run by it and not by the query."""
+        from tearsheet.companies import run_company
+
+        return run_company(self.db.conn, run_id)
 
     async def m_cancel(self, p) -> dict[str, Any]:
         if self.active is not None and self.active.run_id == p.run_id:

@@ -27,23 +27,25 @@ export type Cik = number;
 export type Name = string;
 export type Ticker = string;
 export type RunId1 = string;
+export type Ticker1 = string | null;
+export type Name1 = string | null;
 export type Ok1 = boolean;
 export type ReportId3 = string;
 export type RunId2 = string;
-export type Ticker1 = string;
+export type Ticker2 = string;
 export type CreatedAt = string;
 export type NarrativeComplete = boolean;
 export type Html = string;
 export type Cik1 = number;
-export type Ticker2 = string;
-export type Name1 = string;
+export type Ticker3 = string;
+export type Name2 = string;
 export type ReportId4 = string;
 export type ReportDate = string;
 export type Reports = number;
 export type Price = number | null;
 export type PriceDate = string | null;
-export type Ticker3 = string;
-export type Name2 = string;
+export type Ticker4 = string;
+export type Name3 = string;
 export type Sector = string | null;
 export type Cik2 = number;
 export type ReportId5 = string | null;
@@ -66,8 +68,8 @@ export type Days = number;
 export type ReportId6 = string;
 export type RunId3 = string;
 export type Cik3 = number | null;
-export type Ticker4 = string | null;
-export type Name3 = string | null;
+export type Ticker5 = string | null;
+export type Name4 = string | null;
 export type CreatedAt1 = string;
 export type Rating = string | null;
 export type NarrativeComplete1 = boolean;
@@ -82,7 +84,7 @@ export type EndDate = string | null;
 export type InsideRange = boolean | null;
 export type PredictionId = string;
 export type Cik4 = number;
-export type Ticker5 = string;
+export type Ticker6 = string;
 export type RunAt = string;
 export type Rating1 = string;
 export type Bear1 = number | null;
@@ -93,7 +95,7 @@ export type ReviewId = string;
 export type Deleted = number;
 export type Graded = number;
 export type Note1 = string | null;
-export type Name4 = string;
+export type Name5 = string;
 export type Key3 = string;
 export type Cost = string;
 export type Sent = string;
@@ -117,7 +119,7 @@ export type Started = boolean;
 export type Tool2 = "claude" | "codex";
 export type N = number;
 export type Total = number;
-export type Name5 = string;
+export type Name6 = string;
 export type Ok2 = boolean;
 export type Tool3 = "claude" | "codex";
 export type Passed1 = boolean;
@@ -276,6 +278,8 @@ export interface Candidate {
  */
 export interface RunStarted {
   run_id: RunId1;
+  ticker: Ticker1;
+  name: Name1;
 }
 /**
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
@@ -291,7 +295,7 @@ export interface Ok {
 export interface ReportResult {
   report_id: ReportId3;
   run_id: RunId2;
-  ticker: Ticker1;
+  ticker: Ticker2;
   created_at: CreatedAt;
   narrative_complete: NarrativeComplete;
   html: Html;
@@ -302,8 +306,8 @@ export interface ReportResult {
  */
 export interface CompanyRow {
   cik: Cik1;
-  ticker: Ticker2;
-  name: Name1;
+  ticker: Ticker3;
+  name: Name2;
   report_id: ReportId4;
   report_date: ReportDate;
   reports: Reports;
@@ -315,8 +319,8 @@ export interface CompanyRow {
  * via the `definition` "SearchHit".
  */
 export interface SearchHit {
-  ticker: Ticker3;
-  name: Name2;
+  ticker: Ticker4;
+  name: Name3;
   sector: Sector;
   cik: Cik2;
   report_id: ReportId5;
@@ -370,8 +374,8 @@ export interface ReportSummary {
   report_id: ReportId6;
   run_id: RunId3;
   cik: Cik3;
-  ticker: Ticker4;
-  name: Name3;
+  ticker: Ticker5;
+  name: Name4;
   created_at: CreatedAt1;
   rating: Rating;
   narrative_complete: NarrativeComplete1;
@@ -400,7 +404,7 @@ export interface Grade {
 export interface PredictionSummary {
   prediction_id: PredictionId;
   cik: Cik4;
-  ticker: Ticker5;
+  ticker: Ticker6;
   run_at: RunAt;
   rating: Rating1;
   bear: Bear1;
@@ -435,7 +439,7 @@ export interface GradeResult {
  * via the `definition` "Service".
  */
 export interface Service2 {
-  name: Name4;
+  name: Name5;
   key: Key3;
   cost: Cost;
   sent: Sent;
@@ -499,7 +503,7 @@ export interface SafetyProgress {
   tool: Tool2;
   n: N;
   total: Total;
-  name: Name5;
+  name: Name6;
   ok: Ok2;
 }
 /**

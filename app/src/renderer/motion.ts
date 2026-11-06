@@ -2,7 +2,7 @@
 
 const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-// How long the Progress view holds the "report ready" moment before the report opens.
+// How long the run view holds the "report ready" moment before the report opens.
 export function readyPauseMs(): number {
   return reduced() ? 0 : 1600
 }

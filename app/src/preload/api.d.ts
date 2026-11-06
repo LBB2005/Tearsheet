@@ -22,9 +22,10 @@ export interface EngineNotification {
 }
 
 export interface TearsheetApi {
-  runReport(query: string, tool?: string): Promise<CallResult<{ run_id: string }>>
+  // Both answer with the run's id and the company it resolved (step 1).
+  runReport(query: string, tool?: string): Promise<CallResult<import('../shared/protocol').RunStarted>>
   cancel(runId: string): Promise<CallResult<{ ok: boolean }>>
-  resume(runId: string): Promise<CallResult<{ run_id: string }>>
+  resume(runId: string): Promise<CallResult<import('../shared/protocol').RunStarted>>
   getReport(reportId: string, opts?: { view?: 'summary' | 'full'; column?: 'both' | 'numbers' | 'text' }): Promise<CallResult<import('../shared/protocol').ReportResult>>
   listCompanies(): Promise<CallResult<import('../shared/protocol').CompanyRow[]>>
   searchCompanies(query: string, limit?: number): Promise<CallResult<import('../shared/protocol').SearchHit[]>>

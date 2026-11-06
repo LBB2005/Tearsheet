@@ -1,8 +1,8 @@
 // The app shell: the sidebar, the toolbar and the page frame, routed by page. It opens on the
-// first-time setup until setup is finished (setup_done), and on the home page after that. The
-// other pages are still the interim views (views/) until their replacements land: home is New
-// report (or the run while one is going), then the report, the prediction log, and settings with
-// connections.
+// first-time setup until setup is finished (setup_done), and on the home page after that. Home is
+// New report, and shows the run view while a report is written (home/useRun.ts). The report, the
+// prediction log, and settings with connections are still the interim views (views/) until their
+// replacements land.
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 
@@ -10,11 +10,14 @@ import type { MenuCommand } from '../main/menu'
 import type { EngineNotification, ToolStatus } from '../preload/api'
 import type { CompanyRow, SearchHit, SettingsResult } from '../shared/protocol'
 import { bootView, GIVE_UP_AFTER_MS, STARTING_AFTER_MS } from './boot'
+import { RunView, runTitle } from './home/RunView'
+import { useRun } from './home/useRun'
 import { Mark } from './mark/Mark'
-import { leaveMs, readyPauseMs } from './motion'
-import { nextCompany, shortDate, statusLine, type Page } from './nav'
+import { leaveMs } from './motion'
+import { nextCompany, safetyFailed, shortDate, statusLine, type Page } from './nav'
 import { LookUp } from './overlays/LookUp'
 import { Toast, type Notice } from './overlays/Toast'
+import { Home } from './pages/Home'
 import { Setup } from './pages/Setup'
 import { applySafetyNote, safetyStarted, type SafetyState, type ToolKind } from './setup/steps'
 import { Sidebar, SidebarButton } from './shell/Sidebar'
@@ -22,9 +25,7 @@ import { Toolbar } from './shell/Toolbar'
 import { useWide } from './shell/useWide'
 import { Connections } from './views/Connections'
 import { Log } from './views/Log'
-import { Progress, type RunState } from './views/Progress'
 import { Report } from './views/Report'
-import { Search } from './views/Search'
 import { Settings } from './views/Settings'
 
 export function App() {
@@ -40,13 +41,11 @@ export function App() {
   // Into the app from setup: the sidebar opens by width while the home page fades up.
   const [opening, setOpening] = useState(false)
   const [leaving, setLeaving] = useState(false)
-  const [run, setRun] = useState<RunState | null>(null)
-  const [runLabel, setRunLabel] = useState('')
-  // Holds the run view on screen for the "report ready" moment before the report opens.
-  const [readyHold, setReadyHold] = useState(false)
   const [openReport, setOpenReport] = useState<string | null>(null)
   const [fatal, setFatal] = useState<string | null>(null)
   const [companies, setCompanies] = useState<CompanyRow[]>([])
+  // False until the first list arrives, so the home page knows a new user from a returning one.
+  const [listed, setListed] = useState(false)
   const [tools, setTools] = useState<ToolStatus[]>([])
   const [primaryTool, setPrimaryTool] = useState<string | null>(null)
   // This session's safety check; setup's chip and the sidebar's status line both read it.
@@ -62,6 +61,8 @@ export function App() {
   const target = useRef<Page>('home')
   const switchTimer = useRef<number | undefined>(undefined)
   const noticeId = useRef(0)
+  // The home page's field, for ⌘K.
+  const homeField = useRef<HTMLInputElement>(null)
 
   // Change pages: the content fades and lifts away, then the new page settles in.
   const go = useCallback((next: Page) => {
@@ -72,7 +73,6 @@ export function App() {
     switchTimer.current = window.setTimeout(() => {
       setPage(next)
       setLeaving(false)
-      setReadyHold(false)
     }, leaveMs())
   }, [])
 
@@ -84,6 +84,7 @@ export function App() {
   const loadCompanies = useCallback(() => {
     void window.tearsheet.listCompanies().then((r) => {
       if (r.ok && r.result) setCompanies(r.result)
+      setListed(true)
     })
   }, [])
   const loadTools = useCallback((force = false) => {
@@ -137,38 +138,25 @@ export function App() {
     }
   }, [booted, bootTry, gradeDue])
 
+  const report = useRun({ page, target, go, notify, loadCompanies, loadTools, openReport: setOpenReport })
+  const { run, onNote } = report
+
+  // The one listener for the engine's notes. The run's notes go to useRun.
   useEffect(() => {
     return window.tearsheet.onNotification((note: EngineNotification) => {
-      const p = note.params as Record<string, never>
-      if (note.method === 'progress') {
-        setRun((r) => (r && r.runId === p.run_id ? { ...r, steps: { ...r.steps, [p.step_name]: p.state } } : r))
-      } else if (note.method === 'report_ready') {
-        setRun((r) => (r && r.runId === p.run_id ? { ...r, reportId: p.report_id } : r))
-        setOpenReport(p.report_id)
-        loadCompanies()
-        // On the run view, hold the "report ready" moment before opening the report.
-        if (target.current === 'home') {
-          setReadyHold(true)
-          window.setTimeout(() => {
-            if (target.current === 'home') go('report')
-            else setReadyHold(false)
-          }, readyPauseMs())
-        } else go('report')
-      } else if (note.method === 'run_failed') {
-        setRun((r) => (r && r.runId === p.run_id ? { ...r, failure: { message: p.message, code: p.code, resetAt: p.reset_at, fix: p.fix_command } } : r))
-        if (p.code === 'AUTH_EXPIRED') loadTools(true)
-        go('home')
+      if (note.method === 'progress' || note.method === 'report_ready' || note.method === 'run_failed') {
+        onNote(note)
       } else if (note.method === 'safety_progress' || note.method === 'safety_done') {
         setSafety((s) => applySafetyNote(s, note.method, note.params))
       } else if (note.method === 'engine_restarted') {
-        setRun((r) => (r ? { ...r, failure: { message: 'The engine stopped and was restarted. You can resume the run.', code: 'ENGINE_ERROR' } } : r))
+        onNote(note)
         setSafety((s) => applySafetyNote(s, note.method, note.params))
         notify('The engine stopped and was restarted', 'Your saved reports are safe.', 'stop')
       } else if (note.method === 'engine_fatal') {
-        setFatal(String(p.message))
+        setFatal(String(note.params.message))
       }
     })
-  }, [go, loadCompanies, loadTools, notify])
+  }, [notify, onNote])
 
   // Setup started the safety check; it counts from 0 until the engine's first note.
   const safetyBegan = useCallback((tool: ToolKind) => {
@@ -190,19 +178,6 @@ export function App() {
     go('home')
   }, [go, gradeDue, loadTools])
 
-  // A run started from the home page or the look-up box. A resumed run keeps its label.
-  const started = (runId: string, query?: string) => {
-    setRun({ runId, steps: {}, reportId: null, failure: null })
-    setReadyHold(false)
-    if (query !== undefined) {
-      setRunLabel(query)
-      void window.tearsheet.searchCompanies(query, 1).then((r) => {
-        if (r.ok && r.result?.[0]) setRunLabel(r.result[0].ticker)
-      })
-    }
-    go('home')
-  }
-
   const openCompany = (row: CompanyRow) => {
     setOpenReport(row.report_id)
     setSideOver(false)
@@ -212,30 +187,41 @@ export function App() {
   const newReport = () => {
     setSideOver(false)
     // On the home page, New report puts a stopped run away so a new one can start.
-    if (target.current === 'home' && run && !run.reportId && run.failure) setRun(null)
+    if (target.current === 'home') report.putAway()
     go('home')
   }
 
-  // ⌘K: on the home page, its own field takes the cursor; elsewhere the look-up box opens.
+  // ⌘K: on the home page, its own field takes the cursor; elsewhere (and on the run view, which
+  // has no field) the look-up box opens.
   const openLookUp = () => {
     setSideOver(false)
-    const field = document.querySelector<HTMLInputElement>('.pagebody[data-page="home"] input[type="text"]')
-    if (target.current === 'home' && field) {
+    const field = homeField.current
+    if (target.current === 'home' && !leaving && field) {
       field.focus()
       field.select()
     } else setLookUp(true)
   }
 
+  // The look-up box opens a company's report, or starts a new one.
   const pick = async (hit: SearchHit) => {
     if (hit.report_id) {
       setOpenReport(hit.report_id)
       go('report')
       return
     }
-    const reply = await window.tearsheet.runReport(hit.ticker)
-    if (reply.ok && reply.result) started(reply.result.run_id, hit.ticker)
-    else if (reply.error?.code === 'RUN_IN_PROGRESS') notify('A report is already running', 'You can start another when it finishes.', 'stop')
-    else notify('The report didn’t start', reply.error?.message, 'stop')
+    const problem = await report.start(hit.ticker)
+    if (problem) notify('The report didn’t start', problem, 'stop')
+  }
+
+  // "Run the check again", from the home page's red box.
+  const recheck = async (): Promise<string | null> => {
+    const kind = tool?.kind ?? 'claude'
+    const reply = await window.tearsheet.runSafetyCheck(kind)
+    if (reply.ok || reply.error?.code === 'SAFETY_CHECK_RUNNING') {
+      safetyBegan(kind)
+      return null
+    }
+    return reply.error?.message || 'The safety check didn’t start.'
   }
 
   const currentTicker = () => (target.current === 'report' ? companies.find((c) => c.report_id === openReport)?.ticker ?? null : null)
@@ -289,15 +275,21 @@ export function App() {
   useEffect(() => window.tearsheet.onMenu((c) => menu.current(c)), [])
 
   const tool = tools.find((t) => t.kind === (primaryTool ?? 'claude')) ?? tools.find((t) => t.available) ?? tools[0]
-  const running = run !== null && !run.reportId && !run.failure
+  const toolKind: ToolKind = tool?.kind ?? 'claude'
+  const toolName = tool?.name ?? 'Claude Code'
+  const signedOut = tool?.available === true && tool.loggedIn === false
+  const checkFailed = safetyFailed(safety, toolKind, bootSettings?.lockdown?.[toolKind])
+  const runLabel = run ? (run.ticker ?? run.name ?? 'New report') : ''
   const status = statusLine({
-    run: running ? { ticker: runLabel, steps: run.steps } : null,
+    run: report.running && run ? { ticker: runLabel, steps: run.steps } : null,
     safety: safety && !safety.done ? { n: safety.n, total: safety.total } : null,
-    tools: tool?.name ?? 'Claude Code',
-    signedOut: tool?.available === true && tool.loggedIn === false
+    tools: toolName,
+    signedOut,
+    safetyFailed: checkFailed
   })
 
-  const homeShowsRun = (run !== null && !run.reportId) || readyHold
+  // The run view, on the home page while a report is written (or waits for Resume).
+  const runView = page === 'home' ? report.view : null
   const company = companies.find((c) => c.report_id === openReport)
   const bar =
     page === 'report'
@@ -306,10 +298,26 @@ export function App() {
         ? { title: 'Prediction log' }
         : page === 'settings'
           ? { title: 'Settings', subtitle: 'and connections' }
-          : {}
+          : runView
+            ? runTitle(runView, report.readyHold)
+            : {}
 
   let content = null
-  if (page === 'home') content = homeShowsRun ? <Progress run={run} onResumed={(id) => started(id)} /> : <Search onStarted={started} />
+  if (page === 'home')
+    content = runView ? (
+      <RunView run={runView} ready={report.readyHold} resuming={report.resuming} onResume={() => void report.resume()} />
+    ) : (
+      <Home
+        companies={listed ? companies : null}
+        tool={{ kind: toolKind, name: toolName, signedOut, safetyFailed: checkFailed }}
+        fieldRef={homeField}
+        onStart={report.start}
+        onOpen={openCompany}
+        onAddFred={() => go('settings')}
+        onTools={setTools}
+        onRecheck={recheck}
+      />
+    )
   else if (page === 'report') content = <Report openId={openReport} onOpen={setOpenReport} />
   else if (page === 'log') content = <Log />
   else if (page === 'settings')
@@ -366,8 +374,13 @@ export function App() {
         page={page}
         companies={companies}
         openReport={openReport}
+        writing={report.running ? { ticker: runLabel, on: runView !== null } : null}
         status={status}
         onNew={newReport}
+        onWriting={() => {
+          setSideOver(false)
+          go('home')
+        }}
         onLookUp={openLookUp}
         onCompany={openCompany}
         onPage={(p) => {
@@ -386,13 +399,19 @@ export function App() {
             <Toolbar
               title={bar.title}
               subtitle={bar.subtitle}
-              bare={page === 'home' && !homeShowsRun}
+              bare={page === 'home' && !runView}
               finding={finding}
               findFocus={findFocus}
               onFindClose={() => setFinding(false)}
-            />
+            >
+              {runView && report.running && (
+                <button className="btn2" onClick={() => void report.cancel()}>
+                  Cancel run
+                </button>
+              )}
+            </Toolbar>
             {fatalNotice}
-            <main key={page === 'home' && homeShowsRun ? 'home-run' : page} className={leaving ? 'pagebody leave' : 'pagebody enter'} data-page={page}>
+            <main key={runView ? 'home-run' : page} className={leaving || report.swapping ? 'pagebody leave' : 'pagebody enter'} data-page={page}>
               {content}
             </main>
           </>

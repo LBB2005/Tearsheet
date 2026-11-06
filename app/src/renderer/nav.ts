@@ -1,8 +1,9 @@
 // Pure logic for the app shell: the pages, ⌘[ and ⌘] through the sidebar's companies, and the
 // sidebar's status line.
 
-import type { CompanyRow } from '../shared/protocol'
+import type { CompanyRow, LockdownState } from '../shared/protocol'
 import { REPORT_STEPS, stepsBehind, type StepStates } from '../shared/steps'
+import type { SafetyState, ToolKind } from './setup/steps'
 
 export type Page = 'setup' | 'home' | 'report' | 'log' | 'settings'
 
@@ -37,6 +38,8 @@ export interface StatusInput {
   // The AI tool's name, like "Claude Code".
   tools: string
   signedOut: boolean
+  // The tool's safety check (the lock-down check) didn't pass (safetyFailed below).
+  safetyFailed?: boolean
 }
 
 export interface StatusLine {
@@ -46,11 +49,13 @@ export interface StatusLine {
   progress?: number
 }
 
-// The sidebar's status line. A sign-out comes first, in red, because new reports can't be
-// written until it's fixed; then a run, then the safety check, then "ready".
+// The sidebar's status line. A sign-out comes first, then a failed safety check, both in red,
+// because new reports can't be written until they're fixed; then a run, then the safety check,
+// then "ready".
 export function statusLine(input: StatusInput): StatusLine {
   const total = REPORT_STEPS.length
   if (input.signedOut) return { tone: 'stop', text: `${input.tools} signed out` }
+  if (input.safetyFailed) return { tone: 'stop', text: 'Safety check didn’t pass' }
   if (input.run) {
     const behind = Math.min(stepsBehind(input.run.steps), total - 1)
     return { tone: 'run', text: `Writing ${input.run.ticker}, step ${behind + 1} of ${total}`, progress: (behind + 0.5) / total }
@@ -60,4 +65,13 @@ export function statusLine(input: StatusInput): StatusLine {
     return { tone: 'run', text: `Safety check, ${n} of ${calls}`, progress: calls > 0 ? Math.min(1, n / calls) : 0 }
   }
   return { tone: 'ok', text: `${input.tools} ready` }
+}
+
+// Whether the tool's safety check has failed: this session's check if one ran for this tool,
+// else the last stored one. Only a check that ran and failed counts. A newer version of the tool,
+// or a one-off attempt to use a tool in a run, is checked again by the engine before the next
+// AI call, so neither shows as failed.
+export function safetyFailed(session: SafetyState | null, kind: ToolKind, stored: LockdownState | undefined): boolean {
+  if (session && session.tool === kind) return session.done && !session.passed
+  return stored?.blocked_reason === 'lockdown_failed'
 }

@@ -1,6 +1,6 @@
 // The Claude-style sidebar (the spec's "The window"): flat dark, with no boxes or borders. From
-// top to bottom: New report and Look up, the "Reports" label and one row per company, then
-// Prediction log, Settings and the status line.
+// top to bottom: New report and Look up, the "Reports" label and one row per company (the one
+// being written first, as "writing…"), then Prediction log, Settings and the status line.
 
 import type { ReactElement } from 'react'
 
@@ -39,7 +39,7 @@ export const ICONS: Record<'side' | 'plus' | 'search' | 'log' | 'gear', ReactEle
   )
 }
 
-const money = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' })
+export const money = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' })
 
 // The button beside the window buttons (left 88 px, top 13 px). It stays when the sidebar is
 // hidden, so the sidebar can come back.
@@ -51,25 +51,37 @@ export function SidebarButton({ shown, onClick }: { shown: boolean; onClick: () 
   )
 }
 
+// The report being written, at the top of the list as "writing…". `on` while the home page
+// shows its run view.
+export interface WritingRow {
+  ticker: string
+  on: boolean
+}
+
 export interface SidebarProps {
   page: Page
   companies: CompanyRow[]
   openReport: string | null
+  writing: WritingRow | null
   status: StatusLine
   onNew: () => void
+  onWriting: () => void
   onLookUp: () => void
   onCompany: (row: CompanyRow) => void
   onPage: (page: 'log' | 'settings') => void
 }
 
-export function Sidebar({ page, companies, openReport, status, onNew, onLookUp, onCompany, onPage }: SidebarProps) {
+export function Sidebar({ page, companies, openReport, writing, status, onNew, onWriting, onLookUp, onCompany, onPage }: SidebarProps) {
   const row = (on: boolean) => (on ? 'row4 on' : 'row4')
+  const newOn = page === 'home' && !writing?.on
+  // One row per company: while its report is written, the company's own row gives way to it.
+  const listed = writing ? companies.filter((c) => c.ticker !== writing.ticker) : companies
   return (
     <aside className="side4" aria-label="Sidebar">
       {/* The strip beside the window buttons drags the window, as the toolbar does. */}
       <div className="sidedrag" />
       <div className="in">
-        <button className={row(page === 'home')} aria-current={page === 'home' ? 'page' : undefined} onClick={onNew}>
+        <button className={row(newOn)} aria-current={newOn ? 'page' : undefined} onClick={onNew}>
           {ICONS.plus}New report<kbd>⌘N</kbd>
         </button>
         <button className="row4" onClick={onLookUp}>
@@ -79,8 +91,16 @@ export function Sidebar({ page, companies, openReport, status, onNew, onLookUp, 
           Reports
         </div>
         <div className="list4" role="list" aria-labelledby="side-reports">
-          {companies.length === 0 && <div className="empty4">Your reports will show here.</div>}
-          {companies.map((c) => {
+          {writing && (
+            <div role="listitem">
+              <button className={row(writing.on)} aria-current={writing.on ? 'page' : undefined} onClick={onWriting}>
+                <b>{writing.ticker}</b>
+                <span className="px">writing…</span>
+              </button>
+            </div>
+          )}
+          {!writing && companies.length === 0 && <div className="empty4">Your reports will show here.</div>}
+          {listed.map((c) => {
             const on = page === 'report' && c.report_id === openReport
             return (
               <div role="listitem" key={c.cik}>

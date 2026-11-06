@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 
 import type { CompanyRow } from '../shared/protocol'
 import { REPORT_STEPS } from '../shared/steps'
-import { nextCompany, shortDate, statusLine } from './nav'
+import type { LockdownState } from '../shared/protocol'
+import { nextCompany, safetyFailed, shortDate, statusLine } from './nav'
+import { safetyStarted, type SafetyState } from './setup/steps'
 
 const row = (ticker: string): CompanyRow => ({
   cik: ticker.length,
@@ -101,6 +103,45 @@ describe('statusLine', () => {
   it('puts a sign-out first, in red, as the setup prototype does', () => {
     const line = statusLine({ run: { ticker: 'JPM', steps: stepsDone(8) }, safety: { n: 7, total: 25 }, tools: 'Claude Code', signedOut: true })
     expect(line).toEqual({ tone: 'stop', text: 'Claude Code signed out' })
+  })
+
+  it('says in red when the safety check didn’t pass', () => {
+    expect(statusLine({ tools: 'Claude Code', signedOut: false, safetyFailed: true })).toEqual({ tone: 'stop', text: 'Safety check didn’t pass' })
+  })
+
+  it('puts a failed safety check after a sign-out and before anything running', () => {
+    expect(statusLine({ tools: 'Claude Code', signedOut: true, safetyFailed: true }).text).toBe('Claude Code signed out')
+    const line = statusLine({ run: { ticker: 'JPM', steps: stepsDone(8) }, safety: { n: 7, total: 25 }, tools: 'Claude Code', signedOut: false, safetyFailed: true })
+    expect(line.text).toBe('Safety check didn’t pass')
+  })
+})
+
+describe('safetyFailed', () => {
+  const stored = (over: Partial<LockdownState> = {}): LockdownState => ({ version: '2.1.317', passed: true, form: 'full', checked_at: '2026-11-05T19:00:00+00:00', blocked_reason: null, ...over })
+  const finished = (passed: boolean): SafetyState => ({ ...safetyStarted('claude'), n: passed ? 25 : 9, done: true, passed, reason: passed ? null : 'It tried to use a tool.' })
+
+  it('goes by this session’s check when it ran for the tool', () => {
+    expect(safetyFailed(finished(false), 'claude', stored())).toBe(true)
+    expect(safetyFailed(finished(true), 'claude', stored({ passed: false, blocked_reason: 'lockdown_failed' }))).toBe(false)
+  })
+
+  it('counts a check still running as not failed', () => {
+    expect(safetyFailed(safetyStarted('claude'), 'claude', stored({ passed: false, blocked_reason: 'lockdown_failed' }))).toBe(false)
+  })
+
+  it('else goes by the last stored check', () => {
+    expect(safetyFailed(null, 'claude', stored({ passed: false, blocked_reason: 'lockdown_failed' }))).toBe(true)
+    expect(safetyFailed(null, 'claude', stored())).toBe(false)
+    expect(safetyFailed(null, 'claude', undefined)).toBe(false)
+  })
+
+  it('ignores a check for the other tool', () => {
+    expect(safetyFailed({ ...finished(false), tool: 'codex' }, 'claude', stored())).toBe(false)
+  })
+
+  it('doesn’t count a newer version or a one-off tool attempt as failed, since the engine checks those again itself', () => {
+    expect(safetyFailed(null, 'claude', stored({ version: '2.0.1' }))).toBe(false)
+    expect(safetyFailed(null, 'claude', stored({ passed: false, blocked_reason: 'tool_use_attempt' }))).toBe(false)
   })
 })
 

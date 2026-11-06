@@ -9,8 +9,3 @@
   .mark { animation: none; }
   .mark-fill, .mark-area { transition: none; }
 }
-
-/* Layout for the interim New report and Progress views. */
-.mark-heading { display: flex; align-items: center; gap: 14px; margin: 0 0 14px; }
-.mark-heading h2 { margin: 0; }
-.mark-progress { margin: 2px 0 14px; }

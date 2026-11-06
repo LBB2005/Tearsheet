@@ -143,6 +143,10 @@ class Candidate(Strict):
 
 class RunStarted(Strict):
     run_id: str
+    # The company step 1 resolved (run_report waits for it), so the app names the run by it;
+    # None if the run stopped before step 1 finished.
+    ticker: str | None
+    name: str | None
 
 
 class Ok(Strict):

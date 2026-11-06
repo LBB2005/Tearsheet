@@ -53,6 +53,28 @@ def _ticker_of(row: sqlite3.Row, holdings: membership.Holdings) -> str:
     return ""
 
 
+def run_company(conn: sqlite3.Connection, run_id: str) -> dict[str, str | None]:
+    """The company a run resolved in step 1: its ticker, and its name as the look-up list gives
+    it (the name the person just picked), else the name SEC gave it. Both are None until step 1
+    has finished."""
+    row = conn.execute(
+        "SELECT json FROM step_outputs WHERE run_id = ? AND step = 'resolve'", (run_id,)
+    ).fetchone()
+    try:
+        resolved = json.loads(row[0]) if row else {}
+    except ValueError:
+        resolved = {}
+    ticker = resolved.get("ticker") or None
+    cik = resolved.get("cik")
+    if not isinstance(cik, int):
+        return {"ticker": ticker, "name": ticker}
+    holdings = membership.load_bundled()
+    if holdings.has(cik):
+        return {"ticker": ticker, "name": holdings.name_of(cik)}
+    stored = conn.execute("SELECT name FROM companies WHERE cik = ?", (cik,)).fetchone()
+    return {"ticker": ticker, "name": (stored[0] if stored else None) or ticker}
+
+
 def list_companies(conn: sqlite3.Connection) -> list[dict[str, Any]]:
     holdings = membership.load_bundled()
     prices = PriceStore(conn)
