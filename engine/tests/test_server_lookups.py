@@ -53,7 +53,16 @@ def test_search_companies_method(tmp_path):
 
     hit, empty, limited = run(go())
     assert hit["result"][0]["ticker"] == "NVDA"
-    assert set(hit["result"][0]) == {"ticker", "name", "sector", "cik", "report_id", "report_date"}
+    assert set(hit["result"][0]) == {
+        "ticker",
+        "name",
+        "sector",
+        "cik",
+        "report_id",
+        "report_date",
+        "peer_rule",
+    }
+    assert "40 largest other S&P 500 Information Technology" in hit["result"][0]["peer_rule"]
     assert empty["result"] == []
     assert 1 <= len(limited["result"]) <= 2
     h.server.close()
@@ -398,3 +407,51 @@ def test_a_runs_company_prefers_the_look_up_lists_name(database):
     assert run_company(conn, "run-z") == {"ticker": "T0", "name": "T0 Inc."}
     # A run that stopped before step 1 finished has no company yet.
     assert run_company(conn, "run-none") == {"ticker": None, "name": None}
+
+
+def test_get_report_opens_even_when_its_numbers_cannot_be_read(tmp_path, monkeypatch):
+    import tearsheet.report_numbers as report_numbers
+
+    h = Harness(tmp_path)
+
+    def broken(*args, **kwargs):
+        raise RuntimeError("an odd stored row")
+
+    async def go():
+        ready = await _one_report(h)
+        monkeypatch.setattr(report_numbers, "numbers_for", broken)
+        return await h.call("get_report", {"report_id": ready["report_id"]}, id_=2)
+
+    got = run(go())
+    assert "<html" in got["result"]["html"] and got["result"]["kept"] is None
+    h.server.close()
+
+
+def test_get_report_counts_the_claims_of_that_report(tmp_path):
+    """A stopped run's partial report keeps its own count when the resumed report is newer."""
+    h = Harness(tmp_path)
+
+    async def go():
+        ready = await _one_report(h)
+        conn = h.server.db.conn
+        run_id = conn.execute(
+            "SELECT run_id FROM reports WHERE report_id = ?", (ready["report_id"],)
+        ).fetchone()[0]
+        with conn:
+            conn.execute(
+                "INSERT INTO reports (report_id, run_id, created_at, narrative_complete)"
+                " VALUES ('rep-newer', ?, '9999-01-01T00:00:00+00:00', 1)",
+                (run_id,),
+            )
+            conn.execute(
+                "INSERT INTO claims VALUES ('n1', 'rep-newer', 'rating', 's', 'neutral',"
+                " '[]', '[]', 0)"
+            )
+        return ready, await h.call("get_report", {"report_id": ready["report_id"]}, id_=2)
+
+    ready, got = run(go())
+    kept = h.server.db.conn.execute(
+        "SELECT COUNT(*) FROM claims WHERE report_id = ? AND removed = 0", (ready["report_id"],)
+    ).fetchone()[0]
+    assert kept > 1 and got["result"]["kept"] == kept
+    h.server.close()

@@ -79,3 +79,26 @@ def test_search_marks_existing_reports(database):
     assert row["cik"] == 1045810 and row["sector"]
     other = search_companies(database.conn, "jpm")[0]
     assert other["report_id"] is None and other["report_date"] is None
+
+
+def test_search_gives_the_peer_group_rule_in_plain_words():
+    """The rule comes from peers.yaml and the bundled list: the 40 largest others in the sector
+    by index weight, or every other member of a smaller sector."""
+    nvda = search_companies(None, "nvda")[0]
+    assert nvda["peer_rule"] == (
+        "Compared with the 40 largest other S&P 500 Information Technology companies,"
+        " by index weight"
+    )
+    linde = search_companies(None, "lin")[0]
+    assert linde["ticker"] == "LIN"
+    assert linde["peer_rule"] == "Compared with the other 23 S&P 500 Materials companies"
+    capped = search_companies(None, "lin", peer_cap=10)[0]
+    assert capped["peer_rule"] == (
+        "Compared with the 10 largest other S&P 500 Materials companies, by index weight"
+    )
+
+
+def test_peer_rule_reads_the_cap_from_the_methodology():
+    from tearsheet.companies import bundled_peer_cap
+
+    assert bundled_peer_cap() == 40

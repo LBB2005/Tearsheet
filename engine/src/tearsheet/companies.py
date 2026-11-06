@@ -1,7 +1,8 @@
 """The company list and the look-up box (the sidebar of the app).
 
 `list_companies` is every company that has a stored report. `search_companies` looks the S&P 500
-list up by ticker, by brand alias, then by name, and says which results already have a report.
+list up by ticker, by brand alias, then by name, and says which results already have a report
+and, in plain words, which companies each would be compared with (the peer-group rule).
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ import yaml
 
 from tearsheet.data import membership
 from tearsheet.data.prices import PriceStore
+from tearsheet.peers import build_peer_group
 
 
 def normalise_ticker(text: str) -> str:
@@ -26,6 +28,31 @@ def _aliases() -> dict[str, int]:
     text = (resources.files("tearsheet.methodology") / "aliases.yaml").read_text(encoding="utf-8")
     found = (yaml.safe_load(text) or {}).get("aliases") or {}
     return {str(k).lower(): int(v) for k, v in found.items()}
+
+
+def bundled_peer_cap() -> int:
+    """The most peers a group has (peers.yaml's peer_cap)."""
+    text = (resources.files("tearsheet.methodology") / "peers.yaml").read_text(encoding="utf-8")
+    return int((yaml.safe_load(text) or {})["peer_cap"])
+
+
+def peer_rule(holdings: membership.Holdings, cik: int, cap: int) -> str | None:
+    """The peer-group rule for a company, in plain words, from the same rule a run uses
+    (peers.build_peer_group): the largest other members of its sector by index weight, up to
+    the cap. None when the list gives it no sector."""
+    sector = holdings.company(cik).sector
+    if not sector:
+        return None
+    peers = len(build_peer_group(holdings, cik, cap=cap, trend=0).peers)
+    others = len(holdings.sector_members(sector)) - 1
+    where = f"S&P 500 {sector}"
+    if peers == 0:
+        return f"No other {where} companies to compare with"
+    if others > peers:
+        return f"Compared with the {peers} largest other {where} companies, by index weight"
+    if peers == 1:
+        return f"Compared with the one other {where} company"
+    return f"Compared with the other {peers} {where} companies"
 
 
 def _report_rows(conn: sqlite3.Connection) -> list[sqlite3.Row]:
@@ -101,7 +128,7 @@ def list_companies(conn: sqlite3.Connection) -> list[dict[str, Any]]:
 
 
 def search_companies(
-    conn: sqlite3.Connection | None, query: str, limit: int = 5
+    conn: sqlite3.Connection | None, query: str, limit: int = 5, *, peer_cap: int | None = None
 ) -> list[dict[str, Any]]:
     text = query.strip()
     if not text:
@@ -130,6 +157,7 @@ def search_companies(
             take([r for r in rows if r.ticker == first])
     take([r for r in rows if lowered in r.name.lower()])
 
+    cap = peer_cap if peer_cap is not None else bundled_peer_cap()
     reports: dict[int, tuple[str, str]] = {}
     if conn is not None:
         for row in reversed(_report_rows(conn)):  # oldest first, so the newest wins
@@ -142,6 +170,7 @@ def search_companies(
             "cik": r.cik,
             "report_id": reports[r.cik][0] if r.cik in reports else None,
             "report_date": reports[r.cik][1] if r.cik in reports else None,
+            "peer_rule": peer_rule(holdings, r.cik, cap),
         }
         for r in ordered[:limit]
     ]

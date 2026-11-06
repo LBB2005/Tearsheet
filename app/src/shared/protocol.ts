@@ -54,6 +54,7 @@ export type Sector = string | null;
 export type Cik3 = number;
 export type ReportId5 = string | null;
 export type ReportDate1 = string | null;
+export type PeerRule = string | null;
 export type Date = string;
 export type Form = string;
 export type Bear = number;
@@ -129,6 +130,7 @@ export type Ok2 = boolean;
 export type Tool3 = "claude" | "codex";
 export type Passed1 = boolean;
 export type Reason = string | null;
+export type Finished = boolean;
 export type EngineVersion = string;
 export type ProtocolVersion = number;
 export type MethodologyHash = string;
@@ -334,6 +336,7 @@ export interface SearchHit {
   cik: Cik3;
   report_id: ReportId5;
   report_date: ReportDate1;
+  peer_rule?: PeerRule;
 }
 /**
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
@@ -524,6 +527,7 @@ export interface SafetyDone {
   tool: Tool3;
   passed: Passed1;
   reason?: Reason;
+  finished?: Finished;
 }
 /**
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema

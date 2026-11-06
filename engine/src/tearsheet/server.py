@@ -372,11 +372,15 @@ class Server:
         return send
 
     async def _job(
-        self, run_id: str, make_run, resolved: asyncio.Event, outcome: dict[str, Any]
+        self,
+        run_id: str,
+        make_run,
+        resolved: asyncio.Event,
+        outcome: dict[str, Any],
+        steps: dict[str, str | None],
     ) -> None:
         from tearsheet.pipeline import RunCancelled
 
-        step = None
         run = None
         try:
             async with self.data_factory(run_id, self.db.conn, self.rawstore) as data:
@@ -391,7 +395,9 @@ class Server:
                     "run_failed",
                     RunFailedNote(
                         run_id=run_id,
-                        step="narrate",
+                        # The step under way when the AI steps stopped; the pipeline went on to
+                        # fill in the numbers, check and save the report so far.
+                        step=steps["stopped_at"] or steps["started"],
                         message=str(run.stop_error),
                         code=code,
                         **data_,
@@ -410,7 +416,13 @@ class Server:
                 fields = {k: v for k, v in data_.items() if k in ("reset_at", "fix_command")}
                 self.notify(
                     "run_failed",
-                    RunFailedNote(run_id=run_id, step=step, message=str(exc), code=code, **fields),
+                    RunFailedNote(
+                        run_id=run_id,
+                        step=steps["started"],
+                        message=str(exc),
+                        code=code,
+                        **fields,
+                    ),
                 )
         finally:
             self.active = None
@@ -428,6 +440,9 @@ class Server:
     async def _start_job(self, run_id: str, make_run, *, wait_for_resolve: bool) -> None:
         resolved = asyncio.Event()
         outcome: dict[str, Any] = {}
+        # The last step that started, and the one under way when the AI steps stopped (the
+        # first progress note after the run's stop error is set closes that step).
+        steps: dict[str, str | None] = {"started": None, "stopped_at": None}
 
         original = make_run
 
@@ -436,6 +451,10 @@ class Server:
             send = run.progress
 
             def progress(step: str, state: str) -> None:
+                if run.stop_error is not None and steps["stopped_at"] is None:
+                    steps["stopped_at"] = steps["started"]
+                if state == "started":
+                    steps["started"] = step
                 send(step, state)
                 if step == "resolve" and state == "done":
                     resolved.set()
@@ -443,7 +462,9 @@ class Server:
             run.progress = progress
             return run, query, resume
 
-        self.job = asyncio.create_task(self._job(run_id, with_resolve_signal, resolved, outcome))
+        self.job = asyncio.create_task(
+            self._job(run_id, with_resolve_signal, resolved, outcome, steps)
+        )
         if wait_for_resolve:
             await resolved.wait()
             if "error" in outcome:
@@ -563,8 +584,8 @@ class Server:
     # --- reports, predictions and reviews --------------------------------------------------------
 
     async def m_get_report(self, p) -> dict[str, Any]:
+        from tearsheet import report_numbers
         from tearsheet.render import render_html
-        from tearsheet.report_numbers import numbers_for
 
         row = self.db.conn.execute(
             "SELECT report_id, run_id, created_at, narrative_complete FROM reports WHERE report_id = ?",
@@ -582,9 +603,15 @@ class Server:
             (row["run_id"],),
         ).fetchone()
         cik = run_row[0] if run_row else None
-        numbers = (
-            numbers_for(self.db.conn, report, row["run_id"], cik) if cik is not None else None
-        )
+        numbers = None
+        if cik is not None:
+            # Saved reports always open, whatever is broken: without its numbers if need be.
+            try:
+                numbers = report_numbers.numbers_for(
+                    self.db.conn, report, row["run_id"], cik, report_id=row["report_id"]
+                )
+            except Exception:  # noqa: BLE001 - logged; the report opens from its text alone
+                log.exception("reading the numbers of report %s", p.report_id)
         claims = (numbers or {}).get("claims")
         return {
             "report_id": row["report_id"],
@@ -631,7 +658,9 @@ class Server:
     async def m_search_companies(self, p) -> list[dict[str, Any]]:
         from tearsheet.companies import search_companies
 
-        return search_companies(self.db.conn, p.query, p.limit)
+        return search_companies(
+            self.db.conn, p.query, p.limit, peer_cap=int(self.method.peers["peer_cap"])
+        )
 
     async def m_get_chart(self, p) -> dict[str, Any]:
         from tearsheet.charts import chart_series
@@ -858,7 +887,7 @@ class Server:
                 ),
             )
 
-        passed, reason = False, None
+        passed, reason, finished = False, None, True
         try:
             report = await run_check(
                 connector,
@@ -876,17 +905,20 @@ class Server:
             passed = report.passed
             if report.inconclusive:
                 reason = f"The check couldn't finish: {report.inconclusive}"
+                finished = False
             elif not report.passed:
                 reason = "; ".join(report.problems[:3]) or "The check did not pass."
         except Exception as exc:  # noqa: BLE001 - reported to the app, logged to standard error
             log.exception("safety check on %s failed", tool)
-            passed, reason = False, str(exc) or "The check stopped unexpectedly."
+            passed, reason, finished = False, str(exc) or "The check stopped unexpectedly.", False
         finally:
             try:
                 await close_connector(connector)
             except Exception:  # noqa: BLE001 - cleanup only
                 log.exception("closing the AI tool after the safety check")
-        self.notify("safety_done", SafetyDone(tool=tool, passed=passed, reason=reason))
+        self.notify(
+            "safety_done", SafetyDone(tool=tool, passed=passed, reason=reason, finished=finished)
+        )
 
     async def m_get_settings(self, p) -> dict[str, Any]:
         settings = config.Settings(self.db.conn)

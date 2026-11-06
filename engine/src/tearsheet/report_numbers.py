@@ -88,9 +88,11 @@ def _table_rows(report: dict, key: str) -> list[list[str]]:
 
 
 def _guard(parse: Any) -> Any:
+    """Saved reports always open: an odd stored row, or a table an older database lacks,
+    leaves its key None."""
     try:
         return parse()
-    except (ValueError, TypeError, IndexError, KeyError):
+    except (ValueError, TypeError, IndexError, KeyError, AttributeError, sqlite3.Error):
         return None
 
 
@@ -270,11 +272,18 @@ def _weekly(conn: sqlite3.Connection, run_id: str, cik: int) -> list[dict] | Non
     return [{"date": d.isoformat(), "close": c} for d, c in points] or None
 
 
-def _claims(conn: sqlite3.Connection, run_id: str) -> dict | None:
-    report = conn.execute(
-        "SELECT report_id FROM reports WHERE run_id = ? ORDER BY created_at DESC, rowid DESC",
-        (run_id,),
-    ).fetchone()
+def _claims(conn: sqlite3.Connection, run_id: str, report_id: str | None = None) -> dict | None:
+    """Claims kept and removed in the report asked for (a stopped run's partial report and the
+    resumed full one share a run), else in the run's newest report."""
+    if report_id is not None:
+        report = conn.execute(
+            "SELECT report_id FROM reports WHERE report_id = ? AND run_id = ?", (report_id, run_id)
+        ).fetchone()
+    else:
+        report = conn.execute(
+            "SELECT report_id FROM reports WHERE run_id = ? ORDER BY created_at DESC, rowid DESC",
+            (run_id,),
+        ).fetchone()
     if not report:
         return None
     kept, removed = conn.execute(
@@ -295,15 +304,28 @@ def _red_flags(conn: sqlite3.Connection, run_id: str) -> list[str] | None:
     return [str(f) for f in flags] if isinstance(flags, list) else None
 
 
-def stored_numbers(conn: sqlite3.Connection, run_id: str, cik: int) -> dict:
-    """Numbers from the run's stored tables. Every key is present, or None."""
+def stored_numbers(
+    conn: sqlite3.Connection, run_id: str, cik: int, *, report_id: str | None = None
+) -> dict:
+    """Numbers from the run's stored tables. Every key is present, or None. The claim counts
+    are the given report's, else the run's newest report's."""
     return {
         "metrics": _guard(lambda: _metrics(conn, run_id, cik)),
         "weekly": _guard(lambda: _weekly(conn, run_id, cik)),
-        "claims": _guard(lambda: _claims(conn, run_id)),
+        "claims": _guard(lambda: _claims(conn, run_id, report_id)),
         "red_flags": _guard(lambda: _red_flags(conn, run_id)),
     }
 
 
-def numbers_for(conn: sqlite3.Connection, report: dict, run_id: str, cik: int) -> dict:
-    return {**parse_code_lines(report), **stored_numbers(conn, run_id, cik)}
+def numbers_for(
+    conn: sqlite3.Connection,
+    report: dict,
+    run_id: str,
+    cik: int,
+    *,
+    report_id: str | None = None,
+) -> dict:
+    return {
+        **parse_code_lines(report),
+        **stored_numbers(conn, run_id, cik, report_id=report_id),
+    }

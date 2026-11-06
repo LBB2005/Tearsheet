@@ -235,3 +235,38 @@ def test_weekly_closes_are_split_adjusted_to_the_run_date(database):
     assert len(weekly) == 52
     assert {w["close"] for w in weekly} == {100.0}
     assert weekly[-1] == {"date": "2026-11-04", "close": 100.0}
+
+
+def test_odd_stored_rows_give_none_and_never_raise(database):
+    """Saved reports always open: a list-shaped step output and a missing table leave their
+    keys None instead of raising."""
+    seed(database.conn)
+    with database.conn:
+        database.conn.execute("UPDATE step_outputs SET json = '[1, 2]' WHERE step = 'text'")
+    n = numbers_for(database.conn, make_report(), "r1", 1)
+    assert n["red_flags"] is None and n["claims"] == {"kept": 2, "removed": 1}
+    database.conn.execute("DROP TABLE claims")
+    n = numbers_for(database.conn, make_report(), "r1", 1)
+    assert n["claims"] is None and n["rating"]["call"] == "Hold"
+
+
+def test_claims_are_counted_for_the_report_asked_for(database):
+    """A stopped run's partial report and the resumed full report share a run: each counts its
+    own claims, and the run's newest report is the fallback."""
+    seed(database.conn)
+    with database.conn:
+        database.conn.execute("INSERT INTO reports VALUES ('rep2', 'r1', 'then', 1, NULL)")
+        for n in ("d1", "d2", "d3", "d4"):
+            database.conn.execute(
+                "INSERT INTO claims VALUES (?, 'rep2', 'rating', 's', 'neutral', '[]', '[]', 0)",
+                (n,),
+            )
+    assert numbers_for(database.conn, {}, "r1", 1, report_id="rep1")["claims"] == {
+        "kept": 2,
+        "removed": 1,
+    }
+    assert numbers_for(database.conn, {}, "r1", 1, report_id="rep2")["claims"] == {
+        "kept": 4,
+        "removed": 0,
+    }
+    assert numbers_for(database.conn, {}, "r1", 1)["claims"] == {"kept": 4, "removed": 0}

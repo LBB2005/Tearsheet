@@ -226,7 +226,7 @@ def test_safety_check_emits_progress_and_done(tmp_path, monkeypatch):
     assert all(p["total"] == 25 and p["tool"] == "claude" and p["ok"] is True for p in progress)
     assert all(p["name"] for p in progress)
     done = h.notes("safety_done")
-    assert done == [{"tool": "claude", "passed": True, "reason": None}]
+    assert done == [{"tool": "claude", "passed": True, "reason": None, "finished": True}]
     assert h.messages[-1]["method"] == "safety_done"
     state = h.server.db.conn.execute(
         "SELECT lockdown_passed, lockdown_form FROM tool_versions WHERE tool = 'claude'"
@@ -246,6 +246,38 @@ def test_safety_check_failure_reports_a_reason(tmp_path, monkeypatch):
     run(go())
     done = h.notes("safety_done")[0]
     assert done["passed"] is False and done["reason"]
+    assert done["finished"] is True  # it ran to the end and didn't pass
+    h.server.close()
+
+
+def test_a_check_stopped_by_a_usage_limit_is_not_finished(tmp_path, monkeypatch):
+    """A usage limit (or a sign-out) part way gives no verdict: the app shows the check as not
+    finished, not as failed, and nothing is recorded."""
+    from tearsheet.ai.client import AIUsageLimit
+
+    h = safety_harness(tmp_path, monkeypatch)
+    calls = []
+
+    def limited(request):
+        calls.append(request)
+        return (
+            AIUsageLimit("You've hit your limit. Resets 3am") if len(calls) == 4 else clean(request)
+        )
+
+    h.connector.default = limited
+
+    async def go():
+        await h.call("run_safety_check", {"tool": "claude"})
+        await h.server.wait_for_safety_check()
+
+    run(go())
+    done = h.notes("safety_done")[0]
+    assert done["passed"] is False and done["finished"] is False
+    assert "couldn't finish" in done["reason"]
+    stored = h.server.db.conn.execute(
+        "SELECT COUNT(*) FROM tool_versions WHERE tool = 'claude' AND lockdown_form = 'full'"
+    ).fetchone()[0]
+    assert stored == 0
     h.server.close()
 
 
@@ -383,6 +415,7 @@ def test_a_crashing_check_ends_with_a_reason_and_frees_the_server(tmp_path, monk
     again = run(go())
     first, second = h.notes("safety_done")
     assert first["passed"] is False and first["reason"]
+    assert first["finished"] is False  # a crash is no verdict
     assert again["result"] == {"started": True}
     assert second["passed"] is True
     h.server.close()

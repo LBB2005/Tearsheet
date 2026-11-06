@@ -275,3 +275,28 @@ def test_a_key_check_answers_off_the_loop(tmp_path, monkeypatch):
 
     assert config.get_key("massive") == "new-key"
     h.server.close()
+
+
+def test_a_stopped_run_names_the_step_it_stopped_at(tmp_path):
+    """A usage limit during extract says extract, though the pipeline goes on to fill in the
+    numbers, check and save the report so far."""
+
+    def limited(request):
+        if request.task == "extract":
+            return AIUsageLimit("You've hit your limit. Resets 3am")
+        return clean_ai(request)
+
+    h = Harness(tmp_path, ai_default=limited)
+
+    async def go():
+        await h.server.start()
+        await h.call("run_report", {"query": "T0"})
+        await h.finish()
+
+    run(go())
+    failed = h.notes("run_failed")
+    assert len(failed) == 1 and failed[0]["code"] == "USAGE_LIMIT"
+    assert failed[0]["step"] == "extract"
+    started = [p["step_name"] for p in h.notes("progress") if p["state"] == "started"]
+    assert started[-1] == "save"  # the steps after the stop still ran
+    h.server.close()

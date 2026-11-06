@@ -187,6 +187,9 @@ class SearchHit(Strict):
     cik: int
     report_id: str | None
     report_date: str | None
+    # The peer-group rule in plain words ("Compared with the 40 largest other S&P 500
+    # Information Technology companies, by index weight"); None with no sector.
+    peer_rule: str | None = None
 
 
 class FilingMark(Strict):
@@ -332,6 +335,9 @@ class SafetyDone(Strict):
     tool: Literal["claude", "codex"]
     passed: bool
     reason: str | None = None
+    # False when the check stopped part way (a usage limit, a sign-out, a crash) and so gave
+    # no verdict: the app shows it as not finished, not as failed.
+    finished: bool = True
 
 
 class Progress(Strict):
