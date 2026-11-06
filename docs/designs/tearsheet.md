@@ -112,7 +112,7 @@ None of it is checked, and nothing ties a claim back to its source.
     *   **Everyday AI tool.** If it is Claude Code, the Codex connector moves from Phase 0 to Phase 2, where the other-tool skeptic needs it.
 *   **Terms, before any public download:** Anthropic's answer on the install and sign-in button, and a check of OpenAI's terms (Technical Plan §14).
 *   **Name, before any public release:** "Tearsheet" (chosen by Liam, Nov 2). "Tear sheet" is a common finance term, and at least one fintech publication already uses the name. Check domains, App Store names and trademarks. Personal use is not affected.
-*   **Report look and feel in the app.** A separate brainstorm.
+*   **Report look and feel in the app (answered, Nov 5 2026).** Liam approved the look in `docs/designs/report-look.md`. It is built on branch `claude/ui-redesign-a2f2d7`.
 *   **Phase 0 results:** the five tests in the Technical Plan roadmap, plus raw-data bytes per run, recorded in `docs/phase0-results.md` (item 12). The Massive test also settles the free plan's limits (believed to be 5 calls a minute, end-of-day data and 2 years of history), its personal-use terms, and whether it includes the one-call daily summary of all US stocks.
 
 ## Critical User Journeys (CUJs)
