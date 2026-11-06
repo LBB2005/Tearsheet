@@ -49,7 +49,7 @@ export function Log() {
       <p>
         <button onClick={() => void gradeNow()}>Grade what is due</button> {graded && <span className="muted">{graded}</span>}
       </p>
-      {rows && rows.length === 0 && <p className="muted">No official predictions yet. Logging is switched on once the full method is finished.</p>}
+      {rows && rows.length === 0 && <p className="muted">No official predictions yet. Each company's first full report in any 30 days is logged here, and graded at 3, 6 and 12 months.</p>}
       {rows && rows.length > 0 && (
         <table>
           <thead>

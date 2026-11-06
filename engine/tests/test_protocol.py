@@ -19,7 +19,15 @@ from tests.test_pipeline import NOW, FakeData, clean_ai
 
 
 class Harness:
-    def __init__(self, tmp_path, *, ai_default=clean_ai, data_cls=FakeData, delay_s: float = 0.0):
+    def __init__(
+        self,
+        tmp_path,
+        *,
+        ai_default=clean_ai,
+        data_cls=FakeData,
+        delay_s: float = 0.0,
+        log_predictions: bool | None = None,
+    ):
         self.messages: list[dict] = []
         self.paths = config.Paths(tmp_path / "data").ensure()
         self.ai_default = ai_default
@@ -41,6 +49,7 @@ class Harness:
             data_factory=data_factory,
             ai_factory=ai_factory,
             now=lambda: NOW,
+            log_predictions=log_predictions,
         )
 
     async def call(self, method: str, params: dict | None = None, *, id_: int = 1) -> dict:
@@ -336,4 +345,36 @@ def test_settings_show_each_tools_lock_down_state(tmp_path):
     assert lockdown["claude"]["passed"] is True and lockdown["claude"]["version"] == "2.1.0"
     assert lockdown["codex"]["passed"] is False
     assert lockdown["codex"]["blocked_reason"] == "lockdown_failed"
+    h.server.close()
+
+
+def test_a_report_from_the_app_logs_its_prediction_for_the_log_screen(tmp_path):
+    from tearsheet import config as cfg
+    from tests.test_pipeline import WithFilingList
+
+    h = Harness(tmp_path, data_cls=WithFilingList, log_predictions=True)
+
+    async def go():
+        await h.server.start()
+        cfg.Settings(h.server.db.conn).set("backup_dir", str(tmp_path / "backups"))
+        await h.call("run_report", {"query": "T0"})
+        await h.finish()
+        return await h.call("list_predictions", {}, id_=2)
+
+    listed = run(go())["result"]
+    assert len(listed) == 1 and listed[0]["ticker"] == "T0" and listed[0]["grades"] == []
+    assert list((tmp_path / "backups").glob("tearsheet-*.sqlite"))
+    h.server.close()
+
+
+def test_the_app_with_injected_test_data_logs_nothing(tmp_path):
+    h = Harness(tmp_path)
+
+    async def go():
+        await h.server.start()
+        await h.call("run_report", {"query": "T0"})
+        await h.finish()
+        return await h.call("list_predictions", {}, id_=2)
+
+    assert run(go())["result"] == []
     h.server.close()

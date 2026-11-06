@@ -164,7 +164,7 @@ def cmd_run(args: argparse.Namespace) -> int:
             if state == "started":
                 print(f"  {step} ...", flush=True)
 
-        kind = "full method, Phase 1b" if args.full else "thin slice, Phase 1a"
+        kind = "full method" if args.full else "thin slice, Phase 1a"
         print(f"Report on {args.ticker} ({kind}){' with no AI' if ai is None else ''}.")
         if args.stored:
             today = datetime.now(UTC).date()
@@ -209,6 +209,11 @@ def cmd_run(args: argparse.Namespace) -> int:
                         run_id=run_id,
                         rawstore=rawstore,
                         checker=checker,
+                        # Live full-method runs log official predictions (item 35).
+                        log_predictions=args.full,
+                        backup_dir=Path(
+                            settings.get("backup_dir") or config.DEFAULT_BACKUP_DIR
+                        ).expanduser(),
                     )
                     return await _closing(run.run(args.ticker), ai, checker)
 
@@ -220,6 +225,8 @@ def cmd_run(args: argparse.Namespace) -> int:
         database.close()
     print()
     print(f"Status: {result.status}. Rating: {result.rating or 'withheld'}.")
+    if result.prediction:
+        print(result.prediction)
     for note in result.notes:
         print(f"  - {note}")
     if result.html_path:

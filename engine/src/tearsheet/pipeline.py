@@ -10,6 +10,7 @@ predictions; its runs are stored with mode = "slice".
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import math
 import re
@@ -188,6 +189,7 @@ class RunResult:
     html_path: Path | None
     rating: str | None
     notes: list[str]
+    prediction: str | None = None  # what happened to the prediction log on this run
 
 
 def _now() -> datetime:
@@ -268,6 +270,8 @@ class Run:
         run_id: str | None = None,
         rawstore=None,
         checker: AIClient | None = None,
+        log_predictions: bool = False,
+        backup_dir: Path | None = None,
     ):
         if mode not in ("slice", "full"):
             raise ValueError("mode is 'slice' (Phase 1a) or 'full' (Phase 1b's code steps)")
@@ -278,6 +282,13 @@ class Run:
         self.checker = checker
         self.checker_failed: str | None = None
         self.checked_by: dict[str, str] = {}
+        # The prediction log (item 35). Only live full-method runs log; offline runs on stored
+        # data, replays and resumes never write to it, because its rows can't be removed.
+        self.log_predictions = log_predictions and mode == "full"
+        self.backup_dir = backup_dir
+        self.prediction_id: str | None = None
+        self.prediction_note = "No prediction is logged for this run."
+        self.previous_rating: tuple[str, str] | None = None
         self.method = method
         self.mode = mode
         self.now = now or _now()
@@ -449,6 +460,7 @@ class Run:
             step = "rate"
             self._step(step)
             rating, rng, level, mix = self.rate(score)
+            self._log_prediction(resolved, docs, score, rating, rng, level)
             self._save_step(
                 step,
                 {
@@ -516,7 +528,15 @@ class Run:
             )
             status = "done" if complete else ("stopped" if self.ai_stopped else "done_incomplete")
             self._finish(status)
-            return RunResult(self.run_id, report_id, status, html_path, rating.rating, self.notes)
+            return RunResult(
+                self.run_id,
+                report_id,
+                status,
+                html_path,
+                rating.rating,
+                self.notes,
+                self.prediction_note,
+            )
         except RunCancelled:
             self._finish("cancelled")
             raise
@@ -948,6 +968,105 @@ class Run:
         ):
             triggers.append("negative_free_cash_flow")
         return uncertainty_level(m.volatility, triggers, self.method.rating_lines)
+
+    def _log_prediction(self, resolved, docs, score, rating, rng, level) -> None:
+        """Write the official prediction at the end of step 8 (item 35, Technical Plan §10).
+
+        Its ID is kept off the step outputs, so a replay still compares them exactly."""
+        from tearsheet import predictions
+
+        self.previous_rating = predictions.previous_official(self.conn, self.cik, self.now)
+        if self.mode != "full":
+            self.prediction_note = "No prediction is logged: thin-slice reports never log one."
+            return
+        if not self.log_predictions:
+            self.prediction_note = (
+                "No prediction is logged: only live full-method runs log one "
+                "(not offline runs on stored data, replays or resumes)."
+            )
+            return
+        if rating.rating is None:
+            self.prediction_note = "No prediction is logged: the rating is withheld."
+            return
+        if not predictions.slot_open(self.conn, self.cik, self.now):
+            last = self.previous_rating[1][:10] if self.previous_rating else "recently"
+            self.prediction_note = (
+                f"No prediction is logged: this company's official prediction was made on {last}, "
+                "and only the first rated run in 30 days is official."
+            )
+            return
+        accepted = self._acceptance_times(docs)
+        tool = getattr(getattr(self.ai, "connector", None), "tool", None) or "none"
+        row = predictions.Prediction(
+            run_id=self.run_id,
+            cik=self.cik,
+            ticker=resolved.rated_ticker,
+            share_class=self._share_class(resolved.rated_ticker),
+            run_at=self.now,
+            score=float(score.composite.get(self.cik, 50.0)),
+            rating=rating.rating,
+            probability=rating.probability if rng else None,
+            bear=rng.bear if rng else None,
+            base=rng.base if rng else None,
+            bull=rng.bull if rng else None,
+            uncertainty=level or "very_high",
+            percentile_lines=dict(rating.lines),
+            accessions=[d.accession for d in docs],
+            latest_acceptance_at=max(accepted) if accepted else self.now,
+            methodology_hash=self.method.methodology_hash,
+            method_code_version=METHOD_CODE_VERSION,
+            engine_version=ENGINE_VERSION,
+            ai_tool=tool,
+            model_ids=self._model_ids(tool),
+            inputs_hash=self._inputs_hash(),
+        )
+        backup_dir = self.backup_dir or Path(config.DEFAULT_BACKUP_DIR).expanduser()
+        self.prediction_id = predictions.log_if_official(self.conn, row, backup_dir=backup_dir)
+        if self.prediction_id:
+            self.prediction_note = (
+                f"Logged as an official prediction ({self.prediction_id}). It is graded at 3, 6 "
+                "and 12 months against this report's peer group, and can't be changed."
+            )
+
+    def _acceptance_times(self, docs) -> list[datetime]:
+        """When SEC accepted each filing this run used, from the company's filing list."""
+        filings = sec_data.filings_from(
+            self.company_submissions.get("filings", {}).get("recent", {}), self.cik
+        )
+        by_accession = {f.accession: f.accepted for f in filings}
+        times = []
+        for d in docs:
+            text = by_accession.get(d.accession)
+            try:
+                stamp = datetime.fromisoformat(text) if text else None
+            except ValueError:
+                stamp = None
+            if stamp is not None:
+                times.append(stamp if stamp.tzinfo else stamp.replace(tzinfo=UTC))
+        return times
+
+    def _share_class(self, ticker: str) -> str:
+        row = self.conn.execute(
+            "SELECT share_class FROM tickers WHERE ticker = ? ORDER BY date_from DESC LIMIT 1",
+            (ticker,),
+        ).fetchone()
+        return row[0] if row and row[0] else ""
+
+    def _model_ids(self, tool: str) -> list[str]:
+        """The models this tool ran at its last lock-down check; the run's own calls come
+        after step 8, so they aren't known yet."""
+        row = self.conn.execute(
+            "SELECT model_ids_json FROM tool_versions WHERE tool = ?", (tool,)
+        ).fetchone()
+        return sorted(json.loads(row[0])) if row and row[0] else []
+
+    def _inputs_hash(self) -> str:
+        """A hash of the run's input list so far: every stored response, by request."""
+        rows = self.conn.execute(
+            "SELECT request_key, raw_hash FROM fetch_log WHERE run_id = ? ORDER BY request_key, raw_hash",
+            (self.run_id,),
+        ).fetchall()
+        return hashlib.sha256(json.dumps([list(r) for r in rows]).encode()).hexdigest()
 
     def rate(self, score: ScoreResult) -> tuple[Rating, Range | None, str | None, dict[str, int]]:
         lines = self.method.rating_lines
@@ -1461,7 +1580,14 @@ class Run:
                 )
             else:
                 s1.append("Valuation not meaningful, so there is no range.")
-            s1.append("Previous rating: none (no prediction is logged yet).")
+            if self.previous_rating:
+                s1.append(
+                    f"Previous official rating: {self.previous_rating[0]} "
+                    f"({format_value('date', date.fromisoformat(self.previous_rating[1][:10]))})."
+                )
+            else:
+                s1.append("Previous official rating: none.")
+            s1.append(self.prediction_note)
         s1.append(consensus(resolved.rated_ticker).note)
         s1.append(
             f"Total return over the past 12 months: {resolved.rated_ticker} {self._fmt_pct(company.total_return_12m)}; "
@@ -1635,7 +1761,8 @@ class Run:
             (
                 "Thin slice (Phase 1a): one metric per factor, DCF only, filing extraction only (no news), the numeric guard and the citation check; no skeptic and no logged prediction."
                 if self.mode == "slice"
-                else "Full method (Phase 1b): every metric, all three valuation methods, the red-flag caps, news and the skeptic. Logging predictions isn't switched on yet, so no prediction is logged."
+                else "Full method: every metric, all three valuation methods, the red-flag caps, news and the skeptic. "
+                + self.prediction_note
             ),
             f"Prices as of {format_value('date', self.price_date)}. 10-year Treasury yield: {self._fmt_pct(self.risk_free)}.",
         ]
@@ -1657,7 +1784,12 @@ class Run:
             "run_at": self.now.strftime("%-d %b %Y %H:%M UTC"),
             "mode_note": "Thin-slice report (Phase 1a)."
             if self.mode == "slice"
-            else "Full-method report (Phase 1b). No prediction is logged yet.",
+            else "Full-method report. "
+            + (
+                "Logged as an official prediction."
+                if self.prediction_id
+                else "No prediction logged."
+            ),
             "sections": sections,
             "removed": [
                 {"id": c.sentence_id, "text": c.text, "reasons": c.reasons} for c in removed

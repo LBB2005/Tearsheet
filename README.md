@@ -10,7 +10,7 @@ A Mac app for personal research. You type an S&P 500 company name or ticker, and
 
 ## Status
 
-**Phase 1 and Phase 2, in progress.** Phase 0 is done and approved ([docs/phase0-results.md](docs/phase0-results.md)). Phase 2 adds grading, the Codex connector and the other-tool skeptic; Codex's lock-down check hasn't been run yet. The engine writes a report from the terminal. `run TICKER` writes the thin slice (Phase 1a), and `run TICKER --full` writes the full method's code steps and all six AI-written sections. No predictions are logged yet. Progress and open questions: [docs/phase1-progress.md](docs/phase1-progress.md). The design is in [docs/designs/tearsheet.md](docs/designs/tearsheet.md). A plain Mac window (Phase 1c) runs reports, shows them and flags claims; see [The Mac app](#the-mac-app).
+**Phase 1 and Phase 2, in progress.** Phase 0 is done and approved ([docs/phase0-results.md](docs/phase0-results.md)). Phase 2 adds grading, the Codex connector and the other-tool skeptic; Codex passed its lock-down check on 6 Nov 2026. The engine writes a report from the terminal. `run TICKER` writes the thin slice (Phase 1a), and `run TICKER --full` writes the full method's code steps and all six AI-written sections. Each company's first live full report in any 30 days is logged as an official prediction (it can't be changed afterwards) and graded at 3, 6 and 12 months. Progress and open questions: [docs/phase1-progress.md](docs/phase1-progress.md). The design is in [docs/designs/tearsheet.md](docs/designs/tearsheet.md). A plain Mac window (Phase 1c) runs reports, shows them and flags claims; see [The Mac app](#the-mac-app).
 
 ## Requirements
 

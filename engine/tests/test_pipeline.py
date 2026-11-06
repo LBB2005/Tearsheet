@@ -1109,3 +1109,142 @@ def test_the_checker_is_the_other_tool_only_when_it_is_connected(database, tmp_p
         version="codex-cli 0.165.0", model_ids=[], form="full", passed=True
     )
     assert checker_for(database.conn, settings, primary) is None  # not found
+
+
+# --- the prediction log (item 35) -------------------------------------------------------------
+
+
+class WithFilingList(FakeData):
+    """FakeData whose filing list gives SEC's acceptance times for the two filings."""
+
+    async def submissions(self, cik):
+        subs = await super().submissions(cik)
+        subs["filings"] = {
+            "recent": {
+                "accessionNumber": ["0001-26-000001", "0001-26-000002"],
+                "form": ["10-K", "10-Q"],
+                "filingDate": ["2026-02-15", "2026-10-30"],
+                "reportDate": ["2025-12-31", "2026-09-30"],
+                "acceptanceDateTime": ["2026-02-14T21:05:00.000Z", "2026-10-30T20:31:12.000Z"],
+                "items": ["", ""],
+                "primaryDocument": ["k.htm", "q.htm"],
+            }
+        }
+        return subs
+
+    async def fill_prices(self, store, members, *, end):
+        # Prices up to the run's own day, so a run a month later isn't withheld for stale prices.
+        days = sessions_between(date(2025, 8, 1), end)
+        for cik in [*members, SPY_CIK]:
+            rnd = random.Random(cik)
+            price, bars = 50.0 + (cik % 17), []
+            for day in days:
+                price *= math.exp(rnd.gauss(0.0004, 0.015 + (cik % 5) * 0.002))
+                start = datetime(day.year, day.month, day.day, 5, tzinfo=UTC)
+                bars.append({"t": int(start.timestamp() * 1000), "c": price, "v": 1000})
+            store.store_bars(cik, "", {"results": bars}, raw_hash="fake")
+
+    async def risk_free(self, day):
+        return (day, 0.042)
+
+
+def logged(database, tmp_path, *, now=NOW, log=True, mode="full", ai=True):
+    state = ToolState(database.conn, "claude")
+    state.record_check(
+        version="1.0", model_ids=["fake-small", "fake-large"], form="full", passed=True
+    )
+    client = AIClient(FakeConnector(default=clean_ai), state, retry_wait_s=0) if ai else None
+    run = Run(
+        database.conn,
+        WithFilingList(),
+        client,
+        load(),
+        mode=mode,
+        now=now,
+        out_dir=tmp_path / "r",
+        log_predictions=log,
+        backup_dir=tmp_path / "backups",
+    )
+    return run, asyncio.run(run.run("T0"))
+
+
+def prediction_rows(database):
+    return [dict(r) for r in database.conn.execute("SELECT * FROM predictions ORDER BY run_at")]
+
+
+def test_a_live_full_run_logs_one_official_prediction_and_backs_up(database, tmp_path):
+    run, result = logged(database, tmp_path)
+    [p] = prediction_rows(database)
+    assert p["prediction_id"] == run.prediction_id and p["run_id"] == run.run_id
+    assert p["cik"] == COMPANY and p["ticker"] == "T0"
+    assert p["rating"] == result.rating
+    assert p["run_at"] == NOW.isoformat()
+    # The latest filing's acceptance time, from SEC's filing list (the start price waits for it).
+    assert p["latest_acceptance_at"] == "2026-10-30T20:31:12+00:00"
+    assert json.loads(p["accessions_json"]) == ["0001-26-000001", "0001-26-000002"]
+    assert p["ai_tool"] == "claude"
+    assert json.loads(p["model_ids_json"]) == ["fake-large", "fake-small"]
+    assert len(p["inputs_hash"]) == 64
+    assert p["methodology_hash"] == load().methodology_hash
+    assert p["uncertainty"] and json.loads(p["percentile_lines_json"])
+    if p["bear"] is not None:
+        assert p["bear"] <= p["base"] <= p["bull"]
+    assert p["previous_rating"] is None
+    assert list((tmp_path / "backups").glob("tearsheet-*.sqlite"))
+    html = result.html_path.read_text()
+    assert "Logged as an official prediction" in html
+    assert "can&#39;t be changed" in html or "can't be changed" in html
+    assert "Logged as an official prediction" in (result.prediction or "")
+    # The prediction's ID stays off the step outputs, so a replay compares them exactly.
+    rate = database.conn.execute(
+        "SELECT json FROM step_outputs WHERE run_id = ? AND step = 'rate'", (run.run_id,)
+    ).fetchone()[0]
+    assert run.prediction_id not in rate
+
+
+def test_only_the_first_rated_run_in_30_days_is_official(database, tmp_path):
+    from datetime import timedelta
+
+    first, _ = logged(database, tmp_path)
+    second, result = logged(database, tmp_path, now=NOW + timedelta(days=29, hours=23))
+    assert second.prediction_id is None
+    assert len(prediction_rows(database)) == 1
+    html = result.html_path.read_text()
+    assert "only the first rated run in 30 days is official" in html
+    assert (
+        "Previous official rating" in html
+        and "none" not in html.split("Previous official rating")[1][:20]
+    )
+
+    third, _ = logged(database, tmp_path, now=NOW + timedelta(days=30))
+    rows = prediction_rows(database)
+    assert len(rows) == 2 and third.prediction_id == rows[1]["prediction_id"]
+    assert rows[1]["previous_rating"] == rows[0]["rating"]
+    assert rows[1]["previous_rating_at"] == NOW.isoformat()
+
+
+def test_offline_slice_and_unlogged_runs_never_write_to_the_log(database, tmp_path):
+    run, result = logged(database, tmp_path, log=False)
+    assert prediction_rows(database) == []
+    assert "only live full-method runs log one" in result.html_path.read_text()
+    logged(database, tmp_path, mode="slice")
+    assert prediction_rows(database) == []
+
+
+def test_a_run_with_no_ai_still_logs_the_code_made_rating(database, tmp_path):
+    run, _ = logged(database, tmp_path, ai=False)
+    [p] = prediction_rows(database)
+    assert p["ai_tool"] == "none" and json.loads(p["model_ids_json"]) == []
+
+
+def test_logged_predictions_can_never_be_changed(database, tmp_path):
+    import sqlite3
+
+    logged(database, tmp_path)
+    with pytest.raises(sqlite3.IntegrityError):
+        with database.conn:
+            database.conn.execute("UPDATE predictions SET rating = 'Buy'")
+    with pytest.raises(sqlite3.IntegrityError):
+        with database.conn:
+            database.conn.execute("DELETE FROM predictions")
+    assert len(prediction_rows(database)) == 1

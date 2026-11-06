@@ -128,6 +128,7 @@ class Server:
         data_factory=None,
         ai_factory=None,
         checker_factory=None,
+        log_predictions: bool | None = None,
         now: Callable[[], datetime] | None = None,
     ):
         from tearsheet.methodology import load
@@ -142,6 +143,9 @@ class Server:
         self.data_factory = data_factory or self._live_data
         self.ai_factory = ai_factory or self._live_ai
         self.checker_factory = checker_factory or self._live_checker
+        # Live runs from the app log official predictions (item 35). With injected (test) data
+        # nothing is logged unless a test asks for it.
+        self.log_predictions = data_factory is None if log_predictions is None else log_predictions
         self.now = now or (lambda: datetime.now(UTC))
         self.job: asyncio.Task | None = None
         self.active = None  # the Run in progress
@@ -174,6 +178,10 @@ class Server:
             )
         except AIUnavailable as exc:
             raise EngineError("NO_TOOL", str(exc)) from exc
+
+    def _backup_dir(self) -> Path:
+        settings = config.Settings(self.db.conn)
+        return Path(settings.get("backup_dir") or config.DEFAULT_BACKUP_DIR).expanduser()
 
     def _live_checker(self, conn, ai):
         from tearsheet.ai import checker_for
@@ -373,6 +381,8 @@ class Server:
                 run_id=run_id,
                 rawstore=self.rawstore,
                 checker=checker,
+                log_predictions=self.log_predictions,
+                backup_dir=self._backup_dir(),
             )
             return run, p.query, False
 

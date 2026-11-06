@@ -274,3 +274,31 @@ def test_the_resume_command_with_an_unknown_run(tmp_path):
     from tearsheet import cli
 
     assert cli.main(["--data-dir", str(tmp_path / "d"), "resume", "no-such-run"]) == 2
+
+
+def test_a_logged_prediction_replays_identically_and_logs_nothing_more(
+    database, tmp_path, monkeypatch
+):
+    from tearsheet.data import membership
+
+    monkeypatch.setattr(membership, "MIN_ROWS", 1)
+    rawstore = RawStore(tmp_path / "data" / "raw", database.conn)
+    run = Run(
+        database.conn,
+        LoggedData(rawstore, "run-p"),
+        None,
+        load(),
+        mode="full",
+        now=NOW,
+        out_dir=None,
+        run_id="run-p",
+        rawstore=rawstore,
+        log_predictions=True,
+        backup_dir=tmp_path / "backups",
+    )
+    asyncio.run(run.run("T0"))
+    assert run.prediction_id is not None
+    before = counts(database.conn)
+    result = replay(database.path, "run-p", raw_dir=tmp_path / "data" / "raw")
+    assert result.identical, result.differences
+    assert counts(database.conn) == before and before["predictions"] == 1

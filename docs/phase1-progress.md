@@ -1,6 +1,6 @@
 # Phase 1 progress (overnight build, 4–5 Nov 2026)
 
-*   **Status:** Phase 1a, the thin slice, is built and works end to end, and so does a plain Mac app (Phase 1c, below). Phase 1b is well under way. A `--full` mode adds every metric, all three valuation methods, the red-flag caps, all six AI-written sections from their design sources, and the skeptic with one rewrite. The six sections are: 4 business, 5 risks, 6 results with the earnings release, 7 news with articles and press releases, 8 trends from the 3 largest peers and FRED, and What to watch. `replay` and `resume` work, and so do the Goal 1 commands (`flag`, `spot-check`, `goal1`). The prediction log is built but not switched on. **Nothing is committed** (you allowed keep-awake only). Nothing was checked against live services: no live Claude Code calls, no SEC repeat.
+*   **Status:** Phase 1a, the thin slice, is built and works end to end, and so does a plain Mac app (Phase 1c, below). Phase 1b is well under way. A `--full` mode adds every metric, all three valuation methods, the red-flag caps, all six AI-written sections from their design sources, and the skeptic with one rewrite. The six sections are: 4 business, 5 risks, 6 results with the earnings release, 7 news with articles and press releases, 8 trends from the 3 largest peers and FRED, and What to watch. `replay` and `resume` work, and so do the Goal 1 commands (`flag`, `spot-check`, `goal1`). The prediction log is switched on (Phase 2, below). Live runs and live checks are recorded in the sections below.
 *   **Tests:** 403 offline tests pass (up from 152), including a full-mode run through the **live** data source with every service mocked (SEC, iShares, Massive, FRED). So the live wiring has run at least once., and `ruff check` and `ruff format --check` are clean.
 
 ## Try it
@@ -119,7 +119,7 @@ Not committed yet. Nothing here made a live AI call.
     *   the `grade_due` request, which waits for any report;
     *   automatically when the app opens;
     *   a "Grade what is due" button on the Prediction log, which now shows each horizon's hit or miss.
-    *   With no predictions logged, it makes no requests. Logging is still off, so it grades nothing yet.
+    *   With no predictions logged, it makes no requests.
 *   **The Codex connector (item 10):** `ai/codex.py`, with 24 tests against a scripted fake `codex app-server`.
     *   The settings were read from your installed codex-cli 0.165.0's own protocol schema (`codex app-server generate-json-schema`, which runs offline). Each one is a named constant with a row in `docs/phase0-results.md`.
     *   **One design change to agree:** no Codex approval policy asks before its known-safe read commands (`untrusted` runs `cat` and `ls` without asking). So the connector switches the shell tools off at start-up instead of relying on approvals. Every approval request that still arrives is denied and counts as a tool-use attempt. The pass mark "a planted file read produces an approval request, which is denied" becomes "no command ever runs".
@@ -136,7 +136,12 @@ Not committed yet. Nothing here made a live AI call.
     *   It shares the run's one 50-call budget.
     *   If a call there fails, even on a usage limit, the rest of the draft is self-checked. The report says which sections, and why. The run isn't stopped.
 *   **Connections** now shows each tool's lock-down state.
-*   **Tests:** 478 engine tests and 11 app tests pass. The app typechecks and builds. Both the log and Connections were checked in the real app.
+*   **The prediction log is switched on** (you agreed, 6 Nov). Each company's first live full report in any 30 days logs an official prediction at the end of step 8. A withheld rating doesn't use up the slot.
+    *   A row holds the rating, score, range, uncertainty, percentile lines, filings and their latest SEC acceptance time (grading starts after it), methodology hash, versions, AI tool and models, and a hash of the run's inputs. The peer list is the run's own.
+    *   Rows can't be changed: the database refuses edits and deletes. A backup follows each one.
+    *   Only live runs log: offline runs on stored data, replays and resumes never do. The report and the terminal both say what happened, and the report shows the previous official rating.
+    *   The prediction's ID is kept off the saved step outputs, so a logged run still replays identically (tested).
+*   **Tests:** 486 engine tests and 11 app tests pass. The app typechecks and builds. Both the log and Connections were checked in the real app.
 
 ## Decisions I took (none change a design rule)
 
@@ -151,7 +156,6 @@ Not committed yet. Nothing here made a live AI call.
 
 ## Still to build in Phase 1b
 
-*   Switching on the prediction log (your call).
 *   Replay of step 12 (rendering): its output isn't saved as a step yet.
 *   The golden set (item 40).
 *   Per-class market value.
