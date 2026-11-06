@@ -557,20 +557,32 @@ class Server:
         ).fetchone()
         report = json.loads(stored[0])
         run_row = self.db.conn.execute(
-            "SELECT cik FROM runs WHERE run_id = ?", (row["run_id"],)
+            "SELECT u.cik, c.name FROM runs u LEFT JOIN companies c ON c.cik = u.cik"
+            " WHERE u.run_id = ?",
+            (row["run_id"],),
         ).fetchone()
+        cik = run_row[0] if run_row else None
         numbers = (
-            numbers_for(self.db.conn, report, row["run_id"], run_row[0])
-            if run_row and run_row[0] is not None
-            else None
+            numbers_for(self.db.conn, report, row["run_id"], cik) if cik is not None else None
         )
+        claims = (numbers or {}).get("claims")
         return {
             "report_id": row["report_id"],
             "run_id": row["run_id"],
             "ticker": report.get("ticker", ""),
+            "cik": cik,
+            "name": (run_row[1] if run_row else None) or report.get("company") or None,
             "created_at": row["created_at"],
             "narrative_complete": bool(row["narrative_complete"]),
-            "html": render_html(report, mode="app", view=p.view, column=p.column, numbers=numbers),
+            "kept": claims.get("kept") if isinstance(claims, dict) else None,
+            "html": render_html(
+                report,
+                mode="app",
+                view=p.view,
+                column=p.column,
+                narrow=p.narrow,
+                numbers=numbers,
+            ),
         }
 
     def _report_target(self, report_id: str) -> tuple[str, int, str]:

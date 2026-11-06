@@ -8,7 +8,8 @@ import { ICONS } from './Sidebar'
 
 export interface ToolbarProps {
   title?: string
-  subtitle?: string
+  // A line of text, or the report page's menu of the company's other reports.
+  subtitle?: ReactNode
   // No hairline under it: the home page's toolbar is empty apart from the window buttons.
   bare?: boolean
   // The find field is open; `findFocus` changes each time ⌘F is pressed, to put the cursor back.

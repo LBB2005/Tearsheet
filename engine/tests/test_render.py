@@ -203,6 +203,36 @@ def test_view_and_column_options():
             render_html(r, mode="app", **bad)
 
 
+def key_tiles(html: str) -> str:
+    """The narrow window's row of key-number tiles, up to the text column's view switch."""
+    start = html.index('id="keys"')
+    return html[start : html.index('class="tbar"', start)]
+
+
+def test_narrow_adds_key_tiles():
+    r = report("Plain sentence.")
+    html = render_html(r, mode="app", column="text", narrow=True, numbers=numbers())
+    keys = key_tiles(html)
+    assert keys.count('class="kt"') == 5
+    # The rating and score, price, estimated value, range, and the past year.
+    for text in ("Hold", "74", "Price, 4 Nov", "$200.13", "$236.36", "$130 to $420", "−3.0%"):
+        assert text in keys, text
+    assert 'id="numbers"' not in html and "Plain sentence." in html
+    # Only above the text on its own, in the app: not in a wide window, not beside the chart's
+    # numbers, and not in a file.
+    for other in (
+        {"mode": "app", "column": "text"},
+        {"mode": "app", "column": "both", "narrow": True},
+        {"mode": "app", "column": "numbers", "narrow": True},
+        {"mode": "file", "column": "text", "narrow": True},
+    ):
+        assert 'id="keys"' not in render_html(r, numbers=numbers(), **other), other
+    # A report saved before the numbers were stored: each tile says so.
+    for n in ({key: None for key in numbers()}, None):
+        gaps = key_tiles(render_html(r, mode="app", column="text", narrow=True, numbers=n))
+        assert gaps.count('class="kt"') == 5 and gaps.count("not stored") == 5
+
+
 def test_the_numbers_column_and_the_summary_are_drawn_from_the_numbers():
     html = render_html(report("Plain sentence."), mode="app", numbers=numbers())
     assert html.count("<svg") >= 5  # score ring, price path, methods, two rings
@@ -238,11 +268,23 @@ def test_numbers_are_drawn_not_injected():
     assert "<script" not in html
     assert "&lt;script&gt;" in html
     assert html.count("<svg") >= 5  # the charts are still drawn
+    tiles = key_tiles(
+        render_html(report("Plain sentence."), mode="app", column="text", narrow=True, numbers=n)
+    )
+    assert "<script" not in tiles and "&lt;script&gt;" in tiles  # the price tile's date
 
 
 def test_no_script_tags_anywhere():
     for mode in ("app", "file"):
         for view in ("summary", "full"):
             for n in (numbers(), None):
-                html = render_html(report("Plain sentence."), mode=mode, view=view, numbers=n)
-                assert "<script" not in html.lower()
+                for column, narrow in (("both", False), ("text", True)):
+                    html = render_html(
+                        report("Plain sentence."),
+                        mode=mode,
+                        view=view,
+                        column=column,
+                        narrow=narrow,
+                        numbers=n,
+                    )
+                    assert "<script" not in html.lower()

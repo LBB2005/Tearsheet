@@ -25,6 +25,38 @@
 
 {%- macro signed(v) -%}{{ ("%+.1f"|format(v)).replace("-", "−") }}%{%- endmacro -%}
 
+{#- Whole dollars, for a tile: 130.16 → "$130". -#}
+{%- macro dollars(v) -%}{{ "${:,.0f}".format(v) }}{%- endmacro -%}
+
+{%- macro not_stored() -%}<b class="miss">not stored</b>{%- endmacro -%}
+
+{#- A narrow window's five key-number tiles, above the text (the spec's "Narrow windows"): the
+    rating and score, price, estimated value, the 12-month range and the past year. -#}
+{%- macro key_strip() -%}
+{%- set today = n.price.value if n.price else (n.weekly[-1].close if n.weekly else none) -%}
+<div id="keys" class="keys" role="group" aria-label="Key numbers">
+<div class="kt"><span>Rating and score</span>
+{%- if n.rating or n.score -%}
+{% if n.rating %}<b class="{{ n.rating.call|lower }}">{{ n.rating.call }}</b>{% endif %}{% if n.score %} <b>{{ n.score.percentile }}</b>{% endif %}
+{%- else %}{{ not_stored() }}{% endif -%}
+</div>
+<div class="kt"><span>Price{% if n.price %}, {{ day_month(n.price.date) }}{% endif %}</span>{% if n.price %}<b>{{ fmt("price", n.price.value) }}</b>{% else %}{{ not_stored() }}{% endif %}</div>
+<div class="kt"><span>Estimated value</span>{% if n.estimate %}<b>{{ fmt("price", n.estimate.value) }}</b>{% else %}{{ not_stored() }}{% endif %}</div>
+<div class="kt"><span>12-month range</span>
+{%- if n.range -%}
+{%- set lo0 = [n.range.bear, today if today is number else n.range.bear]|min -%}
+{%- set hi0 = [n.range.bull, today if today is number else n.range.bull]|max -%}
+{%- set pad = (hi0 - lo0) * 0.12 -%}
+{%- set lo, span = lo0 - pad, [hi0 - lo0 + 2 * pad, 0.01]|max -%}
+{%- macro at(v) -%}{{ "%.1f"|format([[(v - lo) / span * 100, 0]|max, 100]|min) }}%{%- endmacro -%}
+<b>{{ dollars(n.range.bear) }} to {{ dollars(n.range.bull) }}</b>
+<div class="mini" aria-hidden="true"><i class="b" style="left:{{ at(n.range.bear) }};width:{{ "%.1f"|format((n.range.bull - n.range.bear) / span * 100) }}%"></i>{% if n.range.base is number %}<i class="m" style="left:{{ at(n.range.base) }}"></i>{% endif %}{% if today is number %}<i class="pm" style="left:{{ at(today) }}"></i>{% endif %}</div>
+{%- else %}{{ not_stored() }}{% endif -%}
+</div>
+<div class="kt"><span>Past year</span>{% if n.returns_12m and n.returns_12m.company is number %}<b class="{{ 'down' if n.returns_12m.company < 0 else 'up' }}">{{ signed(n.returns_12m.company) }}</b>{% else %}{{ not_stored() }}{% endif %}</div>
+</div>
+{%- endmacro -%}
+
 {%- macro numbers_column() -%}
 {%- set today = n.price.value if n.price else (n.weekly[-1].close if n.weekly else none) -%}
 <aside id="numbers" class="nums" aria-label="Numbers">

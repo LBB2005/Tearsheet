@@ -1,8 +1,9 @@
 // The app shell: the sidebar, the toolbar and the page frame, routed by page. It opens on the
 // first-time setup until setup is finished (setup_done), and on the home page after that. Home is
-// New report, and shows the run view while a report is written (home/useRun.ts). The report, the
-// prediction log, and settings with connections are still the interim views (views/) until their
-// replacements land.
+// New report, and shows the run view while a report is written (home/useRun.ts). The report page
+// keeps its state in report/useReport.ts, so the toolbar, the menus and the flag sheet share it.
+// The prediction log, and settings with connections, are still the interim views (views/) until
+// their replacements land.
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 
@@ -16,17 +17,20 @@ import { useRun } from './home/useRun'
 import { Mark } from './mark/Mark'
 import { leaveMs } from './motion'
 import { nextCompany, safetyFailed, shortDate, statusLine, type Page } from './nav'
+import { FlagSheet } from './overlays/FlagSheet'
 import { LookUp } from './overlays/LookUp'
 import { Toast, type Notice } from './overlays/Toast'
 import { Home } from './pages/Home'
+import { Report, ReportSubtitle, ReportTools } from './pages/Report'
 import { Setup } from './pages/Setup'
+import { useReport } from './report/useReport'
+import { nextView, reportSubtitle } from './report/view'
 import { applySafetyNote, SAFETY_CALLS, safetyStarted, type SafetyState, type ToolKind } from './setup/steps'
 import { Sidebar, SidebarButton } from './shell/Sidebar'
 import { Toolbar } from './shell/Toolbar'
 import { useWide } from './shell/useWide'
 import { Connections } from './views/Connections'
 import { Log } from './views/Log'
-import { Report } from './views/Report'
 import { Settings } from './views/Settings'
 
 export function App() {
@@ -159,6 +163,10 @@ export function App() {
   }, [])
   const report = useRun({ page, target, go, notify, loadCompanies, loadTools, openReport: setOpenReport, onLockdownFailed: lockdownFailed })
   const { run, onNote } = report
+  const reportPage = useReport({ reportId: openReport, wide, active: page === 'report', notify, refresh: companies })
+  // The sidebar's row for the report on show, which may be one of the company's older reports.
+  const shownCik = reportPage.report?.cik ?? reportPage.listed?.cik ?? null
+  const openRow = companies.find((c) => c.report_id === openReport) ?? (shownCik === null ? undefined : companies.find((c) => c.cik === shownCik))
 
   // The one listener for the engine's notes. The run's notes go to useRun.
   useEffect(() => {
@@ -173,6 +181,9 @@ export function App() {
         notify('The engine stopped and was restarted', 'Your saved reports are safe.', 'stop')
       } else if (note.method === 'engine_fatal') {
         setFatal(String(note.params.message))
+      } else if (note.method === 'reread_done') {
+        // A Re-read this filing link in the report (tearsheet://reread/…).
+        notify(`Saved evidence for ${String(note.params.accession)} was cleared`, 'The next report re-reads the filing.')
       }
     })
   }, [notify, onNote])
@@ -243,7 +254,7 @@ export function App() {
     return reply.error?.message || 'The safety check didn’t start.'
   }
 
-  const currentTicker = () => (target.current === 'report' ? companies.find((c) => c.report_id === openReport)?.ticker ?? null : null)
+  const currentTicker = () => (target.current === 'report' ? openRow?.ticker ?? null : null)
   const step = (dir: 1 | -1) => {
     const ticker = nextCompany(companies, currentTicker(), dir)
     const row = companies.find((c) => c.ticker === ticker)
@@ -287,7 +298,12 @@ export function App() {
     else if (command === 'sidebar') toggleSidebar()
     else if (command === 'find') openFind()
     else if (command === 'settings') go('settings')
-    // 'summary', 'full' and 'chart' arrive with the new report page and the chart.
+    else if (target.current === 'report') {
+      // ⌘1 and ⌘2 reload the report in that view; ⌘3 opens or closes the chart.
+      const view = nextView(command)
+      if (view) reportPage.show(view)
+      else if (command === 'chart') reportPage.toggleChart()
+    }
   }
   const menu = useRef(onMenu)
   menu.current = onMenu
@@ -311,10 +327,21 @@ export function App() {
 
   // The run view, on the home page while a report is written (or waits for Resume).
   const runView = page === 'home' ? report.view : null
-  const company = companies.find((c) => c.report_id === openReport)
+  // While a report loads, the toolbar names it from the lists.
+  const shown = reportPage.report
+  const entry = reportPage.listed
   const bar =
     page === 'report'
-      ? { title: company?.name ?? 'Reports', subtitle: company ? `Report of ${shortDate(company.report_date)}` : undefined }
+      ? {
+          title: shown?.name ?? shown?.ticker ?? entry?.name ?? openRow?.name ?? 'Reports',
+          subtitle: shown ? (
+            <ReportSubtitle text={reportSubtitle(shown.created_at, shown.kept)} others={reportPage.others} onOpen={setOpenReport} />
+          ) : entry ? (
+            reportSubtitle(entry.created_at, null)
+          ) : openRow?.report_id === openReport ? (
+            `Report of ${shortDate(openRow.report_date)}`
+          ) : undefined
+        }
       : page === 'log'
         ? { title: 'Prediction log' }
         : page === 'settings'
@@ -347,7 +374,7 @@ export function App() {
         onRecheck={recheck}
       />
     )
-  else if (page === 'report') content = <Report openId={openReport} onOpen={setOpenReport} />
+  else if (page === 'report') content = <Report page={reportPage} />
   else if (page === 'log') content = <Log />
   else if (page === 'settings')
     content = (
@@ -402,7 +429,7 @@ export function App() {
       <Sidebar
         page={page}
         companies={companies}
-        openReport={openReport}
+        openReport={openRow?.report_id ?? openReport}
         writing={report.running ? { ticker: runLabel, on: runView !== null } : null}
         status={status}
         onNew={newReport}
@@ -438,12 +465,16 @@ export function App() {
                   Cancel run
                 </button>
               )}
+              {page === 'report' && <ReportTools page={reportPage} wide={wide} />}
             </Toolbar>
             {fatalNotice}
             <main key={runView ? 'home-run' : page} className={leaving || report.swapping ? 'pagebody leave' : 'pagebody enter'} data-page={page}>
               {content}
             </main>
           </>
+        )}
+        {page === 'report' && reportPage.flag && (
+          <FlagSheet key={`${reportPage.flag.reportId}:${reportPage.flag.claimId}`} claim={reportPage.flag.text} onSave={reportPage.saveFlag} onClose={reportPage.closeFlag} />
         )}
         {lookUp && <LookUp onPick={(hit) => void pick(hit)} onClose={() => setLookUp(false)} />}
       </div>

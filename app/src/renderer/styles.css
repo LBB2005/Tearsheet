@@ -203,23 +203,6 @@ tr:has(> td.row) > td { vertical-align: middle; }
 .notice.error { background: rgba(255, 127, 138, .08); border-color: rgba(255, 127, 138, .3); }
 .notice p:last-child { margin-bottom: 0; }
 
-/* The interim report page: its own list of reports, then the report frame. */
-.report { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 12px; height: 100%; padding: 12px; }
-.report > ul { list-style: none; margin: 0; padding: 4px; overflow: auto; border-radius: var(--r); background: var(--panel); border: 1px solid var(--line); }
-.report > ul > li.muted { padding: 7px 10px; }
-.report li button { width: 100%; text-align: left; border: 0; background: none; padding: 7px 10px; border-radius: 8px; color: #C3CDD8; cursor: pointer; transition: background .15s; }
-.report li button:hover { background: rgba(255, 255, 255, .045); }
-.report li button.on { background: rgba(255, 255, 255, .085); color: var(--text); font-weight: 600; }
-.report > div:not(.modal) { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
-.report > div:not(.modal) > .notice { margin-top: 0; }
-iframe.report-frame { flex: 1; width: 100%; min-height: 0; border: 1px solid var(--line); border-radius: var(--r); background: #070B14; }
-
-/* The interim flag dialog drops from the toolbar, as the flag sheet will. */
-.modal { position: fixed; inset: 0; z-index: 30; display: grid; place-items: start center; padding-top: 52px; background: rgba(4, 6, 12, .38); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); -webkit-app-region: no-drag; animation: fade .18s ease-out both; }
-.modal > div { width: 520px; max-width: calc(100% - 40px); padding: 18px 18px 16px; display: flex; flex-direction: column; gap: 10px; border-radius: 0 0 16px 16px; background: rgba(22, 28, 40, .9); border: 1px solid rgba(255, 255, 255, .14); border-top: 0;
-  backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px); box-shadow: 0 30px 70px rgba(0, 0, 0, .5); animation: drop .26s var(--slide) both; }
-.modal .row { justify-content: flex-end; }
-
 /* ---------- Reduce motion: nothing moves ---------- */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }

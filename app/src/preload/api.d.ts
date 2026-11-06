@@ -26,7 +26,8 @@ export interface TearsheetApi {
   runReport(query: string, tool?: string): Promise<CallResult<import('../shared/protocol').RunStarted>>
   cancel(runId: string): Promise<CallResult<{ ok: boolean }>>
   resume(runId: string): Promise<CallResult<import('../shared/protocol').RunStarted>>
-  getReport(reportId: string, opts?: { view?: 'summary' | 'full'; column?: 'both' | 'numbers' | 'text' }): Promise<CallResult<import('../shared/protocol').ReportResult>>
+  // `narrow`: a window under 1,100 px, with the text alone; the engine adds the key-number tiles.
+  getReport(reportId: string, opts?: { view?: 'summary' | 'full'; column?: 'both' | 'numbers' | 'text'; narrow?: boolean }): Promise<CallResult<import('../shared/protocol').ReportResult>>
   listCompanies(): Promise<CallResult<import('../shared/protocol').CompanyRow[]>>
   searchCompanies(query: string, limit?: number): Promise<CallResult<import('../shared/protocol').SearchHit[]>>
   getChart(reportId: string): Promise<CallResult<import('../shared/protocol').ChartSeries>>
@@ -38,7 +39,8 @@ export interface TearsheetApi {
   find(text: string, forward: boolean): Promise<void>
   stopFind(): Promise<void>
   onMenu(fn: (c: import('../main/menu').MenuCommand) => void): () => void
-  listReports(): Promise<CallResult<import('../shared/protocol').ReportSummary[]>>
+  // Newest first; `limit` defaults to the engine's 50.
+  listReports(limit?: number): Promise<CallResult<import('../shared/protocol').ReportSummary[]>>
   listPredictions(): Promise<CallResult<import('../shared/protocol').PredictionSummary[]>>
   flagClaim(claimId: string, note: string): Promise<CallResult<{ review_id: string }>>
   rereadFiling(accession: string): Promise<CallResult<{ deleted: number }>>

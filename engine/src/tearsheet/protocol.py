@@ -50,6 +50,8 @@ class GetReportParams(Strict):
     report_id: str
     view: Literal["summary", "full"] = "summary"
     column: Literal["both", "numbers", "text"] = "both"
+    # A narrow window: the text alone, with a row of five key-number tiles above it.
+    narrow: bool = False
 
 
 class SearchParams(Strict):
@@ -157,8 +159,13 @@ class ReportResult(Strict):
     report_id: str
     run_id: str
     ticker: str
+    # The company, for the toolbar's title and its other reports (list_reports' cik).
+    cik: int | None
+    name: str | None
     created_at: str
     narrative_complete: bool
+    # Claims that passed the checks, for the toolbar's subtitle; None when not stored.
+    kept: int | None
     html: str
 
 

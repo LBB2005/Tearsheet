@@ -6,6 +6,7 @@ export type RunId = string;
 export type ReportId = string;
 export type View = "summary" | "full";
 export type Column = "both" | "numbers" | "text";
+export type Narrow = boolean;
 export type Limit = number;
 export type Offset = number;
 export type ClaimId = string;
@@ -33,21 +34,24 @@ export type Ok1 = boolean;
 export type ReportId3 = string;
 export type RunId2 = string;
 export type Ticker2 = string;
+export type Cik1 = number | null;
+export type Name2 = string | null;
 export type CreatedAt = string;
 export type NarrativeComplete = boolean;
+export type Kept = number | null;
 export type Html = string;
-export type Cik1 = number;
+export type Cik2 = number;
 export type Ticker3 = string;
-export type Name2 = string;
+export type Name3 = string;
 export type ReportId4 = string;
 export type ReportDate = string;
 export type Reports = number;
 export type Price = number | null;
 export type PriceDate = string | null;
 export type Ticker4 = string;
-export type Name3 = string;
+export type Name4 = string;
 export type Sector = string | null;
-export type Cik2 = number;
+export type Cik3 = number;
 export type ReportId5 = string | null;
 export type ReportDate1 = string | null;
 export type Date = string;
@@ -67,9 +71,9 @@ export type FirstDate1 = string;
 export type Days = number;
 export type ReportId6 = string;
 export type RunId3 = string;
-export type Cik3 = number | null;
+export type Cik4 = number | null;
 export type Ticker5 = string | null;
-export type Name4 = string | null;
+export type Name5 = string | null;
 export type CreatedAt1 = string;
 export type Rating = string | null;
 export type NarrativeComplete1 = boolean;
@@ -83,7 +87,7 @@ export type CompanyReturn = number | null;
 export type EndDate = string | null;
 export type InsideRange = boolean | null;
 export type PredictionId = string;
-export type Cik4 = number;
+export type Cik5 = number;
 export type Ticker6 = string;
 export type RunAt = string;
 export type Rating1 = string;
@@ -95,7 +99,7 @@ export type ReviewId = string;
 export type Deleted = number;
 export type Graded = number;
 export type Note1 = string | null;
-export type Name5 = string;
+export type Name6 = string;
 export type Key3 = string;
 export type Cost = string;
 export type Sent = string;
@@ -119,7 +123,7 @@ export type Started = boolean;
 export type Tool2 = "claude" | "codex";
 export type N = number;
 export type Total = number;
-export type Name6 = string;
+export type Name7 = string;
 export type Ok2 = boolean;
 export type Tool3 = "claude" | "codex";
 export type Passed1 = boolean;
@@ -181,6 +185,7 @@ export interface GetReportParams {
   report_id: ReportId;
   view?: View;
   column?: Column;
+  narrow?: Narrow;
 }
 /**
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
@@ -296,8 +301,11 @@ export interface ReportResult {
   report_id: ReportId3;
   run_id: RunId2;
   ticker: Ticker2;
+  cik: Cik1;
+  name: Name2;
   created_at: CreatedAt;
   narrative_complete: NarrativeComplete;
+  kept: Kept;
   html: Html;
 }
 /**
@@ -305,9 +313,9 @@ export interface ReportResult {
  * via the `definition` "CompanyRow".
  */
 export interface CompanyRow {
-  cik: Cik1;
+  cik: Cik2;
   ticker: Ticker3;
-  name: Name2;
+  name: Name3;
   report_id: ReportId4;
   report_date: ReportDate;
   reports: Reports;
@@ -320,9 +328,9 @@ export interface CompanyRow {
  */
 export interface SearchHit {
   ticker: Ticker4;
-  name: Name3;
+  name: Name4;
   sector: Sector;
-  cik: Cik2;
+  cik: Cik3;
   report_id: ReportId5;
   report_date: ReportDate1;
 }
@@ -373,9 +381,9 @@ export interface FetchHistoryResult {
 export interface ReportSummary {
   report_id: ReportId6;
   run_id: RunId3;
-  cik: Cik3;
+  cik: Cik4;
   ticker: Ticker5;
-  name: Name4;
+  name: Name5;
   created_at: CreatedAt1;
   rating: Rating;
   narrative_complete: NarrativeComplete1;
@@ -403,7 +411,7 @@ export interface Grade {
  */
 export interface PredictionSummary {
   prediction_id: PredictionId;
-  cik: Cik4;
+  cik: Cik5;
   ticker: Ticker6;
   run_at: RunAt;
   rating: Rating1;
@@ -439,7 +447,7 @@ export interface GradeResult {
  * via the `definition` "Service".
  */
 export interface Service2 {
-  name: Name5;
+  name: Name6;
   key: Key3;
   cost: Cost;
   sent: Sent;
@@ -503,7 +511,7 @@ export interface SafetyProgress {
   tool: Tool2;
   n: N;
   total: Total;
-  name: Name6;
+  name: Name7;
   ok: Ok2;
 }
 /**

@@ -80,6 +80,37 @@ def test_get_report_accepts_view_and_column(tmp_path):
     h.server.close()
 
 
+def test_get_report_gives_the_toolbar_facts_and_the_narrow_tiles(tmp_path):
+    h = Harness(tmp_path)
+
+    async def go():
+        ready = await _one_report(h)
+        rid = ready["report_id"]
+        narrow = await h.call(
+            "get_report", {"report_id": rid, "column": "text", "narrow": True}, id_=2
+        )
+        wide = await h.call("get_report", {"report_id": rid, "column": "text"}, id_=3)
+        bad = await h.call("get_report", {"report_id": rid, "narrow": "yes please"}, id_=4)
+        return narrow, wide, bad
+
+    narrow, wide, bad = run(go())
+    got = narrow["result"]
+    assert 'id="keys"' in got["html"] and 'id="keys"' not in wide["result"]["html"]
+    # The toolbar's title and subtitle: the company, and how many claims passed the checks.
+    kept = h.server.db.conn.execute(
+        "SELECT COUNT(*) FROM claims WHERE report_id = ? AND removed = 0", (got["report_id"],)
+    ).fetchone()[0]
+    assert got["kept"] == kept and kept > 0
+    cik = h.server.db.conn.execute(
+        "SELECT u.cik FROM reports r JOIN runs u ON u.run_id = r.run_id WHERE r.report_id = ?",
+        (got["report_id"],),
+    ).fetchone()[0]
+    assert got["cik"] == cik
+    assert got["name"]
+    assert bad["error"]["code"] == -32602
+    h.server.close()
+
+
 def test_get_chart_method(tmp_path):
     h = Harness(tmp_path)
     seed(h.server.db.conn)

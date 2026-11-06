@@ -145,12 +145,14 @@ def render_html(
     mode: str,
     view: str = "summary",
     column: str = "both",
+    narrow: bool = False,
     numbers: dict[str, Any] | None = None,
 ) -> str:
     """`mode` is "app" (with flag and re-read links) or "file" (terminal mode: claim IDs shown,
     no tearsheet: links). `view` is the text view shown first ("summary" or "full"); `column` is
-    "both", or "numbers" or "text" alone for beside the chart. A file is read without the app, so
-    it always shows both columns, stacked, with the Full view open."""
+    "both", or "numbers" or "text" alone for beside the chart. `narrow` is a window under about
+    1,100 px: with the text alone, a row of five key-number tiles sits above it. A file is read
+    without the app, so it always shows both columns, stacked, with the Full view open."""
     if mode not in ("app", "file"):
         raise ValueError(mode)
     if view not in ("summary", "full"):
@@ -160,12 +162,14 @@ def render_html(
     if mode == "file":
         view, column = "full", "both"
     given = numbers or {}
+    key_tiles = bool(narrow) and column == "text"
     return _ENV.get_template("report.html.j2").render(
         r=report,
         n={key: given.get(key) for key in NUMBER_KEYS},
         mode=mode,
         view=view,
         column=column,
+        key_tiles=key_tiles,
         csp=CSP,
         safe_url=_safe_url,
         anchor=lambda frag: _anchor(mode, frag),
