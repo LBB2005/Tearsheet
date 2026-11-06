@@ -169,13 +169,17 @@ export interface ReadyProps {
   view: SafetyView
   fred: 'works' | 'skipped'
   email: string
-  onOpen: () => Promise<void>
+  // Saves that setup is finished and goes into the app; answers with a problem, or null.
+  onOpen: () => Promise<string | null>
 }
 
 // 9. You're set up: what's connected, then Open Tearsheet hands over to the app.
 export function Ready({ kind, tool, view, fred, email, onOpen }: ReadyProps) {
   const T = TOOL_TEXT[kind]
+  // Pressed once: it stays pressed while the app opens, and comes back only if saving failed.
   const [busy, setBusy] = useState(false)
+  const [problem, setProblem] = useState<string | null>(null)
+  const pressed = useRef(false)
   const live = useRef(true)
   useEffect(
     () => () => {
@@ -183,6 +187,26 @@ export function Ready({ kind, tool, view, fred, email, onOpen }: ReadyProps) {
     },
     []
   )
+  const open = () => {
+    if (pressed.current) return
+    pressed.current = true
+    setBusy(true)
+    setProblem(null)
+    void onOpen().then(
+      (failed) => {
+        if (!failed || !live.current) return
+        pressed.current = false
+        setBusy(false)
+        setProblem(failed)
+      },
+      () => {
+        if (!live.current) return
+        pressed.current = false
+        setBusy(false)
+        setProblem('Tearsheet couldn’t save that setup is finished. Try again.')
+      }
+    )
+  }
   return (
     <div className="col">
       <h1 className="h1 mv" style={at(0)}>
@@ -203,16 +227,14 @@ export function Ready({ kind, tool, view, fred, email, onOpen }: ReadyProps) {
         Your first report takes about 20 minutes, mostly fetching a year of prices for the company and about 40 peers on the free plan. Later reports in the same sector are quicker.
       </p>
       <div className="row mv" style={at(7)}>
-        <button
-          className="btn big"
-          disabled={busy}
-          onClick={() => {
-            setBusy(true)
-            void onOpen().finally(() => live.current && setBusy(false))
-          }}
-        >
+        <button className="btn big" disabled={busy} onClick={open}>
           Open Tearsheet
         </button>
+        {problem && (
+          <div className="st bad chg" role="alert">
+            {problem}
+          </div>
+        )}
       </div>
     </div>
   )

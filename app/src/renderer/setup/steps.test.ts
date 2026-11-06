@@ -8,6 +8,7 @@ import {
   hasProgress,
   isEmail,
   keyProblem,
+  nextLabel,
   nextStep,
   progressSegment,
   resumeStep,
@@ -51,6 +52,12 @@ describe('resumeStep', () => {
 
   it('2. no progress at all gives welcome', () => {
     expect(resumeStep({ ...all, tool: undefined, keys: NONE, email: null, anyProgress: false })).toBe('welcome')
+  })
+
+  it('2. gives welcome to a new person who already has Claude Code, found and signed in', () => {
+    const tool = claude()
+    const settings = { keys: NONE, fred_skipped: false, sec_contact_email: null, primary_tool: null }
+    expect(resumeStep({ setupDone: false, tool, keys: NONE, fredSkipped: false, email: null, anyProgress: hasProgress(settings) })).toBe('welcome')
   })
 
   it('3. no tool found gives find', () => {
@@ -115,6 +122,15 @@ describe('nextStep', () => {
     expect(nextStep('prices', fresh)).toBe('fred')
     expect(nextStep('connected', { ...fresh, tool: undefined })).toBe('prices')
     expect(nextStep('ready', all)).toBe('done')
+  })
+})
+
+describe('nextLabel', () => {
+  it('names the screen the Connected button goes to', () => {
+    expect(nextLabel('prices')).toBe('Next: prices')
+    expect(nextLabel('fred')).toBe('Next: economic figures')
+    expect(nextLabel('email')).toBe('Next: your email')
+    expect(nextLabel('ready')).toBe('Continue')
   })
 })
 
@@ -270,8 +286,8 @@ describe('keyProblem', () => {
     expect(keyProblem('massive', 'SERVICE_UNREACHABLE', 'x')).toBe('Couldn’t reach Massive just now. Try again in a minute.')
   })
 
-  it('passes anything else through', () => {
-    expect(keyProblem('fred', 'ENGINE_ERROR', 'Something broke.')).toBe('Something broke.')
-    expect(keyProblem('fred', undefined, undefined)).toBe('The check didn’t finish. Try again in a minute.')
+  it('shows a fixed message for anything else, never the engine’s own text', () => {
+    expect(keyProblem('fred', 'ENGINE_ERROR', 'echoed sk-live-123')).toBe('Something went wrong checking the key. Try again.')
+    expect(keyProblem('fred', undefined, undefined)).toBe('Something went wrong checking the key. Try again.')
   })
 })

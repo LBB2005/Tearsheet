@@ -71,13 +71,13 @@ export function KeyCard({ service, i, proof, onWorks }: { service: KeyService; i
     if (checking) return
     if (!key) return setStatus({ kind: 'bad', text: 'Paste your key first.' })
     setStatus({ kind: 'checking' })
-    const reply = await window.tearsheet.checkKey(service, key)
+    const reply = await window.tearsheet.checkKey(service, key).catch(() => ({ ok: false as const, result: undefined, error: undefined }))
     if (reply.ok && reply.result) {
       // Saved in the Keychain by the engine; the window lets go of it.
       setValue('')
       setStatus({ kind: 'works', proof: reply.result.proof })
       onWorks(reply.result.proof)
-    } else setStatus({ kind: 'bad', text: keyProblem(service, reply.error?.code, reply.error?.message) })
+    } else setStatus({ kind: 'bad', text: keyProblem(service, reply.error?.code) })
   }
 
   const works = Boolean(proof) || status.kind === 'works'

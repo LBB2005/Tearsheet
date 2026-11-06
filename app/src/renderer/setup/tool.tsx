@@ -216,11 +216,13 @@ export interface ConnectedProps {
   // About 2 s in, the large ring fades out (docking) and the chip takes its place (docked).
   docking: boolean
   docked: boolean
+  // The button's words, for the screen it goes to: "Next: prices" unless prices is done.
+  nextLabel: string
   onNext: () => void
 }
 
 // 5. Connected: a check, three facts, and the safety check starting as a large ring.
-export function Connected({ kind, tool, view, docking, docked, onNext }: ConnectedProps) {
+export function Connected({ kind, tool, view, docking, docked, nextLabel, onNext }: ConnectedProps) {
   const T = TOOL_TEXT[kind]
   const version = versionNumber(tool?.version ?? null)
   const ring = view.state === 'running' && !docked
@@ -266,7 +268,7 @@ export function Connected({ kind, tool, view, docking, docked, onNext }: Connect
       )}
       <div className="row mv" style={at(5)}>
         <button className="btn" onClick={onNext}>
-          Next: prices
+          {nextLabel}
         </button>
       </div>
     </div>

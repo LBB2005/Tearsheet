@@ -8,7 +8,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 import type { MenuCommand } from '../main/menu'
 import type { EngineNotification, ToolStatus } from '../preload/api'
-import type { CompanyRow, SearchHit } from '../shared/protocol'
+import type { CompanyRow, SearchHit, SettingsResult } from '../shared/protocol'
+import { bootView, GIVE_UP_AFTER_MS, STARTING_AFTER_MS } from './boot'
+import { Mark } from './mark/Mark'
 import { leaveMs, readyPauseMs } from './motion'
 import { nextCompany, shortDate, statusLine, type Page } from './nav'
 import { LookUp } from './overlays/LookUp'
@@ -28,8 +30,13 @@ import { Settings } from './views/Settings'
 export function App() {
   const wide = useWide()
   const [page, setPage] = useState<Page>('home')
-  // False until the settings say whether to open on setup or on home.
+  // False until the settings say whether to open on setup or on home. Until then the window
+  // shows empty glass, then "Starting Tearsheet…", or why the engine can't start (boot.ts).
   const [booted, setBooted] = useState(false)
+  const [bootSettings, setBootSettings] = useState<SettingsResult | null>(null)
+  const [bootError, setBootError] = useState<string | null>(null)
+  const [waited, setWaited] = useState(0)
+  const [bootTry, setBootTry] = useState(0)
   // Into the app from setup: the sidebar opens by width while the home page fades up.
   const [opening, setOpening] = useState(false)
   const [leaving, setLeaving] = useState(false)
@@ -93,17 +100,42 @@ export function App() {
   useEffect(() => {
     loadCompanies()
     loadTools()
-    void window.tearsheet.getSettings().then((r) => {
-      if (r.ok && r.result) setPrimaryTool(r.result.primary_tool)
-      // Setup until it is finished (Ruling 3). If the settings can't be read, open on home,
-      // where the engine's problem shows.
-      const first: Page = r.ok && r.result && !r.result.setup_done ? 'setup' : 'home'
-      target.current = first
-      setPage(first)
-      setBooted(true)
-      if (first === 'home') gradeDue()
-    })
-  }, [loadCompanies, loadTools, gradeDue])
+  }, [loadCompanies, loadTools])
+
+  // Ask the engine for the settings: setup until it is finished (Ruling 3), else home. Try
+  // again asks again; an answer that comes after the window gave up waiting still opens the app.
+  useEffect(() => {
+    if (booted) return
+    let live = true
+    setBootError(null)
+    setWaited(0)
+    const slow = window.setTimeout(() => setWaited(STARTING_AFTER_MS), STARTING_AFTER_MS)
+    const late = window.setTimeout(() => setWaited(GIVE_UP_AFTER_MS), GIVE_UP_AFTER_MS)
+    window.tearsheet.getSettings().then(
+      (r) => {
+        if (!live) return
+        if (!r.ok || !r.result) {
+          setBootError(r.error?.message || 'Tearsheet’s engine didn’t answer.')
+          return
+        }
+        setPrimaryTool(r.result.primary_tool)
+        const first: Page = r.result.setup_done ? 'home' : 'setup'
+        target.current = first
+        setPage(first)
+        setBootSettings(r.result)
+        setBooted(true)
+        if (first === 'home') gradeDue()
+      },
+      (error: unknown) => {
+        if (live) setBootError(error instanceof Error ? error.message : 'Tearsheet’s engine didn’t answer.')
+      }
+    )
+    return () => {
+      live = false
+      window.clearTimeout(slow)
+      window.clearTimeout(late)
+    }
+  }, [booted, bootTry, gradeDue])
 
   useEffect(() => {
     return window.tearsheet.onNotification((note: EngineNotification) => {
@@ -134,8 +166,6 @@ export function App() {
         notify('The engine stopped and was restarted', 'Your saved reports are safe.', 'stop')
       } else if (note.method === 'engine_fatal') {
         setFatal(String(p.message))
-        // The settings may never answer now; open on home, where the problem shows.
-        setBooted(true)
       }
     })
   }, [go, loadCompanies, loadTools, notify])
@@ -293,13 +323,35 @@ export function App() {
   const sideShown = page !== 'setup' && (wide ? !sideHidden : sideOver)
   const cls = ['win', `on-${page}`, wide ? '' : 'narrow', sideShown ? '' : 'sbhidden', !wide && sideOver ? 'sbover' : '', opening ? 'opening' : ''].filter(Boolean).join(' ')
 
-  // Until the settings answer, the window is empty glass.
-  if (!booted)
+  // Until the settings answer: empty glass for a moment, then "Starting Tearsheet…", then why
+  // the engine can't start and what to do. The window is never left blank.
+  if (!booted) {
+    const view = bootView({ waitedMs: waited, answered: false, error: bootError, fatal })
     return (
       <div className="win on-setup sbhidden">
-        <div className="mainarea" />
+        <div className="mainarea">
+          <header className="top bare" />
+          {view.kind === 'starting' && (
+            <div className="boot" role="status">
+              <Mark size={64} />
+              <p>Starting Tearsheet…</p>
+            </div>
+          )}
+          {view.kind === 'failed' && (
+            <div className="boot" role="alert">
+              <Mark size={64} />
+              <h1>Tearsheet couldn’t start</h1>
+              <p className="why">{view.message}</p>
+              <p>Quit Tearsheet and open it again. If it still doesn’t start, the details are in the engine’s log: logs/engine.log in Tearsheet’s folder in Application Support.</p>
+              <button className="primary" onClick={() => setBootTry((n) => n + 1)}>
+                Try again
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     )
+  }
 
   const fatalNotice = fatal && (
     <p className="notice error fatal" role="alert">
@@ -326,7 +378,7 @@ export function App() {
       {!wide && sideOver && <div className="sidescrim" onMouseDown={() => setSideOver(false)} />}
       <div className="mainarea">
         {page === 'setup' ? (
-          <Setup leaving={leaving} safety={safety} onSafetyStarted={safetyBegan} onFinish={setupFinished}>
+          <Setup settings={bootSettings} leaving={leaving} safety={safety} onSafetyStarted={safetyBegan} onFinish={setupFinished}>
             {fatalNotice}
           </Setup>
         ) : (

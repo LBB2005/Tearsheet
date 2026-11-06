@@ -11,7 +11,7 @@ import '../setup/setup.css'
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 
-import type { ToolStatus } from '../../preload/api'
+import type { CallResult, ToolStatus } from '../../preload/api'
 import type { SettingsResult } from '../../shared/protocol'
 import { leaveMs } from '../motion'
 import { Email, KeyStep, Ready } from '../setup/details'
@@ -21,6 +21,7 @@ import { SafetyChip, SafetyPopover } from '../setup/SafetyChip'
 import {
   AFTER_CONNECT,
   hasProgress,
+  nextLabel,
   nextStep,
   ONE_CLICK_ENABLED,
   progressSegment,
@@ -48,6 +49,8 @@ const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matc
 const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms))
 
 export interface SetupProps {
+  // The settings App opened with (it read them to choose setup); null if they couldn't be read.
+  settings: SettingsResult | null
   // The app is leaving setup for the home page: everything fades and lifts away.
   leaving: boolean
   // This session's safety check, kept by App from the engine's notes.
@@ -59,14 +62,13 @@ export interface SetupProps {
   children?: ReactNode
 }
 
-export function Setup({ leaving, safety, onSafetyStarted, onFinish, children }: SetupProps) {
+export function Setup({ settings: initialSettings, leaving, safety, onSafetyStarted, onFinish, children }: SetupProps) {
   const [step, setStep] = useState<SetupStep | null>(null)
   // Counts screen changes, so a screen shown again (Find, for the other tool) enters afresh.
   const [visit, setVisit] = useState(0)
   const [out, setOut] = useState(false)
   const [kind, setKind] = useState<ToolKind>('claude')
   const [tools, setTools] = useState<ToolStatus[]>([])
-  const [settings, setSettings] = useState<SettingsResult | null>(null)
   const [scanning, setScanning] = useState(true)
   const [proofs, setProofs] = useState<Partial<Record<KeyService, string>>>({})
   const [fredSkipped, setFredSkipped] = useState(false)
@@ -82,6 +84,7 @@ export function Setup({ leaving, safety, onSafetyStarted, onFinish, children }: 
   const finish = useRef(onFinish)
   finish.current = onFinish
 
+  const settings = initialSettings
   const tool = tools.find((t) => t.kind === kind)
   const T = TOOL_TEXT[kind]
   const alreadyPassed = safetyPassedFor(tool, settings?.lockdown?.[kind])
@@ -120,14 +123,14 @@ export function Setup({ leaving, safety, onSafetyStarted, onFinish, children }: 
     [goStep]
   )
 
-  // Open at the first step that isn't done.
+  // Open at the first step that isn't done, from the settings App opened with and the tools
+  // found (none, if the look fails; Find looks again). The settings are read once, as setup opens.
   useEffect(() => {
     let live = true
-    void Promise.all([window.tearsheet.getSettings(), window.tearsheet.getTools(false)]).then(([reply, list]) => {
+    const s = initialSettings
+    const k: ToolKind = s?.primary_tool === 'codex' ? 'codex' : 'claude'
+    const open = (list: ToolStatus[]) => {
       if (!live) return
-      const s = reply.ok ? (reply.result ?? null) : null
-      const k: ToolKind = s?.primary_tool === 'codex' ? 'codex' : 'claude'
-      setSettings(s)
       setTools(list)
       setKind(k)
       setFredSkipped(Boolean(s?.fred_skipped))
@@ -142,7 +145,8 @@ export function Setup({ leaving, safety, onSafetyStarted, onFinish, children }: 
       })
       if (first === 'done') finish.current()
       else setStep(first)
-    })
+    }
+    void window.tearsheet.getTools(false).then(open, () => open([]))
     return () => {
       live = false
     }
@@ -154,13 +158,21 @@ export function Setup({ leaving, safety, onSafetyStarted, onFinish, children }: 
   }, [visit])
 
   // 3. Look for the tool. Found and signed in goes straight to step 5; found but signed out
-  // opens step 4 at its sign-in card.
+  // opens step 4 at its sign-in card. A look that fails is tried again after 2 s.
   useEffect(() => {
     if (step !== 'find') return
     let live = true
+    let timer: number | undefined
     setScanning(true)
     const t0 = Date.now()
-    void window.tearsheet.getTools(true).then(async (list) => {
+    const look = async () => {
+      let list: ToolStatus[]
+      try {
+        list = await window.tearsheet.getTools(true)
+      } catch {
+        if (live) timer = window.setTimeout(() => void look(), POLL_MS)
+        return
+      }
       const wait = SCAN_MIN_MS - (Date.now() - t0)
       if (wait > 0) await sleep(wait)
       if (!live) return
@@ -169,9 +181,11 @@ export function Setup({ leaving, safety, onSafetyStarted, onFinish, children }: 
       if (found?.available && found.loggedIn === true) goStep('connected')
       else if (found?.available) goStep('install')
       else setScanning(false)
-    })
+    }
+    void look()
     return () => {
       live = false
+      window.clearTimeout(timer)
     }
   }, [step, visit, kind, goStep])
 
@@ -180,12 +194,19 @@ export function Setup({ leaving, safety, onSafetyStarted, onFinish, children }: 
     if (step !== 'install') return
     let live = true
     let timer: number | undefined
+    // A look that fails doesn't stop the polling: the next one is 2 s later all the same.
     const poll = () => {
-      void window.tearsheet.getTools(true).then((list) => {
-        if (!live) return
-        setTools(list)
-        timer = window.setTimeout(poll, POLL_MS)
-      })
+      void window.tearsheet
+        .getTools(true)
+        .then(
+          (list) => {
+            if (live) setTools(list)
+          },
+          () => undefined
+        )
+        .then(() => {
+          if (live) timer = window.setTimeout(poll, POLL_MS)
+        })
     }
     timer = window.setTimeout(poll, POLL_MS)
     return () => {
@@ -233,9 +254,14 @@ export function Setup({ leaving, safety, onSafetyStarted, onFinish, children }: 
     startCheck()
   }, [step, signedIn, alreadyPassed, checkedNow, kind, startCheck])
 
-  const openTearsheet = async () => {
-    await window.tearsheet.setSetting('setup_done', '1')
+  // Open Tearsheet: setup is finished only once that is saved. If it isn't, Ready says so and
+  // stays, so the next launch doesn't open setup again unexpectedly.
+  const openTearsheet = async (): Promise<string | null> => {
+    const failed = 'Tearsheet couldn’t save that setup is finished. Try again.'
+    const reply: CallResult<unknown> = await window.tearsheet.setSetting('setup_done', '1').catch(() => ({ ok: false }))
+    if (!reply.ok) return failed
     finish.current()
+    return null
   }
 
   let content: ReactNode = null
@@ -270,7 +296,17 @@ export function Setup({ leaving, safety, onSafetyStarted, onFinish, children }: 
         )
       break
     case 'connected':
-      content = <Connected kind={kind} tool={tool} view={view} docking={docking} docked={docked} onNext={() => advance('connected')} />
+      content = (
+        <Connected
+          kind={kind}
+          tool={tool}
+          view={view}
+          docking={docking}
+          docked={docked}
+          nextLabel={nextLabel(nextStep('connected', { tool, keys, fredSkipped, email }))}
+          onNext={() => advance('connected')}
+        />
+      )
       break
     case 'prices':
       content = <KeyStep service="massive" proof={proofs.massive} onWorks={(proof) => setProofs((p) => ({ ...p, massive: proof }))} onContinue={() => advance('prices')} />

@@ -109,4 +109,9 @@ export function registerIpc(window: BrowserWindow, engine: Engine, pathValue: st
   engine.on('notification', (note) => window.webContents.send('tearsheet:notification', note))
   engine.on('crashed', (runId) => window.webContents.send('tearsheet:notification', { method: 'engine_restarted', params: { run_id: runId } }))
   engine.on('fatal', (message) => window.webContents.send('tearsheet:notification', { method: 'engine_fatal', params: { message } }))
+  // An engine that failed before the window loaded is never lost: every call answers with
+  // engine.fatalMessage, and the note is sent again once the page has loaded.
+  window.webContents.on('did-finish-load', () => {
+    if (engine.fatalMessage) window.webContents.send('tearsheet:notification', { method: 'engine_fatal', params: { message: engine.fatalMessage } })
+  })
 }

@@ -54,6 +54,14 @@ export function nextStep(from: SetupStep, s: Omit<ResumeInput, 'setupDone' | 'an
   return STEP_ORDER.indexOf(first) > at ? first : STEP_ORDER[at + 1]
 }
 
+// The words on Connected's button, for the screen it goes to (a key saved before is passed over).
+export function nextLabel(next: SetupStep): string {
+  if (next === 'prices') return 'Next: prices'
+  if (next === 'fred') return 'Next: economic figures'
+  if (next === 'email') return 'Next: your email'
+  return 'Continue'
+}
+
 // Whether setup has been started: a key saved, FRED skipped, an email given, or an AI tool
 // chosen. Finding Claude Code already on the Mac doesn't count, so a new person still sees the
 // welcome screen.
@@ -210,10 +218,11 @@ export const checkText = (template: string, t: ToolText) => template.replace('{t
 export const SERVICE_NAME: Record<KeyService, string> = { massive: 'Massive', fred: 'FRED' }
 
 // What a failed key check says. A rejected key and a service that can't be reached get two
-// different messages; anything else shows the engine's own message.
-export function keyProblem(service: KeyService, code: string | undefined, message: string | undefined): string {
+// different messages; anything else gets a fixed one. The engine's own text is never shown, so
+// the window can't show a key even if an error ever echoed one.
+export function keyProblem(service: KeyService, code: string | undefined, _message?: string): string {
   const name = SERVICE_NAME[service]
   if (code === 'KEY_REJECTED') return `${name} didn’t accept that key. Check that you copied all of it.`
   if (code === 'SERVICE_UNREACHABLE') return `Couldn’t reach ${name} just now. Try again in a minute.`
-  return message || 'The check didn’t finish. Try again in a minute.'
+  return 'Something went wrong checking the key. Try again.'
 }
