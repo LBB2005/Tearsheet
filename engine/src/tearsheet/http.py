@@ -339,6 +339,7 @@ class HttpClient:
         settings: Settings | None = None,
         sec_user_agent: str | None = None,
         massive_key: str | None = None,
+        massive_limiter: RateLimiter | None = None,
         transport: httpx.AsyncBaseTransport | None = None,
         sleep: Callable[[float], Awaitable[Any]] = asyncio.sleep,
         clock: Callable[[], float] = time.monotonic,
@@ -367,7 +368,8 @@ class HttpClient:
             ),
             "massive": Service(
                 "massive",
-                limiter=RateLimiter.per_minute(massive_per_minute, clock=clock, sleep=sleep),
+                limiter=massive_limiter
+                or RateLimiter.per_minute(massive_per_minute, clock=clock, sleep=sleep),
                 headers={MASSIVE_AUTH_HEADER: f"Bearer {massive_key}"} if massive_key else {},
                 check_json=massive_problem,
             ),

@@ -150,10 +150,23 @@ class Server:
         self.log_predictions = data_factory is None if log_predictions is None else log_predictions
         self.now = now or (lambda: datetime.now(UTC))
         self.job: asyncio.Task | None = None
+        self._massive_limiter = None
         self.active = None  # the Run in progress
         mark_interrupted(self.db.conn)
 
     # --- the defaults: live data and the user's AI tool -----------------------------------------
+
+    def massive_limiter(self, conn):
+        """One Massive limiter for every client this server builds, so runs and the history
+        download share the plan's calls-per-minute budget."""
+        from tearsheet.http import RateLimiter
+
+        if self._massive_limiter is None:
+            per_minute = config.Settings(conn).number(
+                "massive_calls_per_minute", config.MASSIVE_CALLS_PER_MINUTE
+            )
+            self._massive_limiter = RateLimiter.per_minute(per_minute)
+        return self._massive_limiter
 
     @asynccontextmanager
     async def _live_data(self, run_id: str, conn, rawstore):
@@ -167,6 +180,7 @@ class Server:
             settings=settings,
             sec_user_agent=config.sec_user_agent(settings),
             massive_key=config.get_key("massive"),
+            massive_limiter=self.massive_limiter(conn),
         ) as http:
             yield LiveData(http, rawstore, conn, fred_key=config.get_key("fred"))
 
@@ -179,6 +193,7 @@ class Server:
             run_id,
             settings=config.Settings(conn),
             massive_key=config.get_key("massive"),
+            massive_limiter=self.massive_limiter(conn),
         ) as http:
             yield http
 

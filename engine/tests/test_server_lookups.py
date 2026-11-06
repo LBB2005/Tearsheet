@@ -54,7 +54,7 @@ def test_search_companies_method(tmp_path):
     assert hit["result"][0]["ticker"] == "NVDA"
     assert set(hit["result"][0]) == {"ticker", "name", "sector", "cik", "report_id", "report_date"}
     assert empty["result"] == []
-    assert len(limited["result"]) <= 2
+    assert 1 <= len(limited["result"]) <= 2
     h.server.close()
 
 
@@ -100,8 +100,12 @@ def test_fetch_history_refuses_while_running(tmp_path):
     async def go():
         await h.server.start()
         await h.call("run_report", {"query": "T0"})
+        count = "SELECT COUNT(*) FROM prices_daily WHERE cik IN (1, 884394)"
+        before = h.server.db.conn.execute(count).fetchone()[0]
         refused = await h.call("fetch_history", {"report_id": "rep-1"}, id_=2)
+        after = h.server.db.conn.execute(count).fetchone()[0]
         await h.finish()
+        assert before == after  # the refused call stored nothing
         return refused
 
     refused = run(go())
@@ -160,4 +164,23 @@ def test_fetch_history_method_downloads_company_and_spy(tmp_path):
     assert len(http.urls) == 2 and any("/SPY/" in u for u in http.urls)
     assert reply["result"]["days"] >= 2
     assert reply["result"]["first_date"] <= "2000-01-05"
+    h.server.close()
+
+
+def test_server_clients_share_one_massive_limiter(tmp_path, database, rawstore):
+    from tearsheet.http import HttpClient
+
+    h = Harness(tmp_path)
+    limiter = h.server.massive_limiter(h.server.db.conn)
+    assert h.server.massive_limiter(h.server.db.conn) is limiter
+
+    async def go():
+        async with (
+            HttpClient(rawstore, "a", massive_limiter=limiter) as one,
+            HttpClient(rawstore, "b", massive_limiter=limiter) as two,
+        ):
+            return one.services["massive"].limiter, two.services["massive"].limiter
+
+    first, second = run(go())
+    assert first is second is limiter
     h.server.close()
