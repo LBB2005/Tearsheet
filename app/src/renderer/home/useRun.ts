@@ -14,14 +14,11 @@ import type { StepStates } from '../../shared/steps'
 import { leaveMs, readyPauseMs } from '../motion'
 import type { Page } from '../nav'
 import type { Notice } from '../overlays/Toast'
-import type { RunState } from './run'
+import { refusal, type RunState } from './run'
 
 // A cancelled run stops at its next step, and the engine says nothing when it has, so for a
 // while afterwards "already running" most likely means the cancelled run is still stopping.
 const STOPPING_MS = 5 * 60_000
-
-// What a start or a resume refused while past predictions are graded says.
-export const GRADING_FIRST = 'Tearsheet is grading past predictions first. Try again in a few minutes.'
 
 export interface RunDeps {
   page: Page
@@ -115,14 +112,7 @@ export function useRun({ page, target, go, notify, loadCompanies, loadTools, ope
       begin(reply.result)
       return null
     }
-    const code = reply.error?.code
-    if (code === 'GRADING_IN_PROGRESS') return GRADING_FIRST
-    if (code === 'RUN_IN_PROGRESS') {
-      return Date.now() - cancelledAt.current < STOPPING_MS
-        ? 'The cancelled report is still stopping. Try again in a minute.'
-        : 'A report is already running. You can start another when it finishes.'
-    }
-    return reply.error?.message || 'The report didn’t start.'
+    return refusal(reply.error?.code, reply.error?.message, Date.now() - cancelledAt.current < STOPPING_MS)
   }
 
   // Resume a stopped run. The engine replays it from step 1 with its stored inputs, so its steps
@@ -150,7 +140,7 @@ export function useRun({ page, target, go, notify, loadCompanies, loadTools, ope
       return
     }
     early.current = null
-    if (!reply.ok) notify('The report didn’t resume', reply.error?.code === 'GRADING_IN_PROGRESS' ? GRADING_FIRST : reply.error?.message, 'stop')
+    if (!reply.ok) notify('The report didn’t resume', refusal(reply.error?.code, reply.error?.message, false), 'stop')
   }
 
   // Cancel run: the engine stops it at the next step. Nothing more is heard of it.

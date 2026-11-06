@@ -138,3 +138,140 @@ def test_a_stopped_run_says_so_before_its_report_so_far(tmp_path):
     assert order == ["run_failed", "report_ready"]
     assert h.notes("run_failed")[0]["step"] == "narrate"
     h.server.close()
+
+
+# --- the full price history and the key checks, off the loop ----------------------------------
+
+
+class _SlowHttp:
+    """Massive, slowed: every call waits for the gate (a first full download is about a minute
+    of calls at the plan's pace)."""
+
+    def __init__(self):
+        from tests.test_server_lookups import FakeHttp
+
+        self.inner = FakeHttp()
+        self.gate = asyncio.Event()
+
+    async def fetch(self, *args, **kwargs):
+        await self.gate.wait()
+        return await self.inner.fetch(*args, **kwargs)
+
+
+def _history_harness(tmp_path):
+    from contextlib import asynccontextmanager
+
+    from tests.test_charts import seed
+
+    http = _SlowHttp()
+
+    @asynccontextmanager
+    async def http_factory(run_id, conn, rawstore):
+        yield http
+
+    h = Harness(tmp_path)
+    h.server.http_factory = http_factory
+    seed(h.server.db.conn)
+    with h.server.db.conn:
+        h.server.db.conn.execute(
+            "INSERT INTO step_outputs VALUES ('run-1', 'resolve', '{\"ticker\": \"ABC\"}')"
+        )
+        # A second report of the same company.
+        h.server.db.conn.execute(
+            "INSERT INTO reports (report_id, run_id, created_at, narrative_complete)"
+            " VALUES ('rep-2', 'run-1', '2026-10-31T01:00:00+00:00', 1)"
+        )
+    return h, http
+
+
+def _reply(h: Harness, id_: int) -> dict | None:
+    return next((m for m in h.messages if m.get("id") == id_), None)
+
+
+def test_look_ups_answer_while_a_history_download_goes_and_runs_wait_for_it(tmp_path):
+    h, http = _history_harness(tmp_path)
+
+    async def go():
+        await h.server.start()
+        # handle() returns at once: the download is answered off the loop.
+        await asyncio.wait_for(_send(h, 1, "fetch_history", {"report_id": "rep-1"}), 1)
+        await asyncio.sleep(0.01)
+        pending = _reply(h, 1)
+        companies = await asyncio.wait_for(h.call("list_companies", id_=2), 1)
+        hit = await asyncio.wait_for(h.call("search_companies", {"query": "nvda"}, id_=3), 1)
+        settings = await asyncio.wait_for(h.call("get_settings", id_=4), 1)
+        refused_run = await h.call("run_report", {"query": "T0"}, id_=5)
+        refused_resume = await h.call("resume", {"run_id": "run-1"}, id_=6)
+        http.gate.set()
+        await h.server.wait_for_grading()
+        done = _reply(h, 1)
+        after = await h.call("run_report", {"query": "T0"}, id_=7)
+        await h.finish()
+        return pending, companies, hit, settings, refused_run, refused_resume, done, after
+
+    pending, companies, hit, settings, refused_run, refused_resume, done, after = run(go())
+    assert pending is None  # the download was still going
+    assert companies["result"][0]["report_id"] == "rep-2"
+    assert hit["result"][0]["ticker"] == "NVDA"
+    assert "keys" in settings["result"]
+    for refused in (refused_run, refused_resume):
+        assert refused["error"]["data"]["code"] == "HISTORY_DOWNLOADING"
+        assert "price history" in refused["error"]["message"]
+    assert done["result"]["first_date"] <= "2000-01-05"
+    assert after["result"]["ticker"] == "T0"  # runs start again once the download is done
+    h.server.close()
+
+
+def test_two_history_downloads_for_one_company_share_one(tmp_path):
+    h, http = _history_harness(tmp_path)
+
+    async def go():
+        await h.server.start()
+        await asyncio.wait_for(_send(h, 1, "fetch_history", {"report_id": "rep-1"}), 1)
+        await asyncio.wait_for(_send(h, 2, "fetch_history", {"report_id": "rep-2"}), 1)
+        await asyncio.sleep(0.01)
+        http.gate.set()
+        await h.server.wait_for_grading()
+
+    run(go())
+    first, second = _reply(h, 1), _reply(h, 2)
+    assert first["result"] == second["result"] and first["result"]["days"] >= 2
+    # One download's calls: the company's splits and two pages of dividends, SPY's three, and
+    # the company's bars.
+    assert len(http.inner.calls) == 7
+    h.server.close()
+
+
+def test_a_key_check_answers_off_the_loop(tmp_path, monkeypatch):
+    import tearsheet.setup_checks as setup_checks
+
+    gate: dict[str, asyncio.Event] = {}
+
+    async def slow_check(http, service, key):
+        await gate["open"].wait()
+        return f"{service} answered"
+
+    monkeypatch.setattr(setup_checks, "check_key", slow_check)
+    h = Harness(tmp_path)
+
+    async def go():
+        gate["open"] = asyncio.Event()
+        await h.server.start()
+        await asyncio.wait_for(
+            _send(h, 1, "check_key", {"service": "massive", "key": " new-key\n"}), 1
+        )
+        await asyncio.sleep(0.01)
+        pending = _reply(h, 1)
+        hit = await asyncio.wait_for(h.call("search_companies", {"query": "nvda"}, id_=2), 1)
+        gate["open"].set()
+        await h.server.wait_for_grading()
+        return pending, hit
+
+    pending, hit = run(go())
+    assert pending is None
+    assert hit["result"][0]["ticker"] == "NVDA"
+    assert _reply(h, 1)["result"] == {"proof": "massive answered"}
+    from tearsheet import config
+
+    assert config.get_key("massive") == "new-key"
+    h.server.close()

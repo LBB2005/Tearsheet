@@ -65,3 +65,20 @@ export function markFill(run: RunState, ready: boolean): number {
   if (run.failure) return k / TOTAL
   return stepsBehind(run.steps) / TOTAL
 }
+
+// What a start or a resume refused while past predictions are graded says.
+export const GRADING_FIRST = 'Tearsheet is grading past predictions first. Try again in a few minutes.'
+
+// What a start or a resume refused while a company's full price history downloads says.
+export const HISTORY_FIRST = 'Tearsheet is downloading a price history for the chart. Try again in a minute.'
+
+// Why a start or a resume was refused, as a plain line: grading or a history download first,
+// another run (or a cancelled one still stopping), else the engine's own sentence.
+export function refusal(code: string | undefined, message: string | undefined, stopping: boolean): string {
+  if (code === 'GRADING_IN_PROGRESS') return GRADING_FIRST
+  if (code === 'HISTORY_DOWNLOADING') return HISTORY_FIRST
+  if (code === 'RUN_IN_PROGRESS') {
+    return stopping ? 'The cancelled report is still stopping. Try again in a minute.' : 'A report is already running. You can start another when it finishes.'
+  }
+  return message || 'The report didn’t start.'
+}

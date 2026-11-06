@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { REPORT_STEPS } from '../../shared/steps'
-import { markFill, runStep, runTitle, stepStatus, type RunState } from './run'
+import { GRADING_FIRST, HISTORY_FIRST, markFill, refusal, runStep, runTitle, stepStatus, type RunState } from './run'
 
 // The first `n` steps done, and the next one started.
 function stepsDone(n: number): Record<string, string> {
@@ -107,5 +107,23 @@ describe('markFill', () => {
 
   it('fills a stopped run only up to where it stopped', () => {
     expect(markFill(usageLimit(), true)).toBeCloseTo(10 / 14)
+  })
+})
+
+describe('refusal', () => {
+  it('says plainly why a start or a resume was refused', () => {
+    expect(refusal('GRADING_IN_PROGRESS', 'engine words', false)).toBe(GRADING_FIRST)
+    expect(refusal('HISTORY_DOWNLOADING', 'engine words', false)).toBe(HISTORY_FIRST)
+    expect(HISTORY_FIRST).toBe('Tearsheet is downloading a price history for the chart. Try again in a minute.')
+  })
+
+  it('tells a cancelled run still stopping apart from another run', () => {
+    expect(refusal('RUN_IN_PROGRESS', 'x', true)).toBe('The cancelled report is still stopping. Try again in a minute.')
+    expect(refusal('RUN_IN_PROGRESS', 'x', false)).toBe('A report is already running. You can start another when it finishes.')
+  })
+
+  it('gives the engine’s own sentence otherwise, or a fixed one', () => {
+    expect(refusal('NOT_COVERED', 'Not in the S&P 500.', false)).toBe('Not in the S&P 500.')
+    expect(refusal(undefined, undefined, false)).toBe('The report didn’t start.')
   })
 })

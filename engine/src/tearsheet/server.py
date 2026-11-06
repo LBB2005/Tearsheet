@@ -6,7 +6,10 @@ Only one run (or resume) happens at a time; it runs in the background and report
 `progress`, `report_ready` and `run_failed` notifications. Grading (`grade_due`) is a job like a
 run: it is answered off the request loop, so look-ups and settings answer while it fetches
 prices, and no run, resume, safety check or history download starts until it is done
-(GRADING_IN_PROGRESS). Only the engine writes to the database.
+(GRADING_IN_PROGRESS). A company's full price history (`fetch_history`) is a job too: answered
+off the loop, shared by every ask for that company, and no run or resume starts while one goes
+(HISTORY_DOWNLOADING). Key checks are answered off the loop as well, since a Massive check waits
+its turn at the plan's pace. Only the engine writes to the database.
 """
 
 from __future__ import annotations
@@ -83,9 +86,10 @@ SERVICES = [
     },
 ]
 ICLOUD_FOLDERS = ("Documents", "Desktop", "Library/Mobile Documents")
-# Requests answered off the request loop, because they can take minutes (grading fetches prices
-# at Massive's calls-per-minute pace).
-OFF_LOOP = frozenset({"grade_due"})
+# Requests answered off the request loop, because they can take minutes: grading and the full
+# price history fetch at Massive's calls-per-minute pace, and a Massive key check waits its turn
+# in the same queue.
+OFF_LOOP = frozenset({"grade_due", "fetch_history", "check_key"})
 
 
 class EngineError(Exception):
@@ -161,7 +165,9 @@ class Server:
         self.now = now or (lambda: datetime.now(UTC))
         self.job: asyncio.Task | None = None
         self.grading_job: asyncio.Task | None = None
-        # Requests answered off the loop (grade_due), until their reply is written.
+        # Full price-history downloads under way, by company.
+        self.history_jobs: dict[int, asyncio.Task] = {}
+        # Requests answered off the loop (OFF_LOOP), until their reply is written.
         self.background: set[asyncio.Task] = set()
         self._massive_limiter = None
         self.active = None  # the Run in progress
@@ -337,6 +343,16 @@ class Server:
                 "Tearsheet is grading past predictions. Try again in a few minutes.",
             )
 
+    def _downloading(self) -> bool:
+        return any(not job.done() for job in self.history_jobs.values())
+
+    def _refuse_during_history(self) -> None:
+        if self._downloading():
+            raise EngineError(
+                "HISTORY_DOWNLOADING",
+                "Tearsheet is downloading a price history for the chart. Try again in a minute.",
+            )
+
     def _refuse_during_safety_check(self) -> None:
         if self._safety_running():
             raise EngineError(
@@ -446,6 +462,7 @@ class Server:
                 "RUN_IN_PROGRESS", "A report is already running. Wait for it, or cancel it."
             )
         self._refuse_during_grading()
+        self._refuse_during_history()
         ai = self.ai_factory(self.db.conn, p.tool)
         checker = self.checker_factory(self.db.conn, ai) if ai is not None else None
         now = self.now()
@@ -480,6 +497,7 @@ class Server:
         if self._busy():
             raise EngineError("RUN_IN_PROGRESS", "A report is already running.")
         self._refuse_during_grading()
+        self._refuse_during_history()
         row = self.db.conn.execute(
             "SELECT ai_tool FROM runs WHERE run_id = ?", (p.run_id,)
         ).fetchone()
@@ -534,11 +552,13 @@ class Server:
             await self.safety_job
 
     async def wait_for_grading(self) -> None:
-        """Until grading is done and every reply answered off the loop has been written."""
-        while self.background or self._grading():
+        """Until grading and any history download are done and every reply answered off the
+        loop has been written."""
+        while self.background or self._grading() or self._downloading():
             await asyncio.gather(*self.background, return_exceptions=True)
             if self.grading_job is not None:
                 await asyncio.gather(self.grading_job, return_exceptions=True)
+            await asyncio.gather(*self.history_jobs.values(), return_exceptions=True)
 
     # --- reports, predictions and reviews --------------------------------------------------------
 
@@ -620,10 +640,38 @@ class Server:
         return chart_series(self.db.conn, cik, run_id)
 
     async def m_fetch_history(self, p) -> dict[str, Any]:
-        """The company's full daily history with its splits and dividends (three calls), and
-        SPY's (three more) unless an earlier download already stored them. Every call goes
-        through the shared Massive limiter. The company's long bars come last: they are what
-        tell the app the history is there, so a download cut short leaves it asking again."""
+        """The company's full daily history with its splits and dividends. It is answered off
+        the request loop (OFF_LOOP), as a job: a second ask for the same company, from any of
+        its reports, gets the same answer, and no run or resume starts until it is done."""
+        if self.history_jobs:
+            _, cik, _ = self._report_target(p.report_id)
+            job = self.history_jobs.get(cik)
+            if job is not None and not job.done():
+                return await asyncio.shield(job)
+        if self._busy():
+            raise EngineError(
+                "RUN_IN_PROGRESS", "A report is running. Wait for it, then load the history."
+            )
+        self._refuse_during_grading()
+        _, cik, ticker = self._report_target(p.report_id)
+        if not ticker:
+            raise EngineError("ENGINE_ERROR", "This report's company has no ticker to look up.")
+        job = asyncio.create_task(self._history(cik, ticker))
+        self.history_jobs[cik] = job
+
+        def forget(task: asyncio.Task, cik: int = cik) -> None:
+            if self.history_jobs.get(cik) is task:
+                del self.history_jobs[cik]
+
+        job.add_done_callback(forget)
+        return await asyncio.shield(job)
+
+    async def _history(self, cik: int, ticker: str) -> dict[str, Any]:
+        """The company's splits and dividends (three calls), and SPY's (three more) unless an
+        earlier download already stored them. Every call goes through the shared Massive
+        limiter. The company's long bars come last: they are what tell the app the history is
+        there, so a download cut short leaves it asking again. Downloads for other companies go
+        one at a time, so they share SPY's and never fetch it twice."""
         from tearsheet.charts import SPY_CIK
         from tearsheet.data.prices import (
             PriceStore,
@@ -635,14 +683,10 @@ class Server:
         from tearsheet.http import EASTERN
         from tearsheet.resolve import ticker_for
 
-        if self._busy():
-            raise EngineError(
-                "RUN_IN_PROGRESS", "A report is running. Wait for it, then load the history."
-            )
-        self._refuse_during_grading()
-        _, cik, ticker = self._report_target(p.report_id)
-        if not ticker:
-            raise EngineError("ENGINE_ERROR", "This report's company has no ticker to look up.")
+        me = asyncio.current_task()
+        before = {job for job in self.history_jobs.values() if job is not me and not job.done()}
+        if before:
+            await asyncio.wait(before)
         store = PriceStore(self.db.conn)
         async with self.http_factory(
             f"history-{uuid.uuid4().hex[:8]}", self.db.conn, self.rawstore
@@ -755,6 +799,9 @@ class Server:
 
         if self._busy():
             await asyncio.wait({self.job})  # however the report ends, grading goes on
+        if self._downloading():
+            # One Massive download at a time: grading waits for a history download too.
+            await asyncio.wait({job for job in self.history_jobs.values() if not job.done()})
         settings = config.Settings(self.db.conn)
         backup_dir = Path(settings.get("backup_dir") or config.DEFAULT_BACKUP_DIR).expanduser()
         async with self.data_factory(
@@ -771,6 +818,8 @@ class Server:
         return {"ok": True}
 
     async def m_check_key(self, p) -> dict[str, Any]:
+        """One call to the service with the pasted key. It is answered off the request loop
+        (OFF_LOOP): a Massive check waits its turn behind any download at the plan's pace."""
         from tearsheet.setup_checks import check_key
 
         p.key = p.key.strip()  # a pasted newline would break the header
@@ -904,14 +953,16 @@ async def serve(paths: config.Paths) -> int:
                 await server.job
             except Exception:  # noqa: BLE001
                 pass
-        # Grading stops with the engine; it is graded again next time the app opens.
-        for task in [*server.background, *([server.grading_job] if server.grading_job else [])]:
-            task.cancel()
-        await asyncio.gather(
+        # Grading and history downloads stop with the engine; grading runs again next time the
+        # app opens, and a cut-short download is asked for again.
+        jobs = [
             *server.background,
             *([server.grading_job] if server.grading_job else []),
-            return_exceptions=True,
-        )
+            *server.history_jobs.values(),
+        ]
+        for task in jobs:
+            task.cancel()
+        await asyncio.gather(*jobs, return_exceptions=True)
     finally:
         server.close()
     return 0
