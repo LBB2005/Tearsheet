@@ -5,7 +5,7 @@ const HOSTS = new Set(['massive.com', 'www.massive.com', 'fred.stlouisfed.org', 
 export function isAllowedExternal(url: string): boolean {
   try {
     const parsed = new URL(url)
-    return parsed.protocol === 'https:' && HOSTS.has(parsed.hostname)
+    return parsed.protocol === 'https:' && parsed.port === '' && parsed.username === '' && parsed.password === '' && HOSTS.has(parsed.hostname)
   } catch {
     return false
   }

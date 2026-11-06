@@ -17,7 +17,8 @@ test('every shortcut in the spec is in the menu', () => {
 test('clicking View > Chart sends chart', () => {
   const send = vi.fn<(c: MenuCommand) => void>()
   const chart = walk(menuTemplate(send, false)).find((i) => i.label === 'Chart')
-  ;(chart?.click as () => void)()
+  expect(chart).toBeDefined()
+  ;(chart!.click as () => void)()
   expect(send).toHaveBeenCalledWith('chart')
 })
 

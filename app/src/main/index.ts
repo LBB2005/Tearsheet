@@ -87,7 +87,9 @@ async function createWindow(): Promise<void> {
     }
   })
   registerIpc(window, engine, fixedPath)
-  Menu.setApplicationMenu(Menu.buildFromTemplate(menuTemplate((command) => window.webContents.send('tearsheet:menu', command), !app.isPackaged)))
+  Menu.setApplicationMenu(Menu.buildFromTemplate(menuTemplate((command) => {
+        if (!window.isDestroyed() && !window.webContents.isDestroyed()) window.webContents.send('tearsheet:menu', command)
+      }, !app.isPackaged)))
   showProgressInDock(window, engine)
   engine.start()
 

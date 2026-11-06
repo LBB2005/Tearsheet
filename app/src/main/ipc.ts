@@ -31,6 +31,11 @@ export const CALLS: Record<string, string> = {
   runSafetyCheck: 'run_safety_check'
 }
 
+// The closed allowlist: only the names above, never inherited object properties.
+export function engineMethod(name: unknown): string | null {
+  return typeof name === 'string' && Object.hasOwn(CALLS, name) ? CALLS[name] : null
+}
+
 export interface CallResult {
   ok: boolean
   result?: unknown
@@ -39,7 +44,7 @@ export interface CallResult {
 
 export function registerIpc(window: BrowserWindow, engine: Engine, pathValue: string): void {
   ipcMain.handle('tearsheet:call', async (_event, name: string, params: Record<string, unknown>): Promise<CallResult> => {
-    const method = CALLS[name]
+    const method = engineMethod(name)
     if (!method) return { ok: false, error: { message: `Unknown call ${name}.` } }
     try {
       const result = await engine.request(method, params ?? {})
@@ -63,7 +68,7 @@ export function registerIpc(window: BrowserWindow, engine: Engine, pathValue: st
     return true
   })
   ipcMain.handle('tearsheet:find', (_event, text: unknown, forward: unknown) => {
-    if (typeof text === 'string' && text) window.webContents.findInPage(text, { forward: forward !== false })
+    if (typeof text === 'string' && text) window.webContents.findInPage(text.slice(0, 200), { forward: forward !== false })
   })
   ipcMain.handle('tearsheet:stopFind', () => window.webContents.stopFindInPage('clearSelection'))
   engine.on('notification', (note) => window.webContents.send('tearsheet:notification', note))
