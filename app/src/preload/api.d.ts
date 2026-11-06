@@ -34,6 +34,7 @@ export interface TearsheetApi {
   setKey(service: string, key: string): Promise<CallResult<{ ok: boolean }>>
   getSettings(): Promise<CallResult<import('../shared/protocol').SettingsResult>>
   setSetting(key: string, value: string): Promise<CallResult<{ ok: boolean }>>
+  gradeDue(): Promise<CallResult<import('../shared/protocol').GradeResult>>
   onNotification(fn: (note: EngineNotification) => void): () => void
   onFlagRequested(fn: (payload: { claimId: string }) => void): () => void
 }

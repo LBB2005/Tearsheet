@@ -181,6 +181,10 @@ def test_flag_reread_settings_and_keys(tmp_path, monkeypatch):
     s = settings["result"]
     assert s["keys"]["fred"] == "set" and s["keys"]["massive"] == "missing"
     assert s["raw_cap"] > 0 and "backup_in_icloud" in s and s["services"]
+    from tearsheet.protocol import SettingsResult
+
+    SettingsResult.model_validate(s)
+    assert set(s["lockdown"]) <= {"claude", "codex"}
     h.server.close()
 
 
@@ -213,6 +217,7 @@ def test_every_method_and_error_code_is_declared():
         "set_key",
         "get_settings",
         "set_setting",
+        "grade_due",
     }
     assert set(ERROR_CODES) == {
         "NOT_COVERED",
@@ -251,3 +256,84 @@ def test_progress_states(state):
     from tearsheet.protocol import Progress
 
     assert Progress(run_id="r", step=1, step_name="resolve", state=state).state == state
+
+
+def test_grade_due_with_no_predictions(tmp_path):
+    h = Harness(tmp_path)
+
+    async def go():
+        await h.server.start()
+        return await h.call("grade_due", {})
+
+    reply = run(go())
+    assert reply["result"] == {"graded": 0, "note": "No predictions are logged yet."}
+    h.server.close()
+
+
+def test_the_log_lists_each_grade_with_its_hit(tmp_path):
+    from tearsheet.protocol import PredictionSummary
+    from tests.test_db import insert_prediction
+
+    h = Harness(tmp_path)
+
+    async def go():
+        await h.server.start()
+        conn = h.server.db.conn
+        with conn:
+            insert_prediction(conn, prediction_id="p1", run_id="r1")
+            conn.execute(
+                "INSERT INTO grades VALUES ('p1', 3, '2026-04-01T00:00:00+00:00', 1, 100.0, ?)",
+                (
+                    json.dumps(
+                        {
+                            "hit": True,
+                            "excess": 0.04,
+                            "company_return": 0.07,
+                            "end_date": "2026-03-31",
+                            "range": {"inside": False},
+                        }
+                    ),
+                ),
+            )
+        return await h.call("list_predictions", {})
+
+    reply = run(go())
+    [row] = reply["result"]
+    PredictionSummary.model_validate(row)
+    assert row["grades"] == [
+        {
+            "horizon_months": 3,
+            "graded_at": "2026-04-01T00:00:00+00:00",
+            "grading_version": 1,
+            "start_price": 100.0,
+            "hit": True,
+            "excess": 0.04,
+            "company_return": 0.07,
+            "end_date": "2026-03-31",
+            "inside_range": False,
+        }
+    ]
+    h.server.close()
+
+
+def test_settings_show_each_tools_lock_down_state(tmp_path):
+    from tearsheet.ai.client import ToolState
+
+    h = Harness(tmp_path)
+
+    async def go():
+        await h.server.start()
+        conn = h.server.db.conn
+        ToolState(conn, "claude").record_check(
+            version="2.1.0", model_ids=["m"], form="full", passed=True
+        )
+        ToolState(conn, "codex").record_check(
+            version="codex-cli 0.165.0", model_ids=[], form="full", passed=False
+        )
+        return await h.call("get_settings", {})
+
+    lockdown = run(go())["result"]["lockdown"]
+    assert lockdown["claude"]["passed"] is True and lockdown["claude"]["version"] == "2.1.0"
+    assert lockdown["codex"]["passed"] is False
+    assert lockdown["codex"]["blocked_reason"] == "lockdown_failed"
+    h.server.close()

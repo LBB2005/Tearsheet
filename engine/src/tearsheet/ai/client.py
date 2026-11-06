@@ -83,7 +83,8 @@ class AILockdownFailed(AIError):
 # --- the error table ---------------------------------------------------------------------
 # Each tool's signals, mapped to the errors above. The patterns are tested against the
 # fixtures in tests/fixtures/ai/, which Phase 0 replaces with recorded output.
-# Codex's rows (including its `relogin` signal) arrive with its connector in Phase 2.
+# Codex's rows read the message, the error data (including its `relogin` action) and its
+# `codexErrorInfo` names, never the code: Codex uses -32600 for every error.
 
 
 @dataclass(frozen=True)
@@ -117,6 +118,26 @@ ERROR_TABLE: tuple[ErrorRule, ...] = (
         "claude",
         r"overloaded|server_error|api error: 5\d\d|internal server error|timed? ?out"
         r"|econnreset|socket hang up",
+        AIUnavailable,
+    ),
+    _rule(
+        "codex",
+        r"codexErrorInfo=usageLimitExceeded|hit your usage limit|usage limit (?:reached|exceeded)",
+        AIUsageLimit,
+    ),
+    _rule(
+        "codex",
+        r"action=relogin|codexErrorInfo=unauthorized|not (?:signed|logged) in|codex login"
+        r"|refresh token|token (?:has )?(?:expired|been revoked)|401 unauthorized",
+        AIAuthError,
+        fix="codex login",
+    ),
+    _rule(
+        "codex",
+        r"codexErrorInfo=(?:serverOverloaded|internalServerError|rateLimitExceeded"
+        r"|httpConnectionFailed|responseStreamConnectionFailed|responseStreamDisconnected"
+        r"|responseTooManyFailedAttempts)|overloaded|timed? ?out|stream disconnected"
+        r"|the program exited|its input closed",
         AIUnavailable,
     ),
 )
@@ -348,6 +369,14 @@ class CallRecord:
 # --- the client --------------------------------------------------------------------------
 
 
+@dataclass
+class CallBudget:
+    """The run's call budget. The other-tool skeptic's client shares its run's budget."""
+
+    limit: int
+    sent: int = 0
+
+
 class AIClient:
     """Runs one run's AI calls on one tool. A run keeps its tool, including on Resume."""
 
@@ -357,7 +386,7 @@ class AIClient:
         state: ToolState,
         *,
         short_check: Callable[[], Awaitable[CheckOutcome]] | None = None,
-        budget: int = config.CALL_BUDGET,
+        budget: int | CallBudget = config.CALL_BUDGET,
         parallel: int = config.AI_CALLS_IN_PARALLEL,
         time_limit_s: float = config.AI_CALL_TIME_LIMIT_S,
         retry_wait_s: float = config.AI_RETRY_WAIT_S,
@@ -368,12 +397,11 @@ class AIClient:
     ):
         self.connector = connector
         self.state = state
-        self.budget = budget
+        self.shared_budget = budget if isinstance(budget, CallBudget) else CallBudget(budget)
         self.time_limit_s = time_limit_s
         self.retry_wait_s = retry_wait_s
         self.api_billing = api_billing
         self.signal_dir = signal_dir
-        self.sent = 0
         self.calls: list[CallRecord] = []
         self.program_version: str | None = None
         self._short_check = short_check
@@ -385,6 +413,19 @@ class AIClient:
         self._gate_lock = asyncio.Lock()
         self._gate = False
         self._blocked = False
+
+    @property
+    def budget(self) -> int:
+        return self.shared_budget.limit
+
+    @property
+    def sent(self) -> int:
+        """Calls sent on the run's budget, by this client and any client sharing it."""
+        return self.shared_budget.sent
+
+    @sent.setter
+    def sent(self, value: int) -> None:
+        self.shared_budget.sent = value
 
     # --- the lock-down gate ---------------------------------------------------------
 

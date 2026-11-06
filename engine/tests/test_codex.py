@@ -1,0 +1,419 @@
+"""The Codex connector against a scripted fake `codex app-server` (design items 10 and 13)."""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import os
+import sys
+from pathlib import Path
+
+import pytest
+
+from tearsheet import config
+from tearsheet.ai import codex as codex_module
+from tearsheet.ai.client import (
+    SYSTEM_PROMPT,
+    SYSTEM_PROMPT_WEB_SEARCH,
+    AIAuthError,
+    AIToolUseAttempt,
+    AIUnavailable,
+    AIUsageLimit,
+    CallRequest,
+    Source,
+    classify_error,
+    parse_answer,
+)
+from tearsheet.ai.codex import CodexConnector, build_env, error_text
+from tearsheet.ai.schemas import LinkList, LockdownProbe
+
+FAKE = Path(__file__).parent / "fakes" / "codex_app_server.py"
+ANSWER = json.dumps({"summary": "The filing describes a supplier.", "has_instructions": False})
+
+
+class Fake:
+    """One fake Codex program, its scenario and its log."""
+
+    def __init__(self, tmp_path: Path, scenario: dict | None = None):
+        self.dir = tmp_path
+        self.program = tmp_path / "codex"
+        self.program.write_text(f'#!/bin/sh\nexec "{sys.executable}" "{FAKE}" "$@"\n')
+        self.program.chmod(0o700)
+        self.scenario_path = tmp_path / "scenario.json"
+        self.log_path = tmp_path / "codex-log.jsonl"
+        self.calls_root = tmp_path / "calls"
+        self.set(scenario or {})
+
+    def set(self, scenario: dict) -> None:
+        self.scenario_path.write_text(json.dumps(scenario))
+
+    def connector(self, **kwargs) -> CodexConnector:
+        environ = {
+            "PATH": os.environ["PATH"],
+            "HOME": str(self.dir),
+            "OPENAI_API_KEY": "sk-not-to-be-passed",
+            "ANTHROPIC_API_KEY": "sk-ant-not-to-be-passed",
+            "SOME_SECRET": "hunter2",
+            **kwargs.pop("environ", {}),
+        }
+        return CodexConnector(
+            self.program,
+            calls_root=self.calls_root,
+            environ=environ,
+            extra_env={
+                "FAKE_CODEX_SCENARIO": str(self.scenario_path),
+                "FAKE_CODEX_LOG": str(self.log_path),
+            },
+            **kwargs,
+        )
+
+    def log(self, kind: str | None = None) -> list:
+        if not self.log_path.exists():
+            return []
+        rows = [json.loads(line) for line in self.log_path.read_text().splitlines()]
+        return [r["data"] for r in rows if kind is None or r["kind"] == kind]
+
+    def sent(self, method: str) -> list[dict]:
+        return [m for m in self.log("received") if m.get("method") == method]
+
+
+def request(*, web_search: bool = False, schema=LockdownProbe, model: str | None = None):
+    return CallRequest(
+        task="link_search" if web_search else "extract",
+        instructions="Summarise the source.",
+        sources=[Source("p1", "The company buys chips from one supplier.")],
+        schema=LinkList if web_search else schema,
+        allow_web_search=web_search,
+        model=model,
+    )
+
+
+def ask(connector: CodexConnector, req: CallRequest, *, limit: float = 20):
+    async def go():
+        try:
+            return await asyncio.wait_for(connector.call(req), limit)
+        finally:
+            await connector.aclose()
+
+    return asyncio.run(go())
+
+
+def test_a_clean_call_is_locked_down_and_returns_the_answer(tmp_path):
+    fake = Fake(tmp_path, {"threads": [{"model": "gpt-5-codex", "turn": {"text": ANSWER}}]})
+    answer = ask(fake.connector(), request())
+
+    assert parse_answer(LockdownProbe, answer).summary.startswith("The filing")
+    assert answer.model_id == "gpt-5-codex"
+    assert answer.auth_source == "chatgpt"
+    assert answer.tool_events == [] and answer.denied_tools == []
+    assert answer.tool_servers == []
+    assert answer.tokens == {
+        "inputTokens": 120,
+        "outputTokens": 30,
+        "cachedInputTokens": 0,
+        "reasoningOutputTokens": 5,
+        "totalTokens": 150,
+    }
+
+    # Start-up: the tools and the user's setup are switched off.
+    [argv] = fake.log("argv")
+    assert argv[0] == "app-server"
+    for feature in ("shell_tool", "unified_exec", "apps", "plugins", "hooks", "memories"):
+        assert ["--disable", feature] == argv[argv.index(feature) - 1 : argv.index(feature) + 1]
+    for override in ("mcp_servers={}", "project_doc_max_bytes=0", 'web_search="disabled"'):
+        assert ["-c", override] == argv[argv.index(override) - 1 : argv.index(override) + 1]
+
+    # The handshake, then one locked-down thread.
+    [init] = fake.sent("initialize")
+    assert init["params"]["clientInfo"]["name"] == "tearsheet"
+    assert fake.sent("initialized")
+    [thread] = fake.sent("thread/start")
+    params = thread["params"]
+    assert params["sandbox"] == "read-only"
+    assert params["approvalPolicy"] == "untrusted"
+    assert params["approvalsReviewer"] == "user"
+    assert params["ephemeral"] is True
+    assert params["baseInstructions"] == SYSTEM_PROMPT
+    assert params["config"] == {"web_search": "disabled"}
+    assert "model" not in params  # Codex's own default until Phase 0 names one
+    workdir = Path(params["cwd"])
+    assert workdir.parent == fake.calls_root and not workdir.exists()  # deleted afterwards
+    [turn] = fake.sent("turn/start")
+    assert "<source" in turn["params"]["input"][0]["text"]
+    # The account's email was never kept.
+    assert "someone@example.com" not in json.dumps(answer.session)
+
+
+def test_the_environment_is_the_allowlist_only(tmp_path):
+    fake = Fake(tmp_path, {"threads": [{"turn": {"text": ANSWER}}]})
+    ask(fake.connector(environ={"CODEX_HOME": str(tmp_path / "codex-home")}), request())
+    [names] = fake.log("env")
+    assert "CODEX_HOME" in names and "HOME" in names
+    for secret in ("OPENAI_API_KEY", "ANTHROPIC_API_KEY", "SOME_SECRET"):
+        assert secret not in names
+
+    environ = {"PATH": "/bin", "OPENAI_API_KEY": "sk-1", "SOME_SECRET": "x"}
+    assert "OPENAI_API_KEY" not in build_env(environ)
+    assert build_env(environ, api_billing=True)["OPENAI_API_KEY"] == "sk-1"
+    assert build_env({**environ, config.PATH_ENV: "/app/path"})["PATH"] == "/app/path"
+
+
+def test_its_requests_are_told_apart_from_replies_and_approvals_are_denied(tmp_path):
+    # Codex's approval request has id 0; our own initialize request had id 1.
+    fake = Fake(
+        tmp_path,
+        {
+            "threads": [
+                {
+                    "turn": {
+                        "request": {
+                            "method": "item/commandExecution/requestApproval",
+                            "params": {"itemId": "c1", "command": "cat ~/.ssh/id_ed25519"},
+                        },
+                        "text": ANSWER,
+                    }
+                }
+            ]
+        },
+    )
+    with pytest.raises(AIToolUseAttempt) as caught:
+        ask(fake.connector(), request())
+    assert "item/commandExecution/requestApproval" in caught.value.tools
+    [reply] = fake.log("approval_reply")
+    assert reply["id"] == 0 and reply["result"] == {"decision": "cancel"}
+
+
+@pytest.mark.parametrize(
+    "method",
+    ["item/fileChange/requestApproval", "item/tool/call", "item/permissions/requestApproval"],
+)
+def test_every_kind_of_request_is_refused(tmp_path, method):
+    fake = Fake(tmp_path, {"threads": [{"turn": {"request": {"method": method}, "text": ANSWER}}]})
+    with pytest.raises(AIToolUseAttempt):
+        ask(fake.connector(), request())
+    [reply] = fake.log("approval_reply")
+    assert "error" in reply or reply["result"] in (
+        {"decision": "cancel"},
+        {"contentItems": [], "success": False},
+    )
+
+
+@pytest.mark.parametrize(
+    "item",
+    [
+        {"type": "commandExecution", "command": "ls ~", "status": "completed"},
+        {"type": "fileChange", "changes": [], "status": "completed"},
+        {"type": "mcpToolCall", "server": "s", "tool": "t", "status": "completed"},
+        {"type": "imageView", "path": "/etc/hosts"},
+        {"type": "somethingNew"},
+    ],
+)
+def test_command_file_and_tool_events_are_tool_use(tmp_path, item):
+    fake = Fake(tmp_path, {"threads": [{"turn": {"items": [item], "text": ANSWER}}]})
+    with pytest.raises(AIToolUseAttempt) as caught:
+        ask(fake.connector(), request())
+    assert caught.value.tools == (item["type"],)
+
+
+def test_web_search_is_allowed_only_on_the_link_search_thread(tmp_path):
+    links = json.dumps(
+        {"links": [{"url": "https://example.com/a", "title": "A", "publisher": "P"}]}
+    )
+    search = {"type": "webSearch", "query": "company news"}
+    fake = Fake(
+        tmp_path,
+        {
+            "threads": [
+                {"turn": {"items": [search], "text": links}},
+                {"turn": {"items": [search], "text": ANSWER}},
+            ]
+        },
+    )
+    connector = fake.connector()
+
+    async def go():
+        try:
+            found = await connector.call(request(web_search=True))
+            with pytest.raises(AIToolUseAttempt):
+                await connector.call(request())
+            return found
+        finally:
+            await connector.aclose()
+
+    found = asyncio.run(go())
+    assert found.tool_events == ["webSearch"]
+    first, second = fake.sent("thread/start")
+    assert first["params"]["config"] == {"web_search": "live"}
+    assert first["params"]["baseInstructions"] == SYSTEM_PROMPT_WEB_SEARCH
+    assert second["params"]["config"] == {"web_search": "disabled"}
+    assert len(fake.log("argv")) == 1  # one app-server for the whole run
+
+
+def test_relogin_at_thread_start_becomes_a_sign_in_error(tmp_path):
+    fake = Fake(
+        tmp_path,
+        {
+            "threads": [
+                {
+                    "start_error": {
+                        "message": "Your access token could not be refreshed.",
+                        "data": {"action": "relogin"},
+                    }
+                }
+            ]
+        },
+    )
+    with pytest.raises(AIAuthError) as caught:
+        ask(fake.connector(), request())
+    assert caught.value.fix == "codex login"
+    assert "codex login" in str(caught.value)
+
+
+def test_a_signed_out_account_is_a_sign_in_error(tmp_path):
+    fake = Fake(tmp_path, {"account": {"account": None, "requiresOpenaiAuth": True}})
+    with pytest.raises(AIAuthError):
+        ask(fake.connector(), request())
+
+
+def test_errors_are_told_apart_by_message_and_data_never_the_code():
+    # Both use -32600, as every Codex error does.
+    limit = error_text(
+        {
+            "code": -32600,
+            "message": "You've hit your usage limit.",
+            "codexErrorInfo": "usageLimitExceeded",
+        }
+    )
+    busy = error_text(
+        {"code": -32600, "message": "Try again shortly.", "codexErrorInfo": "serverOverloaded"}
+    )
+    assert isinstance(classify_error("codex", limit), AIUsageLimit)
+    assert isinstance(classify_error("codex", busy), AIUnavailable)
+    assert "-32600" not in limit
+
+
+def test_a_usage_limit_carries_the_reset_time(tmp_path):
+    fake = Fake(
+        tmp_path,
+        {
+            "threads": [
+                {
+                    "turn": {
+                        "rate_limits": {
+                            "primary": {"usedPercent": 100, "resetsAt": 1793768400},
+                            "rateLimitReachedType": "primary",
+                        },
+                        "status": "failed",
+                        "error": {
+                            "message": "You've hit your usage limit.",
+                            "codexErrorInfo": "usageLimitExceeded",
+                        },
+                    }
+                }
+            ]
+        },
+    )
+    with pytest.raises(AIUsageLimit) as caught:
+        ask(fake.connector(), request())
+    assert caught.value.reset_at == "2026-11-04T05:00:00+00:00"
+
+
+def test_standard_error_is_read_so_the_program_never_stalls(tmp_path):
+    # Two megabytes on standard error, far more than a pipe holds, before the first reply.
+    fake = Fake(tmp_path, {"stderr_bytes": 2_000_000, "threads": [{"turn": {"text": ANSWER}}]})
+    answer = ask(fake.connector(), request(), limit=20)
+    assert answer.text == ANSWER
+
+
+def test_a_program_that_stops_is_reported_and_started_again(tmp_path):
+    fake = Fake(tmp_path, {"threads": [{"turn": {"exit": True}}, {"turn": {"text": ANSWER}}]})
+    connector = fake.connector()
+
+    async def go():
+        try:
+            with pytest.raises(AIUnavailable) as caught:
+                await connector.call(request())
+            fake.set({"threads": [{"turn": {"text": ANSWER}}]})
+            return caught.value, await connector.call(request())
+        finally:
+            await connector.aclose()
+
+    error, answer = asyncio.run(go())
+    assert "exited" in (error.raw or "") and "stopped on purpose" in (error.raw or "")
+    assert answer.text == ANSWER
+    assert len(fake.log("argv")) == 2
+
+
+def test_a_call_that_runs_out_of_time_interrupts_its_turn(tmp_path):
+    fake = Fake(tmp_path, {"threads": [{"turn": {"hang": True}}]})
+    connector = fake.connector()
+
+    async def go():
+        try:
+            with pytest.raises(TimeoutError):
+                await asyncio.wait_for(connector.call(request()), 2)
+            await asyncio.sleep(0.3)
+        finally:
+            await connector.aclose()
+
+    asyncio.run(go())
+    [interrupt] = fake.sent("turn/interrupt")
+    assert interrupt["params"]["threadId"] == "thread-1"
+
+
+def test_tool_servers_reported_at_start_up_reach_the_answer(tmp_path):
+    fake = Fake(tmp_path, {"mcp_servers": ["github"], "threads": [{"turn": {"text": ANSWER}}]})
+    answer = ask(fake.connector(), request())
+    assert answer.tool_servers == ["github"]
+
+
+def test_close_stops_the_program_outside_its_event_loop(tmp_path, monkeypatch):
+    fake = Fake(tmp_path, {"threads": [{"turn": {"text": ANSWER}}]})
+    connector = fake.connector()
+
+    async def go():
+        await connector.call(request())
+        return connector._process.pid
+
+    pid = asyncio.run(go())
+    killed = []
+    monkeypatch.setattr(codex_module.os, "kill", lambda p, s: killed.append((p, s)))
+    connector.close()
+    assert killed == [(pid, codex_module.signal.SIGKILL)]
+    os.kill(pid, 9)  # the real kill, so the test leaves nothing running
+
+
+def test_version(tmp_path):
+    fake = Fake(tmp_path, {"version": "codex-cli 0.165.0"})
+    assert asyncio.run(fake.connector().version()) == "codex-cli 0.165.0"
+
+
+def test_the_engine_builds_a_codex_connector_when_codex_is_found(tmp_path, monkeypatch, database):
+    from tearsheet.ai import connector_for
+
+    monkeypatch.setattr(config, "find_program", lambda tool: tmp_path / tool)
+    connector = connector_for("codex", config.Settings(database.conn))
+    assert isinstance(connector, CodexConnector)
+    assert connector.models == config.CODEX_MODELS
+    assert codex_module.SUBSCRIPTION_SIGN_IN == connector.subscription_auth_sources
+
+
+def test_the_lock_down_check_flags_loaded_instruction_files(tmp_path):
+    from tearsheet.ai.lockdown import Probe, evaluate, plant_bait, remove_bait
+
+    fake = Fake(
+        tmp_path,
+        {
+            "threads": [
+                {"instruction_sources": ["/Users/x/.codex/AGENTS.md"], "turn": {"text": ANSWER}}
+            ]
+        },
+    )
+    connector = fake.connector()
+    answer = ask(connector, request())
+    bait = plant_bait(tmp_path / "bait", tmp_path)
+    try:
+        result = evaluate(Probe("probe 1", "x"), answer, bait, connector, api_billing=False)
+    finally:
+        remove_bait(bait)
+    assert any("instruction files loaded" in p for p in result.problems)

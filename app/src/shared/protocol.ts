@@ -32,6 +32,15 @@ export type Name1 = string | null;
 export type CreatedAt1 = string;
 export type Rating = string | null;
 export type NarrativeComplete1 = boolean;
+export type HorizonMonths = number;
+export type GradedAt = string;
+export type GradingVersion = number;
+export type StartPrice = number | null;
+export type Hit = boolean | null;
+export type Excess = number | null;
+export type CompanyReturn = number | null;
+export type EndDate = string | null;
+export type InsideRange = boolean | null;
 export type PredictionId = string;
 export type Cik2 = number;
 export type Ticker3 = string;
@@ -40,15 +49,20 @@ export type Rating1 = string;
 export type Bear = number | null;
 export type Base = number | null;
 export type Bull = number | null;
-export type Grades = {
-  [k: string]: unknown;
-}[];
+export type Grades = Grade[];
 export type ReviewId = string;
 export type Deleted = number;
+export type Graded = number;
+export type Note1 = string | null;
 export type Name2 = string;
 export type Key2 = string;
 export type Cost = string;
 export type Sent = string;
+export type Version = string | null;
+export type Passed = boolean;
+export type Form = string | null;
+export type CheckedAt = string | null;
+export type BlockedReason = string | null;
 export type RawBytes = number;
 export type RawCap = number;
 export type BackupDir = string;
@@ -207,6 +221,23 @@ export interface ReportSummary {
   narrative_complete: NarrativeComplete1;
 }
 /**
+ * One horizon's grade under one version of the grading rules (item 48).
+ *
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "Grade".
+ */
+export interface Grade {
+  horizon_months: HorizonMonths;
+  graded_at: GradedAt;
+  grading_version: GradingVersion;
+  start_price: StartPrice;
+  hit: Hit;
+  excess: Excess;
+  company_return: CompanyReturn;
+  end_date: EndDate;
+  inside_range: InsideRange;
+}
+/**
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
  * via the `definition` "PredictionSummary".
  */
@@ -237,6 +268,14 @@ export interface RereadResult {
 }
 /**
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "GradeResult".
+ */
+export interface GradeResult {
+  graded: Graded;
+  note?: Note1;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
  * via the `definition` "Service".
  */
 export interface Service1 {
@@ -244,6 +283,19 @@ export interface Service1 {
   key: Key2;
   cost: Cost;
   sent: Sent;
+}
+/**
+ * One AI tool's last lock-down check (Technical Plan §4).
+ *
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "LockdownState".
+ */
+export interface LockdownState {
+  version: Version;
+  passed: Passed;
+  form: Form;
+  checked_at: CheckedAt;
+  blocked_reason: BlockedReason;
 }
 /**
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
@@ -259,9 +311,13 @@ export interface SettingsResult {
   sec_contact_email: SecContactEmail;
   goal1_round: Goal1Round;
   services: Services;
+  lockdown?: Lockdown;
 }
 export interface Keys {
   [k: string]: "set" | "missing";
+}
+export interface Lockdown {
+  [k: string]: LockdownState;
 }
 /**
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema

@@ -267,12 +267,17 @@ class Run:
         progress: Callable[[str, str], None] | None = None,
         run_id: str | None = None,
         rawstore=None,
+        checker: AIClient | None = None,
     ):
         if mode not in ("slice", "full"):
             raise ValueError("mode is 'slice' (Phase 1a) or 'full' (Phase 1b's code steps)")
         self.conn = conn
         self.data = data
         self.ai = ai
+        # The other AI tool, for the skeptic, when both are connected (design item 48).
+        self.checker = checker
+        self.checker_failed: str | None = None
+        self.checked_by: dict[str, str] = {}
         self.method = method
         self.mode = mode
         self.now = now or _now()
@@ -330,10 +335,9 @@ class Run:
         self.progress(step, "done")
 
     def _finish(self, status: str, failed_step: str | None = None) -> None:
-        calls = self.ai.sent if self.ai is not None else 0
-        model_ids = (
-            sorted({c.model_id for c in self.ai.calls if c.model_id}) if self.ai is not None else []
-        )
+        calls = self.ai.sent if self.ai is not None else 0  # the checker shares this budget
+        clients = [c for c in (self.ai, self.checker) if c is not None]
+        model_ids = sorted({r.model_id for c in clients for r in c.calls if r.model_id})
         with self.conn:
             self.conn.execute(
                 "UPDATE runs SET status = ?, ended_at = ?, failed_step = ?, ai_calls = ?, model_ids_json = ?, request_counts_json = ?, cik = ? WHERE run_id = ?",
@@ -554,6 +558,11 @@ class Run:
             trend=int(self.method.peers["trend_peers"]),
         )
         with self.conn:
+            # Every member's ticker, so grading can still fetch a peer that later leaves the index.
+            self.conn.executemany(
+                "INSERT OR IGNORE INTO tickers (ticker, cik, share_class, conversion_ratio, date_from) VALUES (?, ?, '', 1, ?)",
+                [(r.ticker, r.cik, self.holdings.as_of.isoformat()) for r in self.holdings.rows],
+            )
             self.conn.execute(
                 "INSERT OR REPLACE INTO companies (cik, name, sic, sector, financial_class) VALUES (?, ?, ?, ?, ?)",
                 (found.cik, self.company_name, sic, self.group.sector, self.company_class),
@@ -1254,19 +1263,64 @@ class Run:
     async def _skeptic(
         self, section: SectionKey, claims: list[Claim], by_id
     ) -> dict[str, tuple[str, str]]:
+        """The skeptic runs on the other AI tool when both are connected. If that call fails,
+        it falls back to a fresh session of the same tool, and the report says so."""
         passing = [c for c in claims if not c.guard_reasons and not c.citation_reason]
-        marks = await self._ai_call(
-            f"skeptic {section.value}",
-            skeptic_section(
-                self.ai,
+
+        def check(client: AIClient):
+            return skeptic_section(
+                client,
                 section=section.value,
                 claims=passing,
                 paragraphs=by_id,
                 evidence=self.evidence.get(section, []),
                 rating_summary=self.rating_summary,
-            ),
-        )
+            )
+
+        if passing and self.checker is not None and self.checker_failed is None:
+            if self.cancel_requested:
+                raise RunCancelled(f"skeptic {section.value}")
+            if self.ai_stopped is None:
+                try:
+                    marks = await check(self.checker)
+                except AIBudgetExhausted as exc:
+                    self.ai_stopped = str(exc)
+                    self.stop_error = exc
+                    self.notes.append(
+                        f"The call budget ran out, so the narrative is incomplete: {exc}"
+                    )
+                    return {}
+                except AIError as exc:
+                    # Any failure on the other tool, even a usage limit there, falls back to
+                    # the same tool for the rest of the run; it doesn't stop the run.
+                    name = self.checker.connector.display_name
+                    self.checker_failed = f"{name}: {exc}"
+                    self.notes.append(
+                        f"The skeptic call on {name} failed ({exc}), so the rest of the draft "
+                        "was self-checked."
+                    )
+                else:
+                    self.checked_by[section.value] = "other"
+                    return marks
+        marks = await self._ai_call(f"skeptic {section.value}", check(self.ai))
+        if passing and marks is not None:
+            self.checked_by[section.value] = "self"
         return marks or {}
+
+    def _skeptic_text(self) -> str:
+        """Who ran the skeptic, for the "Checks that ran" box."""
+        if self.mode == "slice":
+            return "not run in the thin slice"
+        self_checked = "self-checked (a fresh session of the same AI tool checked the draft)"
+        if self.checker is None or not self.checked_by:
+            return self_checked
+        name = self.checker.connector.display_name
+        selves = sorted(s for s, who in self.checked_by.items() if who == "self")
+        if not selves:
+            return f"checked by {name}"
+        if len(selves) == len(self.checked_by):
+            return self_checked
+        return f"checked by {name}, except {', '.join(selves)}, which was self-checked"
 
     async def verify(self, drafts: dict[SectionKey, Draft], paragraphs, resolved: Resolved):
         """Step 13: the code checks; in the full method, then the skeptic and the decision
@@ -1611,9 +1665,7 @@ class Run:
             "direction_split": split,
             "checks": ["numeric guard", "citation check"]
             + (["skeptic"] if self.mode == "full" and self.ai is not None else []),
-            "skeptic": "not run in the thin slice"
-            if self.mode == "slice"
-            else "self-checked (a fresh session of the same AI tool checked the draft)",
+            "skeptic": self._skeptic_text(),
             "cuts": "; ".join(self.cuts) or None,
             "methodology": methodology,
             "filings": [
@@ -1701,6 +1753,7 @@ def prepare_resume(
     ai: AIClient | None,
     out_dir: Path | None,
     progress: Callable[[str, str], None] | None = None,
+    checker: AIClient | None = None,
 ) -> tuple[Run, str]:
     """Continue a stopped or interrupted run (item 34). Steps 1-8 are re-run from the run's own
     stored inputs, with its stored methodology, so their numbers can't change; the AI steps
@@ -1745,6 +1798,7 @@ def prepare_resume(
         out_dir=out_dir,
         progress=progress,
         run_id=run_id,
+        checker=checker,
     )
     return again, resolved["ticker"]
 
@@ -1757,8 +1811,9 @@ def resume_run(
     ai: AIClient | None,
     out_dir: Path | None,
     progress: Callable[[str, str], None] | None = None,
+    checker: AIClient | None = None,
 ) -> RunResult:
     run, ticker = prepare_resume(
-        conn, run_id, raw_dir=raw_dir, ai=ai, out_dir=out_dir, progress=progress
+        conn, run_id, raw_dir=raw_dir, ai=ai, out_dir=out_dir, progress=progress, checker=checker
     )
     return asyncio.run(run.run(ticker, resume=True))

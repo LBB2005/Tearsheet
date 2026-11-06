@@ -90,6 +90,7 @@ METHODS: dict[str, type[Strict]] = {
     "set_key": SetKeyParams,
     "get_settings": NoParams,
     "set_setting": SetSettingParams,
+    "grade_due": NoParams,
 }
 
 
@@ -130,6 +131,20 @@ class ReportSummary(Strict):
     narrative_complete: bool
 
 
+class Grade(Strict):
+    """One horizon's grade under one version of the grading rules (item 48)."""
+
+    horizon_months: int
+    graded_at: str
+    grading_version: int
+    start_price: float | None
+    hit: bool | None
+    excess: float | None
+    company_return: float | None
+    end_date: str | None
+    inside_range: bool | None
+
+
 class PredictionSummary(Strict):
     prediction_id: str
     cik: int
@@ -139,7 +154,7 @@ class PredictionSummary(Strict):
     bear: float | None
     base: float | None
     bull: float | None
-    grades: list[dict[str, Any]]
+    grades: list[Grade]
 
 
 class ReviewResult(Strict):
@@ -150,11 +165,26 @@ class RereadResult(Strict):
     deleted: int
 
 
+class GradeResult(Strict):
+    graded: int
+    note: str | None = None
+
+
 class Service(Strict):
     name: str
     key: str
     cost: str
     sent: str
+
+
+class LockdownState(Strict):
+    """One AI tool's last lock-down check (Technical Plan §4)."""
+
+    version: str | None
+    passed: bool
+    form: str | None
+    checked_at: str | None
+    blocked_reason: str | None
 
 
 class SettingsResult(Strict):
@@ -167,6 +197,7 @@ class SettingsResult(Strict):
     sec_contact_email: str | None
     goal1_round: int
     services: list[Service]
+    lockdown: dict[str, LockdownState] = {}
 
 
 # --- notifications ----------------------------------------------------------------------------
@@ -219,10 +250,13 @@ ALL_MODELS: tuple[type[BaseModel], ...] = (
     Ok,
     ReportResult,
     ReportSummary,
+    Grade,
     PredictionSummary,
     ReviewResult,
     RereadResult,
+    GradeResult,
     Service,
+    LockdownState,
     SettingsResult,
     Hello,
     Progress,

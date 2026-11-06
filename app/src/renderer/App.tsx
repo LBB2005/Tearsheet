@@ -25,6 +25,11 @@ export function App() {
   const [openReport, setOpenReport] = useState<string | null>(null)
   const [fatal, setFatal] = useState<string | null>(null)
 
+  // Grade whatever has come due each time the app opens (design item 48). It waits behind any run.
+  useEffect(() => {
+    void window.tearsheet.gradeDue()
+  }, [])
+
   useEffect(() => {
     return window.tearsheet.onNotification((note: EngineNotification) => {
       const p = note.params as Record<string, never>

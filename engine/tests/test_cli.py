@@ -62,9 +62,10 @@ def test_set_key_with_nothing_entered_saves_nothing(monkeypatch, tmp_path):
     assert config.get_key("fred") is None
 
 
-def test_lockdown_check_on_codex_says_phase_2_and_checks_nothing(tmp_path, capsys):
+def test_lockdown_check_without_codex_explains(tmp_path, capsys):
     assert cli.main(["--data-dir", str(tmp_path), "lockdown-check", "--tool", "codex"]) == 2
-    assert "Phase 2" in capsys.readouterr().out
+    err = capsys.readouterr().err
+    assert "Codex wasn't found" in err and "codex login" in err
 
 
 def test_lockdown_check_without_claude_code_explains(tmp_path, capsys):

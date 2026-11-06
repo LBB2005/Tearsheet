@@ -18,7 +18,8 @@ export const CALLS: Record<string, string> = {
   rereadFiling: 'reread_filing',
   setKey: 'set_key',
   getSettings: 'get_settings',
-  setSetting: 'set_setting'
+  setSetting: 'set_setting',
+  gradeDue: 'grade_due'
 }
 
 export interface CallResult {

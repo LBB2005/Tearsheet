@@ -102,6 +102,40 @@ The live command is `tearsheet-engine run AAPL`. It downloads from SEC, Massive 
 2.  **Residual income for heavy-buyback companies.** Apple's tiny book value gives a return on equity of 142%, so residual income values it at $723. The design only makes the method "not meaningful" when book value is zero or below. You may want a cap on starting return on equity, or a "not meaningful" rule above some level.
 3.  **The DCF is far below price for big tech:** Apple $144, Microsoft $222 against $556. The main reason is reinvestment at the *peer median* sales-to-capital (about 1.0), when Apple's own is about 3. It's the design's rule, and the rating is relative to peers, but it's worth a look on the golden set.
 
+## Phase 2: grading, Codex and the other-tool skeptic (5 Nov 2026)
+
+Not committed yet. Nothing here made a live AI call.
+
+*   **Grading (item 48):** `grading.py` and `methodology/grading.yaml`.
+    *   It grades each logged prediction at 3, 6 and 12 months against its fixed peer list.
+    *   It uses the Hold band scaled by √(months ÷ 12), and the range shrunk to the horizon.
+    *   The scores are hit rate, interval score and Brier score, against a seeded random-mix baseline and an always-Hold baseline. The intervals are Wilson and bootstrap.
+    *   The headline count keeps one prediction per company per rolling year. The label stays "descriptive, not conclusive" until 200 are graded.
+    *   When the rules change, it grades everything again as new rows; old rows are never overwritten.
+    *   Grading fills later prices through the shared Massive limiter, then makes a backup.
+    *   Runs now record every peer's ticker, so grading can fetch peers later.
+*   **Where grading runs:**
+    *   `tearsheet-engine grade` in the terminal;
+    *   the `grade_due` request, which waits for any report;
+    *   automatically when the app opens;
+    *   a "Grade what is due" button on the Prediction log, which now shows each horizon's hit or miss.
+    *   With no predictions logged, it makes no requests. Logging is still off, so it grades nothing yet.
+*   **The Codex connector (item 10):** `ai/codex.py`, with 24 tests against a scripted fake `codex app-server`.
+    *   The settings were read from your installed codex-cli 0.165.0's own protocol schema (`codex app-server generate-json-schema`, which runs offline). Each one is a named constant with a row in `docs/phase0-results.md`.
+    *   **One design change to agree:** no Codex approval policy asks before its known-safe read commands (`untrusted` runs `cat` and `ls` without asking). So the connector switches the shell tools off at start-up instead of relying on approvals. Every approval request that still arrives is denied and counts as a tool-use attempt. The pass mark "a planted file read produces an approval request, which is denied" becomes "no command ever runs".
+*   **Your step:** run the Codex lock-down check.
+
+    ```bash
+    uv run --project engine tearsheet-engine lockdown-check --tool codex
+    ```
+
+    It makes 25 Codex calls on your ChatGPT plan, about 3–5 minutes. Until it passes, Connections shows Codex as "Not checked yet", and the skeptic stays self-checked.
+*   **The other-tool skeptic (item 48):** when both tools are found and have passed their lock-down checks, the skeptic runs on the other one, and the report says "checked by Codex".
+    *   It shares the run's one 50-call budget.
+    *   If a call there fails, even on a usage limit, the rest of the draft is self-checked. The report says which sections, and why. The run isn't stopped.
+*   **Connections** now shows each tool's lock-down state.
+*   **Tests:** 471 engine tests and 11 app tests pass. The app typechecks and builds. Both the log and Connections were checked in the real app.
+
 ## Decisions I took (none change a design rule)
 
 *   **The value-gap share is stored as `value_gap_years: 3`** in `rating_lines.yaml`, rather than 0.333…, so trigger prices come out exact.
@@ -119,4 +153,3 @@ The live command is `tearsheet-engine run AAPL`. It downloads from SEC, Massive 
 *   Replay of step 12 (rendering): its output isn't saved as a step yet.
 *   The golden set (item 40).
 *   Per-class market value.
-*   Phase 1c: the app window.

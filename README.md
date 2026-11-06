@@ -10,12 +10,12 @@ A Mac app for personal research. You type an S&P 500 company name or ticker, and
 
 ## Status
 
-**Phase 1, in progress.** Phase 0's week-one tests are done, apart from the next-day SEC repeat ([docs/phase0-results.md](docs/phase0-results.md)). The engine writes a report from the terminal. `run TICKER` writes the thin slice (Phase 1a), and `run TICKER --full` writes the full method's code steps and all six AI-written sections. No predictions are logged yet. Progress and open questions: [docs/phase1-progress.md](docs/phase1-progress.md). The design is in [docs/designs/tearsheet.md](docs/designs/tearsheet.md). A plain Mac window (Phase 1c) runs reports, shows them and flags claims; see [The Mac app](#the-mac-app).
+**Phase 1 and Phase 2, in progress.** Phase 0 is done and approved ([docs/phase0-results.md](docs/phase0-results.md)). Phase 2 adds grading, the Codex connector and the other-tool skeptic; Codex's lock-down check hasn't been run yet. The engine writes a report from the terminal. `run TICKER` writes the thin slice (Phase 1a), and `run TICKER --full` writes the full method's code steps and all six AI-written sections. No predictions are logged yet. Progress and open questions: [docs/phase1-progress.md](docs/phase1-progress.md). The design is in [docs/designs/tearsheet.md](docs/designs/tearsheet.md). A plain Mac window (Phase 1c) runs reports, shows them and flags claims; see [The Mac app](#the-mac-app).
 
 ## Requirements
 
 *   macOS, with Python 3.12 and [`uv`](https://docs.astral.sh/uv/).
-*   Claude Code, installed and signed in (`claude auth login`). Codex support arrives in Phase 2.
+*   Claude Code or Codex, installed and signed in (`claude auth login` or `codex login`). With both, each passes `lockdown-check --tool claude` or `--tool codex`, and the other tool checks each report's draft.
 *   Free keys for Massive (prices), FRED (economic series) and Alpha Vantage (analyst consensus). They are stored in the macOS Keychain under the service name `Tearsheet`, never in files.
 *   A contact email for SEC, which asks every program for one.
 
@@ -37,6 +37,7 @@ uv run --project engine tearsheet-engine run AAPL --full
 uv run --project engine tearsheet-engine replay <run ID>
 uv run --project engine tearsheet-engine spot-check
 uv run --project engine tearsheet-engine goal1
+uv run --project engine tearsheet-engine grade
 ```
 
 `run` prints the path of the HTML report. `replay` re-runs a run's code steps from its stored inputs and checks that the numbers are identical. `spot-check` walks you through the citations to check and asks the Goal 1 question, and `goal1` prints the tally. `set-key` reads the key from a hidden prompt. `lockdown-check` checks that Claude Code runs with no tools, no user settings and your subscription sign-in. Every command takes `--data-dir`. The default data folder is `~/Library/Application Support/Tearsheet/`.

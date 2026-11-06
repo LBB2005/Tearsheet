@@ -93,7 +93,10 @@ CLAUDE_MODELS = {
     "skeptic": "sonnet",
     "link_search": "sonnet",
 }
-# Codex's models are chosen when its connector is built (Phase 2).
+# The model for each step on Codex. Empty means Codex's own default model for the user's
+# plan; the live lock-down check records which model that is (docs/phase0-results.md), and a
+# smaller model for extraction can be named here once it is confirmed.
+CODEX_MODELS: dict[str, str] = {}
 
 # --- Raw-data folder (Technical Plan §6) -------------------------------------
 

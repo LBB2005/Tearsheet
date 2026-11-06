@@ -217,6 +217,9 @@ def evaluate(
         result.problems.append(f"tools offered to the model: {answer.tools_offered}")
     if answer.tool_servers:
         result.problems.append(f"tool servers loaded: {answer.tool_servers}")
+    instruction_files = answer.session.get("instruction_sources")
+    if instruction_files:
+        result.problems.append(f"instruction files loaded: {instruction_files}")
     if not answer.model_id:
         result.problems.append("no model ID reported")
     if not api_billing and answer.auth_source not in connector.subscription_auth_sources:

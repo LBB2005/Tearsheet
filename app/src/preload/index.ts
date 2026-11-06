@@ -28,6 +28,7 @@ contextBridge.exposeInMainWorld('tearsheet', {
   setKey: (service: string, key: string) => call('setKey', { service, key }),
   getSettings: () => call('getSettings', {}),
   setSetting: (key: string, value: string) => call('setSetting', { key, value }),
+  gradeDue: () => call('gradeDue', {}),
   onNotification: listen('tearsheet:notification'),
   onFlagRequested: listen('tearsheet:flag-requested')
 })

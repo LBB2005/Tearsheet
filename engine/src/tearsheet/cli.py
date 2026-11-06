@@ -13,6 +13,7 @@ import logging
 import signal
 import sys
 from datetime import UTC, datetime
+from pathlib import Path
 
 from tearsheet import ENGINE_VERSION, config
 from tearsheet.db import DatabaseTooNew, open_database
@@ -58,8 +59,21 @@ def cmd_set_setting(args: argparse.Namespace) -> int:
     return 0
 
 
+async def _closing(work, *clients):
+    """Await a run, then stop the AI tools' programs inside the same event loop."""
+    try:
+        return await work
+    finally:
+        from tearsheet.ai import close_connector
+
+        for client in clients:
+            if client is not None:
+                await close_connector(client.connector)
+
+
 def cmd_lockdown_check(args: argparse.Namespace) -> int:
-    from tearsheet.ai import CODEX_LATER, connector_for
+    from tearsheet.ai import api_billing as billing_for
+    from tearsheet.ai import close_connector, connector_for
     from tearsheet.ai.client import ToolState, choose_tool
     from tearsheet.ai.lockdown import run_check
 
@@ -67,23 +81,25 @@ def cmd_lockdown_check(args: argparse.Namespace) -> int:
     try:
         settings = config.Settings(database.conn)
         tool = choose_tool(args.tool, settings)
-        if tool == "codex":
-            print(CODEX_LATER + " Nothing was checked.")
-            return 2
         connector = connector_for(tool, settings)
         form = "short" if args.short else "full"
-        api_billing = settings.get("claude_billing") == "api"
+        api_billing = billing_for(tool, settings)
+        mode = getattr(connector, "mode", None)
         print(
-            f"Lock-down check ({form} form) on {connector.display_name}, "
-            f"using the {connector.mode} mode. Don't use {connector.display_name} elsewhere "
-            "until it finishes."
+            f"Lock-down check ({form} form) on {connector.display_name}"
+            f"{f', using the {mode} mode' if mode else ''}. Don't use {connector.display_name} "
+            "elsewhere until it finishes."
         )
-        try:
-            report = asyncio.run(
-                run_check(connector, form=form, api_billing=api_billing, progress=print)
-            )
-        finally:
-            connector.close()
+
+        async def check():
+            try:
+                return await run_check(
+                    connector, form=form, api_billing=api_billing, progress=print
+                )
+            finally:
+                await close_connector(connector)
+
+        report = asyncio.run(check())
         if report.inconclusive is None:
             ToolState(database.conn, tool).record_check(
                 version=report.program_version,
@@ -122,7 +138,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     from tearsheet.sources import LiveData, StoredData
 
     paths, database = _open(args, "run")
-    ai = None
+    ai = checker = None
     try:
         from tearsheet.pipeline import mark_interrupted
 
@@ -135,6 +151,12 @@ def cmd_run(args: argparse.Namespace) -> int:
             ai = client_for(
                 database.conn, settings, tool=args.tool, signal_dir=paths.logs / "ai-signals"
             )
+            if args.full:
+                from tearsheet.ai import checker_for
+
+                checker = checker_for(
+                    database.conn, settings, ai, signal_dir=paths.logs / "ai-signals"
+                )
         run_id = new_run_id()
         out_dir = paths.data_dir / "reports"
 
@@ -160,8 +182,9 @@ def cmd_run(args: argparse.Namespace) -> int:
                 out_dir=out_dir,
                 progress=progress,
                 run_id=run_id,
+                checker=checker,
             )
-            result = asyncio.run(run.run(args.ticker))
+            result = asyncio.run(_closing(run.run(args.ticker), ai, checker))
         else:
             from tearsheet.http import HttpClient
 
@@ -185,13 +208,15 @@ def cmd_run(args: argparse.Namespace) -> int:
                         progress=progress,
                         run_id=run_id,
                         rawstore=rawstore,
+                        checker=checker,
                     )
-                    return await run.run(args.ticker)
+                    return await _closing(run.run(args.ticker), ai, checker)
 
             result = asyncio.run(go())
     finally:
-        if ai is not None:
-            ai.connector.close()
+        for client in (ai, checker):
+            if client is not None:
+                client.connector.close()
         database.close()
     print()
     print(f"Status: {result.status}. Rating: {result.rating or 'withheld'}.")
@@ -207,7 +232,7 @@ def cmd_resume(args: argparse.Namespace) -> int:
     from tearsheet.replay import ReplayError
 
     paths, database = _open(args, "resume")
-    ai = None
+    ai = checker = None
     try:
         mark_interrupted(database.conn)
         row = database.conn.execute(
@@ -226,6 +251,14 @@ def cmd_resume(args: argparse.Namespace) -> int:
                 tool=row[0],
                 signal_dir=paths.logs / "ai-signals",
             )
+            from tearsheet.ai import checker_for
+
+            checker = checker_for(
+                database.conn,
+                config.Settings(database.conn),
+                ai,
+                signal_dir=paths.logs / "ai-signals",
+            )
 
         def progress(step: str, state: str) -> None:
             if state == "started":
@@ -239,13 +272,15 @@ def cmd_resume(args: argparse.Namespace) -> int:
                 ai=ai,
                 out_dir=paths.data_dir / "reports",
                 progress=progress,
+                checker=checker,
             )
         except ReplayError as exc:
             print(str(exc), file=sys.stderr)
             return 2
     finally:
-        if ai is not None:
-            ai.connector.close()
+        for client in (ai, checker):
+            if client is not None:
+                client.connector.close()
         database.close()
     print(f"\nStatus: {result.status}. Rating: {result.rating or 'withheld'}.")
     if result.html_path:
@@ -424,6 +459,59 @@ def cmd_spot_check(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_grade(args: argparse.Namespace) -> int:
+    from tearsheet.grading import grade_job, summary
+    from tearsheet.http import HttpClient
+    from tearsheet.methodology import load
+    from tearsheet.rawstore import RawStore
+    from tearsheet.sources import LiveData
+
+    paths, database = _open(args, "grade")
+    try:
+        settings = config.Settings(database.conn)
+        rules = load().grading
+        backup_dir = Path(settings.get("backup_dir") or config.DEFAULT_BACKUP_DIR).expanduser()
+
+        async def go():
+            rawstore = RawStore(paths.raw, database.conn)
+            now = datetime.now(UTC)
+            async with HttpClient(
+                rawstore,
+                f"grade-{now:%Y%m%dT%H%M%SZ}",
+                settings=settings,
+                massive_key=config.get_key("massive"),
+            ) as http:
+                data = LiveData(http, rawstore, database.conn, fred_key=None)
+                return await grade_job(database.conn, data, rules, now=now, backup_dir=backup_dir)
+
+        result = asyncio.run(go())
+        from tearsheet.data.prices import PriceStore
+
+        stats = summary(database.conn, rules, store=PriceStore(database.conn))
+    finally:
+        database.close()
+    print(f"Graded {result['graded']} new horizons. {result.get('note') or ''}".strip())
+    print(
+        f"Results are {stats['label']} ({stats['headline_graded_12m']} headline predictions graded at 12 months). {stats['note']}"
+    )
+    for group in stats["groups"]:
+        print(
+            f"Method code {group['method_code_version']}, methodology {group['methodology_hash'][:8]}, grading rules v{group['grading_version']}:"
+        )
+        for months, h in group["horizons"].items():
+            hit = h["hit_rate"]
+            rate = (
+                "n/a"
+                if hit["value"] is None
+                else f"{hit['value']:.0%} (95% interval {hit['low']:.0%}-{hit['high']:.0%})"
+            )
+            base = h["baselines"]["random_mix_hit_rate"]
+            print(
+                f"  {months} months: {h['count']} graded; hit rate {rate}; random-mix baseline {'n/a' if base is None else f'{base:.0%}'}"
+            )
+    return 0
+
+
 def cmd_serve(args: argparse.Namespace) -> int:
     from tearsheet.server import serve
 
@@ -485,6 +573,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     again.add_argument("run_id")
     again.set_defaults(handler=cmd_replay)
+
+    grade = commands.add_parser(
+        "grade", parents=[common], help="grade the logged predictions that are due"
+    )
+    grade.set_defaults(handler=cmd_grade)
 
     serve = commands.add_parser(
         "serve",

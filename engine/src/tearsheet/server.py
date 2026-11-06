@@ -127,6 +127,7 @@ class Server:
         write: Callable[[dict[str, Any]], None],
         data_factory=None,
         ai_factory=None,
+        checker_factory=None,
         now: Callable[[], datetime] | None = None,
     ):
         from tearsheet.methodology import load
@@ -140,6 +141,7 @@ class Server:
         self.method = load(local_allowlist=paths.data_dir / "allowlist.local.yaml")
         self.data_factory = data_factory or self._live_data
         self.ai_factory = ai_factory or self._live_ai
+        self.checker_factory = checker_factory or self._live_checker
         self.now = now or (lambda: datetime.now(UTC))
         self.job: asyncio.Task | None = None
         self.active = None  # the Run in progress
@@ -172,6 +174,13 @@ class Server:
             )
         except AIUnavailable as exc:
             raise EngineError("NO_TOOL", str(exc)) from exc
+
+    def _live_checker(self, conn, ai):
+        from tearsheet.ai import checker_for
+
+        return checker_for(
+            conn, config.Settings(conn), ai, signal_dir=self.paths.logs / "ai-signals"
+        )
 
     # --- messages --------------------------------------------------------------------------
 
@@ -265,6 +274,7 @@ class Server:
         from tearsheet.pipeline import RunCancelled
 
         step = None
+        run = None
         try:
             async with self.data_factory(run_id, self.db.conn, self.rawstore) as data:
                 run, query, resume = make_run(data)
@@ -300,6 +310,15 @@ class Server:
         finally:
             self.active = None
             resolved.set()
+            from tearsheet.ai import close_connector
+
+            for client in (getattr(run, "ai", None), getattr(run, "checker", None)):
+                if client is None:
+                    continue
+                try:
+                    await close_connector(client.connector)
+                except Exception:  # noqa: BLE001 - cleanup only
+                    log.exception("closing the AI tool after run %s", run_id)
 
     async def _start_job(self, run_id: str, make_run, *, wait_for_resolve: bool) -> None:
         resolved = asyncio.Event()
@@ -337,6 +356,7 @@ class Server:
                 "RUN_IN_PROGRESS", "A report is already running. Wait for it, or cancel it."
             )
         ai = self.ai_factory(self.db.conn, p.tool)
+        checker = self.checker_factory(self.db.conn, ai) if ai is not None else None
         now = self.now()
         run_id = new_run_id(now)
 
@@ -352,6 +372,7 @@ class Server:
                 progress=self._progress(run_id),
                 run_id=run_id,
                 rawstore=self.rawstore,
+                checker=checker,
             )
             return run, p.query, False
 
@@ -370,6 +391,7 @@ class Server:
         if row is None:
             raise EngineError("NOT_RESUMABLE", f"No run {p.run_id}.")
         ai = self.ai_factory(self.db.conn, row[0]) if row[0] else None
+        checker = self.checker_factory(self.db.conn, ai) if ai is not None else None
         try:
             run, ticker = prepare_resume(
                 self.db.conn,
@@ -378,6 +400,7 @@ class Server:
                 ai=ai,
                 out_dir=None,
                 progress=self._progress(p.run_id),
+                checker=checker,
             )
         except ReplayError as exc:
             raise EngineError("NOT_RESUMABLE", str(exc)) from exc
@@ -463,9 +486,10 @@ class Server:
         out = []
         for r in self.db.conn.execute("SELECT * FROM predictions ORDER BY run_at DESC"):
             grades = [
-                dict(g)
+                _grade(g)
                 for g in self.db.conn.execute(
-                    "SELECT * FROM grades WHERE prediction_id = ?", (r["prediction_id"],)
+                    "SELECT * FROM grades WHERE prediction_id = ? ORDER BY horizon_months, grading_version",
+                    (r["prediction_id"],),
                 )
             ]
             out.append(
@@ -510,6 +534,21 @@ class Server:
 
         return {"deleted": reread_filing(self.db.conn, p.accession)}
 
+    async def m_grade_due(self, p) -> dict[str, Any]:
+        """Grading is a job like a run: it waits for any report (item 48)."""
+        from tearsheet.grading import grade_job
+
+        if self._busy():
+            await self.job
+        settings = config.Settings(self.db.conn)
+        backup_dir = Path(settings.get("backup_dir") or config.DEFAULT_BACKUP_DIR).expanduser()
+        async with self.data_factory(
+            f"grade-{self.now():%Y%m%dT%H%M%SZ}", self.db.conn, self.rawstore
+        ) as data:
+            return await grade_job(
+                self.db.conn, data, self.method.grading, now=self.now(), backup_dir=backup_dir
+            )
+
     # --- keys and settings -----------------------------------------------------------------------
 
     async def m_set_key(self, p) -> dict[str, Any]:
@@ -532,6 +571,16 @@ class Server:
             "sec_contact_email": settings.get("sec_contact_email"),
             "goal1_round": int(float(round_)) if round_ else 1,
             "services": SERVICES,
+            "lockdown": {
+                r["tool"]: {
+                    "version": r["version"],
+                    "passed": bool(r["lockdown_passed"]) and not r["blocked_reason"],
+                    "form": r["lockdown_form"],
+                    "checked_at": r["lockdown_checked_at"],
+                    "blocked_reason": r["blocked_reason"],
+                }
+                for r in self.db.conn.execute("SELECT * FROM tool_versions ORDER BY tool")
+            },
         }
 
     async def m_set_setting(self, p) -> dict[str, Any]:
@@ -576,3 +625,19 @@ async def serve(paths: config.Paths) -> int:
 
 def new_id() -> str:
     return uuid.uuid4().hex
+
+
+def _grade(row) -> dict[str, Any]:
+    results = json.loads(row["results_json"])
+    rng = results.get("range")
+    return {
+        "horizon_months": row["horizon_months"],
+        "graded_at": row["graded_at"],
+        "grading_version": row["grading_version"],
+        "start_price": row["start_price"],
+        "hit": results.get("hit"),
+        "excess": results.get("excess"),
+        "company_return": results.get("company_return"),
+        "end_date": results.get("end_date"),
+        "inside_range": None if rng is None else rng.get("inside"),
+    }

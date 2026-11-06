@@ -1,0 +1,33 @@
+[
+  {
+    "tool": "codex",
+    "signal": "thread/start: Your access token could not be refreshed. Please log out and sign in again. | action=relogin | {\"action\": \"relogin\"}",
+    "expected": "AIAuthError",
+    "source": "drafted from the guide: a revoked sign-in fails at thread/start with error.data.action = relogin"
+  },
+  {
+    "tool": "codex",
+    "signal": "unexpected status 401 Unauthorized | codexErrorInfo=unauthorized | turn status=failed",
+    "expected": "AIAuthError",
+    "source": "drafted from codex-cli 0.165.0's CodexErrorInfo names"
+  },
+  {
+    "tool": "codex",
+    "signal": "You've hit your usage limit. Try again later. | codexErrorInfo=usageLimitExceeded | turn status=failed | resets_at=1793768400",
+    "expected": "AIUsageLimit",
+    "reset_at": "2026-11-04T05:00:00+00:00",
+    "source": "drafted from codex-cli 0.165.0's CodexErrorInfo names; the reset time comes from the last rate-limit notice"
+  },
+  {
+    "tool": "codex",
+    "signal": "stream disconnected before completion | codexErrorInfo=responseStreamDisconnected | {\"responseStreamDisconnected\": {\"httpStatusCode\": null}} | turn status=failed",
+    "expected": "AIUnavailable",
+    "source": "drafted"
+  },
+  {
+    "tool": "codex",
+    "signal": "Too many requests | codexErrorInfo=rateLimitExceeded | turn status=failed",
+    "expected": "AIUnavailable",
+    "source": "drafted: a short-term throttle, not the plan's usage limit"
+  }
+]

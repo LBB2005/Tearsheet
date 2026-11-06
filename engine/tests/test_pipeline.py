@@ -1003,3 +1003,108 @@ def test_the_error_that_stopped_the_ai_steps_is_kept(database, tmp_path):
     run, result, _ = run_slice(database, tmp_path, default=limited)
     assert result.status == "stopped"
     assert run.stop_error.code == "USAGE_LIMIT" and run.stop_error.reset_at.startswith("2026-11-06")
+
+
+# --- the other-tool skeptic (Phase 2) ---------------------------------------------------------
+
+
+def run_with_checker(database, tmp_path, checker_fake):
+    """A full run on Claude Code whose skeptic runs on a fake Codex."""
+    from tearsheet.ai.client import CallBudget
+
+    for tool in ("claude", "codex"):
+        ToolState(database.conn, tool).record_check(
+            version="1.0", model_ids=["m"], form="full", passed=True
+        )
+    primary = FakeConnector(default=skeptic_script(lambda section, ids: []))
+    other = FakeConnector(default=checker_fake)
+    other.tool, other.display_name = "codex", "Codex"
+    budget = CallBudget(50)
+    ai = AIClient(primary, ToolState(database.conn, "claude"), retry_wait_s=0, budget=budget)
+    checker = AIClient(other, ToolState(database.conn, "codex"), retry_wait_s=0, budget=budget)
+    run = Run(
+        database.conn,
+        FakeData(),
+        ai,
+        load(),
+        mode="full",
+        now=NOW,
+        out_dir=tmp_path / "r",
+        checker=checker,
+    )
+    return run, asyncio.run(run.run("T0")), primary, other
+
+
+def test_the_skeptic_runs_on_the_other_tool_when_both_are_connected(database, tmp_path):
+    def codex(request):
+        assert request.task == "skeptic"
+        return answer(SkepticReport(findings=[]), model_id="gpt-fake")
+
+    run, result, primary, other = run_with_checker(database, tmp_path, codex)
+    assert [r.task for r in primary.requests].count("skeptic") == 0
+    assert [r.task for r in other.requests].count("skeptic") == 4
+    html = result.html_path.read_text()
+    assert "checked by Codex" in html and "self-checked" not in html
+    # One budget for the run: both tools' calls count against it.
+    assert run.ai.sent == len(primary.requests) + len(other.requests)
+    row = database.conn.execute(
+        "SELECT ai_calls, model_ids_json FROM runs WHERE run_id = ?", (run.run_id,)
+    ).fetchone()
+    assert row[0] == run.ai.sent and "gpt-fake" in json.loads(row[1])
+
+
+def test_a_failed_other_tool_call_falls_back_to_a_fresh_session_of_the_same_tool(
+    database, tmp_path
+):
+    def codex(request):
+        return AIUsageLimit("You've hit your usage limit.")
+
+    run, result, primary, other = run_with_checker(database, tmp_path, codex)
+    assert [r.task for r in other.requests].count("skeptic") == 1  # not tried again
+    assert [r.task for r in primary.requests].count("skeptic") == 4
+    assert run.stop_error is None  # Codex's limit doesn't stop a Claude Code run
+    html = result.html_path.read_text()
+    assert "self-checked" in html
+    assert "The skeptic call on Codex failed" in html
+
+
+def test_a_mix_says_which_sections_were_self_checked(database, tmp_path):
+    seen = []
+
+    def codex(request):
+        seen.append(request)
+        if len(seen) in (3, 4):  # the third section's call and its one retry
+            return AIUnavailable("Codex had a temporary error.")
+        return answer(SkepticReport(findings=[]), model_id="gpt-fake")
+
+    run, result, primary, other = run_with_checker(database, tmp_path, codex)
+    text = run._skeptic_text()
+    assert text.startswith("checked by Codex, except ")
+    assert "self-checked" in text
+    assert [r.task for r in primary.requests].count("skeptic") == 2
+
+
+def test_the_checker_is_the_other_tool_only_when_it_is_connected(database, tmp_path, monkeypatch):
+    from tearsheet import config
+    from tearsheet.ai import checker_for
+
+    settings = config.Settings(database.conn)
+    primary = AIClient(FakeConnector(), ToolState(database.conn, "claude"))
+    monkeypatch.setattr(config, "find_program", lambda tool: tmp_path / tool)
+    assert checker_for(database.conn, settings, primary) is None  # never checked
+
+    ToolState(database.conn, "codex").record_check(
+        version="codex-cli 0.165.0", model_ids=[], form="full", passed=True
+    )
+    checker = checker_for(database.conn, settings, primary)
+    assert checker is not None and checker.connector.tool == "codex"
+    assert checker.shared_budget is primary.shared_budget
+
+    ToolState(database.conn, "codex").mark_tool_use_attempt()
+    assert checker_for(database.conn, settings, primary) is None  # blocked until re-checked
+
+    monkeypatch.setattr(config, "find_program", lambda tool: None)
+    ToolState(database.conn, "codex").record_check(
+        version="codex-cli 0.165.0", model_ids=[], form="full", passed=True
+    )
+    assert checker_for(database.conn, settings, primary) is None  # not found
