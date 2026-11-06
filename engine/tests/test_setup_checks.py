@@ -291,3 +291,98 @@ def test_setup_settings_round_trip(tmp_path):
     assert after["result"]["setup_done"] is False
     SettingsResult.model_validate(mid["result"])
     h.server.close()
+
+
+@pytest.mark.parametrize(
+    ("response", "code"),
+    [
+        (
+            httpx.Response(
+                200, text="<html>Down for maintenance</html>", headers={"content-type": "text/html"}
+            ),
+            "SERVICE_UNREACHABLE",
+        ),
+        (
+            httpx.Response(200, content=b"", headers={"content-type": "application/json"}),
+            "SERVICE_UNREACHABLE",
+        ),
+        (
+            httpx.Response(200, json={"status": "ERROR", "error": "Internal failure, try later"}),
+            "SERVICE_UNREACHABLE",
+        ),
+        (httpx.Response(200, json={"status": "NOT_AUTHORIZED"}), "KEY_REJECTED"),
+        (httpx.Response(200, json={"status": "ERROR", "error": "Unknown API Key"}), "KEY_REJECTED"),
+    ],
+)
+def test_massive_faults_are_told_apart_from_a_bad_key(rawstore, response, code):
+    async def go():
+        with respx.mock:
+            respx.get(url__startswith=MASSIVE_URL).mock(return_value=response)
+            async with make_http(rawstore) as http:
+                await check_key(http, "massive", "k")
+
+    with pytest.raises(EngineError) as err:
+        run(go())
+    assert err.value.code == code
+
+
+def test_pasted_key_is_trimmed_and_an_empty_one_is_rejected(tmp_path):
+    h = key_harness(tmp_path)
+
+    async def go():
+        with respx.mock:
+            route = respx.get(url__startswith=MASSIVE_URL).mock(
+                return_value=httpx.Response(200, json=bars())
+            )
+            ok = await h.call("check_key", {"service": "massive", "key": "  good-key\n"})
+            empty = await h.call("check_key", {"service": "fred", "key": " \n"}, id_=2)
+            return ok, empty, route
+
+    ok, empty, route = run(go())
+    assert "result" in ok and config.get_key("massive") == "good-key"
+    assert route.calls[0].request.headers["authorization"] == "Bearer good-key"
+    assert empty["error"]["data"]["code"] == "KEY_REJECTED"
+    assert config.get_key("fred") is None
+    h.server.close()
+
+
+def test_resume_refuses_during_a_safety_check(tmp_path, monkeypatch):
+    h = safety_harness(tmp_path, monkeypatch, delay_s=0.05)
+
+    async def go():
+        await h.call("run_safety_check", {"tool": "claude"})
+        reply = await h.call("resume", {"run_id": "run-x"}, id_=2)
+        await h.server.wait_for_safety_check()
+        return reply
+
+    reply = run(go())
+    assert reply["error"]["data"]["code"] == "SAFETY_CHECK_RUNNING"
+    h.server.close()
+
+
+def test_a_crashing_check_ends_with_a_reason_and_frees_the_server(tmp_path, monkeypatch):
+    h = safety_harness(tmp_path, monkeypatch)
+    calls = []
+
+    def crash(request):
+        calls.append(request)
+        if len(calls) == 3:
+            raise RuntimeError("")
+        return clean(request)
+
+    h.connector.default = crash
+
+    async def go():
+        await h.call("run_safety_check", {"tool": "claude"})
+        await h.server.wait_for_safety_check()
+        h.connector.default = clean
+        again = await h.call("run_safety_check", {"tool": "claude"}, id_=2)
+        await h.server.wait_for_safety_check()
+        return again
+
+    again = run(go())
+    first, second = h.notes("safety_done")
+    assert first["passed"] is False and first["reason"]
+    assert again["result"] == {"started": True}
+    assert second["passed"] is True
+    h.server.close()

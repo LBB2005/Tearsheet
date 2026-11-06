@@ -694,6 +694,7 @@ class Server:
     async def m_check_key(self, p) -> dict[str, Any]:
         from tearsheet.setup_checks import check_key
 
+        p.key = p.key.strip()  # a pasted newline would break the header
         async with self.http_factory(
             f"keycheck-{uuid.uuid4().hex[:8]}", self.db.conn, self.rawstore
         ) as http:
@@ -750,7 +751,7 @@ class Server:
                 reason = "; ".join(report.problems[:3]) or "The check did not pass."
         except Exception as exc:  # noqa: BLE001 - reported to the app, logged to standard error
             log.exception("safety check on %s failed", tool)
-            passed, reason = False, str(exc)
+            passed, reason = False, str(exc) or "The check stopped unexpectedly."
         finally:
             try:
                 await close_connector(connector)

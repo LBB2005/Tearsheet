@@ -12,12 +12,17 @@ from tearsheet.data.prices import ms_to_eastern_date
 from tearsheet.http import EASTERN, MASSIVE_AUTH_HEADER, HttpClient, HTTPFailure, InvalidResponse
 from tearsheet.server import EngineError
 
+# What Massive's own error text says when the key is the problem.
+KEY_WORDS = ("not_authorized", "unauthorized", "api key", "apikey", "invalid key")
 KEY_PROBLEM_STATUSES = {"massive": {401, 403}, "fred": {401, 403, 400}}
 NAMES = {"massive": "Massive", "fred": "FRED"}
 
 
 async def check_key(http: HttpClient, service: Literal["massive", "fred"], key: str) -> str:
     """Make one call with `key` and return the proof line. The key is not saved or logged."""
+    key = key.strip()
+    if not key:
+        raise EngineError("KEY_REJECTED", f"Paste your {NAMES[service]} key first.")
     try:
         if service == "massive":
             return await _check_massive(http, key)
@@ -26,9 +31,12 @@ async def check_key(http: HttpClient, service: Literal["massive", "fred"], key: 
         raise
     except HTTPFailure as exc:
         name = NAMES[service]
-        if exc.status in KEY_PROBLEM_STATUSES[service] or (
-            isinstance(exc, InvalidResponse) and service == "massive"
-        ):
+        says_key = (
+            isinstance(exc, InvalidResponse)
+            and service == "massive"
+            and any(word in str(exc).lower() for word in KEY_WORDS)
+        )
+        if exc.status in KEY_PROBLEM_STATUSES[service] or says_key:
             raise EngineError(
                 "KEY_REJECTED", f"{name} didn't accept that key. Check it and paste it again."
             ) from None
