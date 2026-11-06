@@ -35,26 +35,71 @@ export function Toolbar({ title, subtitle, bare, finding, findFocus, onFindClose
   )
 }
 
-// How long after a find the field takes the cursor back. Chromium selects the match it finds,
-// which moves the focus out of the field, so the next letter typed would go to the page instead.
-const REFOCUS_MS = 600
-
 // Find in the page (⌘F). Typing finds the text; Return finds the next match and Shift-Return the
 // previous one; Esc closes the field and clears the highlights.
+//
+// Chromium's find shapes this field in three ways.
+//   - Finding a match takes the focus: it clears it in the window, or moves it into the report
+//     frame when the match is there. The field takes the cursor back as each find ends, unless
+//     something was clicked since it began, so a click into the report keeps its focus.
+//   - Next and previous start from the frame that has the focus, and from its selection. With
+//     the cursor left in the field, every Return would land on the match just after the field.
+//     So for Return the field hands the focus to where the last match was (the report frame), or
+//     clears its own caret, while the page moves on; then it takes the cursor back.
+//   - The field's own text counts as one match.
 function FindField({ focus, onClose }: { focus: number; onClose: () => void }) {
   const [text, setText] = useState('')
   const input = useRef<HTMLInputElement>(null)
-  const lastFind = useRef(0)
-
-  const find = (value: string, forward: boolean) => {
-    lastFind.current = Date.now()
-    void window.tearsheet.find(value, forward)
-  }
+  const started = useRef(0)
+  const clicked = useRef(0)
+  const busy = useRef(0)
+  const stepping = useRef(false)
+  // The report frame, while the last match found is inside it.
+  const matchFrame = useRef<HTMLIFrameElement | null>(null)
 
   useEffect(() => {
     input.current?.focus()
     input.current?.select()
   }, [focus])
+
+  useEffect(() => {
+    const down = () => {
+      clicked.current = Date.now()
+    }
+    window.addEventListener('pointerdown', down, true)
+    return () => window.removeEventListener('pointerdown', down, true)
+  }, [])
+
+  const takeBack = (since: number) => {
+    const now = document.activeElement
+    const inFrame = now instanceof HTMLIFrameElement
+    if (!(now === null || now === document.body || inFrame) || clicked.current >= since) return
+    matchFrame.current = inFrame ? now : null
+    input.current?.focus()
+  }
+
+  const find = async (value: string, forward: boolean, step: boolean) => {
+    const since = Date.now()
+    started.current = since
+    busy.current += 1
+    if (step) {
+      stepping.current = true
+      const frame = matchFrame.current
+      if (frame?.isConnected) frame.focus()
+      else {
+        // Leaving the field keeps its caret as the page's selection, so clear that too.
+        input.current?.blur()
+        window.getSelection()?.removeAllRanges()
+      }
+    } else matchFrame.current = null
+    try {
+      await window.tearsheet.find(value, forward)
+    } finally {
+      busy.current -= 1
+      if (step) stepping.current = false
+    }
+    takeBack(since)
+  }
 
   const close = () => {
     void window.tearsheet.stopFind()
@@ -71,20 +116,22 @@ function FindField({ focus, onClose }: { focus: number; onClose: () => void }) {
         aria-label="Find in the page"
         spellCheck={false}
         value={text}
-        onBlur={(e) => {
-          // A click on something else keeps its focus; only a find's own selection is undone.
-          if (e.relatedTarget === null && Date.now() - lastFind.current < REFOCUS_MS) window.setTimeout(() => input.current?.focus(), 0)
+        onBlur={() => {
+          // While the page finds as you type, take the cursor straight back so no letter is lost.
+          if (busy.current === 0 || stepping.current) return
+          const since = started.current
+          window.setTimeout(() => takeBack(since), 0)
         }}
         onChange={(e) => {
           const next = e.target.value
           setText(next)
-          if (next) find(next, true)
+          if (next) void find(next, true, false)
           else void window.tearsheet.stopFind()
         }}
         onKeyDown={(e) => {
           if (e.key === 'Enter') {
             e.preventDefault()
-            if (text) find(text, !e.shiftKey)
+            if (text) void find(text, !e.shiftKey, true)
           } else if (e.key === 'Escape') {
             e.preventDefault()
             close()

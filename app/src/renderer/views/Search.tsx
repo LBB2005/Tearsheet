@@ -21,7 +21,7 @@ export function Search({ onStarted }: { onStarted: (runId: string, query: string
       const found = (reply.error?.data?.candidates as string[] | undefined) ?? []
       setCandidates(found)
       setError(found.length ? 'More than one company matches. Pick one:' : `${reply.error?.message}`)
-    } else if (code === 'RUN_IN_PROGRESS') setError('A report is already running. See Progress.')
+    } else if (code === 'RUN_IN_PROGRESS') setError('A report is already running.')
     else setError(reply.error?.message ?? 'Something went wrong.')
   }
 
