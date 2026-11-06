@@ -53,6 +53,9 @@ export class Engine extends EventEmitter {
     super()
     mkdirSync(dirname(options.logFile), { recursive: true })
     this.log = createWriteStream(options.logFile, { flags: 'a' })
+    // The log is kept as best it can be: a log that can't be opened or written (a removed or
+    // locked logs folder) must never take the main process down.
+    this.log.on('error', () => undefined)
   }
 
   start(): void {

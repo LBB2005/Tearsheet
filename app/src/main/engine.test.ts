@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -95,5 +95,18 @@ describe('an engine that stops', () => {
     await expect(e.request('get_settings')).rejects.toThrow('The app and engine versions don’t match.')
     expect(fatal).toHaveBeenCalledWith('The app and engine versions don’t match.')
     await expect(e.request('get_settings')).rejects.toThrow('The app and engine versions don’t match.')
+  })
+})
+
+describe('the engine’s log', () => {
+  it('never takes the main process down when it can’t be written', async () => {
+    // The log file's place is taken by a folder, so opening it fails (as a removed or locked
+    // logs folder would). The engine still answers.
+    mkdirSync(join(dir, 'logs', 'engine.log'), { recursive: true })
+    const e = node("process.stdin.once('data', () => process.exit(3))")
+    e.on('crashed', () => undefined)
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    e.start()
+    await expect(e.request('get_settings')).rejects.toThrow('The engine stopped.')
   })
 })
