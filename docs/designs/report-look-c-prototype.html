@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tearsheet look C prototype</title>
+<style>
+:root {
+  /* Layout: one live, clickable window at the top, then every page and state as still windows. */
+  --bg: #0A0D14;
+  --surface: #141923;
+  --ink: #E8EDF3;
+  --muted: #97A3B3;
+  --line: #28303C;
+  --accent: #7FE3F7;
+  --font-ui: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+  color-scheme: dark;
+}
+html, body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 var(--font-ui); }
+.page { max-width: 1320px; margin: 0 auto; padding: 32px 20px 64px; display: flex; flex-direction: column; gap: 18px; }
+.intro h1 { font-size: 28px; line-height: 1.2; margin: 0 0 10px; text-wrap: balance; }
+.intro p { margin: 0 0 8px; max-width: 80ch; color: var(--muted); }
+.try { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 22px; margin: 12px 0 0; padding: 0; list-style: none; font-size: 14px; color: var(--muted); max-width: 1100px; }
+.try b { color: var(--ink); font-weight: 600; }
+.try kbd, .k { font: 12px var(--font-ui); border: 1px solid var(--line); border-radius: 5px; padding: 0 5px; background: var(--surface); color: var(--ink); }
+h2.sec { font-size: 22px; margin: 26px 0 0; }
+.pg { font-size: 15px; font-weight: 600; margin: 16px 0 0; } .pg span { font-weight: 400; color: var(--muted); }
+.fit { position: relative; overflow: hidden; border-radius: 14px; box-shadow: 0 0 0 1px #242B36, 0 18px 44px rgba(0,0,0,.5); }
+.fit.wide { overflow-x: auto; }
+.sizer { overflow: hidden; }
+.stage { width: 1280px; height: 800px; transform-origin: top left; position: relative; overflow: hidden;
+  background: radial-gradient(900px 640px at 12% 18%, #2C5EA8 0%, transparent 60%), radial-gradient(900px 700px at 88% 80%, #7A3FA8 0%, transparent 60%), radial-gradient(600px 420px at 62% 6%, #C9743A 0%, transparent 60%), #141826; }
+.replay { align-self: flex-start; font: 13px var(--font-ui); color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 7px; padding: 4px 11px; cursor: pointer; }
+.replay:focus-visible { outline: 2px solid var(--accent); }
+.outro { color: var(--muted); max-width: 80ch; margin-top: 18px; } .outro b { color: var(--ink); }
+@media (max-width: 760px) { .try { grid-template-columns: 1fr; } }
+
+/* ---------- macOS menu bar over the wallpaper (live window only) ---------- */
+.menubar { position: absolute; top: 0; left: 0; right: 0; height: 26px; display: flex; align-items: center; gap: 2px; padding: 0 10px; z-index: 30;
+  background: rgba(20,22,30,.55); backdrop-filter: blur(24px) saturate(1.4); -webkit-backdrop-filter: blur(24px) saturate(1.4); font: 13px/1 var(--font-ui); color: #EDEFF3; }
+.menubar > button { all: unset; padding: 4px 9px; border-radius: 4px; cursor: default; }
+.menubar > button.app { font-weight: 700; }
+.menubar > button.open, .menubar > button:hover { background: rgba(255,255,255,.16); }
+.menubar > button:focus-visible { outline: 1px solid var(--accent); }
+.menubar .clock { margin-left: auto; color: #D9DCE3; font-size: 12.5px; }
+.menu { position: absolute; top: 26px; min-width: 260px; padding: 5px; border-radius: 9px; z-index: 31; background: rgba(38,40,48,.86); border: 1px solid rgba(255,255,255,.12);
+  backdrop-filter: blur(30px) saturate(1.5); -webkit-backdrop-filter: blur(30px) saturate(1.5); box-shadow: 0 12px 30px rgba(0,0,0,.45); font: 13px var(--font-ui); color: #EDEFF3; animation: pop .14s ease-out both; }
+.menu button { all: unset; display: flex; justify-content: space-between; gap: 24px; width: 100%; box-sizing: border-box; padding: 4px 10px; border-radius: 5px; cursor: default; }
+.menu button:hover, .menu button:focus-visible { background: #2F6BDB; }
+.menu button kbd { font: 13px var(--font-ui); color: #B9BFCB; } .menu button:hover kbd { color: #fff; }
+.menu hr { border: 0; border-top: 1px solid rgba(255,255,255,.1); margin: 5px 6px; }
+
+/* ---------- the window ---------- */
+.g { --panel: rgba(255,255,255,.045); --panel2: rgba(255,255,255,.075); --line: rgba(255,255,255,.085); --track: rgba(255,255,255,.08);
+  --band: rgba(127,227,247,.18); --chipline: rgba(127,227,247,.30); --text: #EAF1F7; --muted: #92A4B6; --accent: #7FE3F7; --accent2: #8FA2FF; --hold: #FFC56B; --up: #63DFA5; --down: #FF7F8A;
+  --ui: "Avenir Next", "Helvetica Neue", sans-serif; --num: "Avenir Next", "Helvetica Neue", sans-serif; --mono: "SF Mono", ui-monospace, Menlo, monospace; --r: 14px; --sw: 216px;
+  position: absolute; left: 0; top: var(--wt, 0px); width: var(--ww, 1280px); height: var(--wh, 800px); display: flex; overflow: hidden; border-radius: 12px; isolation: isolate;
+  color: var(--text); font: 13px/1.45 var(--ui); font-variant-numeric: tabular-nums; text-align: left; box-shadow: 0 0 0 1px rgba(255,255,255,.10), 0 24px 60px rgba(0,0,0,.45); }
+.g * { box-sizing: border-box; }
+.g.folded { --sw: 68px; }
+.glass { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); box-shadow: inset 0 1px 0 rgba(255,255,255,.05); }
+.scroll { overflow: auto; min-height: 0; }
+
+/* sidebar: real Mac translucency, full height, with the window buttons at its top */
+.side { width: var(--sw); flex: none; height: 100%; display: flex; flex-direction: column; padding: 0 10px 12px; gap: 4px; transition: width .32s cubic-bezier(.3,.7,.2,1);
+  background: rgba(26,32,46,.52); backdrop-filter: blur(32px) saturate(1.5); -webkit-backdrop-filter: blur(32px) saturate(1.5); border-right: 1px solid rgba(255,255,255,.08); overflow: hidden; }
+.lights { height: 52px; flex: none; display: flex; align-items: center; gap: 8px; padding-left: 8px; }
+.lights i { width: 12px; height: 12px; border-radius: 50%; display: block; }
+.lights i:nth-child(1) { background: #FF5F57; } .lights i:nth-child(2) { background: #FEBC2E; } .lights i:nth-child(3) { background: #28C840; }
+.side h5 { margin: 2px 8px 4px; font: 600 11.5px var(--ui); color: var(--muted); display: flex; justify-content: space-between; align-items: center; white-space: nowrap; }
+.fold { all: unset; width: 20px; height: 20px; border: 1px solid var(--line); border-radius: 6px; display: grid; place-items: center; cursor: pointer; flex: none; }
+.fold svg { width: 10px; height: 10px; stroke: var(--muted); fill: none; stroke-width: 2; transition: transform .3s; }
+.folded .fold svg { transform: scaleX(-1); }
+.fold:focus-visible { outline: 2px solid var(--accent); }
+.ri { all: unset; display: grid; grid-template-columns: 1fr auto; padding: 9px 10px; border-radius: 12px; border: 1px solid transparent; row-gap: 2px; cursor: pointer; transition: background .2s, border-color .2s; }
+.ri:hover { background: rgba(255,255,255,.05); }
+.ri.on { background: rgba(255,255,255,.08); border-color: rgba(127,227,247,.26); }
+.ri:focus-visible { outline: 2px solid var(--accent); }
+.ri b { font: 600 14px var(--ui); letter-spacing: .4px; } .ri small { grid-column: 1 / 3; color: var(--muted); font-size: 12px; white-space: nowrap; }
+.ri .w2 { grid-column: 1 / 3; display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; } .ri .w2 b { font: 600 12.5px var(--num); color: var(--text); letter-spacing: 0; }
+.mini { grid-column: 1 / 3; height: 12px; position: relative; margin-top: 2px; }
+.mini .b { position: absolute; top: 4px; height: 4px; background: var(--band); border-radius: 2px; } .mini .m { position: absolute; top: 2px; width: 2px; height: 8px; background: var(--accent); } .mini .pm { position: absolute; top: 0; width: 2px; height: 12px; background: var(--hold); }
+.rc { font: 600 11px var(--ui); color: var(--hold); background: rgba(255,197,107,.10); border: 1px solid rgba(255,197,107,.32); border-radius: 999px; padding: 1px 8px; align-self: center; letter-spacing: .4px; }
+.side nav { margin-top: auto; display: flex; flex-direction: column; gap: 2px; border-top: 1px solid var(--line); padding-top: 8px; }
+.side nav button { all: unset; padding: 7px 10px; border-radius: 10px; color: var(--muted); display: flex; align-items: center; gap: 10px; cursor: pointer; white-space: nowrap; transition: background .2s, color .2s; }
+.side nav button:hover { background: rgba(255,255,255,.05); color: var(--text); }
+.side nav button.on { background: rgba(255,255,255,.08); color: var(--text); }
+.side nav button:focus-visible { outline: 2px solid var(--accent); }
+.side nav svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.6; flex: none; }
+.side nav kbd { margin-left: auto; font: 11px var(--ui); color: var(--muted); }
+.folded .side .lbl, .folded .side small, .folded .side .w2, .folded .side .mini, .folded .side .rc, .folded .side nav kbd, .folded .side h5 span { opacity: 0; pointer-events: none; }
+.side .lbl, .side small, .side .w2, .side .mini, .side .rc, .side nav kbd, .side h5 span { transition: opacity .2s; }
+.folded .ri { grid-template-columns: 1fr; padding: 9px 6px; text-align: center; }
+.folded .side h5 { justify-content: center; }
+
+/* main area: painted dark glass */
+.mainarea { flex: 1; min-width: 0; display: flex; flex-direction: column; position: relative;
+  background: radial-gradient(620px 440px at 20% 0%, rgba(32,120,150,.20), transparent 70%), radial-gradient(720px 520px at 92% 30%, rgba(70,60,170,.18), transparent 70%), radial-gradient(520px 420px at 55% 112%, rgba(20,90,120,.16), transparent 70%), #070B14; }
+.top { height: 52px; flex: none; display: flex; align-items: center; gap: 14px; padding: 0 14px 0 18px; border-bottom: 1px solid var(--line); }
+.top .ttl { min-width: 180px; font: 600 14.5px/1.2 var(--ui); } .top .ttl small { display: block; font: 12px var(--ui); color: var(--muted); }
+.top .q { all: unset; width: 330px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,.06); border: 1px solid var(--line); border-radius: 9px; padding: 6px 12px; color: var(--muted); cursor: text; }
+.top .q:focus-visible { outline: 2px solid var(--accent); }
+.top .q kbd { font: 11px var(--ui); border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; }
+.top .btn { all: unset; border-radius: 8px; padding: 6px 13px; background: rgba(127,227,247,.12); color: var(--accent); border: 1px solid var(--chipline); font-weight: 500; cursor: pointer; }
+.top .btn:hover { background: rgba(127,227,247,.2); } .top .btn:focus-visible { outline: 2px solid var(--accent); }
+.content { flex: 1; min-height: 0; display: flex; }
+
+/* numbers column */
+.nums { width: 548px; flex: none; padding: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-content: start; border-right: 1px solid var(--line); }
+.span2 { grid-column: 1 / 3; }
+.p { padding: 12px 14px; min-width: 0; }
+.p h4 { margin: 0 0 8px; display: flex; justify-content: space-between; gap: 8px; font: 500 12px var(--ui); color: var(--muted); }
+.p h4 em { font-style: normal; }
+.tkr { font: 600 19px var(--ui); letter-spacing: .5px; } .tkr small { display: block; font: 12.5px var(--ui); color: var(--muted); letter-spacing: 0; margin-top: 1px; }
+.callrow { display: flex; align-items: center; gap: 14px; margin: 10px 0 8px; }
+.call { font: 600 36px/1 var(--ui); color: var(--hold); letter-spacing: .5px; }
+.callrow span { color: var(--muted); font-size: 12px; line-height: 1.35; }
+.note { font-size: 12.5px; color: var(--hold); line-height: 1.4; background: rgba(255,197,107,.07); border: 1px solid rgba(255,197,107,.2); border-radius: 10px; padding: 6px 9px; }
+.kvs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px 14px; margin: 10px 0 0; }
+.kvs dt { color: var(--muted); font-size: 12px; } .kvs dd { margin: 0; font: 600 15px var(--num); }
+.bar { display: grid; grid-template-columns: 116px 1fr 28px 38px; align-items: center; gap: 8px; height: 23px; font-size: 12.5px; }
+.bar .tr { height: 7px; background: var(--track); position: relative; border-radius: 4px; }
+.bar .tr i { position: absolute; top: 0; bottom: 0; left: 0; border-radius: 4px; background: linear-gradient(90deg, #4C8DFF, #7FE3F7); transform-origin: left; }
+.bar .tr i.neg { background: var(--down); } .bar .tr i.self { background: var(--hold); }
+.bar .tr .mid { position: absolute; left: 50%; top: -3px; bottom: -3px; width: 1px; background: rgba(255,255,255,.26); }
+.bar .tr .zero { position: absolute; top: -3px; bottom: -3px; width: 1px; background: rgba(255,255,255,.32); }
+.bar b { font: 600 13px var(--num); text-align: right; } .bar small { color: var(--muted); font-size: 12px; text-align: right; }
+.kv { display: flex; justify-content: space-between; gap: 10px; padding: 5px 0; border-top: 1px solid var(--line); color: var(--muted); font-size: 12.5px; }
+.kv b { font: 600 13px var(--num); color: var(--text); text-align: right; }
+.legend { display: flex; flex-wrap: wrap; gap: 10px; font-size: 12px; color: var(--muted); margin-top: 6px; }
+.legend i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; }
+.donutrow { display: flex; align-items: center; gap: 14px; }
+.tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.tile { padding: 9px 10px; border-radius: 12px; background: rgba(255,255,255,.035); border: 1px solid var(--line); }
+.tile span { display: block; color: var(--muted); font-size: 11.5px; line-height: 1.25; min-height: 29px; }
+.tile b { font: 600 18px var(--num); display: block; margin: 1px 0; } .tile small { color: var(--muted); font-size: 11.5px; }
+.tile .rk { height: 4px; background: var(--track); border-radius: 2px; position: relative; margin-top: 6px; }
+.tile .rk i { position: absolute; top: -2px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); margin-left: -4px; }
+.tile .rk::after { content: ""; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: rgba(255,255,255,.28); }
+.meter { height: 8px; border-radius: 4px; background: var(--track); position: relative; margin: 6px 0 4px; }
+.meter i { position: absolute; inset: 0 auto 0 0; border-radius: 4px; background: linear-gradient(90deg, rgba(255,197,107,.3), var(--hold)); transform-origin: left; }
+.meter .line { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--text); }
+.macro { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.macro div { text-align: center; } .macro b { display: block; font: 600 15px var(--num); } .macro span { font-size: 11px; color: var(--muted); line-height: 1.25; display: block; }
+.ch-band { fill: var(--band); } .ch-axis { stroke: var(--line); } .ch-grid { stroke: rgba(255,255,255,.06); } .ch-tick { stroke: var(--accent); stroke-width: 2; }
+.ch-price { stroke: var(--hold); stroke-width: 2; } .ch-lab { fill: var(--muted); font: 11px var(--ui); } .ch-val { fill: var(--text); font: 600 11.5px var(--num); }
+.ch-plab { fill: var(--hold); font: 600 11.5px var(--num); } .ch-dot { fill: var(--accent); } .ch-row { fill: var(--muted); font: 12px var(--ui); } .ch-pline { stroke: var(--hold); stroke-dasharray: 3 3; }
+.ch-line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; } .ch-area { fill: url(#area-g); } .ch-fan { fill: url(#fan-g); } .ch-base { stroke: var(--accent2); stroke-dasharray: 4 4; stroke-width: 1.5; fill: none; }
+.g-track { stroke: var(--track); fill: none; } .g-fill { stroke: url(#ring-g); fill: none; stroke-linecap: round; }
+
+/* text column */
+.textcol { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.tbar { flex: none; display: flex; flex-direction: column; gap: 8px; padding: 10px 20px; border-bottom: 1px solid var(--line); background: rgba(7,11,20,.5); }
+.segc { display: inline-flex; align-self: flex-start; padding: 2px; border-radius: 9px; background: rgba(255,255,255,.06); border: 1px solid var(--line); }
+.segc button { all: unset; padding: 4px 14px; border-radius: 7px; color: var(--muted); cursor: pointer; font-size: 12.5px; transition: background .2s, color .2s; }
+.segc button.on { background: rgba(255,255,255,.14); color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,.3); }
+.segc button:focus-visible { outline: 2px solid var(--accent); }
+.segc kbd { font: 10.5px var(--ui); color: var(--muted); margin-left: 6px; }
+.pills { display: flex; gap: 5px; flex-wrap: wrap; }
+.pills a { font-size: 12px; color: var(--muted); padding: 3px 10px; border: 1px solid var(--line); border-radius: 999px; cursor: pointer; }
+.pills a b { font: 600 11px var(--num); margin-left: 4px; color: var(--muted); }
+.pills a.on { color: var(--text); border-color: var(--chipline); background: rgba(127,227,247,.08); }
+.txt { margin: 12px 14px 24px; padding: 4px 22px 26px; }
+.txt h3 { font: 600 18px/1.3 var(--ui); margin: 20px 0 12px; display: flex; gap: 10px; align-items: baseline; }
+.txt h3 .sn { font: 600 13px var(--num); color: var(--accent); min-width: 14px; }
+.txt h4.sh { margin: 22px 0 10px; font: 600 12.5px var(--ui); color: var(--muted); }
+.cl { margin: 0 0 16px; }
+.cl p { margin: 0; font: 15.5px/1.62 var(--ui); }
+.num { color: var(--accent); font-weight: 600; }
+.meta { display: flex; gap: 6px; align-items: center; margin-top: 6px; flex-wrap: wrap; }
+.chip { all: unset; font: 500 11.5px var(--ui); color: var(--accent); border: 1px solid var(--chipline); border-radius: 999px; padding: 1px 9px; cursor: pointer; transition: background .2s; }
+.chip.on { background: rgba(127,227,247,.16); }
+.chip:focus-visible { outline: 2px solid var(--accent); }
+.flag { all: unset; margin-left: auto; font-size: 12px; color: var(--muted); cursor: pointer; } .flag:hover { color: var(--text); }
+.read { all: unset; font-size: 12px; color: var(--accent); cursor: pointer; }
+.quote { margin: 8px 0 0; padding: 10px 13px; border-radius: 12px; background: rgba(255,255,255,.045); border: 1px solid var(--line); font-size: 13.5px; line-height: 1.5; animation: rise .25s ease-out both; }
+.quote span { display: block; color: var(--muted); font-size: 12px; margin-top: 4px; }
+.quote[hidden] { display: none; }
+.cnote { margin-top: 7px; color: var(--hold); font-size: 13px; padding: 6px 10px; border-radius: 10px; background: rgba(255,197,107,.06); }
+.code { font-size: 14px; color: var(--muted); margin: 0 0 12px; line-height: 1.55; } .code b { color: var(--text); font-weight: 600; }
+.rf { padding: 10px 13px; border-radius: 12px; margin: 0 0 14px; font-size: 14px; background: rgba(255,197,107,.07); border: 1px solid rgba(255,197,107,.24); } .rf b { color: var(--hold); }
+.heads { list-style: none; padding: 0; margin: 0 0 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; }
+.heads li { font-size: 13.5px; border-bottom: 1px solid var(--line); padding-bottom: 6px; } .heads small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+.more { color: var(--muted); font-size: 13px; margin: -4px 0 18px; }
+.kp { list-style: none; margin: 0; padding: 0; }
+.kp li { padding: 12px 0; border-top: 1px solid var(--line); }
+.kp .sec { font: 600 12px var(--ui); color: var(--accent); display: block; margin-bottom: 3px; }
+.callline { font: 500 17px/1.5 var(--ui); margin: 6px 0 14px; } .callline b { color: var(--hold); }
+
+/* other pages */
+.pagebody { flex: 1; min-width: 0; padding: 22px 26px; display: grid; gap: 14px; align-content: start; }
+.bigq { display: flex; align-items: center; gap: 12px; padding: 14px 18px; border-radius: 16px; background: rgba(255,255,255,.06); border: 1px solid var(--chipline); }
+.bigq b { font: 500 24px var(--mono); color: var(--accent); } .bigq b.ph { color: var(--muted); font-weight: 400; }
+.bigq .caret { width: 2px; height: 26px; background: var(--accent); animation: blink 1s steps(1) infinite; margin-left: -8px; }
+.bigq .go { all: unset; margin-left: auto; border-radius: 9px; padding: 7px 16px; background: var(--accent); color: #062029; font-weight: 600; cursor: pointer; }
+.bigq .go:focus-visible { outline: 2px solid #fff; }
+.found { color: var(--muted); font-size: 14px; } .found b { color: var(--text); font-weight: 600; }
+.sugg { display: flex; gap: 8px; flex-wrap: wrap; } .sugg button { all: unset; cursor: pointer; padding: 6px 12px; border-radius: 10px; border: 1px solid var(--line); background: rgba(255,255,255,.04); font-size: 13px; }
+.sugg button:hover { border-color: var(--chipline); } .sugg button b { font-family: var(--mono); color: var(--accent); margin-right: 6px; font-weight: 500; }
+.steps { list-style: none; margin: 0; padding: 0; }
+.steps li { display: grid; grid-template-columns: 28px 1fr 80px; padding: 7px 6px; border-bottom: 1px solid var(--line); font-size: 14px; align-items: center; transition: color .3s, background .3s; }
+.steps li .n { font: 600 12px var(--num); color: var(--muted); } .steps li .s { font-size: 12px; text-align: right; color: var(--muted); }
+.steps li.d { color: var(--muted); } .steps li.d .s { color: var(--up); }
+.steps li.r { color: var(--text); background: rgba(127,227,247,.07); border-radius: 10px; border-bottom-color: transparent; } .steps li.r .s { color: var(--accent); animation: pulse 1.6s ease-in-out infinite; }
+.steps li.x { color: var(--down); } .steps li.x .s { color: var(--down); }
+.steps li.w { color: #637287; }
+.phases { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.phase { padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: rgba(255,255,255,.035); transition: border-color .3s, background .3s; }
+.phase b { display: block; font-size: 13.5px; } .phase span { font-size: 12px; color: var(--muted); }
+.phase.d { border-color: rgba(99,223,165,.32); } .phase.d span { color: var(--up); }
+.phase.r { border-color: var(--chipline); background: rgba(127,227,247,.07); } .phase.r span { color: var(--accent); }
+.phase.x { border-color: rgba(255,127,138,.35); } .phase.x span { color: var(--down); }
+.phase .pb { height: 4px; border-radius: 2px; background: var(--track); margin-top: 8px; position: relative; overflow: hidden; }
+.phase .pb i { position: absolute; inset: 0 auto 0 0; border-radius: 2px; background: var(--accent); transition: width .5s cubic-bezier(.3,.7,.2,1); }
+.phase.d .pb i { background: var(--up); }
+.phase.r .pb::after { content: ""; position: absolute; top: 0; bottom: 0; width: 40%; left: -40%; background: linear-gradient(90deg, transparent, rgba(255,255,255,.35), transparent); animation: shimmer 1.4s linear infinite; }
+.two { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 14px; align-items: start; }
+.three { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.stat b { display: block; font: 600 26px var(--num); } .stat span { color: var(--muted); font-size: 12.5px; }
+table.t { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+table.t th { text-align: left; font: 500 12px var(--ui); color: var(--muted); padding: 7px 10px; border-bottom: 1px solid var(--line); }
+table.t td { padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+table.t td.r, table.t th.r { text-align: right; }
+.pill { font-size: 11.5px; border-radius: 999px; padding: 1px 9px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.pill.ok { color: var(--up); border-color: rgba(99,223,165,.4); background: rgba(99,223,165,.07); }
+.pill.bad { color: var(--down); border-color: rgba(255,127,138,.4); background: rgba(255,127,138,.07); }
+.pill.hold { color: var(--hold); border-color: rgba(255,197,107,.4); background: rgba(255,197,107,.07); }
+.example { position: relative; background-image: repeating-linear-gradient(135deg, rgba(201,182,255,.03) 0 10px, transparent 10px 20px); }
+.example::before { content: "Example, not real data"; position: absolute; top: 10px; right: 12px; font-size: 11px; color: #C9B6FF; border: 1px dashed rgba(201,182,255,.55); border-radius: 999px; padding: 1px 9px; }
+.notice { color: var(--muted); font-size: 13.5px; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--line); background: rgba(255,255,255,.03); }
+.notice b { color: var(--text); font-weight: 600; }
+.stopbox { padding: 14px 16px; border-radius: 14px; border: 1px solid rgba(255,127,138,.35); background: rgba(255,127,138,.06); display: flex; align-items: center; gap: 14px; }
+.stopbox b { display: block; font-size: 15px; } .stopbox span { color: var(--muted); font-size: 13px; }
+.stopbox .go { all: unset; margin-left: auto; border-radius: 9px; padding: 7px 16px; background: var(--accent); color: #062029; font-weight: 600; cursor: pointer; }
+.field { display: grid; grid-template-columns: 170px 1fr auto; gap: 12px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 13.5px; }
+.field span { color: var(--muted); }
+.field .in { border: 1px solid var(--line); border-radius: 9px; padding: 5px 10px; background: rgba(255,255,255,.035); color: var(--text); }
+.field .act { color: var(--accent); font-size: 12.5px; }
+.tool { display: grid; grid-template-columns: 40px 1fr auto; gap: 12px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.tool .ic { width: 40px; height: 40px; border-radius: 11px; display: grid; place-items: center; font: 700 14px var(--ui); background: rgba(255,255,255,.07); border: 1px solid var(--line); }
+.tool b { font-size: 14.5px; } .tool small { display: block; color: var(--muted); font-size: 12.5px; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; } .dot.ok { background: var(--up); } .dot.bad { background: var(--down); }
+.stor { height: 10px; border-radius: 5px; background: var(--track); position: relative; margin: 8px 0 4px; overflow: hidden; } .stor i { position: absolute; inset: 0 auto 0 0; background: var(--accent); min-width: 3px; }
+
+/* overlays */
+.scrim { position: absolute; inset: 0; z-index: 20; background: rgba(4,6,12,.38); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); animation: fade .18s ease-out both; }
+.palette { position: absolute; z-index: 21; top: 96px; left: 50%; width: 560px; margin-left: -280px; border-radius: 16px; overflow: hidden; background: rgba(22,28,40,.82); border: 1px solid rgba(255,255,255,.14);
+  backdrop-filter: blur(30px) saturate(1.4); -webkit-backdrop-filter: blur(30px) saturate(1.4); box-shadow: 0 30px 70px rgba(0,0,0,.55); animation: pop .2s cubic-bezier(.3,.7,.2,1) both; }
+.palette .pin { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--line); font-size: 17px; }
+.palette .pin svg { width: 17px; height: 17px; stroke: var(--muted); fill: none; stroke-width: 2; }
+.palette .pin .caret { width: 2px; height: 20px; background: var(--accent); animation: blink 1s steps(1) infinite; margin-left: -8px; }
+.palette ul { list-style: none; margin: 0; padding: 6px; }
+.palette li button { all: unset; box-sizing: border-box; width: 100%; display: grid; grid-template-columns: 58px 1fr auto; gap: 10px; align-items: center; padding: 9px 10px; border-radius: 10px; cursor: pointer; }
+.palette li button.on, .palette li button:hover { background: rgba(127,227,247,.12); }
+.palette li b { font: 600 13px var(--mono); color: var(--accent); } .palette li small { color: var(--muted); font-size: 12px; }
+.palette .ft { display: flex; gap: 16px; padding: 9px 16px; border-top: 1px solid var(--line); font-size: 11.5px; color: var(--muted); }
+.sheet { position: absolute; z-index: 21; top: 52px; left: 50%; width: 520px; margin-left: -260px; padding: 18px 18px 16px; border-radius: 0 0 16px 16px; background: rgba(22,28,40,.9); border: 1px solid rgba(255,255,255,.14); border-top: 0;
+  backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px); box-shadow: 0 30px 70px rgba(0,0,0,.5); animation: drop .26s cubic-bezier(.3,.7,.2,1) both; display: grid; gap: 10px; }
+.sheet b { font-size: 15px; } .sheet q { color: var(--muted); font-size: 13.5px; line-height: 1.5; }
+.sheet .ta { min-height: 78px; border-radius: 10px; border: 1px solid var(--chipline); background: rgba(255,255,255,.04); padding: 9px 11px; color: var(--muted); font-size: 13.5px; }
+.sheet .row { display: flex; gap: 8px; justify-content: flex-end; }
+.sheet .row button { all: unset; padding: 6px 14px; border-radius: 8px; border: 1px solid var(--line); cursor: pointer; }
+.sheet .row button.pri { background: var(--accent); color: #062029; font-weight: 600; border-color: var(--accent); }
+.toast { position: absolute; z-index: 22; right: 18px; bottom: 18px; max-width: 380px; padding: 11px 14px; border-radius: 12px; background: rgba(22,28,40,.9); border: 1px solid rgba(255,255,255,.14);
+  backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); box-shadow: 0 16px 40px rgba(0,0,0,.45); font-size: 13.5px; animation: toast .3s cubic-bezier(.3,.7,.2,1) both; }
+.toast b { display: block; }
+.toast span { color: var(--muted); font-size: 12.5px; }
+
+/* narrow window: the numbers move above the text */
+.narrow .content { flex-direction: column; overflow: auto; }
+.narrow .nums { width: auto; border-right: 0; border-bottom: 1px solid var(--line); }
+.narrow .textcol { overflow: visible; }
+.narrow .textcol .scroll { overflow: visible; }
+
+/* ---------- motion ---------- */
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } }
+@keyframes slidein { from { opacity: 0; transform: translateX(14px); } }
+@keyframes grow { from { transform: scaleX(0); } }
+@keyframes draw { from { stroke-dasharray: 0 2000; } }
+@keyframes trace { from { stroke-dashoffset: 1; } }
+@keyframes fade { from { opacity: 0; } }
+@keyframes pop { from { opacity: 0; transform: scale(.97) translateY(-4px); } }
+@keyframes drop { from { opacity: 0; transform: translateY(-14px); } }
+@keyframes toast { from { opacity: 0; transform: translateY(14px); } }
+@keyframes pulse { 50% { opacity: .4; } }
+@keyframes blink { 50% { opacity: 0; } }
+@keyframes shimmer { to { left: 100%; } }
+@keyframes fill { from { stroke-dasharray: 0 2000; } }
+.play .nums > * { animation: rise .5s cubic-bezier(.2,.7,.2,1) both; }
+.play .nums > *:nth-child(2) { animation-delay: .05s; } .play .nums > *:nth-child(3) { animation-delay: .1s; } .play .nums > *:nth-child(4) { animation-delay: .15s; } .play .nums > *:nth-child(5) { animation-delay: .2s; }
+.play .nums > *:nth-child(6) { animation-delay: .25s; } .play .nums > *:nth-child(7) { animation-delay: .3s; } .play .nums > *:nth-child(8) { animation-delay: .35s; } .play .nums > *:nth-child(9) { animation-delay: .4s; }
+.play .bar .tr i, .play .meter i { animation: grow .9s .25s cubic-bezier(.2,.7,.2,1) both; }
+.play .g-fill, .play .dn-seg { animation: draw 1.4s .2s cubic-bezier(.2,.7,.2,1) both; }
+.play .ch-line { stroke-dasharray: 1; animation: trace 1.6s .25s cubic-bezier(.4,.1,.2,1) both; }
+.play .ch-area { animation: fade .8s .9s both; }
+.play .ch-fan, .play .ch-base { animation: fade .9s 1.5s both; }
+.play .ch-band { transform-box: fill-box; transform-origin: left; animation: grow 1s .3s cubic-bezier(.2,.7,.2,1) both; }
+.play .tile .rk i { animation: rise .5s .6s both; }
+.play .textcol .txt { animation: rise .5s .15s cubic-bezier(.2,.7,.2,1) both; }
+.enter-x .txt { animation: slidein .32s cubic-bezier(.2,.7,.2,1) both; }
+.enter-p .pagebody > * { animation: rise .42s cubic-bezier(.2,.7,.2,1) both; }
+.enter-p .pagebody > *:nth-child(2) { animation-delay: .04s; } .enter-p .pagebody > *:nth-child(3) { animation-delay: .08s; } .enter-p .pagebody > *:nth-child(4) { animation-delay: .12s; } .enter-p .pagebody > *:nth-child(5) { animation-delay: .16s; }
+.ringseg { transition: stroke .4s; }
+.ringseg.run { animation: pulse 1.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .stage *, .stage *::before, .stage *::after { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="intro">
+    <h1>Look C, native: the whole app</h1>
+    <p>Look C in a Mac window. There is no separate title strip: the sidebar runs the full height with the window buttons at its top, and the desktop shows through it the way it does in Finder. The glow is turned down further. Reports open on the Summary, which is built only from claims that passed the checks. The full report is one click away.</p>
+    <p>The window below is live. Click around: every page, the switch between views, the folding sidebar, the look-up box, flagging a claim and a report run all animate as they would in the app. Under it, every page and state is shown as a still.</p>
+    <ul class="try">
+      <li><b>Switch views:</b> Summary or Full report, at the top of the text, or <span class="k">⌘1</span> <span class="k">⌘2</span></li>
+      <li><b>Look up a company:</b> click the search box, or <span class="k">⌘K</span></li>
+      <li><b>Fold the sidebar:</b> the arrow at its top, or <span class="k">⌃⌘S</span></li>
+      <li><b>Start a run:</b> New report, then Write report; it is a sped-up simulation</li>
+      <li><b>Flag a claim:</b> Flag, beside any claim</li>
+      <li><b>Use the menus:</b> the menu bar along the top of the window</li>
+    </ul>
+    <p style="margin-top:10px;font-size:13.5px">Shortcuts work only while Tearsheet is the app in front. Your browser keeps a few of them (like <span class="k">⌘1</span>), so here the menus and buttons do the same thing.</p>
+  </header>
+
+  <h2 class="sec">Live prototype</h2>
+  <button class="replay" type="button" id="replay">Play the opening motion again</button>
+  <div class="fit" id="livefit"><div class="stage" id="live" tabindex="0" aria-label="Live Tearsheet prototype"></div></div>
+
+  <h2 class="sec">Every page and state</h2>
+  <p class="pg">Report: Summary <span>(opens first)</span></p><div class="fit"><div class="stage" data-s="sum"></div></div>
+  <p class="pg">Report: Full report</p><div class="fit"><div class="stage" data-s="full"></div></div>
+  <p class="pg">Look up a company <span>(⌘K over the report)</span></p><div class="fit"><div class="stage" data-s="palette"></div></div>
+  <p class="pg">Flag a claim</p><div class="fit"><div class="stage" data-s="flag"></div></div>
+  <p class="pg">New report: before it starts</p><div class="fit"><div class="stage" data-s="new"></div></div>
+  <p class="pg">New report: running</p><div class="fit"><div class="stage" data-s="run"></div></div>
+  <p class="pg">New report: stopped <span>(your plan’s usage limit was reached; it resumes where it stopped)</span></p><div class="fit"><div class="stage" data-s="stop"></div></div>
+  <p class="pg">Prediction log</p><div class="fit"><div class="stage" data-s="log"></div></div>
+  <p class="pg">Settings and connections</p><div class="fit"><div class="stage" data-s="settings"></div></div>
+  <p class="pg">Sidebar folded</p><div class="fit"><div class="stage" data-s="folded"></div></div>
+  <p class="pg">Narrow window <span>(half a laptop screen: the sidebar folds and the numbers move above the text)</span></p><div class="fit"><div class="stage" data-s="narrow"></div></div>
+
+  <p class="outro"><b>Next:</b> tell me what to change, or say it looks right. I’ll then write the short look note for your OK and start building it into the app.</p>
+</div>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="ring-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4C8DFF"/><stop offset="1" stop-color="#7FE3F7"/></linearGradient>
+    <linearGradient id="area-g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7FE3F7" stop-opacity=".18"/><stop offset="1" stop-color="#7FE3F7" stop-opacity="0"/></linearGradient>
+    <linearGradient id="fan-g" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#8FA2FF" stop-opacity=".05"/><stop offset="1" stop-color="#8FA2FF" stop-opacity=".24"/></linearGradient>
+  </defs>
+</svg>
+
+<script>
+const D = {
+  run: '5 Nov 2026, 22:16 UTC', price: 200.13, value: 236.36, bear: 130.16, base: 233.70, bull: 419.62, buy: 263.73,
+  ret: [['NVIDIA', -3.0, true], ['Peer group', 45.2], ['S&amp;P 500', 13.4]],
+  factors: [['Profitability', 93, '30%'], ['Momentum', 35, '25%'], ['Valuation', 49, '20%'], ['Capital discipline', 38, '10%'], ['Balance sheet', 76, '7.5%'], ['Earnings quality', 4, '7.5%']],
+  methods: [['Discounted cash flow', 115.24], ['Residual income', 546.10], ['Multiples', 236.36]],
+  redflag: 'Item 1A, the risk factors, changed 33.2% from last year; the red-flag line is 30%. The rating is capped at Hold.',
+  prices: [206.88, 199.05, 186.6, 182.55, 181.46, 184.97, 177.72, 189.21, 186.5, 185.04, 187.05, 187.67, 191.13, 185.41, 182.81, 191.55, 182.48, 182.65, 183.22, 175.64, 165.17, 178.1, 196.51, 199.88, 213.17, 196.5, 220.78, 220.61, 212.6, 214.75, 200.42, 204.65, 195.74, 194.83, 210.96, 202.81, 206.84, 200.75, 223.96, 225.16, 214.72, 217.55, 230.36, 210.96, 227.38, 228.86, 238.9, 226.32, 217.09, 216.0, 202.06, 200.13],
+  metrics: [['Operating margin', '65.2%', '28.3%', 95], ['Return on invested capital', '134.1%', '25.5%', 92], ['Gross profit to assets', '70.6%', '32.4%', 94], ['Interest coverage', '426×', '14×', 94],
+    ['Free cash flow yield', '2.6%', '2.9%', 48], ['Earnings yield', '4.0%', '2.9%', 65], ['Accruals to assets', '25.4%', '−3.9%', 98], ['Cash flow to net income', '0.70', '1.36', 3]],
+  news: [['Nvidia Sinks 9% as Midterm Data-Center Fears Deepen AI Chip Rout', 'Yahoo Finance', '5 Nov 2026'], ['Why Nvidia Stock Is Getting Punished Today', 'The Motley Fool', '5 Nov 2026'],
+    ['The AI Selloff Is Getting Worse. Is It Time to Buy the Dip?', 'The Motley Fool', '5 Nov 2026'], ['Nvidia chips stockpile in Hong Kong awaits China import approval', 'Yahoo Finance', '5 Nov 2026']]
+};
+const K10 = 'NVIDIA 10-K, FY2026', Q10 = 'NVIDIA 10-Q, Q2 FY2027', K8 = 'NVIDIA 8-K, Aug 2026';
+const S = [
+  { key: 'business', n: 4, title: 'The business', short: 'Business', count: 8, claims: [
+    { id: 'business.1', t: 'NVIDIA sells data-center-scale AI infrastructure, with chips, networking, systems and software designed together, and demand rests on modern AI applications that need very large numbers of GPUs linked as one system.',
+      s: [[K10, 'Introduced with the Blackwell architecture, our data-center-scale offerings feature extreme co-design where the infrastructure’s chips, networking, systems, software, and algorithms are holistically architected…']] },
+    { id: 'business.2', t: 'Its customers are cloud service providers, AI model makers and enterprises, who use the infrastructure to deliver AI services and products to end users.',
+      s: [[K10, 'All major cloud service providers, or CSPs, AI model makers, and enterprises use our data center-scale infrastructure and computing platforms to accelerate the services and offerings they deliver to billions of end users…'], [K10, 'AI model makers use our infrastructure and software hosted at CSPs to develop, build and run AI models, product offerings, and services.']] },
+    { id: 'business.3', t: 'Fiscal 2026 revenue growth came from data center compute and networking platforms, with Blackwell making up most of Data Center revenue, and trailing revenue is {$303.0 billion} at an operating margin of {65.2%}.',
+      s: [[K10, 'Revenue growth in fiscal year 2026 was driven by data center compute and networking platforms for accelerated computing and AI solutions. Our Blackwell architectures represented the majority of our Data Center revenue.']] }
+  ]},
+  { key: 'risks', n: 5, title: 'Risks', short: 'Risks', count: 7, claims: [
+    { id: 'risks.1', t: 'The most material risk the company describes is export controls: it says it is effectively shut out of China’s data center compute market, that this helped competitors build larger developer and customer ecosystems, and that the lost opportunity will have a material and adverse impact.',
+      note: 'Checker’s note: the cited paragraphs call the China loss material and adverse, but none ranks it as the company’s most material risk.',
+      s: [[Q10, 'The export controls applicable to China are complex and address a variety of parameters, including the total processing performance of a chip, the “performance density” of a chip…'], [K10, 'The export controls applicable to China are complex and address a variety of parameters…']] },
+    { id: 'risks.2', t: 'The China situation has produced concrete costs: H20 licensing requirements led to an excess inventory and purchase-obligation charge, and Chinese restrictions blocked sales even after U.S. licenses were granted.',
+      s: [[Q10, 'Beginning in August 2025, the USG granted licenses that would have allowed us to ship certain H20 products to certain China-based customers, but such sales were restricted by the PRC government…']] }
+  ]},
+  { key: 'results', n: 6, title: 'Recent results', short: 'Results', count: 5, claims: [
+    { id: 'results.r1', t: 'Data Center revenue rose sharply from a year ago in the latest period and was the main driver of the total revenue increase.',
+      s: [[K8, '•Data Center revenue of $89.0 billion, up 117% from a year ago'], [K8, 'NVIDIA today reported revenue for the second quarter ended July 26, 2026, of $96.2 billion, up 18% from the previous quarter and up 106% from a year ago.']] },
+    { id: 'results.r2', t: 'Gross margin improved from a year earlier on a better mix from Blackwell Ultra, while the earlier period had carried a large H20 inventory charge.',
+      s: [[Q10, 'Gross margin increased to 75.0% for the second quarter of fiscal year 2027 compared to 72.4% for the second quarter of fiscal year 2026…']] }
+  ]},
+  { key: 'news', n: 7, title: 'News and views', short: 'News', count: 6, claims: [
+    { id: 'news.1', t: 'Coverage of the post-midterm selloff centers on fears that a Democratic sweep of Congress and key governorships could slow the data-center buildout, and NVIDIA fell sharply on the second day of the chip rout.',
+      s: [['CNBC, 4 Nov 2026', 'Stocks related to the artificial intelligence trade, particularly those linked to the chips industry and data centers, slid for a second day…'], ['Yahoo Finance, 5 Nov 2026', 'NVIDIA (NVDA:NASDAQ) stock fell 9% today, the second day of a chip rout that started after Democrats won both chambers of Congress on Tuesday…']] },
+    { id: 'news.3', t: 'UBS analysts estimate that if construction pauses spread, a large share of new U.S. data-center capacity expected in 2028 could be delayed or lost, though one article notes the political risk is unsettled.',
+      s: [['The Motley Fool, 5 Nov 2026', 'UBS analysts put a number on the risk: If construction pauses spread, they estimate that nearly a third of the new U.S. data-center capacity expected to come online in 2028 could be delayed or lost.']] }
+  ]},
+  { key: 'trends', n: 8, title: 'Industry trends', short: 'Trends', count: 7, claims: [
+    { id: 'trends.1', t: 'Broadcom says demand in its semiconductor business is being driven by AI, with strong demand for custom AI accelerators and AI networking products, which points to a strong AI infrastructure market for NVIDIA.',
+      s: [['Broadcom 10-K, FY2025', 'Net revenue from our semiconductor solutions segment increased due to strong demand for our networking solutions, primarily custom AI accelerators and AI networking products.']] },
+    { id: 'trends.2', t: 'Microsoft reports that Azure grew across all workloads and that its commercial contracted backlog rose sharply, and it plans continued capital spending on cloud, AI training and datacenter infrastructure.',
+      s: [['Microsoft 10-K, FY2026', 'Azure and other cloud services revenue grew 41% driven by demand for services across the platform with continued growth across all workloads.']] }
+  ]},
+  { key: 'watch', n: 0, title: 'What to watch', short: 'Watch', count: 8, claims: [
+    { id: 'watch.1', t: 'China remains the largest overhang: the company says it is effectively shut out of China’s data center compute market, that this helped competitors build larger ecosystems, and that the lost opportunity will have a material adverse impact unless it can return with an approved product.',
+      s: [[Q10, 'The export controls applicable to China are complex and address a variety of parameters, including the total processing performance of a chip…']] },
+    { id: 'watch.2', t: 'Holders should watch whether the licensed H200 sales in China become meaningful, since Chinese restrictions blocked most sales, a further charge was taken, and a U.S. tariff on those chips cannot be passed on to customers.',
+      s: [[Q10, 'Beginning in February 2026, the USG granted licenses that would allow us to ship small amounts of H200 products to specific China-based customers…']] }
+  ]}
+];
+const STEPS = ['Find the company and its peers', 'Download filings, facts and prices', 'Standardize the financial statements', 'Split filings into sections and paragraphs', 'Compute the metrics', 'Score against the peer group', 'Value the company and each peer', 'Rate: Buy, Hold or Sell', 'Find recent articles', 'Read the sources for evidence', 'Write the sections', 'Fill in the numbers', 'Check every claim', 'Save the report'];
+const PHASES = [['Data', 0, 4], ['Numbers', 4, 8], ['Evidence', 8, 10], ['Writing', 10, 12], ['Checks', 12, 14]];
+const money = (v) => '$' + v.toFixed(2);
+const pct = (v) => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(1) + '%';
+const nums = (t) => t.replace(/\{([^}]+)\}/g, '<span class="num">$1</span>');
+const short = (label) => label.replace('NVIDIA ', '').replace(/,.*/, '');
+const ICON = {
+  fold: '<svg viewBox="0 0 10 10"><path d="M6.5 2L3.5 5l3 3"/></svg>',
+  new: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
+  log: '<svg viewBox="0 0 24 24"><path d="M4 19h16M7 16V9M12 16V5M17 16v-4"/></svg>',
+  set: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/></svg>',
+  search: '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>'
+};
+
+/* ---------- charts ---------- */
+function pathSVG(w, h = 170) {
+  const left = 40, right = w - 54, top = 10, bot = h - 24, min = 100, max = 450, n = D.prices.length, mid = left + (right - left) * 0.55;
+  const y = (v) => bot - (v - min) / (max - min) * (bot - top), xp = (i) => left + i / (n - 1) * (mid - left);
+  let g = '';
+  [100, 200, 300, 400].forEach((t) => { g += `<line class="ch-grid" x1="${left}" x2="${right}" y1="${y(t)}" y2="${y(t)}"/><text class="ch-lab" x="${left - 6}" y="${y(t) + 4}" text-anchor="end">$${t}</text>`; });
+  const pts = D.prices.map((v, i) => xp(i).toFixed(1) + ',' + y(v).toFixed(1));
+  g += `<polygon class="ch-area" points="${xp(0)},${bot} ${pts.join(' ')} ${mid},${bot}"/>`;
+  const fan = (target) => { let p = ''; for (let k = 0; k <= 12; k++) { const t = k / 12; p += (mid + t * (right - mid)).toFixed(1) + ',' + y(D.price + (target - D.price) * Math.sqrt(t)).toFixed(1) + ' '; } return p.trim(); };
+  g += `<polygon class="ch-fan" points="${fan(D.bull).split(' ').concat(fan(D.bear).split(' ').reverse()).join(' ')}"/>`;
+  g += `<polyline class="ch-base" points="${fan(D.base)}"/><polyline class="ch-line" pathLength="1" points="${pts.join(' ')}"/>`;
+  g += `<line class="ch-axis" x1="${mid}" x2="${mid}" y1="${top}" y2="${bot}"/><circle cx="${mid}" cy="${y(D.price)}" r="4" fill="var(--hold)"/>`;
+  [['Bull', D.bull], ['Base', D.base], ['Bear', D.bear]].forEach(([nm, v]) => { g += `<text class="ch-val" x="${right + 5}" y="${y(v) + 4}">${nm}</text>`; });
+  g += `<text class="ch-lab" x="${left}" y="${h - 6}">Nov 2025</text><text class="ch-lab" x="${mid}" y="${h - 6}" text-anchor="middle">Today ${money(D.price)}</text><text class="ch-lab" x="${right}" y="${h - 6}" text-anchor="end">Nov 2027</text>`;
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-label="NVIDIA weekly price over the past year, from $206.88 to $200.13, then the 12-month range from $130.16 to $419.62">${g}</svg>`;
+}
+function methodsSVG(w, lab = 132) {
+  const min = 100, max = 560, top = 20, row = 25, h = top + row * 3 + 22, x = (v) => lab + (v - min) / (max - min) * (w - lab - 44);
+  let g = `<rect class="ch-band" x="${x(D.bear)}" y="${top - 6}" width="${x(D.bull) - x(D.bear)}" height="${row * 3 + 2}" rx="6" opacity=".6"/>`;
+  [100, 300, 500].forEach((t) => { g += `<text class="ch-lab" x="${x(t)}" y="${h - 4}" text-anchor="middle">$${t}</text>`; });
+  g += `<line class="ch-pline" x1="${x(D.price)}" x2="${x(D.price)}" y1="${top - 10}" y2="${top + row * 3}"/><text class="ch-plab" x="${x(D.price)}" y="${top - 12}" text-anchor="middle">Price</text>`;
+  D.methods.forEach(([n, v], i) => {
+    const cy = top + 9 + i * row, right = v > 400;
+    g += `<text class="ch-row" x="0" y="${cy + 4}">${n}</text><line class="ch-axis" x1="${lab}" x2="${w - 44}" y1="${cy}" y2="${cy}"/><circle class="ch-dot" cx="${x(v)}" cy="${cy}" r="5"/><text class="ch-val" x="${x(v) + (right ? -9 : 9)}" y="${cy + 4}" text-anchor="${right ? 'end' : 'start'}">${money(v)}</text>`;
+  });
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-label="Value per share: discounted cash flow $115.24, residual income $546.10, multiples $236.36; price $200.13">${g}</svg>`;
+}
+function gauge(size, stroke, frac) {
+  const r = (size - stroke) / 2 - 1, c = 2 * Math.PI * r, m = size / 2;
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" aria-hidden="true"><g transform="rotate(-90 ${m} ${m})"><circle class="g-track" cx="${m}" cy="${m}" r="${r}" stroke-width="${stroke}"/><circle class="g-fill" cx="${m}" cy="${m}" r="${r}" stroke-width="${stroke}" stroke-dasharray="${c * frac} ${c}"/></g></svg>`;
+}
+function donut(size, stroke, parts, label) {
+  const r = (size - stroke) / 2 - 1, c = 2 * Math.PI * r, m = size / 2, total = parts.reduce((a, p) => a + p[0], 0);
+  let off = 0, g = '';
+  parts.forEach(([v, color]) => { const len = c * v / total - 2; g += `<circle class="dn-seg" cx="${m}" cy="${m}" r="${r}" fill="none" stroke="${color}" stroke-width="${stroke}" stroke-dasharray="${len} ${c}" stroke-dashoffset="${-off}"/>`; off += c * v / total; });
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" role="img" aria-label="${label}"><g transform="rotate(-90 ${m} ${m})">${g}</g></svg>`;
+}
+function ringSteps(size, done, running, stopped) {
+  const r = size / 2 - 18, c = 2 * Math.PI * r, n = 14, len = c / n - 6, m = size / 2;
+  let g = '';
+  for (let i = 0; i < n; i++) {
+    const color = i < done ? 'url(#ring-g)' : i === running ? (stopped ? '#FF7F8A' : '#7FE3F7') : 'rgba(255,255,255,.08)';
+    g += `<circle class="ringseg${i === running && !stopped ? ' run' : ''}" cx="${m}" cy="${m}" r="${r}" fill="none" stroke="${color}" stroke-width="12" stroke-linecap="round" stroke-dasharray="${len} ${c - len}" stroke-dashoffset="${-i * c / n}"/>`;
+  }
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" role="img" aria-label="Step ${running + 1} of 14"><g transform="rotate(-90 ${m} ${m})">${g}</g></svg>`;
+}
+
+/* ---------- window parts ---------- */
+const mini = (bear, base, bull, price) => { const x = (v) => (v - 100) / 520 * 100; return `<div class="mini"><span class="b" style="left:${x(bear)}%;width:${x(bull) - x(bear)}%"></span><span class="m" style="left:${x(base)}%"></span><span class="pm" style="left:${x(price)}%"></span></div>`; };
+function side(st) {
+  const row = (tk, name, price, score, r, on) => `<button class="ri${on ? ' on' : ''}" data-act="company" data-tk="${tk}"><b>${tk}</b><span class="rc">HOLD</span><small>${name}, 1 report</small><div class="w2"><span>price <b>${price}</b></span><span>score <b>${score}</b></span></div>${mini.apply(null, r)}</button>`;
+  return `<aside class="side"><div class="lights"><i></i><i></i><i></i></div><h5><span>Companies</span><button class="fold" data-act="fold" aria-label="Fold the sidebar">${ICON.fold}</button></h5>` +
+    row('NVDA', 'NVIDIA Corp', '$200.13', 74, [130.16, 233.70, 419.62, 200.13], st.page === 'report') +
+    row('AAPL', 'Apple Inc.', '$349.51', 79, [216.34, 358.41, 593.78, 349.51], false) +
+    `<nav><button data-act="page" data-page="new" class="${st.page === 'new' ? 'on' : ''}">${ICON.new}<span class="lbl">New report</span><kbd>⌘N</kbd></button>` +
+    `<button data-act="page" data-page="log" class="${st.page === 'log' ? 'on' : ''}">${ICON.log}<span class="lbl">Prediction log</span></button>` +
+    `<button data-act="page" data-page="settings" class="${st.page === 'settings' ? 'on' : ''}">${ICON.set}<span class="lbl">Settings</span><kbd>⌘,</kbd></button></nav></aside>`;
+}
+function toolbar(st) {
+  const t = { report: 'NVIDIA Corp<small>Report of 5 Nov 2026, 41 claims kept</small>', new: st.run === 'idle' ? 'New report<small>Any S&amp;P 500 company</small>' : st.run === 'stopped' ? 'JPMorgan Chase &amp; Co.<small>Stopped at step ' + (st.step + 1) + ' of 14</small>' : st.run === 'done' ? 'JPMorgan Chase &amp; Co.<small>Report ready</small>' : 'JPMorgan Chase &amp; Co.<small>Writing the report, step ' + Math.min(st.step + 1, 14) + ' of 14</small>', log: 'Prediction log<small>0 logged, 2 reports</small>', settings: 'Settings<small>and connections</small>' }[st.page];
+  const btn = st.page === 'new' && st.run === 'running' ? '<button class="btn" data-act="cancel">Cancel run</button>' : '<button class="btn" data-act="page" data-page="new">New report</button>';
+  return `<div class="top"><span class="ttl">${t}</span><button class="q" data-act="palette"><span>Look up a company</span><kbd>⌘K</kbd></button>${btn}</div>`;
+}
+
+/* ---------- report ---------- */
+function numbersCol() {
+  return `<aside class="nums scroll">` +
+    `<section class="p glass span2"><div class="tkr">NVDA<small>NVIDIA Corp, Information Technology, against its 40 largest peers</small></div>` +
+    `<div class="callrow"><div style="position:relative;width:84px;height:84px">${gauge(84, 7, .74)}<div style="position:absolute;inset:0;display:grid;place-content:center;text-align:center"><b style="font:600 22px var(--num)">74</b><span style="font-size:10.5px;color:var(--muted)">score</span></div></div>` +
+    `<div><div class="call">HOLD</div><span>next 12 months, against its peers</span></div></div>` +
+    `<div class="note">Capped by a red flag: the risk factors changed 33.2% in a year (the line is 30%).</div>` +
+    `<dl class="kvs"><div><dt>Price, 4 Nov</dt><dd>${money(D.price)}</dd></div><div><dt>Estimated value</dt><dd>${money(D.value)}</dd></div><div><dt>Buy trigger</dt><dd>${money(D.buy)}</dd></div><div><dt>Value gap pct</dt><dd>82</dd></div></dl></section>` +
+    `<section class="p glass span2"><h4><span>Past year and the 12-month range</span><em>uncertainty very high</em></h4>${pathSVG(518)}</section>` +
+    `<section class="p glass span2"><h4><span>Score by factor</span><em>percentile, weight; line at the peer median</em></h4>` +
+    D.factors.map(([n, p, w]) => `<div class="bar" style="grid-template-columns:130px 1fr 28px 40px"><span>${n}</span><div class="tr"><i style="width:${p}%"></i><span class="mid"></span></div><b>${p}</b><small>${w}</small></div>`).join('') + `</section>` +
+    `<section class="p glass span2"><h4><span>Key metrics against the peer median</span><em>dot: share of peers below NVIDIA</em></h4><div class="tiles">` +
+    D.metrics.map(([n, v, m, rk]) => `<div class="tile"><span>${n}</span><b>${v}</b><small>peers ${m}</small><div class="rk"><i style="left:${rk}%"></i></div></div>`).join('') + `</div></section>` +
+    `<section class="p glass span2"><h4><span>Value per share by method</span><em>estimate ${money(D.value)}</em></h4>${methodsSVG(518)}</section>` +
+    `<section class="p glass"><h4><span>Total return, past 12 months</span></h4>` + D.ret.map(([n, v, self]) => { const x = (q) => (q + 10) / 60 * 100; return `<div class="bar" style="grid-template-columns:82px 1fr 46px"><span>${n}</span><div class="tr"><i class="${v < 0 ? 'neg' : self ? 'self' : ''}" style="left:${Math.min(x(0), x(v))}%;width:${Math.abs(x(v) - x(0))}%"></i><span class="zero" style="left:${x(0)}%"></span></div><b>${pct(v)}</b></div>`; }).join('') + `</section>` +
+    `<section class="p glass"><h4><span>Red flag</span><em>caps the rating</em></h4><div class="meter"><i style="width:${33.2 / 50 * 100}%"></i><span class="line" style="left:60%"></span></div><div class="kv" style="border:0;padding:0"><span>Risk factors changed 33.2%; line 30%</span></div><div class="kv"><span>Insider buying, 6 months</span><b>none</b></div></section>` +
+    `<section class="p glass span2"><h4><span>Economy</span><em>FRED</em></h4><div class="macro"><div><b>4.2%</b><span>Unemployment, Sep</span></div><div><b>3.4%</b><span>Real GDP growth, Q3</span></div><div><b>4.9%</b><span>10-year yield, 4 Nov</span></div><div><b>3.7%</b><span>CPI inflation, Sep</span></div><div><b>0.3%</b><span>Dollar index, 30 Oct</span></div></div></section>` +
+    `<section class="p glass span2"><h4><span>Peer ratings and checks</span></h4><div class="donutrow">` +
+    `<div style="position:relative">${donut(80, 10, [[8, '#63DFA5'], [26, '#FFC56B'], [7, '#FF7F8A']], 'Peer ratings: 8 Buy, 26 Hold, 7 Sell')}<b style="position:absolute;inset:0;display:grid;place-content:center;font:600 15px var(--num)">41</b></div>` +
+    `<div class="legend" style="flex-direction:column;gap:3px;margin:0"><span><i style="background:#63DFA5"></i>8 Buy</span><span><i style="background:#FFC56B"></i>26 Hold</span><span><i style="background:#FF7F8A"></i>7 Sell</span></div>` +
+    `<div style="position:relative;margin-left:18px">${donut(80, 10, [[41, '#7FE3F7'], [12, '#FF7F8A']], '41 claims kept, 12 removed')}<b style="position:absolute;inset:0;display:grid;place-content:center;font:600 15px var(--num)">53</b></div>` +
+    `<div class="legend" style="flex-direction:column;gap:3px;margin:0"><span><i style="background:#7FE3F7"></i>41 claims kept</span><span><i style="background:#FF7F8A"></i>12 removed</span><span style="padding-left:13px">8 negative, 4 positive</span></div></div></section></aside>`;
+}
+let qid = 0;
+function claimHTML(c, open, readLink) {
+  const id = 'q' + (++qid);
+  return `<div class="cl"><p>${nums(c.t)}</p>` + (c.note ? `<div class="cnote">${c.note}</div>` : '') +
+    `<div class="meta">` + c.s.map((x, i) => `<button class="chip${open && i === 0 ? ' on' : ''}" data-act="chip" data-q="${id}-${i}">${short(x[0])}</button>`).join('') + (readLink ? `<button class="read" data-act="section" data-sec="${readLink}">Read the section</button>` : '') + `<button class="flag" data-act="flag" data-claim="${c.id}">Flag</button></div>` +
+    c.s.map((x, i) => `<div class="quote" id="${id}-${i}"${open && i === 0 ? '' : ' hidden'}>“${x[1]}”<span>${x[0]}. Opens the filing on sec.gov.</span></div>`).join('') + `</div>`;
+}
+function summaryHTML() {
+  return `<article class="txt glass"><h3>Summary</h3><p class="callline"><b>Hold</b>, capped by a red flag. NVIDIA scores in the 74th percentile of its 40 peers. The price is ${money(D.price)} against an estimated value of ${money(D.value)}, and the 12-month range runs from ${money(D.bear)} to ${money(D.bull)}.</p>` +
+    `<div class="rf"><b>Red flag.</b> ${D.redflag}</div><h4 class="sh">The first point in each section</h4><ol class="kp">` +
+    S.map((s) => `<li><span class="sec">${s.n ? s.n + '. ' : ''}${s.title}</span>${claimHTML(s.claims[0], false, s.key)}</li>`).join('') + `</ol>` +
+    `<h4 class="sh">Triggers and checks</h4><p class="code">Buy trigger: <b>${money(D.buy)}</b>. Sell trigger: <b>not reachable by price alone</b>. <b>41 claims</b> passed the numeric guard, the citation check and the skeptic; <b>12</b> were removed.</p></article>`;
+}
+function fullHTML() {
+  return `<article class="txt glass">` + S.map((s) => {
+    let h = `<section id="s-${s.key}"><h3><span class="sn">${s.n || ''}</span>${s.title}</h3>`;
+    if (s.key === 'risks') h += `<div class="rf"><b>Red flag.</b> ${D.redflag}</div>`;
+    if (s.key === 'news') h += `<ul class="heads">` + D.news.map(([t, p, d]) => `<li>${t}<small>${p}, ${d}</small></li>`).join('') + `</ul>`;
+    if (s.key === 'watch') h += `<p class="code">Buy trigger: <b>${money(D.buy)}</b>. Sell trigger: <b>not reachable by price alone</b>.</p>`;
+    return h + s.claims.map((c, i) => claimHTML(c, s.key === 'business' && i === 1)).join('') + `<p class="more">${s.count - s.claims.length} more claims in this section.</p></section>`;
+  }).join('') + `</article>`;
+}
+function textCol(st) {
+  const seg = `<div class="segc" role="tablist"><button role="tab" data-act="view" data-view="summary" class="${st.view === 'summary' ? 'on' : ''}">Summary<kbd>⌘1</kbd></button><button role="tab" data-act="view" data-view="full" class="${st.view === 'full' ? 'on' : ''}">Full report<kbd>⌘2</kbd></button></div>`;
+  const pills = st.view === 'full' ? `<div class="pills">` + S.map((s, i) => `<a data-act="section" data-sec="${s.key}" class="${i ? '' : 'on'}">${s.short}<b>${s.count}</b></a>`).join('') + `<a>Checks</a><a>Method</a></div>` : '';
+  return `<div class="textcol"><div class="tbar">${seg}${pills}</div><div class="scroll tscroll" style="flex:1">${st.view === 'summary' ? summaryHTML() : fullHTML()}</div></div>`;
+}
+const reportPage = (st) => numbersCol() + textCol(st);
+
+/* ---------- other pages ---------- */
+function stepsList(st) {
+  return `<ol class="steps">` + STEPS.map((s, i) => {
+    const cls = i < st.step ? 'd' : i === st.step ? (st.run === 'stopped' ? 'x' : st.run === 'done' ? 'd' : 'r') : 'w';
+    const lab = cls === 'd' ? 'done' : cls === 'r' ? 'running' : cls === 'x' ? 'stopped' : 'waiting';
+    return `<li class="${cls}"><span class="n">${i + 1}</span><span>${s}</span><span class="s">${lab}</span></li>`;
+  }).join('') + `</ol>`;
+}
+function newPage(st) {
+  if (st.run === 'idle') return `<div class="pagebody scroll"><div class="bigq"><b>JPM</b><span class="caret"></span><button class="go" data-act="start">Write report</button></div>` +
+    `<div class="found"><b>JPMorgan Chase &amp; Co. (JPM), Financials.</b> Peer group: the 40 largest Financials members of the S&amp;P 500. A first report in a new sector takes about 20 minutes, mostly to download prices.</div>` +
+    `<div><h4 style="margin:6px 0 8px;font:500 12px var(--ui);color:var(--muted)">Or pick one</h4><div class="sugg"><button data-act="start"><b>JPM</b>JPMorgan Chase</button><button data-act="toast" data-msg="This prototype only runs the JPM example."><b>AMAT</b>Applied Materials</button><button data-act="toast" data-msg="This prototype only runs the JPM example."><b>APP</b>AppLovin</button><button data-act="company" data-tk="AAPL"><b>AAPL</b>Apple Inc. (report from 5 Nov)</button></div></div>` +
+    `<div class="notice"><b>General research, not personalised investment advice.</b> Code makes every number; your Claude Code writes the cited narrative.</div></div>`;
+  const ring = `<section class="p glass" style="display:grid;place-items:center;padding:18px"><div style="position:relative;width:250px;height:250px">${ringSteps(250, st.run === 'done' ? 14 : st.step, st.run === 'done' ? -1 : st.step, st.run === 'stopped')}` +
+    `<div style="position:absolute;inset:0;display:grid;place-content:center;text-align:center;gap:2px"><b style="font:600 40px var(--num)">${st.run === 'done' ? '14' : st.step + 1}<span style="font-size:18px;color:var(--muted)"> / 14</span></b><span style="color:${st.run === 'stopped' ? 'var(--down)' : 'var(--accent)'};max-width:170px">${st.run === 'done' ? 'Report ready' : STEPS[st.step]}</span></div></div></section>`;
+  const phases = `<div class="phases">` + PHASES.map(([n, a, b]) => {
+    const done = st.run === 'done' ? b - a : Math.max(0, Math.min(b, st.step) - a), cls = done >= b - a ? 'd' : st.step >= a && st.step < b ? (st.run === 'stopped' ? 'x' : 'r') : '';
+    return `<div class="phase ${cls}"><b>${n}</b><span>steps ${a + 1}–${b}, ${cls === 'd' ? 'done' : cls === 'r' ? 'running' : cls === 'x' ? 'stopped' : 'waiting'}</span><div class="pb"><i style="width:${done / (b - a) * 100}%"></i></div></div>`;
+  }).join('') + `</div>`;
+  const stop = st.run === 'stopped' ? `<div class="stopbox"><div><b>Your plan’s usage limit is reached. It resets at 9:00 PM.</b><span>The run stopped at step ${st.step + 1} and keeps everything done so far. Resume picks up from step ${st.step + 1}.</span></div><button class="go" data-act="resume">Resume</button></div>` : '';
+  const stopBtn = st.run === 'running' ? `<button class="read" data-act="stop" style="justify-self:start">Show what happens if your usage runs out</button>` : '';
+  return `<div class="pagebody scroll"><div class="found"><b>JPMorgan Chase &amp; Co. (JPM), Financials.</b> Peer group: the 40 largest Financials members of the S&amp;P 500.</div>${stop}${phases}` +
+    `<div class="two" style="grid-template-columns:290px 1fr">${ring}<section class="p glass"><h4><span>Steps</span><em>about 20 minutes for a first report in a new sector</em></h4>${stepsList(st)}</section></div>${stopBtn}</div>`;
+}
+function logPage() {
+  const exRow = `<section class="p glass example"><h4><span>How a graded prediction will look</span></h4><table class="t"><tr><th>Horizon</th><th>Result</th><th class="r">vs peers</th><th>Price against the range</th></tr>` +
+    `<tr><td>3 months</td><td><span class="pill ok">hit</span></td><td class="r">+4.1%</td><td>inside the range</td></tr><tr><td>6 months</td><td><span class="pill bad">miss</span></td><td class="r">−2.7%</td><td>inside the range</td></tr><tr><td>12 months</td><td><span class="pill">not due yet</span></td><td class="r">—</td><td>—</td></tr></table></section>`;
+  const exChart = `<section class="p glass example"><h4><span>Hit rate by horizon</span></h4>` + [['3 months', 58], ['6 months', 52], ['12 months', 47]].map(([n, p]) => `<div class="bar" style="grid-template-columns:80px 1fr 44px"><span>${n}</span><div class="tr"><i style="width:${p}%"></i><span class="mid"></span></div><b>${p}%</b></div>`).join('') + `<div class="legend">Line: 50%, a coin flip.</div></section>`;
+  const exCal = `<section class="p glass example"><h4><span>Inside the 10th–90th range</span></h4><div class="donutrow"><div style="position:relative">${donut(92, 11, [[78, '#7FE3F7'], [22, 'rgba(255,255,255,.12)']], 'Example: 78% inside the range')}<b style="position:absolute;inset:0;display:grid;place-content:center;font:600 17px var(--num)">78%</b></div><div style="color:var(--muted);font-size:12.5px;line-height:1.5">A well-sized range holds about 80% of outcomes.</div></div></section>`;
+  return `<div class="pagebody scroll"><div class="notice"><b>Descriptive, not conclusive.</b> This log grades the companies you chose to look up, not the method as a whole.</div>` +
+    `<div class="three"><section class="p glass stat"><b>0</b><span>predictions logged; logging switches on once the full method is finished</span></section><section class="p glass stat"><b>2</b><span>reports so far, NVDA and AAPL</span></section><section class="p glass stat"><b>3, 6, 12</b><span>months: when each logged prediction is graded</span></section></div>` +
+    `<section class="p glass"><h4><span>Your reports</span><em>Grade what is due</em></h4><table class="t"><tr><th>Date</th><th>Company</th><th>Rating</th><th class="r">Bear</th><th class="r">Base</th><th class="r">Bull</th><th>Grades</th></tr>` +
+    `<tr><td>5 Nov 2026</td><td>NVDA</td><td><span class="pill hold">Hold</span></td><td class="r">$130.16</td><td class="r">$233.70</td><td class="r">$419.62</td><td><span class="pill">not logged yet</span></td></tr>` +
+    `<tr><td>5 Nov 2026</td><td>AAPL</td><td><span class="pill hold">Hold</span></td><td class="r">$216.34</td><td class="r">$358.41</td><td class="r">$593.78</td><td><span class="pill">not logged yet</span></td></tr></table></section>` +
+    `<div style="display:grid;grid-template-columns:1.25fr 1fr 1fr;gap:14px">${exRow}${exChart}${exCal}</div></div>`;
+}
+function settingsPage() {
+  const health = `<div class="three" style="grid-template-columns:repeat(4,1fr)">` + [['ok', 'AI tool', 'Claude Code ready'], ['ok', 'Data keys', '3 of 3 set'], ['ok', 'Storage', '15 MB of 5 GB'], ['bad', 'Other-tool skeptic', 'Off: Codex failed its check']].map(([s, n, t]) => `<section class="p glass"><h4><span>${n}</span></h4><div style="font-size:14px"><span class="dot ${s}"></span>${t}</div></section>`).join('') + `</div>`;
+  const tools = `<section class="p glass"><h4><span>AI tools</span><em>Check again</em></h4>` +
+    `<div class="tool"><span class="ic">C</span><div><b>Claude Code</b><small>2.1.317, signed in with your subscription. Lock-down check passed (full check, 4 Nov).</small></div><span class="pill ok">Ready</span></div>` +
+    `<div class="tool" style="border:0"><span class="ic">X</span><div><b>Codex</b><small>codex-cli 0.165.0. Its lock-down check failed on 5 Nov, so it isn’t used. The skeptic falls back to a fresh Claude Code session.</small></div><span class="pill bad">Not usable</span></div></section>`;
+  const keys = `<section class="p glass"><h4><span>Data keys</span><em>kept in the macOS Keychain</em></h4>` + [['Massive', 'prices'], ['FRED', 'economic data'], ['Alpha Vantage', 'not used yet']].map(([n, w]) => `<div class="field"><span>${n} <small>(${w})</small></span><span class="pill ok" style="justify-self:start">set</span><span class="act">Replace key</span></div>`).join('') + `</section>`;
+  const storage = `<section class="p glass"><h4><span>Raw downloads</span><em>cap 5 GB</em></h4><div class="stor"><i style="width:.3%"></i></div><div class="kv" style="border:0;padding:0"><span>15 MB stored</span><b>0.3% of the cap</b></div></section>`;
+  const general = `<section class="p glass"><h4><span>General</span></h4><div class="field"><span>SEC contact email</span><span class="in">l••••••••@gmail.com</span><span class="act">Change</span></div><div class="field"><span>Main AI tool</span><span class="in">Claude Code</span><span class="act">Change</span></div><div class="field"><span>Backup folder</span><span class="in">~/Tearsheet Backups</span><span class="act">Change</span></div><div class="field" style="border:0"><span>Goal 1 round</span><span class="in">1</span><span class="act">Change</span></div></section>`;
+  const leaves = `<section class="p glass"><h4><span>What leaves your Mac</span></h4><table class="t" style="font-size:12.5px"><tr><th>Service</th><th>Key</th><th>What is sent</th></tr>` +
+    [['SEC EDGAR', 'None; requests carry your email', 'Requests for the company’s and peers’ filings'], ['iShares', 'None', 'The IVV holdings file, at most once a day'], ['Massive', 'Your free key', 'The tickers researched and their peers'], ['FRED', 'Your free key', 'Requests for the listed economic series'], ['Allowed article sites', 'None', 'Page requests'], ['Claude Code', 'Your own sign-in', 'Filing and article text, the computed numbers sent with it, and draft sections']].map((r) => '<tr>' + r.map((c) => `<td>${c}</td>`).join('') + '</tr>').join('') + `</table></section>`;
+  return `<div class="pagebody scroll">${health}<div class="two" style="grid-template-columns:1fr 1fr">${tools}<div style="display:grid;gap:14px">${keys}${storage}</div></div><div class="two" style="grid-template-columns:1fr 1fr">${general}${leaves}</div></div>`;
+}
+const pageHTML = (st) => st.page === 'report' ? reportPage(st) : st.page === 'new' ? newPage(st) : st.page === 'log' ? logPage() : settingsPage();
+
+/* ---------- overlays ---------- */
+const paletteHTML = () => `<div class="scrim" data-act="close"></div><div class="palette" role="dialog" aria-label="Look up a company"><div class="pin">${ICON.search}<span>app</span><span class="caret"></span></div><ul>` +
+  `<li><button class="on" data-act="company" data-tk="AAPL"><b>AAPL</b><span>Apple Inc.</span><small>report from 5 Nov</small></button></li>` +
+  `<li><button data-act="toast" data-msg="This prototype only runs the JPM example."><b>APP</b><span>AppLovin</span><small>Communication Services, no report yet</small></button></li>` +
+  `<li><button data-act="toast" data-msg="This prototype only runs the JPM example."><b>AMAT</b><span>Applied Materials</span><small>Information Technology, no report yet</small></button></li></ul>` +
+  `<div class="ft"><span>↑ ↓ to move</span><span>Return to open, or write a new report</span><span>Esc to close</span></div></div>`;
+const flagHTML = (id) => { const c = S.flatMap((s) => s.claims).find((x) => x.id === id) || S[0].claims[0]; return `<div class="scrim" data-act="close"></div><div class="sheet" role="dialog" aria-label="Flag this claim"><b>Flag this claim</b><q>${nums(c.t)}</q><div class="ta">What looks wrong?</div><div class="row"><button data-act="close">Cancel</button><button class="pri" data-act="saveflag" data-claim="${c.id}">Save flag</button></div></div>`; };
+const toastHTML = (msg) => `<div class="toast">${msg}</div>`;
+
+/* ---------- a whole window ---------- */
+function windowHTML(st) {
+  const cls = 'g' + (st.folded ? ' folded' : '') + (st.narrow ? ' narrow' : '');
+  const kind = st.page === 'report' ? '' : ' style="flex-direction:column"';
+  return `<div class="${cls}" style="--ww:${st.w || 1280}px;--wh:${st.h || 800}px;--wt:${st.t || 0}px">${side(st)}<div class="mainarea">${toolbar(st)}<div class="content"${kind}>${pageHTML(st)}</div>` +
+    (st.overlay === 'palette' ? paletteHTML() : st.overlay === 'flag' ? flagHTML(st.claim) : '') + (st.toast ? toastHTML(st.toast) : '') + `</div></div>`;
+}
+
+/* ---------- stills ---------- */
+const base = { page: 'report', view: 'summary', run: 'idle', step: 0 };
+const STILLS = {
+  sum: { ...base }, full: { ...base, view: 'full' }, palette: { ...base, overlay: 'palette' }, flag: { ...base, view: 'full', overlay: 'flag', claim: 'business.3' },
+  new: { ...base, page: 'new' }, run: { ...base, page: 'new', run: 'running', step: 8 }, stop: { ...base, page: 'new', run: 'stopped', step: 10 },
+  log: { ...base, page: 'log' }, settings: { ...base, page: 'settings' }, folded: { ...base, view: 'full', folded: true }, narrow: { ...base, folded: true, narrow: true, w: 860 }
+};
+document.querySelectorAll('.stage[data-s]').forEach((el) => { el.innerHTML = windowHTML(STILLS[el.dataset.s]); });
+
+/* ---------- the live window ---------- */
+const live = document.getElementById('live');
+const L = { page: 'report', view: 'summary', run: 'idle', step: 0, folded: false, overlay: null, toast: null, t: 26, h: 774 };
+let timer = null, toastTimer = null;
+const MENUS = {
+  File: [['New report', '⌘N', 'page:new'], ['Look up a company…', '⌘K', 'palette'], null, ['Close window', '⌘W', 'toast:In the app this closes the window.']],
+  View: [['Summary', '⌘1', 'view:summary'], ['Full report', '⌘2', 'view:full'], null, ['Show or hide the sidebar', '⌃⌘S', 'fold']],
+  Report: [['Previous company', '⌘[', 'toast:Moves to the company above in the sidebar.'], ['Next company', '⌘]', 'toast:Moves to the company below in the sidebar.'], null, ['Find in report…', '⌘F', 'toast:Opens a find bar over the report.'], ['Flag a claim…', '', 'flag:business.1']],
+  Go: [['Reports', '', 'page:report'], ['Prediction log', '', 'page:log'], ['Settings', '⌘,', 'page:settings']]
+};
+const menubar = () => `<div class="menubar"><button class="app">Tearsheet</button>` + Object.keys(MENUS).map((m) => `<button data-menu="${m}">${m}</button>`).join('') + `<button>Window</button><button>Help</button><span class="clock">Thu 5 Nov 6:30 PM</span></div>`;
+function renderLive(anim) {
+  live.innerHTML = menubar() + windowHTML(L);
+  const w = live.querySelector('.g');
+  if (anim === 'open') w.classList.add('play');
+  if (anim === 'view') w.querySelector('.textcol')?.classList.add('enter-x');
+  if (anim === 'page') w.querySelector('.content')?.classList.add(L.page === 'report' ? 'play' : 'enter-p');
+}
+function toast(msg) {
+  L.toast = msg; clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { L.toast = null; const t = live.querySelector('.toast'); if (t) t.remove(); }, 3200);
+}
+function startRun() {
+  L.page = 'new'; L.run = 'running'; L.step = 0; clearInterval(timer);
+  timer = setInterval(() => {
+    if (L.run !== 'running') return clearInterval(timer);
+    L.step++;
+    if (L.step >= 14) { L.run = 'done'; L.step = 14; clearInterval(timer); toast('<b>The JPM report is ready.</b><span>In the app it opens here. This run was a simulation.</span>'); }
+    const sc = live.querySelector('.pagebody')?.scrollTop || 0;
+    renderLive(); const pb = live.querySelector('.pagebody'); if (pb) pb.scrollTop = sc;
+  }, 1100);
+}
+function act(a, el) {
+  const [kind, arg] = a.split(':');
+  if (kind === 'fold') { L.folded = !L.folded; live.querySelector('.g').classList.toggle('folded', L.folded); return; }
+  if (kind === 'view') { if (L.page !== 'report') { L.page = 'report'; } L.view = arg; L.overlay = null; renderLive('view'); return; }
+  if (kind === 'page') { L.page = arg; L.overlay = null; if (arg === 'new' && L.run !== 'running') { L.run = 'idle'; L.step = 0; } renderLive('page'); return; }
+  if (kind === 'palette') { L.overlay = 'palette'; renderLive(); return; }
+  if (kind === 'close') { L.overlay = null; renderLive(); return; }
+  if (kind === 'flag') { L.overlay = 'flag'; L.claim = arg; renderLive(); return; }
+  if (kind === 'saveflag') { L.overlay = null; toast(`<b>Flagged ${arg}.</b><span>Resolve it in the next spot-check.</span>`); renderLive(); return; }
+  if (kind === 'toast') { L.overlay = null; toast(arg); renderLive(); return; }
+  if (kind === 'company') { L.overlay = null; if (arg === 'NVDA') { L.page = 'report'; renderLive('page'); } else { toast(`<b>${arg} would open here.</b><span>This prototype holds only the NVIDIA report.</span>`); renderLive(); } return; }
+  if (kind === 'start') { startRun(); renderLive('page'); return; }
+  if (kind === 'cancel') { L.run = 'idle'; L.step = 0; clearInterval(timer); toast('<b>Run cancelled.</b><span>Nothing was saved.</span>'); renderLive('page'); return; }
+  if (kind === 'stop') { L.run = 'stopped'; L.step = Math.max(L.step, 10); clearInterval(timer); renderLive(); return; }
+  if (kind === 'resume') { L.run = 'running'; clearInterval(timer); const s = L.step; startRun(); L.step = s; renderLive(); return; }
+  if (kind === 'section') { if (L.view !== 'full') { L.view = 'full'; renderLive('view'); } const t = live.querySelector('#s-' + arg), sc = live.querySelector('.tscroll'); if (t && sc) { const k = live.getBoundingClientRect().width / 1280; sc.scrollBy({ top: (t.getBoundingClientRect().top - sc.getBoundingClientRect().top) / k - 8, behavior: 'smooth' }); } return; }
+}
+live.addEventListener('click', (e) => {
+  const m = e.target.closest('[data-menu]');
+  const open = live.querySelector('.menu');
+  if (open) { open.remove(); live.querySelectorAll('.menubar .open').forEach((b) => b.classList.remove('open')); if (m && m.classList.contains('was')) return; }
+  if (m) {
+    m.classList.add('open');
+    const box = document.createElement('div'); box.className = 'menu'; box.style.left = (m.offsetLeft) + 'px';
+    box.innerHTML = MENUS[m.dataset.menu].map((it) => it ? `<button data-mact="${it[2]}">${it[0]}<kbd>${it[1]}</kbd></button>` : '<hr>').join('');
+    live.appendChild(box); return;
+  }
+  const mi = e.target.closest('[data-mact]');
+  if (mi) { act(mi.dataset.mact); return; }
+  const b = e.target.closest('[data-act]');
+  if (!b) return;
+  if (b.dataset.act === 'chip') { const q = live.querySelector('#' + b.dataset.q); if (q) { q.hidden = !q.hidden; b.classList.toggle('on', !q.hidden); } return; }
+  const map = { page: 'page:' + b.dataset.page, view: 'view:' + b.dataset.view, flag: 'flag:' + b.dataset.claim, saveflag: 'saveflag:' + b.dataset.claim, toast: 'toast:' + (b.dataset.msg || ''), company: 'company:' + b.dataset.tk, section: 'section:' + b.dataset.sec };
+  act(map[b.dataset.act] || b.dataset.act);
+});
+// The stills' source chips open and close too.
+document.querySelectorAll('.stage[data-s]').forEach((el) => el.addEventListener('click', (e) => {
+  const b = e.target.closest('.chip'); if (!b) return;
+  const q = el.querySelector('#' + b.dataset.q); if (q) { q.hidden = !q.hidden; b.classList.toggle('on', !q.hidden); }
+}));
+// Shortcuts act only while the prototype has focus, like an app in front.
+live.addEventListener('keydown', (e) => {
+  const mod = e.metaKey || e.ctrlKey;
+  if (e.key === 'Escape') { if (L.overlay) act('close'); const m = live.querySelector('.menu'); if (m) m.remove(); return; }
+  if (!mod) return;
+  const k = e.key.toLowerCase();
+  if (k === 'k') { e.preventDefault(); act('palette'); }
+  else if (k === '1') { e.preventDefault(); act('view:summary'); }
+  else if (k === '2') { e.preventDefault(); act('view:full'); }
+  else if (k === 's' && e.ctrlKey && e.metaKey) { e.preventDefault(); act('fold'); }
+  else if (k === ',') { e.preventDefault(); act('page:settings'); }
+});
+live.addEventListener('mousedown', () => live.focus({ preventScroll: true }));
+renderLive();
+document.getElementById('replay').addEventListener('click', () => { L.page = 'report'; L.overlay = null; renderLive('open'); });
+
+/* ---------- play the opening motion when a window scrolls into view; scale windows to fit ---------- */
+const io = 'IntersectionObserver' in window ? new IntersectionObserver((entries) => entries.forEach((en) => {
+  if (en.isIntersecting) { en.target.querySelectorAll('.g').forEach((w) => w.classList.add('play')); io.unobserve(en.target); }
+}), { threshold: 0.25 }) : null;
+document.querySelectorAll('.fit').forEach((f) => {
+  const sizer = document.createElement('div'); sizer.className = 'sizer';
+  sizer.appendChild(f.querySelector('.stage')); f.appendChild(sizer);
+  if (io) io.observe(f);
+});
+function fit() {
+  document.querySelectorAll('.fit').forEach((f) => {
+    const sizer = f.querySelector('.sizer'), st = f.querySelector('.stage');
+    const s = Math.min(1, Math.max(0.56, f.clientWidth / 1280));
+    st.style.transform = 'scale(' + s + ')'; sizer.style.width = 1280 * s + 'px'; sizer.style.height = 800 * s + 'px';
+    f.classList.toggle('wide', 1280 * s > f.clientWidth + 1);
+  });
+}
+fit();
+addEventListener('resize', fit);
+</script>
+</body>
+</html>

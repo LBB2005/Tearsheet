@@ -1,0 +1,1045 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tearsheet opening and setup</title>
+<style>
+:root {
+  --bg: #0A0D14; --surface: #141923; --ink: #E8EDF3; --muted: #97A3B3; --line: #28303C; --accent: #7FE3F7;
+  --font-ui: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+  color-scheme: dark;
+}
+html, body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 var(--font-ui); }
+.page { max-width: 1320px; margin: 0 auto; padding: 32px 20px 72px; display: flex; flex-direction: column; gap: 16px; }
+.intro h1 { font-size: 28px; line-height: 1.2; margin: 0 0 10px; text-wrap: balance; }
+.intro p { margin: 0 0 8px; max-width: 84ch; color: var(--muted); }
+.intro ul { margin: 4px 0 12px; padding-left: 20px; color: var(--muted); max-width: 96ch; }
+.intro li { margin: 2px 0; } .intro li b, .intro p b { color: var(--ink); font-weight: 600; }
+.try { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 22px; margin: 4px 0 0; padding: 0; list-style: none; font-size: 14px; color: var(--muted); }
+.try b { color: var(--ink); font-weight: 600; }
+h2.sec { font-size: 22px; margin: 30px 0 0; }
+h3.mo { font-size: 18px; margin: 30px 0 0; }
+.itx { margin: 0; color: var(--muted); max-width: 92ch; }
+.ctrls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.ctrls button, .tool { font: 13px var(--font-ui); color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 7px; padding: 5px 11px; cursor: pointer; }
+.ctrls button.on { border-color: var(--accent); color: var(--accent); }
+.ctrls button:focus-visible, .tool:focus-visible, .jump a:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.ctrls .lab { color: var(--muted); font-size: 13px; margin-right: 2px; }
+.ctrls .sep { width: 1px; height: 22px; background: var(--line); margin: 0 4px; }
+.fit { position: relative; overflow: hidden; border-radius: 14px; box-shadow: 0 0 0 1px #242B36, 0 18px 44px rgba(0,0,0,.5); background: #141826; }
+.stage { width: 1280px; height: 800px; transform-origin: top left; position: absolute; left: 0; top: 0; overflow: hidden;
+  background: radial-gradient(900px 640px at 12% 18%, #2C5EA8 0%, transparent 60%), radial-gradient(900px 700px at 88% 80%, #7A3FA8 0%, transparent 60%), radial-gradient(600px 420px at 62% 6%, #C9743A 0%, transparent 60%), #141826; }
+.gw { position: absolute; inset: 0; }
+.grid4 { display: grid; grid-template-columns: 1fr 1fr; gap: 22px 18px; }
+.grid4 figure { margin: 0; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.grid4 figure.big { grid-column: 1 / 3; }
+figcaption { display: flex; align-items: center; gap: 10px; font-size: 14px; flex-wrap: wrap; }
+figcaption b { font-weight: 600; } figcaption span { color: var(--muted); }
+figcaption .tool:first-of-type { margin-left: auto; }
+.mohead { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+.mohead .tool { margin-left: auto; }
+.jump { display: flex; flex-wrap: wrap; gap: 6px; }
+.jump a { color: var(--ink); text-decoration: none; font-size: 13px; border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 3px 11px; }
+.jump a:hover { border-color: var(--accent); }
+.styles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.styles div { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; font-size: 14px; color: var(--muted); }
+.styles b { display: block; color: var(--ink); font-size: 15px; margin-bottom: 2px; }
+.flow { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px 14px 10px; overflow-x: auto; }
+.flow svg { width: 100%; min-width: 980px; height: auto; display: block; font-family: var(--font-ui); }
+.flow .fx-b rect { fill: #0F141E; stroke: #2E3948; }
+.flow .fx-b.hl rect { stroke: rgba(127,227,247,.55); }
+.flow .fx-b.nt rect { fill: rgba(255,197,107,.06); stroke: rgba(255,197,107,.35); }
+.flow .t1 { fill: #E8EDF3; font-size: 14px; font-weight: 600; }
+.flow .t2 { fill: #97A3B3; font-size: 12.5px; }
+.flow .fx-a { stroke: #53637A; stroke-width: 1.5; fill: none; }
+.flow .fx-a.alt { stroke-dasharray: 4 4; }
+.flow .lane { fill: #97A3B3; font-size: 13px; font-weight: 600; }
+.flow .bar { fill: rgba(127,227,247,.22); }
+.flow .bl { fill: #7FE3F7; font-size: 12.5px; }
+.flow .al { fill: #97A3B3; font-size: 12px; }
+.outro { color: var(--muted); max-width: 84ch; margin-top: 22px; } .outro b { color: var(--ink); }
+.rm { display: none; background: #2a2312; border: 1px solid #6b5520; color: #f3dca6; border-radius: 10px; padding: 10px 14px; font-size: 14px; align-items: center; gap: 12px; }
+.rm.show { display: flex; }
+@media (max-width: 860px) { .grid4 { grid-template-columns: 1fr; } .grid4 figure.big { grid-column: auto; } .styles, .try { grid-template-columns: 1fr 1fr; } }
+
+/* the pretend pointer in the small windows */
+.cur { position: absolute; left: 0; top: 0; width: 22px; height: 22px; z-index: 60; pointer-events: none; opacity: 0; transform: translate(980px, 690px); transition: transform .6s cubic-bezier(.3,.7,.2,1), opacity .3s; }
+.cur svg { width: 22px; height: 22px; filter: drop-shadow(0 2px 3px rgba(0,0,0,.5)); transition: transform .12s; transform-origin: 4px 3px; }
+.cur.on { opacity: 1; } .cur.down svg { transform: scale(.8); }
+
+/* ================= the window ================= */
+.g { --panel: rgba(255,255,255,.045); --line: rgba(255,255,255,.085); --track: rgba(255,255,255,.08); --chipline: rgba(127,227,247,.30);
+  --text: #EAF1F7; --muted: #92A4B6; --accent: #7FE3F7; --accent2: #8FA2FF; --hold: #FFC56B; --up: #63DFA5; --down: #FF7F8A;
+  --ui: "Avenir Next", "Helvetica Neue", sans-serif; --mono: "SF Mono", ui-monospace, Menlo, monospace; --r: 14px;
+  position: absolute; inset: 0; display: flex; overflow: hidden; border-radius: 12px; isolation: isolate; background: #0A0D14; color: var(--text); font: 13px/1.45 var(--ui);
+  font-variant-numeric: tabular-nums; text-align: left; box-shadow: 0 0 0 1px rgba(255,255,255,.10), 0 24px 60px rgba(0,0,0,.45); }
+.g * { box-sizing: border-box; }
+.g button { font-family: inherit; }
+.wl { position: absolute; z-index: 40; top: 20px; left: 18px; display: flex; gap: 8px; pointer-events: none; }
+.wl i { width: 12px; height: 12px; border-radius: 50%; display: block; }
+.wl i:nth-child(1) { background: #FF5F57; } .wl i:nth-child(2) { background: #FEBC2E; } .wl i:nth-child(3) { background: #28C840; }
+.sbt { all: unset; position: absolute; z-index: 40; top: 13px; left: 88px; width: 30px; height: 26px; border-radius: 7px; display: grid; place-items: center; cursor: pointer; color: #8C99A8; }
+.sbt:hover { background: rgba(255,255,255,.07); color: var(--text); }
+.sbt svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.6; }
+
+/* the Claude-style sidebar */
+.side4 { width: 232px; flex: none; height: 100%; overflow: hidden; background: rgba(10,13,20,.97); border-right: 1px solid rgba(255,255,255,.06); position: relative; z-index: 2; }
+.side4 .in { width: 232px; height: 100%; display: flex; flex-direction: column; padding: 54px 10px 12px; gap: 1px; }
+.row4 { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 10px; width: 100%; padding: 7px 10px; border-radius: 8px; color: #C3CDD8; cursor: pointer; font-size: 13.5px; }
+.row4:hover { background: rgba(255,255,255,.045); color: var(--text); }
+.row4.on { background: rgba(255,255,255,.085); color: var(--text); }
+.row4:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.row4 svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.6; opacity: .85; flex: none; }
+.row4 kbd { margin-left: auto; font: 11px var(--ui); color: #67768A; }
+.row4 b { font-weight: 600; letter-spacing: .4px; }
+.row4 .px { margin-left: auto; font: 12.5px var(--ui); color: #7C8A9A; }
+.lbl4 { font: 500 11.5px var(--ui); color: #67768A; padding: 16px 10px 5px; }
+.side4 .empty { padding: 4px 10px; color: #5D6B7D; font-size: 12.5px; }
+.grow4 { flex: 1; }
+.status4 { margin-top: 8px; padding: 10px 10px 0; font-size: 12px; color: #7C8A9A; border-top: 1px solid rgba(255,255,255,.06); display: grid; grid-template-columns: 10px 1fr; column-gap: 7px; row-gap: 6px; align-items: center; }
+.status4 > i { width: 7px; height: 7px; border-radius: 50%; background: var(--up); }
+.status4.run > i { background: var(--accent); animation: pulse 1.4s ease-in-out infinite; }
+.status4.stop > i { background: var(--down); } .status4.stop span { color: #FFB3BA; }
+.status4 .pb { grid-column: 2; height: 3px; border-radius: 2px; background: rgba(255,255,255,.08); position: relative; overflow: hidden; }
+.status4 .pb i { position: absolute; inset: 0 auto 0 0; background: var(--accent); border-radius: 2px; transition: width .5s cubic-bezier(.3,.7,.2,1); }
+
+/* the main area: painted dark glass */
+.mainarea { flex: 1; min-width: 0; display: flex; flex-direction: column; position: relative; overflow: hidden;
+  background: radial-gradient(620px 440px at 20% 0%, rgba(32,120,150,.20), transparent 70%), radial-gradient(720px 520px at 92% 30%, rgba(70,60,170,.18), transparent 70%), radial-gradient(520px 420px at 55% 112%, rgba(20,90,120,.16), transparent 70%), #070B14; }
+.glow { position: absolute; width: 1000px; height: 1000px; margin: -500px 0 0 -500px; border-radius: 50%; left: var(--tx); top: var(--ty); pointer-events: none; z-index: 0; display: none;
+  background: radial-gradient(closest-side, rgba(80,170,230,.17), rgba(80,170,230,.05) 55%, transparent); }
+.fb .glow { display: block; }
+.top { height: 52px; flex: none; display: flex; align-items: center; gap: 12px; padding: 0 16px 0 20px; position: relative; z-index: 4; }
+.setup .top { justify-content: center; padding: 0 120px; }
+.sc-run .top { border-bottom: 1px solid var(--line); }
+.top .ttl { margin-right: auto; font: 600 14.5px/1.2 var(--ui); } .top .ttl small { display: block; font: 12px var(--ui); color: var(--muted); white-space: nowrap; }
+.screen { flex: 1; min-height: 0; position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0 60px 60px; }
+
+/* setup progress and the safety-check chip */
+.prog { display: flex; gap: 24px; font-size: 12.5px; color: var(--muted); }
+.prog span { position: relative; padding: 4px 0; display: flex; align-items: center; gap: 6px; }
+.prog span::after { content: ""; position: absolute; left: 0; right: 0; bottom: -2px; height: 2px; border-radius: 1px; background: rgba(255,255,255,.08); }
+.prog span.on { color: var(--text); } .prog span.on::after { background: var(--accent); }
+.prog span.done { color: #B5C2CF; } .prog span.done::after { background: rgba(127,227,247,.35); }
+.prog span svg { width: 12px; height: 12px; stroke: var(--up); fill: none; stroke-width: 2.6; }
+.chip { all: unset; position: absolute; right: 16px; top: 13px; display: flex; align-items: center; gap: 8px; height: 26px; padding: 0 11px 0 5px; border-radius: 999px; background: rgba(255,255,255,.05); border: 1px solid var(--line); font-size: 12px; color: #C3CDD8; cursor: pointer; white-space: nowrap; }
+.chip:hover { background: rgba(255,255,255,.08); } .chip:focus-visible { outline: 2px solid var(--accent); }
+.chip .ring { width: 18px; height: 18px; }
+.chip .okdot { width: 18px; display: grid; place-items: center; } .chip .okdot svg { width: 13px; height: 13px; stroke: var(--up); fill: none; stroke-width: 2.6; }
+.ring .rt { stroke: var(--track); fill: none; }
+.ring .rf { stroke: var(--accent); fill: none; stroke-linecap: round; transition: stroke-dashoffset .6s cubic-bezier(.3,.7,.2,1); }
+
+/* page parts */
+.col { width: 620px; max-width: 100%; display: flex; flex-direction: column; align-items: flex-start; gap: 14px; }
+.col.wide { width: 820px; }
+.col.center { align-items: center; text-align: center; }
+.h1 { margin: 0; font: 600 30px/1.15 var(--ui); letter-spacing: -.2px; display: flex; align-items: center; gap: 12px; }
+.h1.xl { font-size: 44px; letter-spacing: -.4px; }
+.lead { margin: 0; font-size: 15px; line-height: 1.5; color: var(--muted); max-width: 58ch; }
+.lead b { color: var(--text); font-weight: 600; }
+.lead.small { font-size: 14px; }
+.fine { margin: 0; font-size: 12.5px; color: var(--muted); }
+.row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.btn { all: unset; cursor: pointer; border-radius: 10px; padding: 9px 18px; font: 600 14px var(--ui); background: var(--accent); color: #05222B; transition: transform .12s, filter .15s, opacity .2s; }
+.btn:hover { filter: brightness(1.07); } .btn.big { padding: 11px 24px; font-size: 15px; }
+.btn2 { all: unset; cursor: pointer; border-radius: 9px; padding: 7px 13px; font: 500 13px var(--ui); background: rgba(127,227,247,.10); color: var(--accent); border: 1px solid var(--chipline); display: inline-flex; align-items: center; gap: 7px; transition: transform .12s, background .15s; white-space: nowrap; }
+.btn2:hover { background: rgba(127,227,247,.18); }
+.btn2 svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 2; }
+.btn3 { all: unset; cursor: pointer; color: var(--muted); font-size: 13.5px; padding: 6px 4px; border-radius: 6px; }
+.btn3:hover { color: var(--text); } .btn3.small { font-size: 12.5px; }
+.g .press { transform: scale(.95); filter: brightness(1.18); }
+.btn.dis, .btn2.dis { opacity: .35; pointer-events: none; }
+.g button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.card { width: 100%; position: relative; overflow: hidden; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 15px 18px; text-align: left; display: flex; flex-direction: column; gap: 9px; transition: opacity .35s, border-color .35s; }
+.card.later { opacity: .5; }
+.card.done { border-color: rgba(99,223,165,.28); }
+.card h4 { margin: 0; font: 600 14.5px var(--ui); display: flex; align-items: center; gap: 10px; }
+.card p { margin: 0; color: var(--muted); font-size: 13.5px; }
+.tr { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.tr rect { x: .75px; y: .75px; width: calc(100% - 1.5px); height: calc(100% - 1.5px); rx: 13px; fill: none; stroke: none; }
+.n { width: 22px; height: 22px; flex: none; border-radius: 50%; border: 1px solid var(--chipline); color: var(--accent); font: 600 12px var(--ui); display: grid; place-items: center; }
+.n svg { width: 12px; height: 12px; stroke: var(--up); fill: none; stroke-width: 2.8; }
+.done .n { border-color: rgba(99,223,165,.45); }
+.code { display: flex; align-items: center; gap: 10px; background: rgba(0,0,0,.35); border: 1px solid var(--line); border-radius: 10px; padding: 6px 6px 6px 14px; font: 13px var(--mono); color: #D6F6FD; min-height: 40px; }
+.code span { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cbtn { all: unset; cursor: pointer; font: 500 12px var(--ui); color: var(--text); background: rgba(255,255,255,.08); border-radius: 7px; padding: 5px 11px; transition: transform .12s; }
+.cbtn:hover { background: rgba(255,255,255,.14); }
+.st { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); min-height: 20px; }
+.st.ok { color: var(--up); } .st.bad { color: var(--down); }
+.st svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 2.4; flex: none; }
+.sp { width: 13px; height: 13px; border-radius: 50%; border: 2px solid rgba(127,227,247,.25); border-top-color: var(--accent); animation: spin .9s linear infinite; flex: none; display: inline-block; }
+.field { display: flex; gap: 8px; width: 100%; }
+.field input { flex: 1; min-width: 0; background: rgba(0,0,0,.3); border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; color: var(--text); font: 14px var(--mono); outline: none; transition: border-color .2s, box-shadow .2s; }
+.field input:focus, .field input.focus { border-color: var(--chipline); box-shadow: 0 0 0 3px rgba(127,227,247,.12); }
+.field input::placeholder { color: #5D6B7D; font-family: var(--ui); }
+.pill { font: 600 11.5px var(--ui); color: var(--accent2); border: 1px solid rgba(143,162,255,.35); border-radius: 999px; padding: 2px 9px; }
+.note { margin: 0; font-size: 12.5px; color: #B9C4FF; background: rgba(143,162,255,.08); border: 1px solid rgba(143,162,255,.25); border-radius: 10px; padding: 7px 11px; }
+.skipnote { margin: 0; font-size: 13px; color: var(--hold); background: rgba(255,197,107,.07); border: 1px solid rgba(255,197,107,.22); border-radius: 10px; padding: 8px 12px; }
+
+/* 1. first open */
+.wel { gap: 16px; }
+.mark svg { width: 64px; height: 64px; display: block; }
+.mark .mbg { fill: rgba(127,227,247,.07); stroke: rgba(127,227,247,.4); stroke-width: 1.5; }
+.mark .ml { stroke: #5E6F84; stroke-width: 3; stroke-linecap: round; fill: none; }
+.mark .mp { fill: none; stroke: var(--accent); stroke-width: 3.2; stroke-linecap: round; stroke-linejoin: round; }
+.trio { display: flex; flex-direction: column; gap: 7px; margin: 2px 0 6px; color: #C3CDD8; font-size: 14.5px; }
+.trio div { display: flex; align-items: center; gap: 10px; justify-content: center; }
+.dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex: none; }
+
+/* 2. how it works */
+.dia { position: relative; width: 820px; height: 300px; }
+.dl { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.dl path { fill: none; stroke: rgba(127,227,247,.38); stroke-width: 1.5; }
+.dl path.mv-l2 { stroke: var(--accent); stroke-width: 2.4; stroke-linecap: round; stroke-dasharray: .06 .94; display: none; opacity: 0; }
+.anc { position: absolute; height: 0; display: flex; align-items: center; }
+.nd { position: relative; overflow: hidden; width: 210px; padding: 11px 14px; border-radius: var(--r); background: rgba(14,20,32,.94); border: 1px solid var(--line); display: flex; flex-direction: column; gap: 2px; }
+.nd b { font: 600 14px var(--ui); } .nd span { font-size: 12.5px; color: var(--muted); line-height: 1.35; }
+.nd.hub { width: 240px; border-color: rgba(127,227,247,.38); background: rgba(16,28,40,.96); padding: 14px 16px; }
+.leaves { flex-direction: row; align-items: baseline; gap: 14px; padding: 12px 16px; }
+.leaves b { white-space: nowrap; font-weight: 600; } .leaves span { color: var(--muted); font-size: 13.5px; }
+
+/* 3. looking for the AI tool */
+.scan { position: relative; width: 124px; height: 124px; display: grid; place-items: center; margin: 4px 0 6px; }
+.scan > * { grid-area: 1 / 1; }
+.scan .glyph { width: 66px; height: 66px; border-radius: 18px; background: rgba(255,255,255,.06); border: 1px solid var(--line); display: grid; place-items: center; position: relative; z-index: 2; transition: opacity .4s; }
+.scan .glyph svg { width: 30px; height: 30px; stroke: var(--accent); fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.scan.off .glyph { opacity: .6; }
+.scan.off .glyph::after { content: "+"; position: absolute; right: -9px; bottom: -9px; width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: #05222B; font: 700 16px/22px var(--ui); text-align: center; }
+.scan .dots, .scan .sw, .scan .tc, .scan .rp { display: none; }
+.fa .scan.on .dots { display: flex; gap: 6px; align-self: end; margin-bottom: -6px; }
+.dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: dotp 1.2s ease-in-out infinite; animation-delay: calc(var(--k) * .16s); }
+.fb .scan.on .sw { display: block; width: 116px; height: 116px; border-radius: 50%; background: conic-gradient(from 0deg, transparent 0 60%, rgba(127,227,247,.5) 100%);
+  -webkit-mask: radial-gradient(circle, transparent 51%, #000 52%); mask: radial-gradient(circle, transparent 51%, #000 52%); animation: spin 1.5s linear infinite; filter: blur(1px); }
+.fc .scan .tc { display: block; width: 124px; height: 124px; }
+.tc circle { fill: none; stroke-width: 2; } .tc .tcb { stroke: rgba(255,255,255,.07); }
+.tc .tcf { stroke: var(--accent); stroke-dasharray: .2 .8; stroke-linecap: round; }
+.fc .scan.on .tcf { animation: tcrun 1.3s linear infinite; }
+.fc .scan.off .tcf { stroke-dasharray: 1 0; stroke: rgba(255,255,255,.12); }
+.fd .scan.on .rp { display: block; width: 66px; height: 66px; border-radius: 18px; border: 1.5px solid rgba(127,227,247,.55); animation: ripple 1.8s cubic-bezier(.2,.6,.3,1) infinite; animation-delay: calc(var(--k) * .6s); }
+
+/* 4. install */
+.card.later .code { opacity: .7; }
+
+/* 5. connected */
+.okmark svg { width: 76px; height: 76px; display: block; }
+.okmark circle { fill: rgba(99,223,165,.10); stroke: rgba(99,223,165,.5); stroke-width: 1.5; }
+.okmark path { fill: none; stroke: var(--up); stroke-width: 3.4; stroke-linecap: round; stroke-linejoin: round; }
+.facts { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.facts span { font-size: 12.5px; color: #C3CDD8; background: rgba(255,255,255,.05); border: 1px solid var(--line); border-radius: 999px; padding: 3px 11px; }
+.bigring { position: relative; width: 132px; height: 132px; margin-top: 6px; }
+.bigring .ring { width: 132px; height: 132px; display: block; }
+.bigring .bt { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
+.bigring .bt b { font: 600 30px/1 var(--ui); } .bigring .bt small { color: var(--muted); font-size: 12px; }
+.dockline { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 30; overflow: visible; }
+.dockline path { fill: none; stroke: var(--accent); stroke-width: 1.6; stroke-dasharray: 1; stroke-dashoffset: 0; opacity: 0; }
+
+/* 9. ready */
+.chk { padding: 4px 18px; gap: 0; }
+.ci { display: grid; grid-template-columns: 28px 150px 1fr; align-items: center; padding: 11px 0; border-top: 1px solid var(--line); font-size: 14px; }
+.chk > .ci:first-of-type { border-top: 0; }
+.ci .ic { display: grid; place-items: start; }
+.ci .ic svg { width: 17px; height: 17px; stroke: var(--up); fill: none; stroke-width: 2.4; }
+.ci .ic .ring { width: 18px; height: 18px; }
+.ci .ic.skip i { display: block; width: 12px; height: 2px; background: var(--hold); border-radius: 1px; margin: 0 0 0 3px; }
+.ci b { font-weight: 600; } .ci span { color: var(--muted); }
+
+/* home */
+.home { width: 680px; display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; margin-top: -30px; }
+.hello { color: var(--muted); font-size: 15px; }
+.bigq { position: relative; width: 100%; display: flex; align-items: center; gap: 12px; height: 58px; padding: 0 16px 0 18px; border-radius: 16px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); box-shadow: 0 10px 40px rgba(0,0,0,.35); text-align: left; z-index: 5; transition: border-color .2s; }
+.bigq.focus, .bigq:focus-within { border-color: var(--chipline); }
+.bigq > svg { width: 19px; height: 19px; stroke: var(--muted); fill: none; stroke-width: 2; flex: none; }
+.bigq input { flex: 1; min-width: 0; background: none; border: 0; outline: none; color: var(--text); font: 17px var(--ui); padding: 0; }
+.bigq input::placeholder { color: #5D6B7D; }
+.bigq kbd { font: 11.5px var(--ui); color: #67768A; border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; }
+.dd { position: absolute; left: -1px; right: -1px; top: 64px; border-radius: 14px; background: rgba(16,21,32,.985); border: 1px solid rgba(255,255,255,.12); box-shadow: 0 20px 50px rgba(0,0,0,.5); padding: 6px; display: none; }
+.dd.show { display: block; animation: ddIn .18s ease-out backwards; }
+.ddr { all: unset; box-sizing: border-box; width: 100%; display: grid; grid-template-columns: 64px 1fr auto; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 10px; cursor: pointer; transition: background .12s, transform .12s; }
+.ddr.on, .ddr:hover { background: rgba(127,227,247,.10); }
+.ddr b { font: 600 14px var(--ui); color: var(--accent); letter-spacing: .4px; }
+.ddr span { font-size: 14px; } .ddr span small { color: var(--muted); font-size: 12px; margin-left: 8px; }
+.ddr em { font-style: normal; font-size: 12px; color: var(--muted); }
+.dd .ft { padding: 7px 12px 3px; font-size: 11.5px; color: #67768A; border-top: 1px solid var(--line); margin-top: 4px; }
+.dd .none { padding: 12px; color: var(--muted); font-size: 13px; }
+.sugg { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center; font-size: 13px; color: var(--muted); }
+.sugg > span { margin-right: 2px; }
+.sg { all: unset; cursor: pointer; padding: 5px 12px; border-radius: 999px; border: 1px solid var(--line); background: rgba(255,255,255,.035); color: #C3CDD8; font-size: 13px; transition: background .15s, transform .12s; }
+.sg:hover { background: rgba(255,255,255,.08); color: var(--text); }
+.sg b { font-weight: 600; letter-spacing: .3px; margin-right: 7px; } .sg em { font-style: normal; color: var(--muted); }
+.since { margin-top: 12px; padding: 12px 16px 6px; gap: 0; }
+.since h4 { font: 500 12px var(--ui); color: var(--muted); margin-bottom: 2px; }
+.sr { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-top: 1px solid var(--line); font-size: 13.5px; color: #C3CDD8; text-align: left; }
+.since h4 + .sr { border-top: 0; }
+.sr > i { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+.sr .btn2 { margin-left: auto; padding: 4px 10px; font-size: 12px; }
+.alert { flex-direction: row; align-items: center; gap: 14px; border-color: rgba(255,127,138,.35); background: rgba(255,127,138,.07); margin-bottom: 12px; }
+.alert div { flex: 1; } .alert b { color: #FFC2C8; display: block; font-weight: 600; } .alert span { color: var(--muted); font-size: 13px; }
+
+/* the report run */
+.runv { width: 900px; display: grid; grid-template-columns: 210px 1fr; gap: 40px; align-items: start; }
+.segring { width: 200px; height: 200px; position: relative; margin-top: 30px; }
+.segring svg { width: 200px; height: 200px; display: block; }
+.segring path { fill: none; stroke-width: 10; }
+.segring path.w { stroke: rgba(255,255,255,.08); } .segring path.d { stroke: rgba(127,227,247,.55); } .segring path.now { stroke: var(--accent); animation: pulse 1.4s ease-in-out infinite; }
+.segring .rc { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
+.segring .rc b { font: 600 34px/1 var(--ui); } .segring .rc small { color: var(--muted); }
+.phases { display: flex; gap: 6px; margin-bottom: 10px; }
+.phases span { flex: 1; text-align: center; font-size: 12px; color: var(--muted); padding: 5px 0; border-radius: 8px; background: rgba(255,255,255,.035); border: 1px solid var(--line); }
+.phases span.d { color: #B5C2CF; border-color: rgba(127,227,247,.22); } .phases span.now { color: var(--text); border-color: var(--chipline); background: rgba(127,227,247,.08); }
+.steps { list-style: none; margin: 0 0 10px; padding: 0; }
+.steps li { display: grid; grid-template-columns: 28px 1fr 80px; padding: 6px 8px; border-bottom: 1px solid var(--line); font-size: 13.5px; align-items: center; }
+.steps li .n2 { font: 600 12px var(--ui); color: var(--muted); } .steps li .s { font-size: 12px; text-align: right; color: var(--muted); }
+.steps li.d { color: var(--muted); } .steps li.d .s { color: var(--up); }
+.steps li.now { color: var(--text); background: rgba(127,227,247,.07); border-radius: 10px; border-bottom-color: transparent; } .steps li.now .s { color: var(--accent); animation: pulse 1.6s ease-in-out infinite; }
+.steps li.w { color: #637287; }
+
+/* overlays */
+.popv { position: absolute; z-index: 20; right: 14px; top: 46px; width: 390px; border-radius: 14px; background: rgba(18,24,36,.985); border: 1px solid rgba(255,255,255,.14); box-shadow: 0 20px 50px rgba(0,0,0,.5); padding: 14px 16px 12px; animation: ddIn .18s ease-out backwards; }
+.popv h4 { margin: 0 0 4px; font: 600 14px var(--ui); } .popv p { margin: 0 0 8px; color: var(--muted); font-size: 12.5px; }
+.popv ul { list-style: none; margin: 0; padding: 0; }
+.popv li { display: grid; grid-template-columns: 20px 1fr; gap: 8px; align-items: start; padding: 6px 0; border-top: 1px solid var(--line); font-size: 13px; }
+.popv li svg { width: 14px; height: 14px; stroke: var(--up); fill: none; stroke-width: 2.6; margin-top: 3px; }
+.popv li .sp { margin-top: 3px; } .popv li.w { color: #67768A; }
+.toast { position: absolute; z-index: 22; right: 18px; bottom: 18px; max-width: 400px; padding: 11px 14px; border-radius: 12px; background: rgba(22,28,40,.97); border: 1px solid rgba(255,255,255,.14); box-shadow: 0 12px 30px rgba(0,0,0,.4); animation: toastIn .3s cubic-bezier(.2,.8,.2,1) backwards; font-size: 13px; }
+.toast b { display: block; font-weight: 600; } .toast span { color: var(--muted); font-size: 12.5px; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pulse { 50% { opacity: .45; } }
+@keyframes dotp { 0%, 100% { opacity: .25; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-4px); } }
+@keyframes tcrun { to { stroke-dashoffset: -1; } }
+@keyframes ripple { from { transform: scale(1); opacity: .8; } to { transform: scale(1.75); opacity: 0; } }
+@keyframes ddIn { from { opacity: 0; transform: translateY(-4px); } }
+@keyframes toastIn { from { opacity: 0; transform: translateY(12px); } }
+@keyframes fadeIn { from { opacity: 0; } }
+@keyframes fadeOut { to { opacity: 0; } }
+@keyframes travel { 0% { stroke-dashoffset: 1; opacity: 0; } 10%, 85% { opacity: 1; } 100% { stroke-dashoffset: 0; opacity: 0; } }
+
+/* ================= A. Settle: fades and small rises ================= */
+@keyframes aIn { from { opacity: 0; transform: translateY(10px); } }
+@keyframes aOut { to { opacity: 0; transform: translateY(-8px); } }
+@keyframes aSide { from { width: 0; } }
+.fa.enter .mv { animation: aIn .5s cubic-bezier(.2,.7,.2,1) backwards; animation-delay: calc(var(--i, 0) * 70ms + 60ms); }
+.fa.enter .mv-l { animation: fadeIn .8s ease backwards; animation-delay: calc(var(--i, 0) * 90ms + 300ms); }
+.fa .chg { animation: aIn .4s cubic-bezier(.2,.7,.2,1) backwards; }
+.fa.leaving .screen, .fa.leaving.toapp .top > * { animation: aOut .24s ease-in forwards; }
+.fa.enter.app .side4 { animation: aSide .55s cubic-bezier(.3,.7,.2,1) backwards; }
+.fa.docking .bigring { animation: fadeOut .35s forwards; }
+.fa .chip.cnew { animation: aIn .45s .15s cubic-bezier(.2,.7,.2,1) backwards; }
+
+/* ================= B. Light: out of a blur, with a light that moves ================= */
+@keyframes bIn { from { opacity: 0; filter: blur(14px); transform: scale(1.02); } }
+@keyframes bOut { to { opacity: 0; filter: blur(12px); transform: scale(.985); } }
+@keyframes sheen { from { transform: translateX(-140%) skewX(-18deg); } to { transform: translateX(330%) skewX(-18deg); } }
+@keyframes glowMove { from { left: var(--fx); top: var(--fy); } }
+.g .card::after, .g .nd::after { content: ""; position: absolute; top: -10%; bottom: -10%; left: 0; width: 35%; background: linear-gradient(90deg, transparent, rgba(170,232,255,.11), transparent); transform: translateX(-140%) skewX(-18deg); pointer-events: none; }
+.fb.enter .mv { animation: bIn .85s cubic-bezier(.2,.7,.2,1) backwards; animation-delay: calc(var(--i, 0) * 90ms + 80ms); }
+.fb.enter .mv-l { animation: fadeIn 1s ease backwards; animation-delay: calc(var(--i, 0) * 90ms + 300ms); }
+.fb .dl path.mv-l2 { display: block; animation: travel 2.6s linear infinite; animation-delay: calc(var(--i, 0) * .4s + .9s); }
+.fb.enter .card::after, .fb.enter .nd::after, .fb .card.chg::after { animation: sheen 1.5s ease-in-out backwards; animation-delay: calc(var(--i, 0) * 90ms + 450ms); }
+.fb .chg { animation: bIn .55s cubic-bezier(.2,.7,.2,1) backwards; }
+.fb.leaving .screen, .fb.leaving.toapp .top > * { animation: bOut .32s ease-in forwards; }
+.fb.enter .glow { animation: glowMove 1.5s cubic-bezier(.3,.7,.2,1) backwards; }
+.fb.enter.app .side4 { animation: bIn .9s cubic-bezier(.2,.7,.2,1) backwards; }
+.fb.docking .bigring { animation: bOut .6s forwards; }
+.fb .chip.cnew { animation: bIn .7s .2s backwards; }
+
+/* ================= C. Trace: lines draw themselves ================= */
+@keyframes cWipe { from { clip-path: inset(-12% 100% -12% 0); } to { clip-path: inset(-12% -2% -12% 0); } }
+@keyframes cOut { to { clip-path: inset(-12% -2% -12% 100%); } }
+@keyframes cDraw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes cTrace { 0% { stroke-dashoffset: 1; opacity: 1; } 65% { stroke-dashoffset: 0; opacity: 1; } 100% { stroke-dashoffset: 0; opacity: 0; } }
+@keyframes cBox { 0%, 55% { border-color: transparent; background-color: transparent; } }
+@keyframes cRing { from { stroke-dashoffset: 100; } }
+@keyframes cDown { from { clip-path: inset(0 0 100% 0); } to { clip-path: inset(0 0 0 0); } }
+.fc .tr rect { stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 1; stroke-dashoffset: 1; opacity: 0; }
+.fc .mv-l, .fc .okmark path, .fc .ck path { stroke-dasharray: 1; }
+.fc.enter .mv { animation: cWipe .75s cubic-bezier(.65,0,.25,1) backwards; animation-delay: calc(var(--i, 0) * 110ms + 60ms); }
+.fc.enter .mv-c { animation: cBox 1.3s ease backwards; animation-delay: calc(var(--i, 0) * 110ms); }
+.fc.enter .mv-c > :not(.tr) { animation: fadeIn .5s ease backwards; animation-delay: calc(var(--i, 0) * 110ms + 650ms); }
+.fc.enter .mv-c > .tr rect, .fc .chg > .tr rect { animation: cTrace 1.4s cubic-bezier(.65,0,.25,1) backwards; animation-delay: calc(var(--i, 0) * 110ms); }
+.fc.enter .mv-l { animation: cDraw 1s cubic-bezier(.65,0,.25,1) backwards; animation-delay: calc(var(--i, 0) * 140ms + 400ms); }
+.fc .chg .ck path, .fc.enter .ci .ck path { animation: cDraw .55s cubic-bezier(.65,0,.25,1) backwards; animation-delay: calc(var(--i, 0) * 110ms + 450ms); }
+.fc .chg .ck path { animation-delay: .15s; }
+.fc.enter .ring .rf { animation: cRing 1.1s cubic-bezier(.65,0,.25,1) backwards; animation-delay: .3s; }
+.fc .chg { animation: cWipe .5s cubic-bezier(.65,0,.25,1) backwards; }
+.fc .chg.card { animation: cBox .9s ease backwards; }
+.fc.leaving .screen, .fc.leaving.toapp .top > * { animation: cOut .34s cubic-bezier(.65,0,.35,1) forwards; }
+.fc.enter.app .side4 { animation: cDown .7s cubic-bezier(.65,0,.25,1) backwards; }
+.fc.docking .bigring { animation: fadeOut .5s .35s forwards; }
+.fc .chip.cnew { animation: cWipe .6s .6s cubic-bezier(.65,0,.25,1) backwards; }
+.fc .dockline path { animation: cTrace 1.1s cubic-bezier(.65,0,.25,1) backwards; }
+
+/* ================= D. Depth: in from behind, with a spring ================= */
+@keyframes dScreen { from { opacity: 0; transform: translate3d(110px, 0, -160px) rotateY(-9deg); } }
+@keyframes dIn { from { opacity: 0; transform: translate3d(0, 30px, -150px) rotateX(12deg); } }
+@keyframes dOut { to { opacity: 0; transform: translate3d(-120px, 0, -220px) rotateY(11deg); } }
+@keyframes dPop { 0% { transform: scale(0); } 60% { transform: scale(1.14); } 100% { transform: scale(1); } }
+@keyframes dSide { from { transform: translateX(-100%); } }
+@keyframes dFly { to { transform: translate(var(--dx), var(--dy)) scale(.14); opacity: .15; } }
+.fd .screen { perspective: 1300px; }
+.fd.enter .screen > * { animation: dScreen .8s cubic-bezier(.2,.8,.2,1) backwards; }
+.fd.enter .mv { animation: dIn .85s cubic-bezier(.3,1.35,.5,1) backwards; animation-delay: calc(var(--i, 0) * 80ms + 180ms); }
+.fd.enter .mv-l { animation: fadeIn .7s ease backwards; animation-delay: calc(var(--i, 0) * 80ms + 500ms); }
+.fd.enter .okmark, .fd.enter .ci .ic { animation: dPop .6s cubic-bezier(.3,1.3,.5,1) backwards; animation-delay: calc(var(--i, 0) * 80ms + 320ms); }
+.fd .chg { animation: dIn .55s cubic-bezier(.3,1.35,.5,1) backwards; }
+.fd .chg .ck { animation: dPop .5s cubic-bezier(.3,1.3,.5,1) backwards; }
+.fd.leaving .screen > *, .fd.leaving.toapp .top > * { animation: dOut .34s cubic-bezier(.5,0,.8,.4) forwards; }
+.fd.enter.app .side4 { animation: dSide .75s cubic-bezier(.2,.8,.2,1) backwards; }
+.fd.docking .bigring { animation: dFly .85s cubic-bezier(.6,0,.25,1) forwards; }
+.fd .chip.cnew { animation: dPop .5s .75s cubic-bezier(.3,1.3,.5,1) backwards; }
+
+.g.enter.keepside .side4 { animation: none !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  body:not(.force) .g, body:not(.force) .g *, body:not(.force) .g *::after, body:not(.force) .cur { animation-duration: .01ms !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="intro">
+    <h1>Opening Tearsheet: the first-time setup and the home page</h1>
+    <p><b>Your pick (Nov 5): A. Settle for every moment.</b> The live window uses it; the other three styles stay below for reference.</p>
+    <p><b>What you decided:</b></p>
+    <ul>
+      <li><b>Both:</b> a short setup the first time someone opens Tearsheet, then a home page every time after.</li>
+      <li><b>Built for someone who has never used Terminal:</b> plain words, a copy button for anything typed, and each step ticks itself off.</li>
+      <li><b>Claude Code:</b> two guided Terminal steps for now. A one-click install and sign-in is designed too, kept switched off until Anthropic approves it.</li>
+      <li><b>Keys:</b> Massive is needed, because there is no rating without prices. FRED can be skipped, and the report says what’s missing.</li>
+      <li><b>The safety check</b> runs in the background while setup carries on.</li>
+      <li><b>Home:</b> a Claude-style “Which company today?” field. <b>No sample report.</b></li>
+    </ul>
+    <p><b>My calls, for you to check:</b></p>
+    <ul>
+      <li>Setup happens inside the app window, with no sidebar, rather than in a separate setup window.</li>
+      <li>The home page is also New report, so ⌘N goes there.</li>
+      <li>The safety check shows as a small ring at the top right during setup, and in the sidebar’s status line afterwards.</li>
+      <li>A skipped key, or Claude Code signing out later, shows up on the home page with the fix.</li>
+      <li>The Massive and FRED checks prove the key works by showing one real number: SPY’s close, and the 10-year Treasury yield.</li>
+    </ul>
+  </header>
+
+  <h2 class="sec">How it connects</h2>
+  <div class="flow" id="flow"></div>
+
+  <h2 class="sec">Live</h2>
+  <p class="itx">One window you can click through, as a new person. Change the motion style at any point; the window replays the current screen in that style.</p>
+  <ul class="try">
+    <li><b>Click Set up Tearsheet</b> and go through each step</li>
+    <li><b>Copy</b> on the Terminal steps: the page ticks itself off</li>
+    <li><b>Click the safety check</b> at the top right to see what it checks</li>
+    <li><b>Paste anything as a key.</b> A key with “bad” in it fails</li>
+    <li><b>Type a company</b> on the home page, then press Return</li>
+    <li><b>Try the buttons below</b> for a returning user or a sign-out</li>
+  </ul>
+  <div class="rm" id="rm">Your Mac has Reduce motion on, so the motion in this page is off. <button class="tool" id="force">Show the motion anyway</button></div>
+  <div class="ctrls" id="ctrls">
+    <span class="lab">Motion</span>
+    <button data-f="a" class="on">A. Settle</button><button data-f="b">B. Light</button><button data-f="c">C. Trace</button><button data-f="d">D. Depth</button>
+    <span class="sep"></span>
+    <button data-c="restart">Start over</button>
+    <button data-c="has">Claude Code already installed</button>
+    <button data-c="oneclick">One-click install (after Anthropic approves)</button>
+    <button data-c="fast">Skip the waiting</button>
+    <span class="sep"></span>
+    <button data-c="returning">Open as a returning user</button>
+    <button data-c="signedout">Claude Code signed out</button>
+  </div>
+  <div class="fit" id="livefit"><div class="stage" id="live" tabindex="-1" aria-label="Live prototype"></div></div>
+
+  <h2 class="sec">Every moment, four ways</h2>
+  <p class="itx">Ten moments from first open to a report starting, each in the four motion styles. Each plays once as it scrolls into view; Play again replays it, and Larger shows it at full width. Play all four replays a moment’s four versions side by side.</p>
+  <div class="styles">
+    <div><b>A. Settle</b>Fades and small rises, quiet and quick. The closest to macOS itself.</div>
+    <div><b>B. Light</b>Things come into focus out of a blur, a soft sheen crosses each panel, and a faint light moves with you from step to step.</div>
+    <div><b>C. Trace</b>Lines draw themselves: panel borders, checks, rings and the links between things, like the report’s price line.</div>
+    <div><b>D. Depth</b>Screens slide in from behind and step back when you move on. Checks and rings land with a small spring.</div>
+  </div>
+  <nav class="jump" id="jump" aria-label="Jump to a moment"></nav>
+  <div id="moments"></div>
+
+  <p class="outro"><b>Chosen:</b> A. Settle for every moment. This is now in the look note (<code>docs/designs/report-look.md</code>), and the app is built from it.</p>
+</div>
+
+<script>
+/* ---------- content ---------- */
+const I = {
+  side: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/></svg>',
+  plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
+  search: '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg>',
+  log: '<svg viewBox="0 0 24 24"><path d="M4 19h16M7 16V9M12 16V5M17 16v-4"/></svg>',
+  gear: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/></svg>',
+  check: '<svg class="ck" viewBox="0 0 24 24"><path pathLength="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+  term: '<svg viewBox="0 0 32 32"><path d="M8 10l6 6-6 6"/><path d="M17 23h8"/></svg>',
+  ext: '<svg viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>',
+  cursor: '<svg viewBox="0 0 22 22"><path d="M4 2.5v15l4-3.6 2.6 6 2.6-1.1-2.6-5.9h5.4z" fill="#fff" stroke="#111" stroke-width="1.2" stroke-linejoin="round"/></svg>'
+};
+// A placeholder mark: the app icon is being designed in a separate session.
+const MARK = '<svg viewBox="0 0 64 64" aria-hidden="true"><rect class="mbg mv-l" pathLength="1" x="1" y="1" width="62" height="62" rx="16"/><path class="ml" d="M16 20h22M16 28h14"/><path class="mp mv-l" style="--i:3" pathLength="1" d="M16 46l9-8 7 5 16-15"/></svg>';
+
+const TOOLS = {
+  claude: { name: 'Claude Code', short: 'Claude', plan: 'Claude plan', maker: 'Anthropic', ver: '2.1.317', install: 'curl -fsSL https://claude.ai/install.sh | bash', login: 'claude auth login', needs: 'a paid Claude plan, like Pro or Max' },
+  codex: { name: 'Codex', short: 'Codex', plan: 'ChatGPT plan', maker: 'OpenAI', ver: '0.165.0', install: 'npm install -g @openai/codex', login: 'codex login', needs: 'a paid ChatGPT plan, like Plus or Pro' }
+};
+const tool = (st) => TOOLS[st.tool];
+const COS = [['AAPL','Apple Inc.','Information Technology'],['AMD','Advanced Micro Devices','Information Technology'],['AMZN','Amazon','Consumer Discretionary'],['AVGO','Broadcom','Information Technology'],['BA','Boeing','Industrials'],['BAC','Bank of America','Financials'],['BRK.B','Berkshire Hathaway','Financials'],['C','Citigroup','Financials'],['CAT','Caterpillar Inc.','Industrials'],['COST','Costco','Consumer Staples'],['DIS','Walt Disney Company (The)','Communication Services'],['GOOG','Alphabet Inc. (Class C)','Communication Services'],['GOOGL','Alphabet Inc. (Class A)','Communication Services'],['GS','Goldman Sachs','Financials'],['HD','Home Depot (The)','Consumer Discretionary'],['JBHT','J.B. Hunt','Industrials'],['JBL','Jabil','Information Technology'],['JCI','Johnson Controls','Industrials'],['JKHY','Jack Henry & Associates','Financials'],['JNJ','Johnson & Johnson','Health Care'],['JPM','JPMorgan Chase','Financials'],['KO','Coca-Cola Company (The)','Consumer Staples'],['LLY','Lilly (Eli)','Health Care'],['MA','Mastercard','Financials'],['META','Meta Platforms','Communication Services'],['MS','Morgan Stanley','Financials'],['MSFT','Microsoft','Information Technology'],['NEE','NextEra Energy','Utilities'],['NFLX','Netflix','Communication Services'],['NKE','Nike, Inc.','Consumer Discretionary'],['NOW','ServiceNow','Information Technology'],['NVDA','Nvidia','Information Technology'],['NVR','NVR, Inc.','Consumer Discretionary'],['ORCL','Oracle Corporation','Information Technology'],['PEP','PepsiCo','Consumer Staples'],['TSLA','Tesla, Inc.','Consumer Discretionary'],['UNH','UnitedHealth Group','Health Care'],['V','Visa Inc.','Financials'],['WFC','Wells Fargo','Financials'],['WMT','Walmart','Consumer Staples'],['XOM','ExxonMobil','Energy']];
+const NAME = Object.fromEntries(COS.map(([t, n]) => [t, n]));
+const PX = { NVDA: '$200.13', AAPL: '$349.51' };
+const STEPS = ['Find the company and its peers', 'Download filings, facts and prices', 'Standardize the financial statements', 'Split filings into sections and paragraphs', 'Compute the metrics', 'Score against the peer group', 'Value the company and each peer', 'Rate: Buy, Hold or Sell', 'Find recent articles', 'Read the sources for evidence', 'Write the sections', 'Fill in the numbers', 'Check every claim', 'Save the report'];
+const PHASES = [['Data', 0, 4], ['Numbers', 4, 8], ['Evidence', 8, 10], ['Writing', 10, 12], ['Checks', 12, 14]];
+const SAFETY = [['{t} can’t run commands or use tools', 5], ['{t} can’t open your files, even when a test tells it to', 10], ['Your own {t} settings, plugins and tool servers stay off', 14], ['It runs on your {p}, not an API key', 18], ['Answers come back in the shape Tearsheet reads', 22], ['Web search is the only thing it may do, and only when Tearsheet asks', 25]];
+const ORDER = ['welcome', 'connect', 'find', 'install', 'connected', 'prices', 'fred', 'email', 'ready'];
+const SEG = { find: 0, install: 0, connected: 0, prices: 1, fred: 2, email: 2, ready: 3 };
+const GLOW = { welcome: ['50%', '36%'], connect: ['28%', '52%'], find: ['50%', '30%'], install: ['22%', '42%'], connected: ['50%', '45%'], prices: ['76%', '38%'], fred: ['70%', '72%'], email: ['32%', '70%'], ready: ['50%', '58%'], home: ['56%', '34%'], run: ['30%', '30%'] };
+
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const mv = (i, role) => `mv${role ? ' mv-' + role : ''}" style="--i:${i}`;
+const ch = (st, k) => ((st.chg || []).includes(k) ? ' chg' : '');
+const pr = (st, k) => (st.press === k ? ' press' : '');
+const card = (inner, i, cls = '') => `<div class="card mv mv-c ${cls}" style="--i:${i}"><svg class="tr" aria-hidden="true"><rect pathLength="1"/></svg>${inner}</div>`;
+function ring(p, s, w, from) {
+  const c = s / 2, r = s / 2 - w / 2 - 1, f = from == null ? p : from;
+  return `<svg class="ring" viewBox="0 0 ${s} ${s}" aria-hidden="true"><circle class="rt" cx="${c}" cy="${c}" r="${r}" stroke-width="${w}"/><circle class="rf" cx="${c}" cy="${c}" r="${r}" stroke-width="${w}" pathLength="100" stroke-dasharray="100" stroke-dashoffset="${100 - f}" data-to="${100 - p}" transform="rotate(-90 ${c} ${c})"/></svg>`;
+}
+const pct = (st) => Math.max(0, st.safety) / 25 * 100;
+
+/* ---------- window parts ---------- */
+function chip(st) {
+  const show = st.safety >= 0 && !(st.screen === 'connected' && !st.docked && !st.docking);
+  if (!show) return '';
+  const done = st.safety >= 25;
+  return `<button class="chip${st.chipNew ? ' cnew' : ''}" data-a="pop" aria-label="Safety check details">${done ? `<span class="okdot">${I.check}</span>Safety check passed` : ring(pct(st), 18, 3, st._ps) + `Safety check, ${st.safety} of 25`}</button>`;
+}
+function popover(st) {
+  const T = tool(st), n = st.safety, cur = SAFETY.findIndex(([, th]) => n < th);
+  return `<div class="popv" role="dialog" aria-label="Safety check details"><h4>${n >= 25 ? 'Safety check passed' : `Safety check, ${n} of 25`}</h4><p>Tearsheet sends ${T.short} 25 short test requests and makes sure that:</p><ul>` +
+    SAFETY.map(([t, th], k) => `<li class="${n >= th || k === cur ? '' : 'w'}">${n >= th ? I.check : k === cur ? '<span class="sp"></span>' : '<span></span>'}<span>${t.replace('{t}', T.short).replace('{p}', T.plan)}</span></li>`).join('') +
+    `</ul><p style="margin:8px 0 0">About 3 minutes, and a small part of one usage window. It runs again by itself whenever ${T.name} updates.</p></div>`;
+}
+function topBar(st) {
+  if (st.screen === 'run') return `<div class="top"><span class="ttl">${esc(st.run.name)}<small>Writing the report, step ${st.run.step + 1} of 14</small></span><button class="btn2" data-a="cancel">Cancel run</button></div>`;
+  if (st.screen === 'home') return '<div class="top"></div>';
+  const seg = SEG[st.screen], names = [tool(st).name, 'Prices', 'Details', 'Ready'];
+  const prog = seg === undefined ? '' : `<div class="prog">${names.map((s, k) => `<span class="${k < seg ? 'done' : k === seg ? 'on' : ''}">${k < seg ? I.check : ''}${s}</span>`).join('')}</div>`;
+  return `<div class="top">${prog}<span data-frag="chip">${chip(st)}</span></div>`;
+}
+function sideStatus(st) {
+  const T = tool(st);
+  if (st.signedOut) return `<div class="status4 stop"><i></i><span>${T.name} signed out</span></div>`;
+  if (st.run && !st.run.done) return `<div class="status4 run"><i></i><span>Writing ${st.run.tk}, step ${st.run.step + 1} of 14</span><div class="pb"><i style="width:${(st.run.step + 0.5) / 14 * 100}%"></i></div></div>`;
+  if (st.safety >= 0 && st.safety < 25) return `<div class="status4 run"><i></i><span>Safety check, ${st.safety} of 25</span><div class="pb"><i style="width:${pct(st)}%"></i></div></div>`;
+  return `<div class="status4"><i></i><span>${T.name} ready</span></div>`;
+}
+function side(st) {
+  const reps = st.returning ? ['NVDA', 'AAPL'] : [];
+  const running = st.run && !st.run.done;
+  const doneRow = st.run && st.run.done ? `<button class="row4" data-a="openrep" data-t="${st.run.tk}"><b>${st.run.tk}</b><span class="px">ready</span></button>` : '';
+  return `<aside class="side4"><div class="in">` +
+    `<button class="row4${st.screen === 'home' ? ' on' : ''}" data-a="home">${I.plus}New report<kbd>⌘N</kbd></button>` +
+    `<button class="row4" data-a="lookup">${I.search}Look up<kbd>⌘K</kbd></button>` +
+    `<div class="lbl4">Reports</div>` +
+    (running ? `<button class="row4${st.screen === 'run' ? ' on' : ''}" data-a="torun"><b>${st.run.tk}</b><span class="px">writing…</span></button>` : '') + doneRow +
+    reps.map((t) => `<button class="row4" data-a="openrep" data-t="${t}"><b>${t}</b><span class="px">${PX[t]}</span></button>`).join('') +
+    (!running && !doneRow && !reps.length ? '<div class="empty">Your reports will show here.</div>' : '') +
+    `<div class="grow4"></div>` +
+    `<button class="row4" data-a="page">${I.log}Prediction log</button>` +
+    `<button class="row4" data-a="page">${I.gear}Settings<kbd>⌘,</kbd></button>` +
+    `<div data-frag="side">${sideStatus(st)}</div></div></aside>`;
+}
+const toastHTML = (st) => (st.toast ? `<div class="toast" role="status"><b>${st.toast.b}</b><span>${st.toast.s}</span></div>` : '');
+
+function windowHTML(st, gl) {
+  const app = st.screen === 'home' || st.screen === 'run';
+  const keep = app && (st._prevScreen === 'home' || st._prevScreen === 'run');
+  const cls = ['g', 'f' + st.fam, app ? 'app' : 'setup', 'sc-' + st.screen, st.enter ? 'enter' : '', keep ? 'keepside' : '', st.docking ? 'docking' : ''].filter(Boolean).join(' ');
+  return `<div class="${cls}"><span class="wl" aria-hidden="true"><i></i><i></i><i></i></span>` +
+    (app ? `<button class="sbt" data-a="page" aria-label="Show or hide the sidebar">${I.side}</button>${side(st)}` : '') +
+    `<div class="mainarea"><div class="glow" style="--tx:${gl.tx};--ty:${gl.ty};--fx:${gl.fx};--fy:${gl.fy}"></div>${topBar(st)}` +
+    `<div class="screen">${S[st.screen](st)}</div><div data-frag="pop">${st.popover ? popover(st) : ''}</div><div data-frag="toast">${toastHTML(st)}</div></div></div>`;
+}
+
+/* ---------- screens ---------- */
+const S = {};
+S.welcome = (st) => `<div class="col center wel">
+  <div class="mark ${mv(0)}">${MARK}</div>
+  <h1 class="h1 xl ${mv(1, 'h')}">Tearsheet</h1>
+  <p class="lead ${mv(2, 't')}">One cited research report on any S&amp;P 500 company, written by your own Claude and checked against the filings.</p>
+  <div class="trio">${['Every number is computed by code from public data: filings, prices and economic figures.', 'Every sentence links to the filing or article it came from.', 'Everything is kept on your Mac.'].map((t, k) => `<div class="${mv(3 + k, 't')}"><span class="dot"></span>${t}</div>`).join('')}</div>
+  <div class="row ${mv(6, 'b')}"><button class="btn big${pr(st, 'start')}" data-a="start">Set up Tearsheet</button></div>
+  <p class="fine ${mv(7, 't')}">About 5 minutes. You’ll need a paid Claude plan. Research to read, not investment advice.</p>
+</div>`;
+
+const LINES = ['M210 150 H300', 'M540 150 C575 150 575 44 610 44', 'M540 150 H610', 'M540 150 C575 150 575 256 610 256'];
+const node = (x, y, b, s, i, cls = '') => `<div class="anc" style="left:${x}px;top:${y}px"><div class="nd ${cls} mv mv-n" style="--i:${i}"><b>${b}</b><span>${s}</span></div></div>`;
+S.connect = (st) => `<div class="col wide">
+  <h1 class="h1 ${mv(0, 'h')}">How Tearsheet works</h1>
+  <p class="lead ${mv(1, 't')}">Tearsheet runs on your Mac. These are the four services you’ll connect next, and each takes about a minute.</p>
+  <div class="dia"><svg class="dl" viewBox="0 0 820 300" aria-hidden="true">${LINES.map((d, k) => `<path class="mv-l" pathLength="1" style="--i:${k + 3}" d="${d}"/><path class="mv-l2" pathLength="1" style="--i:${k}" d="${d}"/>`).join('')}</svg>
+    ${node(0, 150, 'Claude Code', 'Reads the filings and writes the report, on your Claude plan', 3)}
+    ${node(300, 150, 'Tearsheet, on your Mac', 'Does every calculation. Keeps every report and download.', 2, 'hub')}
+    ${node(610, 44, 'SEC EDGAR', 'Company filings. Free; SEC asks for your email', 4)}
+    ${node(610, 150, 'Massive', 'Daily closing prices. Free key', 5)}
+    ${node(610, 256, 'FRED', 'Economic figures. Free key, optional', 6)}</div>
+  ${card('<b>What leaves your Mac</b><span>The companies you look up, and the filing and article text Claude reads. Never your own files.</span>', 7, 'leaves')}
+  <div class="row ${mv(8, 'b')}"><button class="btn${pr(st, 'next')}" data-a="next">Next</button></div>
+</div>`;
+
+S.find = (st) => {
+  const T = tool(st), on = st.scan === 'on';
+  const vis = `<div class="scan ${on ? 'on' : 'off'} ${mv(0)}"><span class="rp" style="--k:0"></span><span class="rp" style="--k:1"></span><span class="rp" style="--k:2"></span><span class="sw"></span>` +
+    `<svg class="tc" viewBox="0 0 124 124" aria-hidden="true"><circle class="tcb" cx="62" cy="62" r="60" pathLength="1"/><circle class="tcf" cx="62" cy="62" r="60" pathLength="1" transform="rotate(-90 62 62)"/></svg>` +
+    `<span class="dots"><i style="--k:0"></i><i style="--k:1"></i><i style="--k:2"></i></span><span class="glyph">${I.term}</span></div>`;
+  const other = st.tool === 'claude' ? `<button class="btn3${pr(st, 'codex')}" data-a="codex">I use ChatGPT: connect Codex instead</button>` : '<button class="btn3" data-a="claude">Use Claude Code instead</button>';
+  return `<div class="col center">${vis}` + (on
+    ? `<h1 class="h1 ${mv(1, 'h')}">Looking for ${T.name}…</h1><p class="lead ${mv(2, 't')}">Tearsheet works through ${T.name}, ${T.maker}’s app that runs on your ${T.plan}.</p>`
+    : `<div class="col center${ch(st, 'scan')}"><h1 class="h1">${T.name} isn’t on this Mac yet</h1><p class="lead">Adding it takes about two minutes. You’ll need ${T.needs}.</p>
+       <div class="row" style="justify-content:center"><button class="btn${pr(st, 'howto')}" data-a="howto">Show me how</button>${other}</div>
+       <button class="btn3 small" data-a="looked">${st.looked ? 'Hide where Tearsheet looked' : 'Where Tearsheet looked'}</button>
+       ${st.looked ? '<p class="fine">Homebrew’s folder, /usr/local/bin, ~/.local/bin, ~/.claude/local and every folder on your shell’s PATH.</p>' : ''}</div>`) + '</div>';
+};
+
+S.install = (st) => {
+  const T = tool(st);
+  if (st.oneclick && st.tool === 'claude') return oneClick(st);
+  const a = st.inst, b = st.sign;
+  const c1 = `<h4><span class="n">${a === 2 ? I.check : '1'}</span>Install it</h4><p>Open Terminal, paste this line and press Return.</p>
+    <div class="code"><span>${T.install}</span><button class="cbtn${pr(st, 'copy1')}" data-a="copy1">${a >= 1 ? 'Copied' : 'Copy'}</button></div>
+    ${st.tool === 'codex' ? '<p class="fine">If Terminal says npm isn’t found, install Node.js from nodejs.org first.</p>' : ''}
+    <div class="row"><button class="btn2${pr(st, 'term')}" data-a="term">Open Terminal</button><div class="st${a === 2 ? ' ok' : ''}${ch(st, 'inst')}">${a === 2 ? I.check + `Installed: ${T.name} ${T.ver}` : '<span class="sp"></span>Waiting for the install to finish'}</div></div>`;
+  const c2 = `<h4><span class="n">${b === 2 ? I.check : '2'}</span>Sign in</h4><p>Then paste this in the same window. Your browser opens so you can sign in to your ${T.plan}.</p>
+    <div class="code"><span>${T.login}</span><button class="cbtn${pr(st, 'copy2')}" data-a="copy2">${b >= 1 ? 'Copied' : 'Copy'}</button></div>
+    <div class="st${b === 2 ? ' ok' : ''}${ch(st, 'sign')}">${b === 2 ? I.check + `Signed in to your ${T.plan}` : a === 2 ? '<span class="sp"></span>Waiting for you to sign in' : 'After step 1'}</div>`;
+  return `<div class="col">
+    <h1 class="h1 ${mv(0, 'h')}">Add ${T.name} in two steps</h1>
+    <p class="lead ${mv(1, 't')}">You’ll paste two lines into Terminal, the Mac’s command window. This page ticks each step off by itself.</p>
+    ${card(c1, 2, a === 2 ? 'done' : '')}${card(c2, 3, (a < 2 ? 'later ' : '') + (b === 2 ? 'done' : ''))}
+    <div class="row ${mv(4, 'b')}"><button class="btn${b === 2 ? '' : ' dis'}${pr(st, 'next')}${ch(st, 'sign')}" data-a="next">Continue</button><span class="fine">Tearsheet never sees your password.</span></div>
+  </div>`;
+};
+function oneClick(st) {
+  const T = tool(st), o = st.oc;
+  const stx = o === 0 ? '' : o === 1 ? '<span class="sp"></span>Installing, about a minute' : o === 2 ? '<span class="sp"></span>Waiting for you to sign in, in your browser' : I.check + `Installed and signed in to your ${T.plan}`;
+  return `<div class="col">
+    <h1 class="h1 ${mv(0, 'h')}">Add ${T.name}</h1>
+    <p class="lead ${mv(1, 't')}">Tearsheet can install it and start the sign-in for you. These are the exact commands it runs:</p>
+    ${card(`<div class="code"><span>${T.install}</span></div><div class="code"><span>${T.login}</span></div>
+      <div class="row"><button class="btn${o > 0 ? ' dis' : ''}${pr(st, 'oc')}" data-a="oc">Install and sign in</button><div class="st${o === 3 ? ' ok' : ''}${ch(st, 'oc')}">${stx}</div></div>`, 2, o === 3 ? 'done' : '')}
+    <p class="note ${mv(3, 't')}">This version appears only once Anthropic approves it. Until then, everyone sees the two Terminal steps, and Settings can turn this button off.</p>
+    <div class="row ${mv(4, 'b')}"><button class="btn${o === 3 ? '' : ' dis'}" data-a="next">Continue</button><button class="btn3" data-a="noclick">Do it myself in Terminal</button></div>
+  </div>`;
+}
+
+const bigRing = (st) => ring(pct(st), 132, 8, st._ps) + `<div class="bt"><b>${Math.max(0, st.safety)}</b><small>of 25</small></div>`;
+S.connected = (st) => {
+  const T = tool(st);
+  return `<div class="col center">
+    <div class="okmark ${mv(0)}"><svg viewBox="0 0 76 76" aria-hidden="true"><circle class="mv-l" pathLength="1" cx="38" cy="38" r="36"/><path class="mv-l" style="--i:3" pathLength="1" d="M23 39.5l10 10L54 28"/></svg></div>
+    <h1 class="h1 ${mv(1, 'h')}">${T.name} is connected</h1>
+    <div class="facts ${mv(2, 't')}"><span>${T.name} ${T.ver}</span><span>Signed in to your ${T.plan}</span><span>No API key in use</span></div>
+    ${st.docked ? `<p class="lead small${ch(st, 'dock')}">The safety check keeps running at the top right. You can carry on.</p>`
+      : `<div class="bigring ${mv(3)}" data-frag="big">${bigRing(st)}</div>
+         <p class="lead small ${mv(4, 't')}"><b>Next, a safety check.</b> Tearsheet makes sure ${T.short} can only read and write text: no commands, no files, none of your own settings or plugins. It takes about 3 minutes and keeps going while you carry on.</p>`}
+    <div class="row ${mv(5, 'b')}"><button class="btn${pr(st, 'next')}" data-a="next">Next: prices</button></div>
+  </div>`;
+};
+
+function keyScreen(st, o) {
+  const s = st[o.k + 'state'], v = st[o.k + 'key'], opt = o.optional;
+  const stx = s === 1 ? `<span class="sp"></span>Checking with ${o.name}…` : s === 2 ? I.check + o.ok : s === 3 ? (v.trim() ? o.bad : 'Paste your key first.') : '';
+  return `<div class="col">
+    <h1 class="h1 ${mv(0, 'h')}">${o.title}${opt ? ' <span class="pill">Optional</span>' : ''}</h1>
+    <p class="lead ${mv(1, 't')}">${o.lead}</p>
+    ${card(`<h4><span class="n">1</span>Get a free key</h4><p>${o.how}</p><div class="row"><button class="btn2${pr(st, 'ext')}" data-a="ext" data-u="${o.site}">Open ${o.site} ${I.ext}</button></div>`, 2)}
+    ${card(`<h4><span class="n">${s === 2 ? I.check : '2'}</span>Paste it here</h4><div class="field"><input type="password" data-k="${o.k}key" placeholder="${o.ph}" value="${esc(v)}" class="${st.focus === o.k + 'key' ? 'focus' : ''}${ch(st, o.k + 'key')}" autocomplete="off" spellcheck="false" aria-label="${o.ph}"><button class="btn2${pr(st, 'check')}" data-a="check" data-k="${o.k}">Check</button></div>
+      <div class="st${s === 2 ? ' ok' : s === 3 ? ' bad' : ''}${ch(st, o.k + 'state')}">${stx}</div><p class="fine">Saved in your Mac’s Keychain, never in a file.</p>`, 3, s === 2 ? 'done' : '')}
+    ${opt && st.fskip && s !== 2 ? `<p class="skipnote${ch(st, 'fskip')}">Skipped. Reports will say “economic figures not connected” until you add the key in Settings.</p>` : `<p class="fine ${mv(4, 't')}">${o.fine}</p>`}
+    <div class="row ${mv(5, 'b')}"><button class="btn${s === 2 || (opt && st.fskip) ? '' : ' dis'}${pr(st, 'next')}" data-a="next">${opt && st.fskip && s !== 2 ? 'Continue without it' : 'Continue'}</button>${opt && !st.fskip && s !== 2 ? `<button class="btn3${pr(st, 'skip')}" data-a="skip">Skip for now</button>` : ''}</div>
+  </div>`;
+}
+S.prices = (st) => keyScreen(st, { k: 'm', name: 'Massive', title: 'Prices come from Massive', lead: 'A free Massive key gives Tearsheet each day’s closing prices. Getting one takes about a minute.', site: 'massive.com', how: 'Sign up with your email, then copy the key from your Massive dashboard.', ph: 'Your Massive key', ok: 'Works. SPY closed at $735.59 on Nov 5.', bad: 'Massive didn’t accept that key. Check that you copied all of it.', fine: 'The free plan gives end-of-day prices at 5 calls a minute, which is why a first report takes about 20 minutes.' });
+S.fred = (st) => keyScreen(st, { k: 'f', name: 'FRED', optional: true, title: 'Economic figures from FRED', lead: 'A free key from the St. Louis Fed adds inflation, jobs, growth and interest rates to each report.', site: 'fred.stlouisfed.org', how: 'Sign up, then open API Keys in your account and ask for one.', ph: 'Your FRED key', ok: 'Works. The 10-year Treasury yield is 4.9%.', bad: 'FRED didn’t accept that key. Check that you copied all of it.', fine: 'Without it, reports leave out the economic figures and say so.' });
+S.email = (st) => `<div class="col">
+  <h1 class="h1 ${mv(0, 'h')}">Your email, for SEC</h1>
+  <p class="lead ${mv(1, 't')}">SEC asks every program that downloads its filings for a contact email. Tearsheet sends yours only to SEC, with each request.</p>
+  ${card(`<div class="field"><input type="email" data-k="email" placeholder="you@example.com" value="${esc(st.email)}" class="${st.focus === 'email' ? 'focus' : ''}" autocomplete="off" spellcheck="false" aria-label="Your email"></div>
+    <div class="st${st.estate === 2 ? ' ok' : st.estate === 3 ? ' bad' : ''}${ch(st, 'estate')}">${st.estate === 2 ? I.check + 'Saved' : st.estate === 3 ? 'That doesn’t look like an email address.' : ''}</div>`, 2, st.estate === 2 ? 'done' : '')}
+  <p class="fine ${mv(3, 't')}">You can change it any time in Settings.</p>
+  <div class="row ${mv(4, 'b')}"><button class="btn${pr(st, 'next')}" data-a="next">Continue</button></div>
+</div>`;
+
+const ci = (icon, b, s, i, skip) => `<div class="ci mv" style="--i:${i}"><span class="ic${skip ? ' skip' : ''}">${icon}</span><b>${b}</b><span>${s}</span></div>`;
+function readySafe(st) {
+  const done = st.safety >= 25;
+  return `<div class="ci${ch(st, 'safe')}" style="--i:2"><span class="ic">${done ? I.check : ring(pct(st), 18, 3, st._ps)}</span><b>Safety check</b><span>${done ? 'Passed' : `Finishing: ${25 - st.safety} of 25 calls to go`}</span></div>`;
+}
+S.ready = (st) => {
+  const T = tool(st);
+  return `<div class="col">
+    <h1 class="h1 ${mv(0, 'h')}">You’re set up</h1>
+    ${card(ci(I.check, T.name, `Connected, version ${T.ver}`, 1) + `<div data-frag="readysafe" style="display:contents">${readySafe(st)}</div>` + ci(I.check, 'Prices', 'Massive key works', 3) +
+      (st.fskip && st.fstate !== 2 ? ci('<i></i>', 'Economic figures', 'Skipped. Add the key in Settings', 4, true) : ci(I.check, 'Economic figures', 'FRED key works', 4)) + ci(I.check, 'SEC email', esc(st.email || 'you@example.com'), 5), 1, 'chk')}
+    <p class="lead small ${mv(6, 't')}">Your first report takes about 20 minutes, mostly fetching a year of prices for the company and about 40 peers on the free plan. Later reports in the same sector are quicker.</p>
+    <div class="row ${mv(7, 'b')}"><button class="btn big${pr(st, 'open')}" data-a="open">Open Tearsheet</button></div>
+  </div>`;
+};
+
+function matches(q) {
+  q = q.trim().toLowerCase();
+  if (!q) return [];
+  const a = COS.filter(([t]) => t.toLowerCase().startsWith(q));
+  const b = COS.filter(([t, n]) => !t.toLowerCase().startsWith(q) && n.toLowerCase().includes(q));
+  return [...a, ...b].slice(0, 5);
+}
+function ddInner(st) {
+  if (!st.q.trim()) return '';
+  const m = matches(st.q);
+  if (!m.length) return `<div class="none">No S&amp;P 500 company matches “${esc(st.q)}”. Tearsheet covers the S&amp;P 500 only.</div>`;
+  return m.map(([t, n, s], k) => `<button class="ddr${k === st.sel ? ' on' : ''}${pr(st, 'dd' + t)}" data-a="pick" data-t="${t}"><b>${t}</b><span>${esc(n)}<small>${s}</small></span><em>${st.returning && PX[t] ? 'Report from Nov 5' : 'New report'}</em></button>`).join('') +
+    '<div class="ft">Return starts the report. The up and down arrows move.</div>';
+}
+const since = (st) => card(`<h4>Since you were last here</h4>
+  <div class="sr"><i style="background:var(--up)"></i>Prices are up to date to the Nov 5 close, for your 2 companies and their peers.</div>
+  <div class="sr"><i style="background:var(--accent)"></i>NVIDIA’s first grade is due Feb 5, 2027, three months after its report.</div>
+  ${st.fskip ? '<div class="sr"><i style="background:var(--hold)"></i>Economic figures aren’t connected, so reports leave them out.<button class="btn2" data-a="addfred">Add the key</button></div>' : ''}`, 4, 'since');
+S.home = (st) => {
+  const ret = st.returning, T = tool(st);
+  const sugg = ret ? '<span>Recent</span>' + ['NVDA', 'AAPL'].map((t) => `<button class="sg" data-a="openrep" data-t="${t}"><b>${t}</b><em>${PX[t]}</em></button>`).join('')
+    : '<span>Try</span>' + [['AAPL', 'Apple'], ['MSFT', 'Microsoft'], ['JPM', 'JPMorgan Chase'], ['COST', 'Costco']].map(([t, n]) => `<button class="sg${pr(st, 'sg' + t)}" data-a="pick" data-t="${t}">${n}</button>`).join('');
+  return `<div class="home">
+    ${st.signedOut ? card(`<div><b>${T.name} is signed out</b><span>New reports can’t be written until you sign in again. Your saved reports still open.</span></div><button class="btn2${pr(st, 'resign')}" data-a="resign">Sign in again</button>`, 0, 'alert') : ''}
+    <div class="hello ${mv(0, 't')}">${ret ? 'Good evening' : 'Welcome to Tearsheet'}</div>
+    <h1 class="h1 xl ${mv(1, 'h')}">Which company today?</h1>
+    <div class="bigq${st.focus === 'q' ? ' focus' : ''} ${mv(2, 'f')}">${I.search}<input data-k="q" placeholder="Ticker or company name, like NVDA or Nvidia" value="${esc(st.q)}" autocomplete="off" spellcheck="false" aria-label="Look up a company"><kbd>⌘K</kbd><div class="dd${st.q.trim() ? ' show' : ''}">${ddInner(st)}</div></div>
+    <div class="sugg ${mv(3, 't')}">${sugg}</div>
+    ${ret ? since(st) : `<p class="fine ${mv(4, 't')}">Your first report takes about 20 minutes. Keep using your Mac; Tearsheet tells you when it’s ready.</p>`}
+  </div>`;
+};
+function segRing(k) {
+  const c = 100, r = 88, n = 14, gap = 3.4;
+  let out = '';
+  for (let j = 0; j < n; j++) {
+    const a0 = (j * 360 / n + gap / 2 - 90) * Math.PI / 180, a1 = ((j + 1) * 360 / n - gap / 2 - 90) * Math.PI / 180;
+    out += `<path class="${j < k ? 'd' : j === k ? 'now' : 'w'}" d="M${(c + r * Math.cos(a0)).toFixed(1)} ${(c + r * Math.sin(a0)).toFixed(1)} A${r} ${r} 0 0 1 ${(c + r * Math.cos(a1)).toFixed(1)} ${(c + r * Math.sin(a1)).toFixed(1)}"/>`;
+  }
+  return `<svg viewBox="0 0 200 200" aria-hidden="true">${out}</svg>`;
+}
+S.run = (st) => {
+  const k = st.run.step;
+  return `<div class="runv">
+    <div class="segring ${mv(0)}">${segRing(k)}<div class="rc"><b>${k + 1}</b><small>of 14</small></div></div>
+    <div><div class="phases ${mv(1, 't')}">${PHASES.map(([n, a, b]) => `<span class="${k >= b ? 'd' : k >= a ? 'now' : ''}">${n}</span>`).join('')}</div>
+      <ul class="steps ${mv(2, 't')}">${STEPS.map((s, j) => `<li class="${j < k ? 'd' : j === k ? 'now' : 'w'}"><span class="n2">${j + 1}</span>${s}<span class="s">${j < k ? 'Done' : j === k ? 'Working' : ''}</span></li>`).join('')}</ul>
+      <p class="fine ${mv(3, 't')}">About 20 minutes the first time in a sector, mostly prices on the free plan. Keep using your Mac; Tearsheet tells you when it’s ready.</p></div>
+  </div>`;
+};
+
+/* ---------- the player: renders one window and runs its steps ---------- */
+const FR = { chip: (st) => chip(st), big: (st) => bigRing(st), readysafe: (st) => readySafe(st), side: (st) => sideStatus(st), pop: (st) => (st.popover ? popover(st) : ''), toast: (st) => toastHTML(st) };
+const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches && !document.body.classList.contains('force');
+const base = () => ({ fam: 'a', tool: 'claude', screen: 'welcome', scan: 'on', looked: false, inst: 0, sign: 0, oneclick: false, oc: 0, safety: -1, docked: false, docking: false, chipNew: false, popover: false,
+  mkey: '', mstate: 0, fkey: '', fstate: 0, fskip: false, email: '', estate: 0, returning: false, signedOut: false, q: '', sel: 0, run: null, toast: null, focus: null, chg: [], press: null });
+
+class Player {
+  constructor(stage, live) {
+    this.stage = stage; this.live = live; this.timers = [];
+    this.gw = document.createElement('div'); this.gw.className = 'gw'; stage.appendChild(this.gw);
+    if (!live) { this.cur = document.createElement('div'); this.cur.className = 'cur'; this.cur.innerHTML = I.cursor; stage.appendChild(this.cur); }
+  }
+  get g() { return this.gw.firstElementChild; }
+  render(enter) {
+    const st = this.st;
+    st._ps = st._last == null ? null : Math.max(0, st._last) / 25 * 100;
+    st.enter = enter;
+    const [tx, ty] = GLOW[st.screen] || ['50%', '40%'];
+    const [fx, fy] = enter && st._prevScreen && GLOW[st._prevScreen] ? GLOW[st._prevScreen] : [tx, ty];
+    this.gw.innerHTML = windowHTML(st, { tx, ty, fx, fy });
+    this.done();
+  }
+  frags(names) {
+    const st = this.st;
+    st._ps = st._last == null ? null : Math.max(0, st._last) / 25 * 100;
+    this.gw.querySelectorAll('[data-frag]').forEach((el) => { if (!names || names.includes(el.dataset.frag)) el.innerHTML = FR[el.dataset.frag](st); });
+    this.done();
+  }
+  done() {
+    const st = this.st;
+    st._last = st.safety; st.chg = []; st.press = null; st.chipNew = false;
+    this.gw.querySelectorAll('[data-to]').forEach((c) => requestAnimationFrame(() => requestAnimationFrame(() => { c.style.strokeDashoffset = c.dataset.to; })));
+  }
+  set(patch, chg) { Object.assign(this.st, patch); this.st.chg = chg ? [].concat(chg) : []; this.render(false); }
+  go(screen, patch) {
+    const from = this.st.screen, g = this.g;
+    const toApp = (screen === 'home' || screen === 'run') && !(from === 'home' || from === 'run');
+    const fin = () => { this.st._prevScreen = from; Object.assign(this.st, patch || {}); this.st.screen = screen; this.st.popover = false; this.render(true); };
+    if (this.cur && toApp) this.cur.classList.remove('on');
+    if (!g || reduced()) return fin();
+    g.classList.add('leaving'); if (toApp) g.classList.add('toapp');
+    this.later(fin, 340);
+  }
+  later(fn, ms) { const t = setTimeout(fn, ms); this.timers.push(t); return t; }
+  stop() { this.timers.forEach(clearTimeout); this.timers = []; clearInterval(this.iv); clearInterval(this.riv); }
+  pos(el) { const sr = this.stage.getBoundingClientRect(), er = el.getBoundingClientRect(), k = sr.width / 1280; return { x: (er.left + er.width / 2 - sr.left) / k, y: (er.top + er.height / 2 - sr.top) / k, k }; }
+  cursorTo(sel) { const el = this.gw.querySelector(sel); if (!el || !this.cur) return; const { x, y } = this.pos(el); this.cur.classList.add('on'); this.cur.style.transform = `translate(${x - 4}px, ${y - 3}px)`; }
+  click(sel) {
+    const el = this.gw.querySelector(sel);
+    this.cur && this.cur.classList.add('down'); el && el.classList.add('press');
+    this.later(() => { this.cur && this.cur.classList.remove('down'); el && el.classList.remove('press'); }, 170);
+  }
+  tick(n, chg) { this.st.safety = n; this.st.chg = chg ? [chg] : []; this.frags(); }
+  dock() {
+    const st = this.st, g = this.g;
+    st.docking = true; st.chipNew = true; this.frags(['chip']);
+    const big = g.querySelector('.bigring'), chipEl = g.querySelector('.chip');
+    if (big && chipEl) {
+      const b = this.pos(big), c = this.pos(chipEl), cr = chipEl.getBoundingClientRect();
+      const cx = c.x - (cr.width / b.k) / 2 + 14;
+      big.style.setProperty('--dx', (cx - b.x) + 'px'); big.style.setProperty('--dy', (c.y - b.y) + 'px');
+      if (st.fam === 'c') {
+        const y1 = b.y - 66, y2 = c.y + 12;
+        g.insertAdjacentHTML('beforeend', `<svg class="dockline" viewBox="0 0 1280 800" aria-hidden="true"><path pathLength="1" d="M${b.x} ${y1} C ${b.x} ${y1 - 170}, ${cx} ${y2 + 150}, ${cx} ${y2}"/></svg>`);
+      }
+    }
+    g.classList.add('docking');
+  }
+}
+
+/* ---------- the ten moments, each a little script ---------- */
+const typeInto = (key, text, t0, dt) => [...text].map((_, k) => [t0 + k * dt, (p) => p.set({ [key]: text.slice(0, k + 1), focus: key })]);
+const ticks = (from, to, t0, dt) => Array.from({ length: to - from + 1 }, (_, k) => [t0 + k * dt, (p) => p.tick(from + k, from + k === 25 ? 'safe' : null)]);
+const MOMENTS = [
+  { n: 1, title: 'First open', text: 'The first thing a new person sees: what Tearsheet is, in three lines, and one button.',
+    start: { screen: 'welcome' }, steps: [[2300, (p) => p.cursorTo('[data-a=start]')], [3000, (p) => p.click('[data-a=start]')]] },
+  { n: 2, title: 'How it works', text: 'Before asking for anything, one picture of what connects to what, and what leaves the Mac.',
+    start: { screen: 'connect' }, steps: [[2900, (p) => p.cursorTo('[data-a=next]')], [3600, (p) => p.click('[data-a=next]')]] },
+  { n: 3, title: 'Looking for Claude Code', text: 'Tearsheet checks the Mac for Claude Code. Here it isn’t installed, so the page says so plainly and offers the steps.',
+    start: { screen: 'find', scan: 'on' }, steps: [[2900, (p) => p.set({ scan: 'none' }, 'scan')], [4000, (p) => p.cursorTo('[data-a=howto]')], [4700, (p) => p.click('[data-a=howto]')]] },
+  { n: 4, title: 'Install and sign in', text: 'Two lines to paste into Terminal, each with a copy button. The page ticks each step off by itself, so there is no “I’m done” button.',
+    start: { screen: 'install' }, steps: [[1300, (p) => p.cursorTo('[data-a=copy1]')], [1900, (p) => p.click('[data-a=copy1]')], [2100, (p) => p.set({ inst: 1 })], [3400, (p) => p.set({ inst: 2 }, 'inst')],
+      [4100, (p) => p.cursorTo('[data-a=copy2]')], [4700, (p) => p.click('[data-a=copy2]')], [4900, (p) => p.set({ sign: 1 })], [6200, (p) => p.set({ sign: 2 }, 'sign')], [6900, (p) => p.cursorTo('[data-a=next]')]] },
+  { n: 5, title: 'Connected, and the safety check starts', text: 'A clear win, then the safety check starts and moves up to the corner, so setup can carry on while it runs.',
+    start: { screen: 'connected', safety: 0 }, steps: [[1500, (p) => p.tick(1)], [2100, (p) => p.tick(2)], [2800, (p) => p.dock()], [3800, (p) => p.set({ docked: true, docking: false }, 'dock')], [4400, (p) => p.tick(3)], [5000, (p) => p.cursorTo('[data-a=next]')]] },
+  { n: 6, title: 'The prices key', text: 'Get a free Massive key, paste it, and Tearsheet checks it with one call, showing a real closing price as proof.',
+    start: { screen: 'prices', safety: 6, docked: true }, steps: [...ticks(7, 10, 1100, 1300), [1300, (p) => p.cursorTo('.field input')], [1800, (p) => p.click('.field input')], [1900, (p) => p.set({ focus: 'mkey' })],
+      [2400, (p) => p.set({ mkey: 'k7Qp2vXz9LmR4tN8wYb3' }, 'mkey')], [3000, (p) => p.cursorTo('[data-a=check]')], [3500, (p) => p.click('[data-a=check]')], [3700, (p) => p.set({ mstate: 1, focus: null }, 'mstate')],
+      [4800, (p) => p.set({ mstate: 2 }, 'mstate')], [5400, (p) => p.cursorTo('[data-a=next]')]] },
+  { n: 7, title: 'Economic figures, optional', text: 'The same pattern, but this key can be skipped, and the page says exactly what skipping means.',
+    start: { screen: 'fred', safety: 12, docked: true, mstate: 2 }, steps: [...ticks(13, 15, 1200, 1300), [1700, (p) => p.cursorTo('[data-a=skip]')], [2400, (p) => p.click('[data-a=skip]')], [2600, (p) => p.set({ fskip: true }, 'fskip')], [3500, (p) => p.cursorTo('[data-a=next]')]] },
+  { n: 8, title: 'The SEC email', text: 'One field, with the reason SEC asks for it.',
+    start: { screen: 'email', safety: 17, docked: true, mstate: 2, fskip: true }, steps: [...ticks(18, 20, 1300, 1300), [1100, (p) => p.cursorTo('.field input')], [1600, (p) => p.click('.field input')], [1700, (p) => p.set({ focus: 'email' })],
+      ...typeInto('email', 'you@example.com', 1900, 75), [3300, (p) => p.cursorTo('[data-a=next]')], [3800, (p) => p.click('[data-a=next]')], [4000, (p) => p.set({ estate: 2, focus: null }, 'estate')]] },
+  { n: 9, title: 'Ready, into the home page', text: 'A checklist of what’s connected, then setup hands over to the app: the sidebar arrives and the home page takes the middle.',
+    start: { screen: 'ready', safety: 21, docked: true, mstate: 2, fskip: true, email: 'you@example.com', estate: 2 }, steps: [...ticks(22, 25, 1000, 600), [3300, (p) => p.cursorTo('[data-a=open]')], [3900, (p) => p.click('[data-a=open]')], [4150, (p) => p.go('home')]] },
+  { n: 10, title: 'Home: look up a company and start', text: 'What you see every time you open Tearsheet. One question and one field; typing searches the S&P 500 list on the Mac, and choosing a company starts its report.',
+    start: { screen: 'home', safety: 25, mstate: 2, email: 'you@example.com' }, steps: [[1500, (p) => p.cursorTo('.bigq input')], [2000, (p) => p.click('.bigq input')], [2100, (p) => p.set({ focus: 'q' })],
+      ...typeInto('q', 'jp', 2400, 220), [3500, (p) => p.cursorTo('.ddr.on')], [4100, (p) => p.click('.ddr.on')], [4300, (p) => p.go('run', { run: { tk: 'JPM', name: 'JPMorgan Chase', step: 0 }, q: '', focus: null })],
+      [5800, (p) => p.set({ run: { tk: 'JPM', name: 'JPMorgan Chase', step: 1 } })], [7000, (p) => p.set({ run: { tk: 'JPM', name: 'JPMorgan Chase', step: 2 } })]] }
+];
+
+/* ---------- scaling ---------- */
+function fit(f) { const stage = f.querySelector('.stage'), k = f.clientWidth / 1280; stage.style.transform = `scale(${k})`; f.style.height = 800 * k + 'px'; }
+const ro = new ResizeObserver((es) => es.forEach((e) => fit(e.target)));
+
+/* ---------- the four-by-ten tiles ---------- */
+const FAMS = [['a', 'A. Settle'], ['b', 'B. Light'], ['c', 'C. Trace'], ['d', 'D. Depth']];
+const tiles = [];
+function playTile(t) {
+  const p = t.p; p.stop();
+  p.st = { ...base(), ...JSON.parse(JSON.stringify(t.m.start)), fam: t.f };
+  if (p.cur) { p.cur.classList.remove('on', 'down'); p.cur.style.transform = 'translate(980px, 690px)'; }
+  p.render(true);
+  t.m.steps.forEach(([ms, fn]) => p.later(() => fn(p), reduced() ? Math.min(ms, 400) : ms));
+}
+function buildMoments() {
+  const wrap = document.getElementById('moments'), jump = document.getElementById('jump');
+  MOMENTS.forEach((m) => {
+    jump.insertAdjacentHTML('beforeend', `<a href="#m${m.n}">${m.n}. ${m.title}</a>`);
+    const sec = document.createElement('section');
+    sec.id = 'm' + m.n;
+    sec.innerHTML = `<div class="mohead"><h3 class="mo">${m.n}. ${m.title}</h3><button class="tool" data-all="${m.n}">Play all four</button></div><p class="itx">${m.text}</p><div class="grid4">` +
+      FAMS.map(([f, label]) => `<figure data-m="${m.n}" data-f="${f}"><div class="fit"><div class="stage" inert></div></div><figcaption><b>${m.n}${f.toUpperCase()}</b><span>${label.slice(3)}</span><button class="tool" data-play>Play again</button><button class="tool" data-big>Larger</button></figcaption></figure>`).join('') + '</div>';
+    wrap.appendChild(sec);
+    sec.querySelectorAll('figure').forEach((fig) => {
+      const f = fig.querySelector('.fit'); ro.observe(f); fit(f);
+      const t = { m, f: fig.dataset.f, fig, p: null };
+      tiles.push(t);
+      fig.querySelector('[data-play]').onclick = () => { ensure(t); playTile(t); };
+      fig.querySelector('[data-big]').onclick = (e) => { fig.classList.toggle('big'); e.target.textContent = fig.classList.contains('big') ? 'Smaller' : 'Larger'; fit(f); ensure(t); playTile(t); };
+    });
+    sec.querySelector('[data-all]').onclick = () => tiles.filter((t) => t.m === m).forEach((t) => { ensure(t); playTile(t); });
+  });
+  const io = new IntersectionObserver((es) => es.forEach((e) => {
+    const t = tiles.find((x) => x.fig === e.target);
+    if (e.isIntersecting && !t.played) { t.played = true; ensure(t); playTile(t); }
+  }), { threshold: 0.45 });
+  tiles.forEach((t) => io.observe(t.fig));
+}
+function ensure(t) { if (!t.p) t.p = new Player(t.fig.querySelector('.stage'), false); }
+
+/* ---------- the live window ---------- */
+let L;
+function liveStart(patch) {
+  L.stop();
+  const fam = L.st ? L.st.fam : 'a', has = L.st ? L.st.hasTool : false, one = L.st ? L.st.oneclick : false;
+  L.st = { ...base(), fam, hasTool: has, oneclick: one, ...(patch || {}) };
+  L.render(true);
+}
+function toast(b, s) { const st = L.st; st.toast = { b, s }; L.frags(['toast']); clearTimeout(L.tt); L.tt = setTimeout(() => { st.toast = null; L.frags(['toast']); }, 3600); }
+function startSafety() {
+  const st = L.st; if (st.safety >= 0) return;
+  st.safety = 0; clearInterval(L.iv);
+  L.iv = setInterval(() => { if (st.safety >= 25) return clearInterval(L.iv); st.safety++; st.chg = st.safety === 25 ? ['safe'] : []; L.frags(); }, 1700);
+}
+function scanThen() {
+  L.later(() => {
+    if (L.st.screen !== 'find') return;
+    if (L.st.hasTool) { L.go('connected'); L.later(arrived, 360); } else L.set({ scan: 'none' }, 'scan');
+  }, 1900);
+}
+function arrived() { startSafety(); L.later(() => { if (L.st.screen === 'connected' && !L.st.docked) { L.dock(); L.later(() => L.set({ docked: true, docking: false }, 'dock'), 950); } }, 2300); }
+function startRun(t) {
+  const st = L.st;
+  if (st.signedOut) return toast(`${tool(st).name} is signed out`, 'Sign in again first; the button is at the top of the home page.');
+  if (st.run && !st.run.done) return toast(`${st.run.tk} is still being written`, 'One report runs at a time. This one has to finish or be cancelled first.');
+  clearInterval(L.riv);
+  L.go('run', { run: { tk: t, name: NAME[t], step: 0 }, q: '', sel: 0 });
+  L.riv = setInterval(() => {
+    const r = st.run; if (!r) return clearInterval(L.riv);
+    if (r.step >= 13) { clearInterval(L.riv); r.done = true; if (st.screen === 'run') L.go('home'); else L.render(false); L.later(() => toast(`The ${r.name} report is ready`, 'In the app it opens here. The report itself is in the chart split prototype.'), 400); return; }
+    r.step++; if (st.screen === 'run') L.render(false); else L.frags(['side']);
+  }, 1500);
+}
+function next() {
+  const st = L.st, s = st.screen;
+  if (s === 'connect') { L.go('find', { scan: 'on' }); return scanThen(); }
+  if (s === 'install') { L.go('connected'); return L.later(arrived, 360); }
+  if (s === 'email') {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(st.email.trim())) return L.set({ estate: 3 }, 'estate');
+    L.set({ estate: 2 }, 'estate'); return L.later(() => L.go('ready'), 500);
+  }
+  const i = ORDER.indexOf(s); if (i >= 0 && i < ORDER.length - 1) L.go(ORDER[i + 1]);
+}
+function act(a, el) {
+  const st = L.st;
+  switch (a) {
+    case 'start': return L.go('connect');
+    case 'next': return next();
+    case 'howto': return L.go('install');
+    case 'codex': case 'claude': L.go('find', { tool: a, scan: 'on' }); return scanThen();
+    case 'looked': return L.set({ looked: !st.looked });
+    case 'copy1': case 'term':
+      if (a === 'term') toast('Terminal opens', 'In the app, this opens Terminal for you. Nothing is typed or run until you paste.');
+      if (st.inst === 0) { L.set({ inst: a === 'copy1' ? 1 : 0 }); L.later(() => { if (st.screen === 'install' && st.inst < 2) L.set({ inst: 2 }, 'inst'); }, 2600); }
+      return;
+    case 'copy2': if (st.inst < 2 || st.sign > 0) return; L.set({ sign: 1 }); return L.later(() => { if (st.screen === 'install') L.set({ sign: 2 }, 'sign'); }, 2600);
+    case 'oc': L.set({ oc: 1 }, 'oc'); L.later(() => L.set({ oc: 2 }, 'oc'), 1800); return L.later(() => L.set({ oc: 3 }, 'oc'), 3800);
+    case 'noclick': st.oneclick = false; document.querySelector('[data-c=oneclick]').classList.remove('on'); return L.render(true);
+    case 'ext': return toast(`Opens ${el.dataset.u} in your browser`, 'You sign up on their site. Tearsheet never sees your password there.');
+    case 'check': {
+      const k = el.dataset.k, v = st[k + 'key'].trim();
+      if (!v) return L.set({ [k + 'state']: 3 }, k + 'state');
+      L.set({ [k + 'state']: 1 }, k + 'state');
+      return L.later(() => L.set({ [k + 'state']: /bad/i.test(v) || v.length < 6 ? 3 : 2 }, k + 'state'), 1200);
+    }
+    case 'skip': return L.set({ fskip: true }, 'fskip');
+    case 'open': return L.go('home');
+    case 'pick': return startRun(el.dataset.t);
+    case 'openrep': return toast(`Opens the ${el.dataset.t} report`, 'The report and its chart are in the chart split prototype.');
+    case 'pop': st.popover = !st.popover; return L.frags(['pop']);
+    case 'cancel': clearInterval(L.riv); { const tk = st.run.tk; L.go('home', { run: null }); return L.later(() => toast(`Cancelled the ${tk} run`, 'Nothing was saved. Start it again any time.'), 400); }
+    case 'torun': return st.screen === 'run' ? null : L.go('run');
+    case 'home': return st.screen === 'home' ? null : L.go('home');
+    case 'lookup': { const q = L.gw.querySelector('.bigq input'); if (q) return q.focus(); return L.go('home'); }
+    case 'resign': toast('Sign in again', `In Terminal, paste: ${tool(st).login}. This page notices by itself.`); return L.later(() => { L.set({ signedOut: false }); toast('Signed in again', `${tool(st).name} is ready.`); }, 3200);
+    case 'addfred': return toast('Opens Settings, at Data keys', 'The same paste-and-check box as in setup.');
+    case 'page': return toast('Not in this prototype', 'This one covers setup and the home page. The report pages are in the earlier prototypes.');
+  }
+}
+function buildLive() {
+  const stage = document.getElementById('live'), f = document.getElementById('livefit');
+  ro.observe(f); fit(f);
+  L = new Player(stage, true);
+  liveStart();
+  stage.addEventListener('click', (e) => {
+    if (!e.target.closest('[data-a=pop]') && !e.target.closest('.popv') && L.st.popover) { L.st.popover = false; L.frags(['pop']); }
+    const b = e.target.closest('[data-a]'); if (b && !b.classList.contains('dis')) act(b.dataset.a, b);
+  });
+  stage.addEventListener('input', (e) => {
+    const k = e.target.dataset.k; if (!k) return;
+    L.st[k] = e.target.value;
+    if (k === 'q') { L.st.sel = 0; const dd = L.gw.querySelector('.dd'); dd.className = 'dd' + (L.st.q.trim() ? ' show' : ''); dd.innerHTML = ddInner(L.st); }
+  });
+  stage.addEventListener('keydown', (e) => {
+    const k = e.target.dataset && e.target.dataset.k;
+    if (k === 'q') {
+      const m = matches(L.st.q);
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); if (!m.length) return; L.st.sel = (L.st.sel + (e.key === 'ArrowDown' ? 1 : m.length - 1)) % m.length; L.gw.querySelector('.dd').innerHTML = ddInner(L.st); }
+      else if (e.key === 'Enter' && m.length) startRun(m[L.st.sel][0]);
+      else if (e.key === 'Escape') { e.target.value = ''; L.st.q = ''; L.gw.querySelector('.dd').className = 'dd'; }
+    } else if (e.key === 'Enter' && (k === 'mkey' || k === 'fkey')) act('check', { dataset: { k: k[0] } });
+    else if (e.key === 'Enter' && k === 'email') next();
+  });
+  document.getElementById('ctrls').addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.f) { document.querySelectorAll('#ctrls [data-f]').forEach((x) => x.classList.toggle('on', x === b)); L.st.fam = b.dataset.f; L.st.popover = false; return L.render(true); }
+    const c = b.dataset.c;
+    if (c === 'restart') return liveStart();
+    if (c === 'has') { b.classList.toggle('on'); L.st.hasTool = b.classList.contains('on'); return; }
+    if (c === 'oneclick') { b.classList.toggle('on'); L.st.oneclick = b.classList.contains('on'); if (L.st.screen === 'install') L.render(true); return; }
+    if (c === 'fast') {
+      const st = L.st; clearInterval(L.iv);
+      if (st.safety >= 0) st.safety = 25;
+      if (st.screen === 'find' && st.scan === 'on') { L.stop(); if (st.hasTool) { L.go('connected'); L.later(arrived, 360); } else L.set({ scan: 'none' }, 'scan'); }
+      if (st.screen === 'install') { st.inst = 2; st.sign = 2; st.oc = 3; }
+      return L.render(false);
+    }
+    if (c === 'returning' || c === 'signedout') {
+      liveStart({ screen: 'home', safety: 25, mstate: 2, email: 'you@example.com', returning: true, signedOut: c === 'signedout' });
+    }
+  });
+  document.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k' && L.st.screen === 'home') { e.preventDefault(); L.gw.querySelector('.bigq input').focus(); }
+  });
+}
+
+/* ---------- the flow map ---------- */
+function buildFlow() {
+  const X = (k) => 130 + k * 164, W = 148;
+  const box = (k, y, t1, t2, cls = '', w = W) => `<g class="fx-b ${cls}"><rect x="${X(k)}" y="${y}" width="${w}" height="54" rx="10"/><text x="${X(k) + 12}" y="${y + 23}" class="t1">${t1}</text><text x="${X(k) + 12}" y="${y + 41}" class="t2">${t2}</text></g>`;
+  const arr = (k, y) => `<path class="fx-a" marker-end="url(#ah)" d="M${X(k) + W + 2} ${y + 27} H${X(k + 1) - 4}"/>`;
+  const r1 = 24, r2 = 236;
+  let s = '<defs><marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 1L9 5L0 9z" fill="#53637A"/></marker></defs>';
+  s += `<text x="0" y="${r1 + 32}" class="lane">The first time</text><text x="0" y="${r2 + 32}" class="lane">Every time after</text>`;
+  [['First open', 'What Tearsheet is'], ['How it works', 'What connects'], ['Claude Code', 'Found and signed in'], ['Prices', 'Massive key'], ['Economic figures', 'FRED key, optional'], ['SEC email', 'For SEC’s requests'], ['Ready', 'Then the home page']]
+    .forEach(([a, b], k) => { s += box(k, r1, a, b, k === 2 ? 'hl' : ''); if (k < 6) s += arr(k, r1); });
+  s += box(2, 108, 'Not on this Mac', 'Two Terminal steps');
+  s += `<path class="fx-a alt" marker-end="url(#ah)" d="M${X(2) + 50} ${r1 + 56} V${108 - 4}"/>`;
+  s += `<path class="fx-a alt" marker-end="url(#ah)" d="M${X(2) + W + 2} 135 C ${X(3) - 10} 135, ${X(3) + 30} 128, ${X(3) + 40} ${r1 + 60}"/>`;
+  s += `<text x="${X(2) + W + 12}" y="128" class="al">then back</text>`;
+  s += `<rect class="bar" x="${X(2)}" y="190" width="${X(6) + W - X(2)}" height="7" rx="3.5"/><text x="${X(2)}" y="183" class="bl">The safety check runs in the background from here to Ready, about 3 minutes</text>`;
+  [['Open Tearsheet', 'From the Dock'], ['Home', 'Which company?'], ['Writing the report', 'About 20 minutes'], ['Report', 'Summary first'], ['Chart', 'Split beside it']]
+    .forEach(([a, b], k) => { s += box(k, r2, a, b, k === 1 ? 'hl' : ''); if (k < 4) s += arr(k, r2); });
+  s += `<path class="fx-a alt" marker-end="url(#ah)" d="M${X(1) + W / 2 + 20} ${r2 - 2} C ${X(1) + W / 2 + 40} ${r2 - 18}, ${X(3) + W / 2 - 20} ${r2 - 18}, ${X(3) + W / 2} ${r2 - 4}"/>`;
+  s += `<text x="${X(2) + 14}" y="${r2 - 24}" class="al">or open a past report</text>`;
+  s += box(5, r2, 'Skipped or broken?', 'Shows on Home, with the fix', 'nt', W * 2 + 16);
+  document.getElementById('flow').innerHTML = `<svg viewBox="0 0 1280 300" role="img" aria-label="How the setup steps and the home page connect">${s}</svg>`;
+}
+
+/* ---------- start ---------- */
+if (matchMedia('(prefers-reduced-motion: reduce)').matches) document.getElementById('rm').classList.add('show');
+document.getElementById('force').onclick = () => { document.body.classList.add('force'); document.getElementById('rm').classList.remove('show'); liveStart(); tiles.forEach((t) => { if (t.p) playTile(t); }); };
+// For checking: #tile=5d plays one small window alone at full size; #st=home:returning:signedOut&f=b shows one state.
+const solo = location.hash.match(/^#tile=(\d+)([abcd])$/), still = location.hash.match(/^#st=([^&]+)(?:&f=([abcd]))?$/);
+if (solo || still) {
+  document.body.innerHTML = '<div class="fit" style="width:1280px;height:800px;border-radius:0"><div class="stage" id="solo"></div></div>';
+  const p = new Player(document.getElementById('solo'), !!still);
+  if (solo) playTile({ m: MOMENTS[+solo[1] - 1], f: solo[2], p });
+  else { const [screen, ...flags] = still[1].split(':'); p.st = { ...base(), safety: 25, mstate: 2, email: 'you@example.com', fam: still[2] || 'a', screen, docked: true }; flags.forEach((x) => { const [k, v] = x.split('='); p.st[k] = v === undefined ? true : isNaN(+v) ? v : +v; }); if (screen === 'run') p.st.run = { tk: 'JPM', name: 'JPMorgan Chase', step: 5 }; p.render(true); }
+} else {
+  buildFlow();
+  buildLive();
+  buildMoments();
+}
+</script>
+</body>
+</html>

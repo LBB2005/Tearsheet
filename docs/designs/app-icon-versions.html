@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tearsheet app icon versions</title>
+<style>
+:root { --bg: #0A0D14; --surface: #141923; --ink: #E8EDF3; --muted: #97A3B3; --line: #28303C; --accent: #7FE3F7; --font-ui: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif; color-scheme: dark; }
+html, body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 var(--font-ui); }
+.page { max-width: 1240px; margin: 0 auto; padding: 32px 20px 72px; display: flex; flex-direction: column; gap: 16px; }
+h1 { font-size: 28px; line-height: 1.2; margin: 0 0 6px; }
+.intro p { margin: 0 0 8px; max-width: 84ch; color: var(--muted); }
+.intro b { color: var(--ink); font-weight: 600; }
+.intro ul { margin: 4px 0 8px; padding-left: 20px; color: var(--muted); }
+h2 { font-size: 22px; margin: 34px 0 0; display: flex; align-items: baseline; gap: 12px; }
+h2 span { font-size: 15px; font-weight: 400; color: var(--muted); }
+.note { margin: 0; color: var(--muted); max-width: 90ch; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; }
+.lab { font-size: 13px; color: var(--muted); margin: 0 0 10px; }
+.v { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 16px; }
+.hero { display: grid; place-items: center; border-radius: 14px; background: radial-gradient(500px 380px at 30% 20%, #2C5EA8 0%, transparent 65%), radial-gradient(500px 400px at 85% 90%, #7A3FA8 0%, transparent 65%), #141826; min-height: 300px; }
+.hero svg { width: 256px; height: 256px; }
+.right { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+.sizes { display: flex; flex-direction: column; gap: 8px; }
+.sizes > div { border-radius: 10px; padding: 12px; display: flex; align-items: flex-end; gap: 14px; justify-content: center; }
+.sizes .lt { background: #F4F4F6; } .sizes .dk { background: #1E1F24; }
+.sizes figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; color: #8C94A0; }
+.zoom { display: flex; gap: 14px; align-items: center; margin-top: 10px; font-size: 12.5px; color: var(--muted); }
+.zoom canvas { width: 96px; height: 96px; image-rendering: pixelated; border-radius: 6px; background: #1E1F24; }
+.zoom canvas.lt { background: #F4F4F6; }
+.dock { position: relative; height: 128px; border-radius: 12px; overflow: hidden; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 10px;
+  background: radial-gradient(400px 200px at 20% 0%, #2C5EA8, transparent 70%), radial-gradient(400px 200px at 90% 100%, #7A3FA8, transparent 70%), #20283A; }
+.dock.light { background: radial-gradient(400px 200px at 20% 0%, #9EC3F5, transparent 70%), radial-gradient(400px 200px at 90% 100%, #E2C4F2, transparent 70%), #DCE3EE; }
+.bar { display: flex; gap: 10px; align-items: flex-end; padding: 8px 10px 10px; border-radius: 20px; background: rgba(40,44,56,.55); border: 1px solid rgba(255,255,255,.14); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
+.light .bar { background: rgba(255,255,255,.45); border-color: rgba(255,255,255,.6); }
+.bar i { width: 52px; height: 52px; border-radius: 12px; display: block; background: linear-gradient(#5A6578, #3A4352); }
+.light .bar i { background: linear-gradient(#C9D0DB, #A9B2C0); }
+.bar .me { position: relative; width: 52px; height: 52px; }
+.bar .me svg { width: 62px; height: 62px; margin: -5px; display: block; }
+.bar .me::after { content: ""; position: absolute; left: 50%; bottom: -7px; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: rgba(255,255,255,.75); }
+.light .bar .me::after { background: rgba(0,0,0,.55); }
+.bar .tip { position: absolute; bottom: 72px; left: 50%; transform: translateX(-50%); white-space: nowrap; font-size: 12px; padding: 2px 9px; border-radius: 6px; background: rgba(30,32,40,.9); color: #EEE; border: 1px solid rgba(255,255,255,.14); }
+.app { border-radius: 12px; overflow: hidden; background: radial-gradient(420px 300px at 20% 0%, rgba(32,120,150,.2), transparent 70%), #070B14; border: 1px solid rgba(255,255,255,.08); display: grid; grid-template-columns: 1fr 1fr; min-height: 190px; font-family: "Avenir Next", "Helvetica Neue", sans-serif; }
+.app > div { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 14px; }
+.app > div + div { border-left: 1px solid rgba(255,255,255,.06); }
+.app .wm { font: 600 28px "Avenir Next", sans-serif; color: #EAF1F7; letter-spacing: -.3px; }
+.app .hello { display: flex; align-items: center; gap: 8px; color: #92A4B6; font-size: 13px; }
+.app .q { font: 600 20px "Avenir Next", sans-serif; color: #EAF1F7; }
+.app small { color: #92A4B6; font-size: 11.5px; }
+.run { display: flex; align-items: center; gap: 16px; margin-top: 12px; }
+.run .rm { position: relative; width: 128px; height: 128px; }
+.run .rm svg { width: 128px; height: 128px; display: block; }
+.run .txt { font-size: 13.5px; color: var(--muted); }
+.run .txt b { display: block; color: var(--ink); font-size: 15px; font-weight: 600; }
+.tool { font: 13px var(--font-ui); color: var(--ink); background: #1C2230; border: 1px solid var(--line); border-radius: 7px; padding: 4px 10px; cursor: pointer; margin-top: 8px; }
+.tool:focus-visible { outline: 2px solid var(--accent); }
+.cmp { display: grid; grid-template-columns: 140px repeat(4, 1fr); gap: 10px; align-items: center; }
+.cmp > div { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 10px; border-radius: 10px; background: #0F131C; }
+.cmp > div.h { background: none; justify-content: flex-start; color: var(--muted); font-size: 13px; }
+.cmp > div.t { background: none; font-weight: 600; }
+.outro { color: var(--muted); max-width: 84ch; margin-top: 22px; } .outro b { color: var(--ink); }
+@media (max-width: 980px) { .v, .right { grid-template-columns: 1fr; } .cmp { grid-template-columns: 90px repeat(4, 1fr); } }
+@media (prefers-reduced-motion: reduce) { .run .rm path { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="intro">
+    <h1>The new app icon: four versions</h1>
+    <p><b>Your pick (Nov 5): 2. Glass.</b> You picked the glass tile from the setup mockup over the Fan. <b>What you decided:</b></p>
+    <ul>
+      <li><b>Everywhere:</b> the Dock and Finder icon, the welcome screen, the home page and the run view all use the new mark, so nothing still shows the Fan.</li>
+      <li><b>Four refined versions</b>, each checked in the Dock, at Finder sizes down to 16 px, and inside the app.</li>
+      <li><b>Quiet motion:</b> it fades up like everything else, and in the run view its rising line fills in as the 14 steps finish, then completes when the report is ready. The Dock’s progress bar stays as it is.</li>
+    </ul>
+    <p>All four keep the same idea: a dark tile with lines of text and a rising price line. They differ in how much depth and detail they carry. The 16 and 32 px sizes use a simpler drawing of each, the way macOS icons do. Each version’s run line plays on its own; Play again restarts it.</p>
+  </header>
+  <div id="versions"></div>
+  <h2>Side by side</h2>
+  <div class="card"><div class="cmp" id="cmp"></div></div>
+  <p class="outro"><b>Tell me which one</b>, or what to take from another (for example, version 2 with version 4’s end dot). Then I’ll build it into the app with the rest of the new look.</p>
+</div>
+<script>
+/* Apple's continuous-corner icon square on the 1024 grid: a superellipse, exponent 5, 824 wide. */
+function squircle(cx = 512, cy = 512, size = 824, n = 5, steps = 200) {
+  const a = size / 2, pts = [];
+  for (let i = 0; i < steps; i++) {
+    const t = (i / steps) * Math.PI * 2, c = Math.cos(t), s = Math.sin(t);
+    pts.push(`${(cx + a * Math.sign(c) * Math.pow(Math.abs(c), 2 / n)).toFixed(1)} ${(cy + a * Math.sign(s) * Math.pow(Math.abs(s), 2 / n)).toFixed(1)}`);
+  }
+  return `M${pts.join('L')}Z`;
+}
+const SQ = squircle();
+let uid = 0;
+
+/* The price line: shown in full, or (for the run view) as a dim track with the filled part drawn over it. */
+function chart(d, w, color, p, trackColor) {
+  if (p == null) return `<path d="${d}" fill="none" stroke="${color}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"/>`;
+  return `<path d="${d}" fill="none" stroke="${trackColor}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"/>` +
+    `<path class="fill" d="${d}" pathLength="1" fill="none" stroke="${color}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="1 1" stroke-dashoffset="${(1 - p).toFixed(3)}" style="transition: stroke-dashoffset .5s cubic-bezier(.3,.7,.2,1)"/>`;
+}
+const line = (d, w, color) => `<path d="${d}" fill="none" stroke="${color}" stroke-width="${w}" stroke-linecap="round"/>`;
+
+const VERSIONS = [
+  { name: '1. As drawn', note: 'The mockup mark, redrawn on the icon grid. Flat dark tile, a thin cyan edge, two grey lines and the cyan price line. The quietest of the four.',
+    draw(o) {
+      const id = 'c' + (++uid), small = o.small;
+      const d = small ? 'M290 724L428 592L530 664L742 440' : 'M300 700L420 594L512 660L732 452';
+      return `<defs><clipPath id="${id}"><path d="${SQ}"/></clipPath></defs><path d="${SQ}" fill="#0D1824"/>` +
+        `<g clip-path="url(#${id})">` + (small ? line('M290 352H630', 70, '#5E6F84') : line('M300 352H596', 40, '#5E6F84') + line('M300 456H488', 40, '#5E6F84')) +
+        chart(d, small ? 80 : 44, '#7FE3F7', o.p, 'rgba(127,227,247,.16)') +
+        `<path d="${SQ}" fill="none" stroke="#7FE3F7" stroke-opacity=".5" stroke-width="${small ? 40 : 22}"/></g>`;
+    } },
+  { name: '2. Glass', note: 'The same marks on a deeper glass tile: light catches the top edge, a soft cyan light sits low on the right, and a faint fill runs under the price line. Closest to the app’s glass panels.',
+    draw(o) {
+      const id = 'c' + (++uid), small = o.small;
+      const d = small ? 'M290 724L428 592L530 664L742 440' : 'M300 700L420 594L512 660L740 446';
+      const area = small ? 'M290 724L428 592L530 664L742 440L742 930L290 930Z' : 'M300 700L420 594L512 660L740 446L740 930L300 930Z';
+      const fillOp = o.p == null ? 1 : o.p;
+      return `<defs><clipPath id="${id}"><path d="${SQ}"/></clipPath>
+        <linearGradient id="${id}b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1B2E44"/><stop offset=".55" stop-color="#0B1626"/><stop offset="1" stop-color="#060B14"/></linearGradient>
+        <radialGradient id="${id}g" cx="700" cy="720" r="460" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#5CC8FF" stop-opacity=".2"/><stop offset="1" stop-color="#5CC8FF" stop-opacity="0"/></radialGradient>
+        <linearGradient id="${id}a" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7FE3F7" stop-opacity=".26"/><stop offset=".7" stop-color="#7FE3F7" stop-opacity="0"/></linearGradient>
+        <linearGradient id="${id}r" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".32"/><stop offset=".45" stop-color="#fff" stop-opacity=".05"/><stop offset="1" stop-color="#fff" stop-opacity=".12"/></linearGradient></defs>
+        <path d="${SQ}" fill="url(#${id}b)"/><g clip-path="url(#${id})"><rect width="1024" height="1024" fill="url(#${id}g)"/>` +
+        (small ? line('M290 352H630', 70, '#7487A0') : line('M300 346H600', 40, '#7487A0') + line('M300 448H484', 40, '#7487A0')) +
+        `<path d="${area}" fill="url(#${id}a)" opacity="${fillOp}" style="transition: opacity .5s"/>` +
+        chart(d, small ? 80 : 44, '#8EEFFF', o.p, 'rgba(142,239,255,.16)') +
+        `<path d="${SQ}" fill="none" stroke="url(#${id}r)" stroke-width="${small ? 36 : 20}"/></g>`;
+    } },
+  { name: '3. Sheet', note: 'A literal tear sheet: a page with a torn top edge sits on the tile, with the lines of text and the price line printed on it. The most to say, and the busiest when small.',
+    draw(o) {
+      const id = 'c' + (++uid), small = o.small;
+      const teeth = small ? 6 : 12, x0 = 236, x1 = 788, top = small ? 250 : 236, h = small ? 30 : 18, wv = (x1 - x0) / teeth;
+      let tear = `M${x0} ${top + h}`;
+      for (let k = 0; k < teeth; k++) tear += `L${(x0 + wv * (k + .5)).toFixed(1)} ${top}L${(x0 + wv * (k + 1)).toFixed(1)} ${top + h}`;
+      const pagePath = `${tear}L${x1} 772Q${x1} 822 ${x1 - 50} 822L${x0 + 50} 822Q${x0} 822 ${x0} 772Z`;
+      const d = small ? 'M300 716L430 604L520 664L724 470' : 'M306 696L412 604L500 652L718 470';
+      return `<defs><clipPath id="${id}"><path d="${SQ}"/></clipPath>
+        <linearGradient id="${id}b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#121E30"/><stop offset="1" stop-color="#070C16"/></linearGradient></defs>
+        <path d="${SQ}" fill="url(#${id}b)"/><g clip-path="url(#${id})">` +
+        `<path d="${pagePath}" fill="#15263A" stroke="#7FE3F7" stroke-opacity=".38" stroke-width="${small ? 22 : 10}" stroke-linejoin="round"/>` +
+        (small ? line('M306 384H600', 60, '#6A7C92') : line('M306 352H600', 34, '#6A7C92') + line('M306 428H500', 34, '#6A7C92')) +
+        chart(d, small ? 72 : 40, '#7FE3F7', o.p, 'rgba(127,227,247,.16)') +
+        `<path d="${SQ}" fill="none" stroke="#fff" stroke-opacity=".1" stroke-width="${small ? 30 : 16}"/></g>`;
+    } },
+  { name: '4. Bold', note: 'Pared back to one short line and a big price line ending in a dot for today’s price. Reads best at 16 px, and the dot gives the run view a clear “done” moment.',
+    draw(o) {
+      const id = 'c' + (++uid), small = o.small;
+      const d = small ? 'M262 724L428 574L556 662L770 404' : 'M276 712L430 572L548 652L762 410';
+      const tip = small ? [770, 404] : [762, 410], showDot = o.p == null || o.p >= 1;
+      return `<defs><clipPath id="${id}"><path d="${SQ}"/></clipPath>
+        <linearGradient id="${id}b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#16263A"/><stop offset="1" stop-color="#060B14"/></linearGradient></defs>
+        <path d="${SQ}" fill="url(#${id}b)"/><g clip-path="url(#${id})">` +
+        (small ? '' : line('M284 330H468', 44, '#5E6F84')) +
+        chart(d, small ? 104 : 72, '#7FE3F7', o.p, 'rgba(127,227,247,.16)') +
+        `<circle cx="${tip[0]}" cy="${tip[1]}" r="${small ? 70 : 50}" fill="#7FE3F7" stroke="#0A1424" stroke-width="${small ? 22 : 16}" opacity="${showDot ? 1 : 0}" style="transition: opacity .4s"/>` +
+        `<path d="${SQ}" fill="none" stroke="#7FE3F7" stroke-opacity=".42" stroke-width="${small ? 40 : 22}"/></g>`;
+    } }
+];
+const svg = (v, size, o = {}) => `<svg viewBox="0 0 1024 1024" width="${size}" height="${size}" role="img" aria-label="${v.name} icon">${v.draw(o)}</svg>`;
+// macOS uses the simpler drawing for 16 and 32 px.
+const at = (v, size) => svg(v, size, { small: size <= 32 });
+
+function pixels(canvas, v, size, light) {
+  const img = new Image();
+  img.onload = () => { const c = canvas.getContext('2d'); c.clearRect(0, 0, size, size); c.drawImage(img, 0, 0, size, size); };
+  img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="${size}" height="${size}">${v.draw({ small: true })}</svg>`);
+  if (light) canvas.classList.add('lt');
+}
+
+function build() {
+  const wrap = document.getElementById('versions');
+  VERSIONS.forEach((v, k) => {
+    const sec = document.createElement('section');
+    sec.innerHTML = `<h2>${v.name}</h2><p class="note">${v.note}</p>
+      <div class="v" style="margin-top:12px">
+        <div class="hero">${svg(v, 256)}</div>
+        <div class="right">
+          <div class="card"><p class="lab">Finder sizes: 128, 64, 32 and 16 px</p>
+            <div class="sizes"><div class="lt">${[128, 64, 32, 16].map((s) => `<figure>${at(v, s)}<span>${s}</span></figure>`).join('')}</div>
+            <div class="dk">${[64, 32, 16].map((s) => `<figure>${at(v, s)}<span>${s}</span></figure>`).join('')}</div></div>
+            <div class="zoom"><canvas width="16" height="16" data-k="${k}" data-l="1"></canvas><canvas width="16" height="16" data-k="${k}"></canvas><span>16 px, enlarged to show the actual pixels</span></div></div>
+          <div class="card"><p class="lab">In the Dock, dark and light</p>
+            <div class="dock"><div class="bar"><i></i><i></i><i></i><span class="me">${svg(v, 62)}<span class="tip">Tearsheet</span></span><i></i><i></i></div></div>
+            <div class="dock light" style="margin-top:8px;height:84px"><div class="bar"><i></i><i></i><i></i><span class="me">${svg(v, 62)}</span><i></i><i></i></div></div></div>
+          <div class="card"><p class="lab">Inside the app: the welcome screen and the home page</p>
+            <div class="app"><div>${svg(v, 64)}<span class="wm">Tearsheet</span><small>Set up Tearsheet</small></div>
+              <div><span class="hello">${svg(v, 22)}Welcome to Tearsheet</span><span class="q">Which company today?</span></div></div></div>
+          <div class="card"><p class="lab">The run view: the line fills as the 14 steps finish</p>
+            <div class="run"><div class="rm" data-run="${k}">${svg(v, 128, { p: 0 })}</div><div class="txt" data-txt="${k}"><b>Step 1 of 14</b>Writing the report</div></div>
+            <button class="tool" data-again="${k}">Play again</button></div>
+        </div>
+      </div>`;
+    wrap.appendChild(sec);
+  });
+  document.querySelectorAll('canvas[data-k]').forEach((c) => pixels(c, VERSIONS[+c.dataset.k], 16, !!c.dataset.l));
+  const cmp = document.getElementById('cmp');
+  cmp.innerHTML = '<div class="h"></div>' + VERSIONS.map((v) => `<div class="t">${v.name}</div>`).join('') +
+    [[512, 'Large'], [64, '64 px'], [32, '32 px'], [16, '16 px']].map(([s, label]) => `<div class="h">${label}</div>` + VERSIONS.map((v) => `<div>${at(v, Math.min(s, 180))}</div>`).join('')).join('');
+  document.querySelectorAll('[data-again]').forEach((b) => (b.onclick = () => play(+b.dataset.again)));
+  const io = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting && !e.target.played) { e.target.played = true; play(+e.target.dataset.run); } }), { threshold: 0.6 });
+  document.querySelectorAll('[data-run]').forEach((el) => io.observe(el));
+}
+
+/* The run line: 14 steps, about half a second each, then the "ready" state. */
+const timers = {};
+function play(k) {
+  const v = VERSIONS[k], box = document.querySelector(`[data-run="${k}"]`), txt = document.querySelector(`[data-txt="${k}"]`);
+  (timers[k] || []).forEach(clearTimeout); timers[k] = [];
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  box.innerHTML = svg(v, 128, { p: 0 });
+  const set = (step) => {
+    const p = step / 14, fill = box.querySelector('.fill');
+    if (fill) fill.setAttribute('stroke-dashoffset', (1 - p).toFixed(3));
+    const area = box.querySelector('path[opacity]'); if (area) area.setAttribute('opacity', p.toFixed(2));
+    const dot = box.querySelector('circle'); if (dot) dot.setAttribute('opacity', p >= 1 ? 1 : 0);
+    txt.innerHTML = step >= 14 ? '<b>Report ready</b>NVIDIA, 41 claims kept' : `<b>Step ${step + 1} of 14</b>Writing the report`;
+  };
+  if (reduced) return set(14);
+  for (let s = 1; s <= 14; s++) timers[k].push(setTimeout(() => set(s), 400 + s * 480));
+}
+build();
+</script>
+</body>
+</html>
