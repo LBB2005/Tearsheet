@@ -199,6 +199,12 @@ SETTINGS: dict[str, SettingSpec] = {
         "The folder for database backups (default ~/Tearsheet Backups/, which iCloud doesn't sync).",
         _folder,
     ),
+    "setup_done": SettingSpec(
+        "1 once first-time setup is finished, otherwise 0.", _choice("0", "1")
+    ),
+    "fred_skipped": SettingSpec(
+        "1 if the FRED key step was skipped during setup, otherwise 0.", _choice("0", "1")
+    ),
     "goal1_round": SettingSpec(
         "The Goal 1 round new full reports count toward (default 1). Raise it to restart the test after a fix.",
         _positive_number,

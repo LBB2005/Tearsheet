@@ -13,8 +13,12 @@ export type Note = string | null;
 export type Accession = string;
 export type Service = "massive" | "fred" | "alphavantage";
 export type Key = string;
-export type Key1 = "raw_cap" | "backup_dir" | "primary_tool" | "sec_contact_email" | "goal1_round";
+export type Key1 =
+  "raw_cap" | "backup_dir" | "primary_tool" | "sec_contact_email" | "goal1_round" | "setup_done" | "fred_skipped";
 export type Value = string;
+export type Service1 = "massive" | "fred";
+export type Key2 = string;
+export type Tool1 = "claude" | "codex";
 export type Query1 = string;
 export type Limit1 = number;
 export type ReportId1 = string;
@@ -90,7 +94,7 @@ export type Deleted = number;
 export type Graded = number;
 export type Note1 = string | null;
 export type Name4 = string;
-export type Key2 = string;
+export type Key3 = string;
 export type Cost = string;
 export type Sent = string;
 export type Version = string | null;
@@ -105,7 +109,19 @@ export type BackupInIcloud = boolean;
 export type PrimaryTool = string | null;
 export type SecContactEmail = string | null;
 export type Goal1Round = number;
-export type Services = Service1[];
+export type SetupDone = boolean;
+export type FredSkipped = boolean;
+export type Services = Service2[];
+export type Proof = string;
+export type Started = boolean;
+export type Tool2 = "claude" | "codex";
+export type N = number;
+export type Total = number;
+export type Name5 = string;
+export type Ok2 = boolean;
+export type Tool3 = "claude" | "codex";
+export type Passed1 = boolean;
+export type Reason = string | null;
 export type EngineVersion = string;
 export type ProtocolVersion = number;
 export type MethodologyHash = string;
@@ -207,6 +223,21 @@ export interface SetKeyParams {
 export interface SetSettingParams {
   key: Key1;
   value: Value;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "CheckKeyParams".
+ */
+export interface CheckKeyParams {
+  service: Service1;
+  key: Key2;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "SafetyParams".
+ */
+export interface SafetyParams {
+  tool: Tool1;
 }
 /**
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
@@ -403,9 +434,9 @@ export interface GradeResult {
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
  * via the `definition` "Service".
  */
-export interface Service1 {
+export interface Service2 {
   name: Name4;
-  key: Key2;
+  key: Key3;
   cost: Cost;
   sent: Sent;
 }
@@ -435,6 +466,8 @@ export interface SettingsResult {
   primary_tool: PrimaryTool;
   sec_contact_email: SecContactEmail;
   goal1_round: Goal1Round;
+  setup_done: SetupDone;
+  fred_skipped: FredSkipped;
   services: Services;
   lockdown?: Lockdown;
 }
@@ -443,6 +476,40 @@ export interface Keys {
 }
 export interface Lockdown {
   [k: string]: LockdownState;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "KeyChecked".
+ */
+export interface KeyChecked {
+  proof: Proof;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "SafetyStarted".
+ */
+export interface SafetyStarted {
+  started: Started;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "SafetyProgress".
+ */
+export interface SafetyProgress {
+  tool: Tool2;
+  n: N;
+  total: Total;
+  name: Name5;
+  ok: Ok2;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "SafetyDone".
+ */
+export interface SafetyDone {
+  tool: Tool3;
+  passed: Passed1;
+  reason?: Reason;
 }
 /**
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema

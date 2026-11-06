@@ -35,6 +35,8 @@ from tearsheet.protocol import (
     Progress,
     ReportReady,
     RunFailedNote,
+    SafetyDone,
+    SafetyProgress,
 )
 from tearsheet.rawstore import RawStore
 
@@ -129,6 +131,7 @@ class Server:
         ai_factory=None,
         checker_factory=None,
         http_factory=None,
+        safety_connector_factory=None,
         log_predictions: bool | None = None,
         now: Callable[[], datetime] | None = None,
     ):
@@ -145,6 +148,8 @@ class Server:
         self.ai_factory = ai_factory or self._live_ai
         self.checker_factory = checker_factory or self._live_checker
         self.http_factory = http_factory or self._live_http
+        self.safety_connector_factory = safety_connector_factory or self._live_connector
+        self.safety_job: asyncio.Task | None = None
         # Live runs from the app log official predictions (item 35). With injected (test) data
         # nothing is logged unless a test asks for it.
         self.log_predictions = data_factory is None if log_predictions is None else log_predictions
@@ -205,6 +210,15 @@ class Server:
             return client_for(
                 conn, config.Settings(conn), tool=tool, signal_dir=self.paths.logs / "ai-signals"
             )
+        except AIUnavailable as exc:
+            raise EngineError("NO_TOOL", str(exc)) from exc
+
+    def _live_connector(self, conn, tool: str):
+        from tearsheet.ai import connector_for
+        from tearsheet.ai.client import AIUnavailable
+
+        try:
+            return connector_for(tool, config.Settings(conn))
         except AIUnavailable as exc:
             raise EngineError("NO_TOOL", str(exc)) from exc
 
@@ -293,6 +307,16 @@ class Server:
 
     def _busy(self) -> bool:
         return self.job is not None and not self.job.done()
+
+    def _safety_running(self) -> bool:
+        return self.safety_job is not None and not self.safety_job.done()
+
+    def _refuse_during_safety_check(self) -> None:
+        if self._safety_running():
+            raise EngineError(
+                "SAFETY_CHECK_RUNNING",
+                "The safety check is running. Wait for it to finish, then start the report.",
+            )
 
     def _progress(self, run_id: str):
         from tearsheet.pipeline import STEPS
@@ -388,6 +412,7 @@ class Server:
     async def m_run_report(self, p) -> dict[str, Any]:
         from tearsheet.pipeline import Run, new_run_id
 
+        self._refuse_during_safety_check()
         if self._busy():
             raise EngineError(
                 "RUN_IN_PROGRESS", "A report is already running. Wait for it, or cancel it."
@@ -422,6 +447,7 @@ class Server:
         from tearsheet.pipeline import prepare_resume
         from tearsheet.replay import ReplayError
 
+        self._refuse_during_safety_check()
         if self._busy():
             raise EngineError("RUN_IN_PROGRESS", "A report is already running.")
         row = self.db.conn.execute(
@@ -466,6 +492,10 @@ class Server:
     async def wait_for_job(self) -> None:
         if self.job is not None:
             await self.job
+
+    async def wait_for_safety_check(self) -> None:
+        if self.safety_job is not None:
+            await self.safety_job
 
     # --- reports, predictions and reviews --------------------------------------------------------
 
@@ -661,6 +691,73 @@ class Server:
         config.set_key(p.service, p.key)  # never echoed or logged
         return {"ok": True}
 
+    async def m_check_key(self, p) -> dict[str, Any]:
+        from tearsheet.setup_checks import check_key
+
+        async with self.http_factory(
+            f"keycheck-{uuid.uuid4().hex[:8]}", self.db.conn, self.rawstore
+        ) as http:
+            proof = await check_key(http, p.service, p.key)
+        config.set_key(p.service, p.key)  # only after the check passes; never echoed or logged
+        return {"proof": proof}
+
+    async def m_run_safety_check(self, p) -> dict[str, Any]:
+        if self._busy():
+            raise EngineError(
+                "RUN_IN_PROGRESS", "A report is running. Wait for it before the safety check."
+            )
+        self._refuse_during_safety_check()
+        connector = self.safety_connector_factory(self.db.conn, p.tool)
+        self.safety_job = asyncio.create_task(self._safety_job(p.tool, connector))
+        return {"started": True}
+
+    async def _safety_job(self, tool: str, connector) -> None:
+        from tearsheet.ai import api_billing, close_connector
+        from tearsheet.ai.client import ToolState
+        from tearsheet.ai.lockdown import run_check
+
+        def on_probe(n: int, total: int, probe) -> None:
+            self.notify(
+                "safety_progress",
+                SafetyProgress(
+                    tool=tool,
+                    n=n,
+                    total=total,
+                    name=probe.name,
+                    ok=not probe.problems and probe.error is None,
+                ),
+            )
+
+        passed, reason = False, None
+        try:
+            report = await run_check(
+                connector,
+                form="full",
+                api_billing=api_billing(tool, config.Settings(self.db.conn)),
+                on_probe=on_probe,
+            )
+            if report.inconclusive is None:
+                ToolState(self.db.conn, tool).record_check(
+                    version=report.program_version,
+                    model_ids=report.model_ids,
+                    form="full",
+                    passed=report.passed,
+                )
+            passed = report.passed
+            if report.inconclusive:
+                reason = f"The check couldn't finish: {report.inconclusive}"
+            elif not report.passed:
+                reason = "; ".join(report.problems[:3]) or "The check did not pass."
+        except Exception as exc:  # noqa: BLE001 - reported to the app, logged to standard error
+            log.exception("safety check on %s failed", tool)
+            passed, reason = False, str(exc)
+        finally:
+            try:
+                await close_connector(connector)
+            except Exception:  # noqa: BLE001 - cleanup only
+                log.exception("closing the AI tool after the safety check")
+        self.notify("safety_done", SafetyDone(tool=tool, passed=passed, reason=reason))
+
     async def m_get_settings(self, p) -> dict[str, Any]:
         settings = config.Settings(self.db.conn)
         backup = Path(settings.get("backup_dir") or config.DEFAULT_BACKUP_DIR).expanduser()
@@ -676,6 +773,8 @@ class Server:
             "primary_tool": settings.get("primary_tool"),
             "sec_contact_email": settings.get("sec_contact_email"),
             "goal1_round": int(float(round_)) if round_ else 1,
+            "setup_done": settings.get("setup_done") == "1",
+            "fred_skipped": settings.get("fred_skipped") == "1",
             "services": SERVICES,
             "lockdown": {
                 r["tool"]: {

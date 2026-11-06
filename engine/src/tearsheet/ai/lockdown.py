@@ -249,6 +249,7 @@ async def run_check(
     api_billing: bool = False,
     time_limit_s: float = config.AI_CALL_TIME_LIMIT_S,
     progress: Callable[[str], None] | None = None,
+    on_probe: Callable[[int, int, ProbeResult], None] | None = None,
 ) -> LockdownReport:
     """Run the full or short check on one tool and return the report. Records nothing."""
     prompts = load_prompts()
@@ -298,6 +299,8 @@ async def run_check(
                 result = evaluate(probe, answer, bait, connector, api_billing=api_billing)
             result.duration_s = round(time.monotonic() - started, 1)
             report.probes.append(result)
+            if on_probe:
+                on_probe(n, len(probes), result)
             if progress:
                 status = "; ".join(result.problems) or (
                     f"error: {result.error}" if result.error else "ok"

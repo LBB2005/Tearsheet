@@ -89,8 +89,25 @@ class SetKeyParams(Strict):
 
 
 class SetSettingParams(Strict):
-    key: Literal["raw_cap", "backup_dir", "primary_tool", "sec_contact_email", "goal1_round"]
+    key: Literal[
+        "raw_cap",
+        "backup_dir",
+        "primary_tool",
+        "sec_contact_email",
+        "goal1_round",
+        "setup_done",
+        "fred_skipped",
+    ]
     value: str
+
+
+class CheckKeyParams(Strict):
+    service: Literal["massive", "fred"]
+    key: str
+
+
+class SafetyParams(Strict):
+    tool: Literal["claude", "codex"]
 
 
 METHODS: dict[str, type[Strict]] = {
@@ -105,6 +122,8 @@ METHODS: dict[str, type[Strict]] = {
     "set_key": SetKeyParams,
     "get_settings": NoParams,
     "set_setting": SetSettingParams,
+    "check_key": CheckKeyParams,
+    "run_safety_check": SafetyParams,
     "grade_due": NoParams,
     "list_companies": NoParams,
     "search_companies": SearchParams,
@@ -263,6 +282,8 @@ class SettingsResult(Strict):
     primary_tool: str | None
     sec_contact_email: str | None
     goal1_round: int
+    setup_done: bool
+    fred_skipped: bool
     services: list[Service]
     lockdown: dict[str, LockdownState] = {}
 
@@ -275,6 +296,28 @@ class Hello(Strict):
     protocol_version: int = PROTOCOL_VERSION
     methodology_hash: str
     method_code_version: int
+
+
+class KeyChecked(Strict):
+    proof: str
+
+
+class SafetyStarted(Strict):
+    started: bool
+
+
+class SafetyProgress(Strict):
+    tool: Literal["claude", "codex"]
+    n: int
+    total: int
+    name: str
+    ok: bool
+
+
+class SafetyDone(Strict):
+    tool: Literal["claude", "codex"]
+    passed: bool
+    reason: str | None = None
 
 
 class Progress(Strict):
@@ -331,6 +374,10 @@ ALL_MODELS: tuple[type[BaseModel], ...] = (
     Service,
     LockdownState,
     SettingsResult,
+    KeyChecked,
+    SafetyStarted,
+    SafetyProgress,
+    SafetyDone,
     Hello,
     Progress,
     ReportReady,
