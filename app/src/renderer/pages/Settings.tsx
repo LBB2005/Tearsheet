@@ -88,7 +88,7 @@ export function Settings({ tools, onTools, safety, onSafetyStarted, onSettings }
 
   const primary: ToolKind = s.primary_tool === 'codex' ? 'codex' : 'claude'
   const lockdown = s.lockdown ?? {}
-  const tiles = healthTiles({ tools, primary, lockdown, safety, keys: s.keys, rawBytes: s.raw_bytes, rawCap: s.raw_cap })
+  const tiles = healthTiles({ tools, primary, lockdown, safety, keys: s.keys, rejected: s.rejected_keys, rawBytes: s.raw_bytes, rawCap: s.raw_cap })
 
   return (
     <div className="setv panels">
@@ -109,7 +109,7 @@ export function Settings({ tools, onTools, safety, onSafetyStarted, onSettings }
       <div className="two">
         <ToolsPanel i={2} tools={tools} lockdown={lockdown} safety={safety} onTools={onTools} onReload={load} onSafetyStarted={onSafetyStarted} />
         <div className="stack">
-          <KeysPanel i={3} keys={s.keys} onSaved={load} />
+          <KeysPanel i={3} keys={s.keys} rejected={s.rejected_keys} onSaved={load} />
           <StoragePanel i={4} rawBytes={s.raw_bytes} rawCap={s.raw_cap} />
         </div>
       </div>

@@ -292,6 +292,8 @@ class LockdownState(Strict):
 
 class SettingsResult(Strict):
     keys: dict[str, Literal["set", "missing"]]
+    # Stored keys their service refused on the last call that used them (Settings, home).
+    rejected_keys: list[str]
     raw_bytes: int
     raw_cap: float
     backup_dir: str

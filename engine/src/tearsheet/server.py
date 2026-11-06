@@ -201,20 +201,31 @@ class Server:
             massive_key=config.get_key("massive"),
             massive_limiter=self.massive_limiter(conn),
         ) as http:
-            yield LiveData(http, rawstore, conn, fred_key=config.get_key("fred"))
+            try:
+                yield LiveData(http, rawstore, conn, fred_key=config.get_key("fred"))
+            finally:
+                config.note_key_answers(
+                    settings, refused=http.keys_refused, worked=http.keys_worked
+                )
 
     @asynccontextmanager
     async def _live_http(self, run_id: str, conn, rawstore):
         from tearsheet.http import HttpClient
 
+        settings = config.Settings(conn)
         async with HttpClient(
             rawstore,
             run_id,
-            settings=config.Settings(conn),
+            settings=settings,
             massive_key=config.get_key("massive"),
             massive_limiter=self.massive_limiter(conn),
         ) as http:
-            yield http
+            try:
+                yield http
+            finally:
+                config.note_key_answers(
+                    settings, refused=http.keys_refused, worked=http.keys_worked
+                )
 
     def _live_ai(self, conn, tool: str | None):
         from tearsheet.ai import client_for
@@ -844,6 +855,7 @@ class Server:
 
     async def m_set_key(self, p) -> dict[str, Any]:
         config.set_key(p.service, p.key)  # never echoed or logged
+        config.forget_key_refusal(config.Settings(self.db.conn), p.service)
         return {"ok": True}
 
     async def m_check_key(self, p) -> dict[str, Any]:
@@ -855,8 +867,14 @@ class Server:
         async with self.http_factory(
             f"keycheck-{uuid.uuid4().hex[:8]}", self.db.conn, self.rawstore
         ) as http:
-            proof = await check_key(http, p.service, p.key)
+            try:
+                proof = await check_key(http, p.service, p.key)
+            finally:
+                # The answer was about the pasted key, not the stored one.
+                http.keys_refused.clear()
+                http.keys_worked.clear()
         config.set_key(p.service, p.key)  # only after the check passes; never echoed or logged
+        config.forget_key_refusal(config.Settings(self.db.conn), p.service)
         return {"proof": proof}
 
     async def m_run_safety_check(self, p) -> dict[str, Any]:
@@ -926,8 +944,17 @@ class Server:
         home = Path.home()
         in_icloud = any(backup == home / f or home / f in backup.parents for f in ICLOUD_FOLDERS)
         round_ = settings.get("goal1_round")
+        keys = {s: ("set" if config.get_key(s) else "missing") for s in config.KEY_SERVICES}
+        setup_done = settings.get("setup_done")
+        if setup_done is None and self.db.conn.execute("SELECT 1 FROM reports LIMIT 1").fetchone():
+            # Reports written before the app had a setup (the terminal, or the first app) mean
+            # the install is set up: it is marked so once, and opens on the home page.
+            settings.set_internal("setup_done", "1")
+            setup_done = "1"
         return {
-            "keys": {s: ("set" if config.get_key(s) else "missing") for s in config.KEY_SERVICES},
+            "keys": keys,
+            # Only a key that is there can have been refused; a missing one shows as missing.
+            "rejected_keys": [s for s in config.refused_keys(settings) if keys[s] == "set"],
             "raw_bytes": self.rawstore.folder_size(),
             "raw_cap": settings.number("raw_cap_gb", config.RAW_CAP_BYTES / 1024**3),
             "backup_dir": str(backup),
@@ -935,7 +962,7 @@ class Server:
             "primary_tool": settings.get("primary_tool"),
             "sec_contact_email": settings.get("sec_contact_email"),
             "goal1_round": int(float(round_)) if round_ else 1,
-            "setup_done": settings.get("setup_done") == "1",
+            "setup_done": setup_done == "1",
             "fred_skipped": settings.get("fred_skipped") == "1",
             "services": SERVICES,
             "lockdown": {

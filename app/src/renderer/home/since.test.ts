@@ -216,3 +216,26 @@ describe('greeting', () => {
     expect(greeting(new Date(2026, 10, 6, 23, 59), false)).toBe('Good evening')
   })
 })
+
+describe('a key that stops working', () => {
+  it('puts a refused Massive key in the red box, with the fix', () => {
+    const lines = sinceLines(input({ rejected: ['massive'] }))
+    expect(lines[0]).toEqual({
+      tone: 'down',
+      text: 'Massive stopped accepting your key',
+      detail: 'New reports can’t be rated until you replace it in Settings. Your saved reports still open.',
+      action: 'replaceMassive'
+    })
+  })
+
+  it('says a refused FRED key leaves the economic figures out, as a missing one does', () => {
+    const lines = sinceLines(input({ rejected: ['fred'] }))
+    expect(lines.filter((l) => l.tone === 'down')).toEqual([])
+    expect(lines).toContainEqual({ tone: 'hold', text: 'FRED stopped accepting your key, so reports leave the economic figures out.', action: 'addFred' })
+    expect(lines.some((l) => l.text.startsWith('Economic figures aren’t connected'))).toBe(false)
+  })
+
+  it('says nothing when no key was refused', () => {
+    expect(sinceLines(input({ rejected: [] }))).toEqual(sinceLines(input()))
+  })
+})

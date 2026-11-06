@@ -10,6 +10,7 @@ import { app, BrowserWindow, Menu, shell } from 'electron'
 import { dockUpdate, NO_RUN } from './dockProgress'
 import { Engine, type Notification } from './engine'
 import { registerIpc } from './ipc'
+import { closeHides } from './lifecycle'
 import { loginShellPath } from './loginShellPath'
 import { menuTemplate } from './menu'
 import { navigationAction } from './navigation'
@@ -23,6 +24,9 @@ const dataDir = process.env.TEARSHEET_DATA_DIR || join(app.getPath('appData'), '
 app.setPath('userData', join(dataDir, 'app-shell'))
 
 let engine: Engine | null = null
+let mainWindow: BrowserWindow | null = null
+// Set once Tearsheet is quitting, so closing the window then closes it for good (lifecycle.ts).
+let quitting = false
 
 function engineCommand(): { command: string; args: string[]; cwd: string } {
   // Development: the engine from this repository, through uv. Phase 3 bundles it.
@@ -86,12 +90,27 @@ async function createWindow(): Promise<void> {
       nodeIntegration: false
     }
   })
+  mainWindow = window
   registerIpc(window, engine, fixedPath)
   Menu.setApplicationMenu(Menu.buildFromTemplate(menuTemplate((command) => {
-        if (!window.isDestroyed() && !window.webContents.isDestroyed()) window.webContents.send('tearsheet:menu', command)
+        if (window.isDestroyed() || window.webContents.isDestroyed()) return
+        // A shortcut used while the window is hidden (⌘N, say) brings it back first.
+        if (!window.isVisible()) window.show()
+        window.webContents.send('tearsheet:menu', command)
       }, !app.isPackaged)))
   showProgressInDock(window, engine)
   engine.start()
+
+  // ⌘W and the red button hide the window while Tearsheet keeps running (lifecycle.ts). A
+  // full-screen window leaves full screen first, so no empty space is left behind.
+  window.on('close', (event) => {
+    if (!closeHides(process.platform, quitting)) return
+    event.preventDefault()
+    if (window.isFullScreen()) {
+      window.once('leave-full-screen', () => window.hide())
+      window.setFullScreen(false)
+    } else window.hide()
+  })
 
   // The window itself never navigates, and never opens pop-ups.
   window.webContents.on('will-navigate', (event) => event.preventDefault())
@@ -116,5 +135,12 @@ async function createWindow(): Promise<void> {
 }
 
 app.whenReady().then(createWindow)
+// Clicking the Dock icon brings the hidden window back as it was.
+app.on('activate', () => {
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.show()
+})
 app.on('window-all-closed', () => app.quit())
-app.on('before-quit', () => engine?.stop())
+app.on('before-quit', () => {
+  quitting = true
+  engine?.stop()
+})

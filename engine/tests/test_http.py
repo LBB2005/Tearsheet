@@ -323,3 +323,88 @@ def test_failure_messages_never_show_keys(rawstore, settings):
 def test_fred_dot_means_no_value():
     assert fred_value(".") is None
     assert fred_value(" 4.25 ") == 4.25
+
+
+# --- a stored key that stops working ---------------------------------------------------------
+
+MASSIVE_BARS = "https://api.massive.com/v2/aggs/ticker/AAPL/range/1/day/2026-01-01/2026-11-05"
+FRED_OBS = "https://api.stlouisfed.org/fred/series/observations"
+
+
+@respx.mock
+@pytest.mark.parametrize(
+    ("service", "url", "response", "refused"),
+    [
+        # Massive's answer to a key it doesn't know (Polygon's documented reply).
+        (
+            "massive",
+            MASSIVE_BARS,
+            httpx.Response(401, json={"status": "ERROR", "error": "Unknown API Key"}),
+            True,
+        ),
+        # Data beyond the free plan: the key works, the plan doesn't cover it.
+        (
+            "massive",
+            MASSIVE_BARS,
+            httpx.Response(
+                403,
+                json={
+                    "status": "NOT_AUTHORIZED",
+                    "message": "You are not entitled to this data. Please upgrade your plan.",
+                },
+            ),
+            False,
+        ),
+        (
+            "fred",
+            FRED_OBS,
+            httpx.Response(
+                400,
+                json={
+                    "error_code": 400,
+                    "error_message": "Bad Request.  The value for variable api_key is not registered.",
+                },
+            ),
+            True,
+        ),
+        # A bad request that isn't about the key.
+        (
+            "fred",
+            FRED_OBS,
+            httpx.Response(
+                400,
+                json={
+                    "error_code": 400,
+                    "error_message": "Bad Request.  Variable series_id is not set.",
+                },
+            ),
+            False,
+        ),
+    ],
+)
+def test_a_refused_key_is_told_apart_from_other_refusals(rawstore, service, url, response, refused):
+    respx.get(url__startswith=url).mock(return_value=response)
+
+    async def go():
+        async with HttpClient(rawstore, "r1", massive_key="K") as http:
+            with pytest.raises(HTTPFailure):
+                await http.fetch(service, url, kind="x")
+            return http.keys_refused, http.keys_worked
+
+    keys_refused, keys_worked = run(go())
+    assert keys_refused == ({service} if refused else set())
+    assert keys_worked == set()
+
+
+@respx.mock
+def test_a_call_that_works_says_the_key_works(rawstore):
+    respx.get(url__startswith=MASSIVE_BARS).mock(
+        return_value=httpx.Response(200, json={"status": "OK", "results": []})
+    )
+
+    async def go():
+        async with HttpClient(rawstore, "r1", massive_key="K") as http:
+            await http.fetch("massive", MASSIVE_BARS, kind="daily_bars")
+            return http.keys_refused, http.keys_worked
+
+    assert run(go()) == (set(), {"massive"})

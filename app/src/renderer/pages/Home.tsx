@@ -113,6 +113,7 @@ export function Home({ companies, tool, fieldRef, refresh, onStart, onOpen, onKe
     predictions: predictions ?? [],
     // Until the settings answer, nothing is said about the keys.
     keys: settings?.keys ?? { fred: 'set' },
+    rejected: settings?.rejected_keys ?? [],
     fredSkipped: settings?.fred_skipped ?? false,
     tool
   })
@@ -336,6 +337,11 @@ function Problem({
       {line.action === 'addMassive' && (
         <button className="btn2" onClick={onKeys}>
           Add the key
+        </button>
+      )}
+      {line.action === 'replaceMassive' && (
+        <button className="btn2" onClick={onKeys}>
+          Replace the key
         </button>
       )}
     </div>

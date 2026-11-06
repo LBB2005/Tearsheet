@@ -96,6 +96,12 @@ describe('healthTiles', () => {
     expect(t[3]).toEqual({ name: 'Other-tool skeptic', tone: 'off', text: 'Looking for Codex…' })
   })
 
+  it('says when a key stopped working: Massive in red, FRED as a warning', () => {
+    expect(tiles({ rejected: ['massive'] })[1]).toEqual({ name: 'Data keys', tone: 'bad', text: 'Massive’s key isn’t accepted' })
+    expect(tiles({ rejected: ['fred'] })[1]).toEqual({ name: 'Data keys', tone: 'hold', text: 'FRED’s key isn’t accepted' })
+    expect(tiles({ rejected: ['massive', 'fred'] })[1]).toEqual({ name: 'Data keys', tone: 'bad', text: 'Massive’s and FRED’s keys aren’t accepted' })
+  })
+
   it('counts the two keys reports use; Alpha Vantage is not used yet', () => {
     expect(tiles({ keys: { massive: 'set', fred: 'missing', alphavantage: 'set' } })[1]).toEqual({ name: 'Data keys', tone: 'hold', text: '1 of 2 set, FRED missing' })
     expect(tiles({ keys: { massive: 'missing', fred: 'set', alphavantage: 'set' } })[1]).toMatchObject({ tone: 'bad', text: '1 of 2 set, Massive missing' })

@@ -82,6 +82,8 @@ export interface HealthInput {
   // This session's safety check, if one ran.
   safety: SafetyState | null
   keys: Record<string, 'set' | 'missing'>
+  // Stored keys their service refused on the last call that used them.
+  rejected?: string[]
   rawBytes: number
   rawCap: number
 }
@@ -108,11 +110,15 @@ export function healthTiles(h: HealthInput): Tile[] {
   }
 
   const missing = USED_KEYS.filter(([service]) => h.keys[service] !== 'set').map(([, label]) => label)
+  const refused = USED_KEYS.filter(([service]) => h.keys[service] === 'set' && h.rejected?.includes(service)).map(([, label]) => `${label}’s`)
   const count = `${USED_KEYS.length - missing.length} of ${USED_KEYS.length} set`
+  const massiveOk = h.keys.massive === 'set' && !h.rejected?.includes('massive')
   const keys: Tile =
-    missing.length === 0
-      ? { name: 'Data keys', tone: 'ok', text: count }
-      : { name: 'Data keys', tone: h.keys.massive === 'set' ? 'hold' : 'bad', text: `${count}, ${missing.join(' and ')} missing` }
+    missing.length > 0
+      ? { name: 'Data keys', tone: massiveOk ? 'hold' : 'bad', text: `${count}, ${missing.join(' and ')} missing` }
+      : refused.length > 0
+        ? { name: 'Data keys', tone: massiveOk ? 'hold' : 'bad', text: refused.length === 1 ? `${refused[0]} key isn’t accepted` : `${refused.join(' and ')} keys aren’t accepted` }
+        : { name: 'Data keys', tone: 'ok', text: count }
 
   const store = storage(h.rawBytes, h.rawCap)
   const space: Tile = { name: 'Storage', tone: store.tone, text: `${store.used} of ${store.cap}` }

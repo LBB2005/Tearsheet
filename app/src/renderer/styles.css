@@ -107,7 +107,8 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .top button, .top input, .top select, .top a, .top .find4 { -webkit-app-region: no-drag; }
 .top .ttl { margin: 0 auto 0 0; min-width: 0; font: 600 14.5px/1.2 var(--ui); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .top .ttl small { display: block; font: 12px var(--ui); color: var(--muted); }
-.narrow .top .ttl small { display: none; }
+/* Narrow windows keep the title to one line, except for the menu of the company's other reports, the only way to them there. */
+.narrow .top .ttl small:not(:has(.subbtn)) { display: none; }
 
 /* Find (⌘F), at the right of the toolbar. */
 .find4 { display: flex; align-items: center; gap: 7px; width: 230px; height: 28px; padding: 0 4px 0 10px; border-radius: 8px; background: rgba(255, 255, 255, .06); border: 1px solid var(--line); animation: settle-in .3s var(--settle) backwards; }

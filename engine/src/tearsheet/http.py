@@ -58,6 +58,21 @@ MASSIVE_ERROR_STATUSES = frozenset({"ERROR", "NOT_AUTHORIZED"})
 # Confirmed in Phase 0 (otherwise the `apiKey` parameter, which is removed from logs).
 MASSIVE_AUTH_HEADER = "Authorization"
 
+
+def refuses_key(service: str, status: int, body: bytes) -> bool:
+    """Whether a failed answer says the stored key itself is the problem, so the app can say
+    the key stopped working. Believed from each service's documented answers, not yet seen live:
+    Massive answers an unknown key with 401 ("Unknown API Key"), and data beyond the plan with
+    403 NOT_AUTHORIZED ("not entitled"), which is the plan, not the key. FRED answers a bad key
+    with 400 and a message naming api_key."""
+    text = body[:2000].lower()
+    if service == "massive":
+        return status == 401 or (b"api key" in text and b"entitled" not in text)
+    if service == "fred":
+        return status in (400, 401, 403) and b"api_key" in text
+    return False
+
+
 # Content types accepted for each kind of expected body.
 EXPECTED_TYPES = {
     "json": ("json",),
@@ -388,6 +403,9 @@ class HttpClient:
         }
         self.requests: Counter[tuple[str, str]] = Counter()
         self.statuses: Counter[tuple[str, int]] = Counter()
+        # The keyed services whose stored key was refused, or worked, on this client's calls.
+        self.keys_refused: set[str] = set()
+        self.keys_worked: set[str] = set()
 
     async def aclose(self) -> None:
         await self._client.aclose()
@@ -457,12 +475,18 @@ class HttpClient:
                     status,
                 )
             if status != 200:
+                if refuses_key(service, status, response.content):
+                    self.keys_refused.add(service)
                 raise HTTPFailure(service, full_url, f"HTTP {status}", status)
 
             content_type = response.headers.get("content-type", "")
             problem = check_body(svc, expect, content_type, response.content)
             if problem:
+                if refuses_key(service, status, response.content):
+                    self.keys_refused.add(service)
                 raise InvalidResponse(service, full_url, problem, status)
+            if service in ("massive", "fred"):
+                self.keys_worked.add(service)
             raw_hash = self._store.put(
                 response.content, full_url, svc.name, content_type, self.run_id
             )

@@ -8,9 +8,9 @@ import { shortDate } from '../nav'
 // 'down' is a problem (the red box); 'muted' is a note in the same place, without alarm.
 export type SinceTone = 'up' | 'accent' | 'hold' | 'down' | 'muted'
 
-// The fix a line offers: add the FRED or Massive key (Settings), sign the AI tool in again, or
-// run the safety check again.
-export type SinceAction = 'addFred' | 'addMassive' | 'signIn' | 'recheck'
+// The fix a line offers: add the FRED or Massive key, or replace a Massive key that stopped
+// working (Settings), sign the AI tool in again, or run the safety check again.
+export type SinceAction = 'addFred' | 'addMassive' | 'replaceMassive' | 'signIn' | 'recheck'
 
 export interface SinceLine {
   tone: SinceTone
@@ -24,6 +24,8 @@ export interface SinceInput {
   companies: CompanyRow[]
   predictions: PredictionSummary[]
   keys: Record<string, 'set' | 'missing'>
+  // Stored keys their service refused on the last call that used them (rejected_keys).
+  rejected?: string[]
   // Skipped in setup or not, a missing FRED key reads the same: reports leave the figures out.
   fredSkipped: boolean
   // The AI tool in use, by name, and what is wrong with it. A safety check that stopped part way
@@ -131,11 +133,20 @@ export function sinceLines(s: SinceInput): SinceLine[] {
       action: 'addMassive'
     })
   }
+  if (s.keys.massive === 'set' && s.rejected?.includes('massive')) {
+    lines.push({
+      tone: 'down',
+      text: 'Massive stopped accepting your key',
+      detail: 'New reports can’t be rated until you replace it in Settings. Your saved reports still open.',
+      action: 'replaceMassive'
+    })
+  }
   const prices = pricesLine(s.companies, now)
   if (prices) lines.push(prices)
   const grade = gradeLine(s.predictions, s.companies, now)
   if (grade) lines.push(grade)
   if (s.keys.fred !== 'set') lines.push({ tone: 'hold', text: 'Economic figures aren’t connected, so reports leave them out.', action: 'addFred' })
+  else if (s.rejected?.includes('fred')) lines.push({ tone: 'hold', text: 'FRED stopped accepting your key, so reports leave the economic figures out.', action: 'addFred' })
   return lines
 }
 

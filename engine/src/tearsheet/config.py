@@ -77,6 +77,29 @@ def set_key(service: str, value: str) -> None:
     keyring.set_password(KEYCHAIN_SERVICE, service, value)
 
 
+# A stored key its service refused is remembered until a call with it works again or a new key
+# is saved, so the app can say the key stopped working.
+def _refused_setting(service: str) -> str:
+    return f"key_refused_{service}"
+
+
+def note_key_answers(settings: Settings, *, refused: set[str], worked: set[str]) -> None:
+    for service in KEY_SERVICES:
+        if service in refused:
+            settings.set_internal(_refused_setting(service), "1")
+        elif service in worked:
+            forget_key_refusal(settings, service)
+
+
+def forget_key_refusal(settings: Settings, service: str) -> None:
+    if settings.get(_refused_setting(service)):
+        settings.set_internal(_refused_setting(service), "")
+
+
+def refused_keys(settings: Settings) -> list[str]:
+    return [s for s in KEY_SERVICES if settings.get(_refused_setting(s))]
+
+
 # --- Run limits (Technical Plan §3, item 8) ----------------------------------
 
 CALL_BUDGET = 50

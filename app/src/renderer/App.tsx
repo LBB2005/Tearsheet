@@ -179,6 +179,8 @@ export function App() {
     return window.tearsheet.onNotification((note: EngineNotification) => {
       if (note.method === 'progress' || note.method === 'report_ready' || note.method === 'run_failed') {
         onNote(note)
+        // A run may have found a key that stopped working, or one that works again.
+        if (note.method !== 'progress') void window.tearsheet.getSettings().then((r) => r.ok && r.result && setBootSettings(r.result))
       } else if (note.method === 'safety_progress' || note.method === 'safety_done') {
         setSafety((s) => applySafetyNote(s, note.method, note.params))
       } else if (note.method === 'engine_restarted') {
@@ -330,7 +332,8 @@ export function App() {
     tools: toolName,
     signedOut,
     safetyFailed: checkFailed,
-    grading
+    grading,
+    keyRefused: bootSettings?.keys.massive === 'set' && Boolean(bootSettings.rejected_keys?.includes('massive'))
   })
 
   // The run view, on the home page while a report is written (or waits for Resume).

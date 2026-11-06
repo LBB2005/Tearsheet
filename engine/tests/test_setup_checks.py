@@ -419,3 +419,112 @@ def test_a_crashing_check_ends_with_a_reason_and_frees_the_server(tmp_path, monk
     assert again["result"] == {"started": True}
     assert second["passed"] is True
     h.server.close()
+
+
+# --- a stored key that stops working, and an install set up before setup existed -------------
+
+
+def live_harness(tmp_path):
+    """The server's own HTTP client, with the Massive limiter fast enough for a test."""
+    h = Harness(tmp_path)
+    config.Settings(h.server.db.conn).set("massive_calls_per_minute", "600000")
+    return h
+
+
+def test_a_refused_stored_key_shows_until_a_call_with_it_works(tmp_path):
+    h = live_harness(tmp_path)
+    config.set_key("massive", "stored-key")
+    url = MASSIVE_URL + "1/day/2026-11-01/2026-11-05"
+
+    async def fetch(response):
+        with respx.mock:
+            respx.get(url__startswith=MASSIVE_URL).mock(return_value=response)
+            async with h.server._live_http("r1", h.server.db.conn, h.server.rawstore) as http:
+                try:
+                    await http.fetch("massive", url, kind="daily_bars")
+                except Exception:
+                    pass
+
+    async def go():
+        await fetch(httpx.Response(401, json={"status": "ERROR", "error": "Unknown API Key"}))
+        refused = await h.call("get_settings", id_=2)
+        await fetch(httpx.Response(200, json=bars()))
+        works = await h.call("get_settings", id_=3)
+        return refused, works
+
+    refused, works = run(go())
+    assert refused["result"]["rejected_keys"] == ["massive"]
+    assert refused["result"]["keys"]["massive"] == "set"
+    assert works["result"]["rejected_keys"] == []
+    SettingsResult.model_validate(refused["result"])
+    h.server.close()
+
+
+def test_a_new_key_clears_the_refusal_and_a_refused_pasted_key_leaves_the_stored_one_alone(
+    tmp_path,
+):
+    h = live_harness(tmp_path)
+    config.set_key("massive", "stored-key")
+    conn = h.server.db.conn
+
+    async def go():
+        with respx.mock:
+            respx.get(url__startswith=MASSIVE_URL).mock(return_value=httpx.Response(401))
+            await h.call("check_key", {"service": "massive", "key": "pasted-bad"})
+        after_bad_paste = await h.call("get_settings", id_=2)
+        config.note_key_answers(config.Settings(conn), refused={"massive"}, worked=set())
+        noted = await h.call("get_settings", id_=3)
+        await h.call("set_key", {"service": "massive", "key": "new-key"}, id_=4)
+        after_new_key = await h.call("get_settings", id_=5)
+        return after_bad_paste, noted, after_new_key
+
+    after_bad_paste, noted, after_new_key = run(go())
+    assert after_bad_paste["result"]["rejected_keys"] == []
+    assert config.get_key("massive") == "new-key"
+    assert noted["result"]["rejected_keys"] == ["massive"]
+    assert after_new_key["result"]["rejected_keys"] == []
+    h.server.close()
+
+
+def test_a_missing_key_is_missing_not_refused(tmp_path):
+    h = Harness(tmp_path)
+    config.note_key_answers(config.Settings(h.server.db.conn), refused={"fred"}, worked=set())
+
+    async def go():
+        return await h.call("get_settings")
+
+    s = run(go())["result"]
+    assert s["keys"]["fred"] == "missing" and s["rejected_keys"] == []
+    h.server.close()
+
+
+def test_an_install_that_already_has_reports_opens_on_home(tmp_path):
+    """Reports written before the app had a setup (the terminal, or the first app) mean the
+    install is set up: it is marked so once, and opens on the home page."""
+    h = Harness(tmp_path)
+
+    async def go():
+        before = await h.call("get_settings")
+        await h.call("run_report", {"query": "T0"}, id_=2)
+        await h.finish()
+        after = await h.call("get_settings", id_=3)
+        return before, after
+
+    before, after = run(go())
+    assert before["result"]["setup_done"] is False
+    assert after["result"]["setup_done"] is True
+    assert config.Settings(h.server.db.conn).get("setup_done") == "1"
+    h.server.close()
+
+
+def test_setup_asked_for_again_is_respected_even_with_reports(tmp_path):
+    h = Harness(tmp_path)
+
+    async def go():
+        await h.call("run_report", {"query": "T0"})
+        await h.finish()
+        await h.call("set_setting", {"key": "setup_done", "value": "0"}, id_=2)
+        return await h.call("get_settings", id_=3)
+
+    assert run(go())["result"]["setup_done"] is False
+    h.server.close()

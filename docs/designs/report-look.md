@@ -350,6 +350,7 @@ All are menu shortcuts, so they work only while Tearsheet is in front.
 | ⌃⌘S | Show or hide the sidebar |
 | ⌘F | Find in the report |
 | ⌘, | Settings |
+| ⌘W | Close the window. Tearsheet keeps running, so a report being written carries on; the Dock icon brings the window back as it was. ⌘Q quits. |
 
 ## Rules this keeps (Technical Plan §12, items 31, 32, 42, 47)
 
@@ -404,7 +405,6 @@ All are menu shortcuts, so they work only while Tearsheet is in front.
 *   A rebuild in Swift.
 *   A 1D range: it needs a paid price plan.
 *   Pinned reports in the sidebar.
-*   The app icon, which is being designed in a separate session.
 *   A sample report during setup (Liam, Nov 5): nothing shows until the user's own first
     report is done.
 

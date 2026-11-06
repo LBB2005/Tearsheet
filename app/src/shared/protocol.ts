@@ -110,6 +110,7 @@ export type Passed = boolean;
 export type Form1 = string | null;
 export type CheckedAt = string | null;
 export type BlockedReason = string | null;
+export type RejectedKeys = string[];
 export type RawBytes = number;
 export type RawCap = number;
 export type BackupDir = string;
@@ -476,6 +477,7 @@ export interface LockdownState {
  */
 export interface SettingsResult {
   keys: Keys;
+  rejected_keys: RejectedKeys;
   raw_bytes: RawBytes;
   raw_cap: RawCap;
   backup_dir: BackupDir;

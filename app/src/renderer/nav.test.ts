@@ -85,6 +85,13 @@ describe('statusLine', () => {
     expect(line).toEqual({ tone: 'run', text: 'Safety check, 7 of 25', progress: 7 / 25 })
   })
 
+  it('says in red when the Massive key stopped working, after a sign-out and a failed check', () => {
+    expect(statusLine({ tools: 'Claude Code', signedOut: false, keyRefused: true })).toEqual({ tone: 'stop', text: 'Massive key not accepted' })
+    expect(statusLine({ tools: 'Claude Code', signedOut: true, keyRefused: true }).text).toBe('Claude Code signed out')
+    expect(statusLine({ tools: 'Claude Code', signedOut: false, safetyFailed: true, keyRefused: true }).text).toBe('Safety check didn’t pass')
+    expect(statusLine({ run: { ticker: 'JPM', steps: {} }, tools: 'Claude Code', signedOut: false, keyRefused: true }).text).toBe('Massive key not accepted')
+  })
+
   it('says when the tool is signed out', () => {
     expect(statusLine({ tools: 'Claude Code', signedOut: true })).toEqual({ tone: 'stop', text: 'Claude Code signed out' })
   })

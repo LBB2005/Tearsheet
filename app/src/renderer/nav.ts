@@ -42,6 +42,8 @@ export interface StatusInput {
   safetyFailed?: boolean
   // Past predictions being graded (grade_due), which no report may overlap.
   grading?: boolean
+  // Massive refused the stored key, so new reports can't be rated.
+  keyRefused?: boolean
 }
 
 export interface StatusLine {
@@ -51,13 +53,14 @@ export interface StatusLine {
   progress?: number
 }
 
-// The sidebar's status line. A sign-out comes first, then a failed safety check, both in red,
-// because new reports can't be written until they're fixed; then a run, the safety check and
-// grading, then "ready".
+// The sidebar's status line. A sign-out comes first, then a failed safety check, then a Massive
+// key that stopped working, all in red, because new reports can't be written or rated until
+// they're fixed; then a run, the safety check and grading, then "ready".
 export function statusLine(input: StatusInput): StatusLine {
   const total = REPORT_STEPS.length
   if (input.signedOut) return { tone: 'stop', text: `${input.tools} signed out` }
   if (input.safetyFailed) return { tone: 'stop', text: 'Safety check didn’t pass' }
+  if (input.keyRefused) return { tone: 'stop', text: 'Massive key not accepted' }
   if (input.run) {
     const behind = Math.min(stepsBehind(input.run.steps), total - 1)
     return { tone: 'run', text: `Writing ${input.run.ticker}, step ${behind + 1} of ${total}`, progress: (behind + 0.5) / total }
