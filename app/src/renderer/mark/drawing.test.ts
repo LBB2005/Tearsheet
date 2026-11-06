@@ -25,4 +25,16 @@ describe('the Glass mark', () => {
     expect(markSvg({ id: 'a' })).toContain('id="a-b"')
     expect(markSvg({ id: 'b' })).not.toContain('id="a-b"')
   })
+  it('clamps fill to 0–1', () => {
+    expect(markSvg({ fill: -1 })).toContain('stroke-dashoffset="1.000"')
+    expect(markSvg({ fill: 2 })).toContain('stroke-dashoffset="0.000"')
+  })
+  it('treats a non-finite fill as 0', () => {
+    expect(markSvg({ fill: NaN })).toContain('stroke-dashoffset="1.000"')
+    expect(markSvg({ fill: NaN })).not.toContain('NaN')
+  })
+  it('area opacity follows fill', () => {
+    expect(markSvg({ fill: 0.25 })).toContain('opacity="0.250"')
+    expect(markSvg({})).not.toContain('mark-area')
+  })
 })

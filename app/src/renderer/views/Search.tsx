@@ -27,7 +27,7 @@ export function Search({ onStarted }: { onStarted: (runId: string) => void }) {
 
   return (
     <section>
-      <div className="fm-heading">
+      <div className="mark-heading">
         <Mark size={64} />
         <h2>New report</h2>
       </div>

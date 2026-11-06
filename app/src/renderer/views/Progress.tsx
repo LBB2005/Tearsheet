@@ -36,7 +36,7 @@ export function Progress({ run, onResumed }: { run: RunState | null; onResumed: 
   return (
     <section>
       <h2>Progress</h2>
-      <Mark size={128} fill={run.reportId ? 1 : fillForSteps(run.steps)} />
+      <Mark size={128} className="mark-progress" fill={run.reportId ? 1 : fillForSteps(run.steps)} />
       <p className="muted">Run {run.runId}</p>
       <ol className="steps">
         {STEPS.map(([key, label], i) => {

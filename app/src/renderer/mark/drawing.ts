@@ -42,21 +42,25 @@ const line = (d: string, w: number, color: string) =>
 function chart(d: string, w: number, color: string, p: number | undefined, track: string): string {
   const base = `d="${d}" fill="none" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"`
   if (p === undefined) return `<path ${base} stroke="${color}"/>`
-  const offset = (1 - Math.min(1, Math.max(0, p))).toFixed(3)
+  const offset = (1 - p).toFixed(3)
   return (
     `<path ${base} stroke="${track}"/>` +
     `<path class="mark-fill" ${base} pathLength="1" stroke="${color}" stroke-dasharray="1 1" stroke-dashoffset="${offset}"/>`
   )
 }
 
+// Keeps fill inside 0–1; anything that is not a number counts as 0.
+const clamp01 = (p: number) => (Number.isFinite(p) ? Math.min(1, Math.max(0, p)) : 0)
+
 export function markSvg(opts: MarkOptions): string {
-  const { small = false, fill } = opts
+  const { small = false } = opts
+  const fill = opts.fill === undefined ? undefined : clamp01(opts.fill)
   const id = opts.id ?? 'mk'
   const d = small ? 'M290 724L428 592L530 664L742 440' : 'M300 700L420 594L512 660L740 446'
   const x1 = small ? 742 : 740
   const x0 = small ? 290 : 300
   const area = `${d}L${x1} 930L${x0} 930Z`
-  const areaOpacity = fill === undefined ? '' : ` class="mark-area" opacity="${Math.min(1, Math.max(0, fill)).toFixed(3)}"`
+  const areaOpacity = fill === undefined ? '' : ` class="mark-area" opacity="${fill.toFixed(3)}"`
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" aria-hidden="true">` +
     `<defs><clipPath id="${id}-c"><path d="${SQ}"/></clipPath>` +

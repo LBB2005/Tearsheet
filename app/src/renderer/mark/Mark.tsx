@@ -8,11 +8,11 @@ import { useId } from 'react'
 
 import { markSvg } from './drawing'
 
-export function Mark({ size, fill }: { size: number; fill?: number }) {
+export function Mark({ size, fill, className }: { size: number; fill?: number; className?: string }) {
   const id = 'mk' + useId().replace(/[^A-Za-z0-9_-]/g, '')
   return (
     <span
-      className="mark"
+      className={className ? `mark ${className}` : 'mark'}
       style={{ width: size, height: size }}
       dangerouslySetInnerHTML={{ __html: markSvg({ small: size <= 32, fill, id }) }}
     />
