@@ -309,6 +309,16 @@ async def fetch_history_actions(
             url, params = data.get("next_url"), None
 
 
+def long_history_start(today: date) -> date:
+    """Where a history must start to fill the chart's 5Y range: five years before `today`,
+    within a month (the chart's own allowance, app/src/renderer/chart/series.ts)."""
+    try:
+        five = today.replace(year=today.year - 5)
+    except ValueError:  # 29 February
+        five = today.replace(year=today.year - 5, day=28)
+    return five + timedelta(days=31)
+
+
 def history_stored(store: PriceStore, cik: int, since: date, *, share_class: str = "") -> bool:
     """Whether a quarterly payer's history (SPY's) is already stored back to `since`, with its
     dividends: what a history download stores, and runs (two years) never reach."""

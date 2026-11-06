@@ -620,16 +620,19 @@ class Server:
         return chart_series(self.db.conn, cik, run_id)
 
     async def m_fetch_history(self, p) -> dict[str, Any]:
-        """The company's full daily history with its splits and dividends (three calls), then
+        """The company's full daily history with its splits and dividends (three calls), and
         SPY's (three more) unless an earlier download already stored them. Every call goes
-        through the shared Massive limiter."""
+        through the shared Massive limiter. The company's long bars come last: they are what
+        tell the app the history is there, so a download cut short leaves it asking again."""
         from tearsheet.charts import SPY_CIK
         from tearsheet.data.prices import (
             PriceStore,
             fetch_history_actions,
             fetch_history_bars,
             history_stored,
+            long_history_start,
         )
+        from tearsheet.http import EASTERN
         from tearsheet.resolve import ticker_for
 
         if self._busy():
@@ -645,12 +648,12 @@ class Server:
             f"history-{uuid.uuid4().hex[:8]}", self.db.conn, self.rawstore
         ) as http:
             massive = ticker_for("massive", ticker)
-            await fetch_history_bars(http, store, cik, "", massive)
             await fetch_history_actions(http, store, cik, "", massive)
-            closes = store.closes(cik)
-            if not closes or not history_stored(store, SPY_CIK, closes[0][0]):
-                await fetch_history_bars(http, store, SPY_CIK, "", "SPY")
+            today = datetime.now(EASTERN).date()
+            if not history_stored(store, SPY_CIK, long_history_start(today)):
                 await fetch_history_actions(http, store, SPY_CIK, "", "SPY")
+                await fetch_history_bars(http, store, SPY_CIK, "", "SPY")
+            await fetch_history_bars(http, store, cik, "", massive)
         first, days = self.db.conn.execute(
             "SELECT MIN(date), COUNT(*) FROM prices_daily WHERE cik = ? AND share_class = ''",
             (cik,),

@@ -162,10 +162,15 @@ class FakeHttp:
     def __init__(self):
         self.urls: list[str] = []
         self.calls: list[tuple[str, dict | None]] = []
+        # Kinds of call that fail once, as Massive being down mid-download would.
+        self.fail: set[str] = set()
 
     async def fetch(self, service, url, *, kind, expect="json", params=None):
         self.urls.append(url)
         self.calls.append((kind, params))
+        if kind in self.fail:
+            self.fail.discard(kind)
+            raise RuntimeError("Massive didn't answer.")
         ticker = (params or {}).get("ticker") or ("SPY" if "/SPY/" in url else "ABC")
         if kind == "splits":
             return _Fetched(
@@ -209,9 +214,7 @@ def test_fetch_history_bars_stores_rows(database):
     )
 
 
-def test_fetch_history_method_downloads_company_and_spy(tmp_path):
-    http = FakeHttp()
-
+def _history_harness(tmp_path, http):
     @asynccontextmanager
     async def http_factory(run_id, conn, rawstore):
         yield http
@@ -223,27 +226,34 @@ def test_fetch_history_method_downloads_company_and_spy(tmp_path):
         h.server.db.conn.execute(
             "INSERT INTO step_outputs VALUES ('run-1', 'resolve', '{\"ticker\": \"ABC\"}')"
         )
+    return h
+
+
+def test_fetch_history_method_downloads_company_and_spy(tmp_path):
+    http = FakeHttp()
+    h = _history_harness(tmp_path, http)
 
     reply = run(h.call("fetch_history", {"report_id": "rep-1"}))
-    # The company's bars, splits and dividends (two pages), then SPY's bars, splits and
-    # dividends: seven calls, all through the shared Massive limiter.
+    # The company's splits and dividends (two pages), SPY's splits, dividends and bars, and
+    # the company's bars last: seven calls, all through the shared Massive limiter. The
+    # company's long bars are what tell the app the history is there, so they land last.
     kinds = [k for k, _ in http.calls]
     assert kinds == [
-        "daily_bars",
         "splits",
         "dividends",
         "dividends",
-        "daily_bars",
         "splits",
         "dividends",
+        "daily_bars",
+        "daily_bars",
     ]
-    assert any("/SPY/" in u for u in http.urls)
-    assert http.calls[1][1] == {
+    assert "/SPY/" in http.urls[5] and "/ABC/" in http.urls[6]
+    assert http.calls[0][1] == {
         "ticker": "ABC",
         "execution_date.gte": "2000-01-01",
         "limit": "1000",
     }
-    assert http.calls[2][1] == {
+    assert http.calls[1][1] == {
         "ticker": "ABC",
         "ex_dividend_date.gte": "2000-01-01",
         "limit": "1000",
@@ -257,10 +267,38 @@ def test_fetch_history_method_downloads_company_and_spy(tmp_path):
     assert store.dividends(884394) == {date(2000, 1, 4): 0.1}
 
     # A second download: SPY's long history and its dividends are stored now, so only the
-    # company's three calls are made.
+    # company's calls are made.
     http.calls.clear()
     run(h.call("fetch_history", {"report_id": "rep-1"}, id_=2))
-    assert [k for k, _ in http.calls] == ["daily_bars", "splits", "dividends", "dividends"]
+    assert [k for k, _ in http.calls] == ["splits", "dividends", "dividends", "daily_bars"]
+    h.server.close()
+
+
+def test_long_history_start_is_five_years_back_within_a_month():
+    from tearsheet.data.prices import long_history_start
+
+    assert long_history_start(date(2026, 11, 6)) == date(2021, 12, 7)
+    assert long_history_start(date(2028, 2, 29)) == date(2023, 3, 31)
+
+
+def test_a_download_that_fails_midway_stores_no_long_bars_and_retries(tmp_path):
+    http = FakeHttp()
+    h = _history_harness(tmp_path, http)
+    long_bars = "SELECT COUNT(*) FROM prices_daily WHERE cik IN (1, 884394) AND date < '2001-01-01'"
+
+    for kind in ("splits", "dividends"):
+        http.fail = {kind}
+        failed = run(h.call("fetch_history", {"report_id": "rep-1"}))
+        assert "error" in failed
+        # No long bars, so the chart still asks for the history and a later 5Y tries again.
+        assert h.server.db.conn.execute(long_bars).fetchone()[0] == 0
+
+    done = run(h.call("fetch_history", {"report_id": "rep-1"}, id_=2))
+    assert done["result"]["first_date"] <= "2000-01-05"
+    store = PriceStore(h.server.db.conn)
+    assert store.splits(1) == {date(2000, 1, 5): 2.0}
+    assert store.dividends(1) == {date(2000, 1, 4): 0.1, date(2000, 1, 6): 0.2}
+    assert h.server.db.conn.execute(long_bars).fetchone()[0] == 4
     h.server.close()
 
 

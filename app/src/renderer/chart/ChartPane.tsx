@@ -468,6 +468,8 @@ export function ChartPane({ reportId, cik, ticker, name, width, wide, full, onCl
   rangeNow.current = range
   // 5Y or All picked before the stored series arrived: the download starts once it has.
   const waiting = useRef(false)
+  // The company's download this pane is waiting on, so it reads the series once when it lands.
+  const following = useRef<Promise<History> | null>(null)
   const label = ticker ?? 'This company'
 
   useEffect(() => {
@@ -557,15 +559,19 @@ export function ChartPane({ reportId, cik, ticker, name, width, wide, full, onCl
     }
     if (!needsHistory(series, next)) return
     setDownloading(true)
-    void downloadHistory(company, reportId).then(async (h) => {
-      if (!h.ok) {
-        if (live.current) {
-          setDownloading(false)
-          setHistoryLine(h.line)
-        }
-        return
-      }
-      await reread()
+    follow(downloadHistory(company, reportId))
+  }
+
+  // Waits on the company's download (one this pane started, or one already running when it
+  // opened), once, then reads the series again.
+  const follow = (download: Promise<History>) => {
+    if (following.current === download) return
+    following.current = download
+    void download.then(async (h) => {
+      if (following.current === download) following.current = null
+      if (!live.current) return
+      if (h.ok) await reread()
+      else setHistoryLine(h.line)
       if (live.current) setDownloading(false)
     })
   }
@@ -579,14 +585,7 @@ export function ChartPane({ reportId, cik, ticker, name, width, wide, full, onCl
   // while it ran): read the series again once it lands.
   useEffect(() => {
     const pending = histories.get(company)
-    if (!pending || downloaded.has(company)) return
-    let on = true
-    void pending.then((h) => {
-      if (on && h.ok) void reread()
-    })
-    return () => {
-      on = false
-    }
+    if (pending && !downloaded.has(company)) follow(pending)
     // Once, as the pane opens.
   }, [company])
 
@@ -635,6 +634,8 @@ export function ChartPane({ reportId, cik, ticker, name, width, wide, full, onCl
   const noSpy = !series || series.spy.every((v) => v === null)
   const served = series ? `Massive’s free plan serves ${yearsServed(series)} for this company.` : ''
   const read = sl && sl.dates.length > 0 && series ? readout(sl, shown, covers(series, shown), hover, span, g?.indexed ? g.main : null) : null
+
+  const subtitle = `${name ? `${name}, ` : ''}${toggles.peers || toggles.spy ? 'total return, with dividends' : 'daily close, adjusted for splits'}`
 
   const toggle = (k: keyof Toggles, text: string, colour: string, off: boolean, why: string) => (
     <button className={toggles[k] ? 'tg on' : 'tg'} aria-pressed={toggles[k]} disabled={off} title={off ? why : undefined} onClick={() => flip(k)}>
@@ -699,7 +700,7 @@ export function ChartPane({ reportId, cik, ticker, name, width, wide, full, onCl
         <div className="cph">
           <div className="cpt">
             <b>{ticker ?? 'Price'}</b>
-            <span>{`${name ? `${name}, ` : ''}${toggles.peers || toggles.spy ? 'total return, with dividends' : 'daily close, adjusted for splits'}`}</span>
+            <span title={subtitle}>{subtitle}</span>
           </div>
           <div className="cpbig">
             {loading ? (
