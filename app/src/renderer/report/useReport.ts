@@ -1,11 +1,15 @@
 // The report page's state, kept in the shell so the toolbar, the menus and the flag sheet can
 // share it (pages/Report.tsx draws it). It asks the engine for the report in the view and column
-// the window needs (view.ts), keeps the company's other reports for the subtitle's menu, and holds
-// the flag sheet that a Flag link in the frame opens (tearsheet://flag/…, main/navigation.ts).
+// the window needs (view.ts), keeps the company's other reports for the subtitle's menu, holds
+// the flag sheet that a Flag link in the frame opens (tearsheet://flag/…, main/navigation.ts),
+// and holds the chart split: whether it is open, and where its divider sits (chart/split.ts).
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import type { ReportResult, ReportSummary } from '../../shared/protocol'
+import { setLastWidth } from '../chart/prefs'
+import type { Split } from '../chart/split'
+import { splitOutMs } from '../motion'
 import type { Notice } from '../overlays/Toast'
 import { flagClaimId, otherReports, renderOptions, type Side, type View } from './view'
 
@@ -20,6 +24,8 @@ export interface FlagRequest {
 }
 
 export interface ReportPage {
+  // The report asked for, which may still be loading.
+  reportId: string | null
   // The report the frame shows, once it has loaded; null while another one loads.
   report: ReportResult | null
   // Changes with every load, so the frame reloads and its scroll position resets.
@@ -29,13 +35,20 @@ export interface ReportPage {
   listed: ReportSummary | null
   view: View
   side: Side
+  // The chart is open beside the report, or on its way out (`chartClosing`).
   chartOpen: boolean
+  chartClosing: boolean
+  // Where the chart sits while it is open; null until the report page places it as it opens
+  // (from the Settings choice "When the chart opens" and the space there is).
+  split: Split | null
   others: ReportSummary[]
   flag: FlagRequest | null
   // ⌘1 and ⌘2: reload the frame with that view, even if the frame's own switch moved away.
   show: (view: View) => void
   setSide: (side: Side) => void
   toggleChart: () => void
+  // Moves the divider; `keep` remembers the place for "Where I left it".
+  setSplit: (split: Split, keep?: boolean) => void
   closeFlag: () => void
   // Saves the flag; answers with what went wrong, or null once it is saved.
   saveFlag: (note: string) => Promise<string | null>
@@ -74,10 +87,12 @@ export function useReport({ reportId, wide, active, notify, refresh }: Options):
   // Counts ⌘1 / ⌘2 presses, so pressing one always reloads.
   const [asked, setAsked] = useState(0)
   const [side, setSide] = useState<Side>('text')
-  const [chartOpen, setChartOpen] = useState(false)
+  const [chart, setChart] = useState<'closed' | 'open' | 'closing'>('closed')
+  const [split, setSplitState] = useState<Split | null>(null)
   const [list, setList] = useState<ReportSummary[]>([])
   const [flag, setFlag] = useState<FlagRequest | null>(null)
 
+  const chartOpen = chart !== 'closed'
   const view: View = chosen.reportId === reportId ? chosen.view : 'summary'
   const opts = renderOptions({ view, side, chartOpen, wide })
   const report = loaded && loaded.report_id === reportId ? loaded : null
@@ -142,7 +157,30 @@ export function useReport({ reportId, wide, active, notify, refresh }: Options):
     },
     [reportId]
   )
-  const toggleChart = useCallback(() => setChartOpen((open) => !open), [])
+  // ⌘3 and the Chart button. Opening starts the Numbers / Text switch on Text every time, and
+  // places the chart afresh; closing lets the split slide away before the report gets its
+  // columns back.
+  const chartNow = useRef(chart)
+  chartNow.current = chart
+  const closeTimer = useRef<number | undefined>(undefined)
+  useEffect(() => () => window.clearTimeout(closeTimer.current), [])
+  const toggleChart = useCallback(() => {
+    window.clearTimeout(closeTimer.current)
+    if (chartNow.current === 'open') {
+      setChart('closing')
+      closeTimer.current = window.setTimeout(() => setChart('closed'), splitOutMs())
+    } else {
+      if (chartNow.current === 'closed') {
+        setSide('text')
+        setSplitState(null)
+      }
+      setChart('open')
+    }
+  }, [])
+  const setSplit = useCallback((next: Split, keep = false) => {
+    setSplitState(next)
+    if (keep) setLastWidth(next)
+  }, [])
   const closeFlag = useCallback(() => setFlag(null), [])
 
   const saveFlag = useCallback(
@@ -157,6 +195,7 @@ export function useReport({ reportId, wide, active, notify, refresh }: Options):
   )
 
   return {
+    reportId,
     report,
     frame,
     error,
@@ -164,11 +203,14 @@ export function useReport({ reportId, wide, active, notify, refresh }: Options):
     view,
     side,
     chartOpen,
+    chartClosing: chart === 'closing',
+    split,
     others: report ? otherReports(list, report.cik, report.report_id) : [],
     flag,
     show,
     setSide,
     toggleChart,
+    setSplit,
     closeFlag,
     saveFlag
   }

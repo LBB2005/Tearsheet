@@ -2,12 +2,18 @@
 // a sandboxed frame: its numbers column, its Summary / Full switch and its section links are the
 // engine's (same-page links and CSS, no scripts). Around it, the app adds the toolbar's parts:
 // the company's other reports under the subtitle, the Numbers / Text switch while the chart is
-// open, and the Chart button (⌘3). The chart pane is a placeholder until the chart split lands.
-// The state lives in report/useReport.ts.
+// open, and the Chart button (⌘3). The chart opens from the right as a split beside the report,
+// with a divider between them (chart/split.ts): the report keeps the rest of the width, and in
+// Full it is hidden until the divider is dragged back. A narrow window gives the chart the whole
+// window. The state lives in report/useReport.ts.
 
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type RefObject } from 'react'
 
 import type { ReportSummary } from '../../shared/protocol'
+import { ChartPane } from '../chart/ChartPane'
+import { Divider } from '../chart/Divider'
+import { chartOpens, lastWidth } from '../chart/prefs'
+import { DIV, openSplit, snapWidth, splitWidth, TEXT_MIN, type Snap } from '../chart/split'
 import type { ReportPage } from '../report/useReport'
 import { reportChoice } from '../report/view'
 
@@ -26,10 +32,78 @@ const CHEVRON = (
   </svg>
 )
 
-export function Report({ page }: { page: ReportPage }) {
-  const { report, frame, error, chartOpen } = page
+// The width of an element, kept up to date as it changes.
+function useWidth(ref: RefObject<HTMLElement>): number {
+  const [width, setWidth] = useState(0)
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const measure = () => setWidth(el.getBoundingClientRect().width)
+    measure()
+    const watch = new ResizeObserver(measure)
+    watch.observe(el)
+    return () => watch.disconnect()
+  }, [ref])
+  return width
+}
+
+export function Report({ page, wide }: { page: ReportPage; wide: boolean }) {
+  const { report, frame, error, chartOpen, chartClosing } = page
+  const box = useRef<HTMLDivElement>(null)
+  // Everything right of the sidebar: the report page's own width.
+  const avail = useWidth(box)
+  // A drag of the divider, live: where it would snap, before it is let go.
+  const [drag, setDrag] = useState<Snap | null>(null)
+  const [dragging, setDragging] = useState(false)
+  const dragNow = useRef<{ on: boolean; snap: Snap | null }>({ on: false, snap: null })
+
+  // The chart opens where Settings says ("When the chart opens"), in the space there is.
+  const placed = page.split ?? (chartOpen && avail > 0 ? openSplit(chartOpens(), lastWidth(), avail) : null)
+  useLayoutEffect(() => {
+    if (chartOpen && !page.split && placed) page.setSplit(placed)
+  })
+
+  const at = drag ?? placed
+  const split = wide && chartOpen && at !== null
+  const full = split && at.mode === 'full'
+  const chartW = !chartOpen ? 0 : !wide ? avail : at ? splitWidth(at, avail) : 0
+  // In Full the divider stays at the left, so the report can be dragged back.
+  const paneW = full ? Math.max(0, avail - DIV) : chartW
+  const half = () => ({ mode: 'half' as const, width: splitWidth({ mode: 'half', width: 0 }, avail) })
+
+  const onStart = () => {
+    dragNow.current = { on: true, snap: null }
+    setDragging(true)
+  }
+  const onDrag = (clientX: number) => {
+    const r = box.current?.getBoundingClientRect()
+    if (!r || !dragNow.current.on) return
+    const next = snapWidth(r.right - clientX - DIV / 2, r.width)
+    dragNow.current.snap = next
+    setDrag(next)
+  }
+  const onDrop = () => {
+    const { on, snap } = dragNow.current
+    if (!on) return
+    dragNow.current = { on: false, snap: null }
+    setDragging(false)
+    setDrag(null)
+    if (snap) page.setSplit({ mode: snap.mode, width: snap.width }, true)
+  }
+  const onHalf = () => page.setSplit(half(), true)
+  const onStep = (delta: number) => {
+    const next = full && delta < 0 ? snapWidth(avail - TEXT_MIN - DIV, avail) : snapWidth(chartW + delta, avail)
+    page.setSplit({ mode: next.mode, width: next.width }, true)
+  }
+  const onFull = () => page.setSplit(full ? half() : { mode: 'full', width: avail }, true)
+
+  const snapped = drag !== null && (drag.mode === 'half' || drag.mode === 'full')
+  const cls = ['rpage', chartOpen && 'chartopen', chartClosing && 'closing', full && !chartClosing && 'full', dragging && 'dragging', snapped && 'snapped'].filter(Boolean).join(' ')
+  const reportId = page.reportId
+  const named = report ?? page.listed
+
   return (
-    <div className={chartOpen ? 'rpage chartopen' : 'rpage'}>
+    <div ref={box} className={cls}>
       <div className="rmain">
         {error && (
           <div className="notice error rerror" role="alert">
@@ -48,10 +122,32 @@ export function Report({ page }: { page: ReportPage }) {
           </div>
         )}
       </div>
-      {chartOpen && (
-        <section className="cpane0" aria-label="Price chart">
-          <p>The price chart will show here.</p>
-        </section>
+      {split && (
+        <Divider
+          label={drag?.label ?? null}
+          dragging={dragging}
+          width={chartW}
+          max={avail}
+          onStart={onStart}
+          onDrag={onDrag}
+          onDrop={onDrop}
+          onHalf={onHalf}
+          onStep={onStep}
+        />
+      )}
+      {dragging && <div className="dragshield" />}
+      {chartOpen && reportId && (
+        <ChartPane
+          key={reportId}
+          reportId={reportId}
+          ticker={named?.ticker ?? null}
+          name={named?.name ?? null}
+          width={paneW}
+          wide={wide}
+          full={full}
+          onClose={page.toggleChart}
+          onFull={onFull}
+        />
       )}
     </div>
   )
@@ -63,7 +159,7 @@ export function ReportTools({ page, wide }: { page: ReportPage; wide: boolean })
   const pick = (side: 'numbers' | 'text') => () => page.setSide(side)
   return (
     <>
-      {page.chartOpen && wide && (
+      {page.chartOpen && wide && page.split?.mode !== 'full' && (
         <span className="sidesw" role="group" aria-label="Beside the chart">
           Beside the chart
           <span className="segc">

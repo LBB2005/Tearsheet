@@ -11,3 +11,8 @@ export function readyPauseMs(): number {
 export function leaveMs(): number {
   return reduced() ? 0 : 240
 }
+
+// How long the chart split takes to slide away when it closes (chart/chart.css, `closing`).
+export function splitOutMs(): number {
+  return reduced() ? 0 : 300
+}

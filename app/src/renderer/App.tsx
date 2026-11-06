@@ -11,6 +11,7 @@ import type { MenuCommand } from '../main/menu'
 import type { EngineNotification, ToolStatus } from '../preload/api'
 import type { CompanyRow, SearchHit, SettingsResult } from '../shared/protocol'
 import { bootView, GIVE_UP_AFTER_MS, STARTING_AFTER_MS } from './boot'
+import { setSidebarHidden, sidebarHidden } from './chart/prefs'
 import { runTitle } from './home/run'
 import { RunView } from './home/RunView'
 import { useRun } from './home/useRun'
@@ -59,7 +60,8 @@ export function App() {
   const [primaryTool, setPrimaryTool] = useState<string | null>(null)
   // This session's safety check; setup's chip and the sidebar's status line both read it.
   const [safety, setSafety] = useState<SafetyState | null>(null)
-  const [sideHidden, setSideHidden] = useState(false)
+  // Kept between launches (chart/prefs.ts, sidebar.hidden).
+  const [sideHidden, setSideHidden] = useState(sidebarHidden)
   const [sideOver, setSideOver] = useState(false)
   const [lookUp, setLookUp] = useState(false)
   const [finding, setFinding] = useState(false)
@@ -266,6 +268,7 @@ export function App() {
   useEffect(() => {
     if (wide) setSideOver(false)
   }, [wide])
+  useEffect(() => setSidebarHidden(sideHidden), [sideHidden])
   // A sidebar opened over the page closes once the page changes.
   useEffect(() => setSideOver(false), [page])
   useEffect(() => {
@@ -374,7 +377,7 @@ export function App() {
         onRecheck={recheck}
       />
     )
-  else if (page === 'report') content = <Report page={reportPage} />
+  else if (page === 'report') content = <Report page={reportPage} wide={wide} />
   else if (page === 'log') content = <Log />
   else if (page === 'settings')
     content = (

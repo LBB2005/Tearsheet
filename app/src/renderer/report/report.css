@@ -3,20 +3,17 @@
    docs/designs/report-look-c-chart-split.html (.cbtn, .sidesw, .segc, .sheet). Under Reduce
    motion nothing moves (styles.css). */
 
-/* ---------- the page: the report frame, and the chart pane while the chart is open ---------- */
-.rpage { display: flex; height: 100%; min-height: 0; }
-.rmain { flex: 1 1 0; min-width: 340px; min-height: 0; display: flex; flex-direction: column; }
+/* ---------- the page: the report frame, and the chart split while the chart is open ----------
+   The split itself (the divider and the chart pane) is in chart/chart.css. */
+.rpage { position: relative; display: flex; height: 100%; min-height: 0; }
+.rmain { flex: 1 1 0; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 .rframe { flex: 1; min-height: 0; display: flex; }
 iframe.report-frame { flex: 1; display: block; width: 100%; height: 100%; min-height: 0; border: 0; background: #070B14; }
 .rerror { display: flex; align-items: center; gap: 14px; margin: 14px 16px 0; }
 .rerror span { flex: 1; min-width: 0; }
 .rerror b { color: #FFC2C8; font-weight: 600; }
-/* A placeholder until the chart split (Task 12) fills it. */
-.cpane0 { flex: 1 1 0; min-width: 360px; display: grid; place-items: center; border-left: 1px solid var(--line); color: var(--muted); }
-.cpane0 p { margin: 0; }
-/* A narrow window gives the chart the whole page. */
+/* A narrow window gives the chart the whole window. */
 .narrow .rpage.chartopen .rmain { display: none; }
-.narrow .cpane0 { border-left: 0; min-width: 0; }
 
 /* ---------- the toolbar: the Chart button and the Numbers / Text switch ---------- */
 .top .cbtn { all: unset; display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--line); color: var(--text); cursor: pointer; background: rgba(255, 255, 255, .04); font-size: 13px; white-space: nowrap; transition: background .2s, border-color .2s, color .2s; }
