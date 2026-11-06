@@ -99,14 +99,17 @@ def other_tool(tool: str) -> str:
 
 
 def is_connected(conn: sqlite3.Connection, tool: str) -> bool:
-    """Found, and passed the lock-down check, with nothing blocking it (Technical Plan §4).
-    A changed version is re-checked by the client's gate before its first call."""
+    """Found, and not blocked by a failed lock-down check (Technical Plan §4).
+
+    A tool the user already has is used without any setup: when it has never been checked,
+    or its version changed, the client's gate runs the short check before its first call, and
+    a failure there blocks it. Only a full `lockdown-check` unblocks a tool that failed."""
     from tearsheet.ai.client import ToolState
 
     if config.find_program(tool) is None:
         return False
     row = ToolState(conn, tool).row()
-    return bool(row and row["lockdown_passed"] and not row["blocked_reason"])
+    return not (row and row["blocked_reason"] == "lockdown_failed")
 
 
 def checker_for(

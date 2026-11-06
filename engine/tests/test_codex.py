@@ -120,7 +120,7 @@ def test_a_clean_call_is_locked_down_and_returns_the_answer(tmp_path):
     assert argv[0] == "app-server"
     for feature in ("shell_tool", "unified_exec", "apps", "plugins", "hooks", "memories"):
         assert ["--disable", feature] == argv[argv.index(feature) - 1 : argv.index(feature) + 1]
-    for override in ("mcp_servers={}", "project_doc_max_bytes=0", 'web_search="disabled"'):
+    for override in ("project_doc_max_bytes=0", 'web_search="disabled"'):
         assert ["-c", override] == argv[argv.index(override) - 1 : argv.index(override) + 1]
 
     # The handshake, then one locked-down thread.
@@ -361,8 +361,25 @@ def test_a_call_that_runs_out_of_time_interrupts_its_turn(tmp_path):
     assert interrupt["params"]["threadId"] == "thread-1"
 
 
-def test_tool_servers_reported_at_start_up_reach_the_answer(tmp_path):
-    fake = Fake(tmp_path, {"mcp_servers": ["github"], "threads": [{"turn": {"text": ANSWER}}]})
+def test_the_users_own_tool_servers_are_switched_off_by_name(tmp_path):
+    # As on Liam's Mac: two servers in his Codex settings, not from any plugin.
+    fake = Fake(
+        tmp_path,
+        {"mcp_servers": ["computer-use", "node_repl"], "threads": [{"turn": {"text": ANSWER}}]},
+    )
+    answer = ask(fake.connector(), request())
+    assert answer.tool_servers == []
+    assert answer.session["servers_switched_off"] == ["computer-use", "node_repl"]
+    first, second = fake.log("argv")
+    assert not any(a.startswith("mcp_servers=") for a in first)
+    assert 'mcp_servers={"computer-use"={enabled=false},"node_repl"={enabled=false}}' in second
+
+
+def test_a_tool_server_that_stays_on_fails_the_check(tmp_path):
+    fake = Fake(
+        tmp_path,
+        {"mcp_servers": ["github"], "ignore_switch": True, "threads": [{"turn": {"text": ANSWER}}]},
+    )
     answer = ask(fake.connector(), request())
     assert answer.tool_servers == ["github"]
 
@@ -417,3 +434,113 @@ def test_the_lock_down_check_flags_loaded_instruction_files(tmp_path):
     finally:
         remove_bait(bait)
     assert any("instruction files loaded" in p for p in result.problems)
+
+
+PLUGINS = {"computer-use@openai-bundled": ["computer-use"], "browser@openai-bundled": ["node_repl"]}
+
+
+def test_the_users_plugins_are_switched_off_with_no_new_sign_in(tmp_path):
+    fake = Fake(tmp_path, {"plugins": PLUGINS, "threads": [{"turn": {"text": ANSWER}}]})
+    answer = ask(fake.connector(), request())
+
+    assert answer.tool_servers == []
+    assert answer.session["plugins_switched_off"] == sorted(PLUGINS)
+    assert answer.session["servers_switched_off"] == []  # a plugin's servers go with it
+    # Started once to see the plugins, then again with them switched off by name.
+    first, second = fake.log("argv")
+    assert not any(a.startswith("plugins=") for a in first)
+    override = second[second.index("-c", second.index("include_apply_patch_tool=false")) + 1]
+    assert override == (
+        'plugins={"browser@openai-bundled"={enabled=false},'
+        '"computer-use@openai-bundled"={enabled=false}}'
+    )
+    [turn] = fake.sent("turn/start")
+    assert turn["params"]["disabledPluginIds"] == sorted(PLUGINS)
+    # The sign-in folder is the user's own: no CODEX_HOME was set or moved.
+    assert all("CODEX_HOME" not in names for names in fake.log("env"))
+
+
+def test_a_plugin_that_stays_on_fails_the_check(tmp_path):
+    fake = Fake(
+        tmp_path,
+        {"plugins": PLUGINS, "ignore_switch": True, "threads": [{"turn": {"text": ANSWER}}]},
+    )
+    answer = ask(fake.connector(), request())
+    assert sorted(answer.tool_servers) == ["computer-use", "node_repl"]
+    assert len(fake.log("argv")) == 2  # one restart, not a loop
+
+
+def test_an_older_codex_without_the_plugin_request_still_works(tmp_path):
+    fake = Fake(tmp_path, {"no_plugin_request": True, "threads": [{"turn": {"text": ANSWER}}]})
+    answer = ask(fake.connector(), request())
+    assert answer.text == ANSWER and len(fake.log("argv")) == 1
+    [turn] = fake.sent("turn/start")
+    assert "disabledPluginIds" not in turn["params"]
+
+
+def test_only_the_users_own_instruction_file_is_allowed(tmp_path):
+    from tearsheet.ai.lockdown import Probe, evaluate, plant_bait, remove_bait
+
+    home = tmp_path / "codex-home"
+    own = str(home / "AGENTS.md")
+    planted = str(tmp_path / "calls" / "AGENTS.md")
+    fake = Fake(
+        tmp_path,
+        {
+            "codex_home": str(home),
+            "threads": [
+                {"instruction_sources": [own], "turn": {"text": ANSWER}},
+                {"instruction_sources": [own, planted], "turn": {"text": ANSWER}},
+            ],
+        },
+    )
+    connector = fake.connector()
+
+    async def go():
+        try:
+            return await connector.call(request()), await connector.call(request())
+        finally:
+            await connector.aclose()
+
+    first, second = asyncio.run(go())
+    assert first.session["user_instruction_files"] == [own]
+    assert first.session["instruction_sources"] == []
+    assert second.session["instruction_sources"] == [planted]
+
+    bait = plant_bait(tmp_path / "bait", tmp_path)
+    try:
+        ok = evaluate(Probe("probe 1", "x"), first, bait, connector, api_billing=False)
+        bad = evaluate(Probe("probe 2", "x"), second, bait, connector, api_billing=False)
+    finally:
+        remove_bait(bait)
+    assert not any("instruction files" in p for p in ok.problems)
+    assert any(planted in p for p in bad.problems)
+    # Codex is told the user's file doesn't apply.
+    for thread in fake.sent("thread/start"):
+        assert "AGENTS.md" in thread["params"]["developerInstructions"]
+
+
+def test_the_plugin_override_is_valid_toml():
+    import tomllib
+
+    from tearsheet.ai.codex import plugin_override
+
+    value = plugin_override(["computer-use@openai-bundled", 'odd"name@x'])
+    assert tomllib.loads(value)["plugins"] == {
+        "computer-use@openai-bundled": {"enabled": False},
+        'odd"name@x': {"enabled": False},
+    }
+
+
+def test_a_listed_server_counts_as_loaded_only_with_tools_or_running():
+    from tearsheet.ai.codex import loaded_servers
+
+    reply = {
+        "data": [
+            {"name": "off", "runtimeStatus": None, "tools": []},
+            {"name": "has-tools", "runtimeStatus": None, "tools": [{"name": "t"}]},
+            {"name": "up", "runtimeStatus": "connected", "tools": []},
+            {"name": "broken", "runtimeStatus": "failed", "tools": []},
+        ]
+    }
+    assert loaded_servers(reply) == ["has-tools", "up"]

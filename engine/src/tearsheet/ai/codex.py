@@ -75,10 +75,11 @@ DISABLED_FEATURES = (
     "sleep_tool",
     "goals",
 )
-# Configuration overrides at start-up (`-c key=value`, values parsed as TOML): no tool
-# servers, no instruction files, no web search, no history file, no patch tool.
+# Configuration overrides at start-up (`-c key=value`, values parsed as TOML): no project
+# instruction files, no web search, no history file, no patch tool. Overrides are merged into
+# the user's settings, not swapped for them, so `mcp_servers={}` would remove nothing: the
+# user's tool servers are switched off by name instead (below).
 CONFIG_OVERRIDES = (
-    "mcp_servers={}",
     "project_doc_max_bytes=0",
     'web_search="disabled"',
     'history.persistence="none"',
@@ -91,6 +92,27 @@ APPROVALS_REVIEWER = "user"
 EPHEMERAL_THREADS = True
 # Our own instructions replace Codex's ("baseInstructions") rather than being added to them.
 INSTRUCTIONS_FIELD = "baseInstructions"
+# Codex always loads the user's own instruction file from its home folder, and has no setting
+# to stop it (only project files have one, `project_doc_max_bytes`). Moving the home folder
+# would mean a second sign-in, so that one file is allowed, and Codex is told it doesn't apply.
+# Any other instruction file still fails the lock-down check.
+USER_INSTRUCTION_FILES = ("AGENTS.md", "AGENTS.override.md")
+USER_FILE_NOTE = (
+    "Any AGENTS.md instructions in this conversation are the user's own notes for their coding "
+    "work. They don't apply to this task. Follow only the instructions above and the user's "
+    "message."
+)
+# The user's tool servers and plugins. Codex is started once to list them
+# (`mcpServerStatus/list`, `plugin/installed`), then again with each one switched off by name:
+# `-c mcp_servers={"<name>"={enabled=false}}` for a server from the user's settings, and
+# `-c plugins={"<id>"={enabled=false}}` for a plugin's. Every installed plugin's ID also goes in
+# each turn's `disabledPluginIds`. Tested on Liam's Mac (codex-cli 0.165.0, no AI calls): his
+# `computer-use` and `node_repl` servers are in his settings, and `node_repl`'s 4 tools went to
+# 0 once switched off. A switched-off server is still listed, with no tools.
+SERVERS_OVERRIDE_KEY = "mcp_servers"
+PLUGIN_OVERRIDE_KEY = "plugins"
+# A listed server counts as loaded when it offers tools or reports itself running.
+RUNNING_STATES = frozenset({"connected", "starting", "ready", "authenticationRequired"})
 # Per-thread configuration: web search only on the link-search thread.
 THREAD_CONFIG = {"web_search": "disabled"}
 LINK_SEARCH_THREAD_CONFIG = {"web_search": "live"}
@@ -148,13 +170,49 @@ def build_env(
     return env
 
 
-def start_args(program: Path) -> list[str]:
+def switch_off(key: str, names: list[str]) -> str:
+    """One `-c` override that switches the named entries off, as a TOML inline table, so names
+    holding `@`, `-` or `.` never have to be written as dotted keys."""
+    entries = ",".join(f"{json.dumps(name)}={{enabled=false}}" for name in sorted(names))
+    return f"{key}={{{entries}}}"
+
+
+def plugin_override(plugin_ids: list[str]) -> str:
+    return switch_off(PLUGIN_OVERRIDE_KEY, plugin_ids)
+
+
+def start_args(
+    program: Path, plugins_off: list[str] | None = None, servers_off: list[str] | None = None
+) -> list[str]:
     args = [str(program), "app-server"]
     for feature in DISABLED_FEATURES:
         args += ["--disable", feature]
     for override in CONFIG_OVERRIDES:
         args += ["-c", override]
+    if servers_off:
+        args += ["-c", switch_off(SERVERS_OVERRIDE_KEY, servers_off)]
+    if plugins_off:
+        args += ["-c", plugin_override(plugins_off)]
     return args
+
+
+def loaded_servers(reply: Mapping[str, Any]) -> list[str]:
+    """The servers in an `mcpServerStatus/list` reply that offer tools or say they run."""
+    return sorted(
+        str(s.get("name"))
+        for s in reply.get("data") or []
+        if s.get("tools") or s.get("runtimeStatus") in RUNNING_STATES
+    )
+
+
+def enabled_plugins(reply: Mapping[str, Any]) -> list[str]:
+    """The IDs of installed, switched-on plugins in a `plugin/installed` reply."""
+    found = []
+    for market in reply.get("marketplaces") or []:
+        for plugin in (market or {}).get("plugins") or []:
+            if plugin.get("installed", True) and plugin.get("enabled") and plugin.get("id"):
+                found.append(str(plugin["id"]))
+    return sorted(set(found))
 
 
 def error_text(error: Mapping[str, Any] | None) -> str:
@@ -258,6 +316,11 @@ class CodexConnector:
         self.stderr: collections.deque[str] = collections.deque(maxlen=STDERR_LINES_KEPT)
         self.account_type: str | None = None
         self.tool_servers: list[str] = []
+        self.codex_home: str | None = None
+        # Plugins switched off at start-up, and every installed plugin's ID for each turn.
+        self.plugins_off: list[str] = []
+        self.servers_off: list[str] = []
+        self.plugins_installed: list[str] = []
         self.user_agent: str | None = None
         self.rate_limit: dict[str, Any] | None = None
         self.refused: list[str] = []
@@ -297,52 +360,88 @@ class CodexConnector:
             if self._started:
                 # It stopped since the last call: start a new one.
                 await self.aclose()
-            self._home = self.calls_root / f"server-{uuid.uuid4().hex}"
-            self._home.mkdir(parents=True)
             try:
-                self._process = await asyncio.create_subprocess_exec(
-                    *start_args(self.program),
-                    stdin=asyncio.subprocess.PIPE,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                    cwd=self._home,
-                    env=self.environment(),
-                    limit=LINE_LIMIT_BYTES,
-                )
-            except OSError:
-                self._remove_home()
-                raise AIUnavailable(f"Codex was not found at {self.program}.") from None
-            self._started = True
-            self._readers = [
-                asyncio.create_task(self._read_stdout()),
-                asyncio.create_task(self._read_stderr()),
-            ]
-            try:
-                hello = await self._request(
-                    "initialize",
-                    {
-                        "clientInfo": {
-                            "name": "tearsheet",
-                            "title": "Tearsheet",
-                            "version": ENGINE_VERSION,
-                        },
-                        "capabilities": {"experimentalApi": False},
-                    },
-                    time_limit_s=self._init_time_limit_s,
-                )
-                self.user_agent = hello.get("userAgent")
-                await self._send({"method": "initialized"})
+                await self._launch()
+                plugins, servers = await self._list_setup()
+                if set(plugins) - set(self.plugins_off) or set(servers) - set(self.servers_off):
+                    # Start again with the user's plugins and tool servers switched off by name.
+                    self.plugins_off = sorted({*self.plugins_off, *plugins})
+                    self.servers_off = sorted({*self.servers_off, *servers})
+                    await self.aclose()
+                    await self._launch()
+                    await self._list_plugins()
                 account = await self._request("account/read", {"refreshToken": False})
                 self.account_type = self._account_type(account)
-                servers = await self._request("mcpServerStatus/list", {})
-                self.tool_servers = [
-                    str(s.get("name"))
-                    for s in (servers.get("data") or [])
-                    if s.get("status") not in ("disabled", "notStarted", "cancelled")
-                ]
+                self.tool_servers = loaded_servers(await self._request("mcpServerStatus/list", {}))
             except BaseException:
                 await self.aclose()
                 raise
+
+    async def _launch(self) -> None:
+        """Start the app-server and do the handshake."""
+        self._home = self.calls_root / f"server-{uuid.uuid4().hex}"
+        self._home.mkdir(parents=True)
+        try:
+            self._process = await asyncio.create_subprocess_exec(
+                *start_args(self.program, self.plugins_off, self.servers_off),
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=self._home,
+                env=self.environment(),
+                limit=LINE_LIMIT_BYTES,
+            )
+        except OSError:
+            self._remove_home()
+            raise AIUnavailable(f"Codex was not found at {self.program}.") from None
+        self._started = True
+        self._readers = [
+            asyncio.create_task(self._read_stdout()),
+            asyncio.create_task(self._read_stderr()),
+        ]
+        hello = await self._request(
+            "initialize",
+            {
+                "clientInfo": {
+                    "name": "tearsheet",
+                    "title": "Tearsheet",
+                    "version": ENGINE_VERSION,
+                },
+                "capabilities": {"experimentalApi": False},
+            },
+            time_limit_s=self._init_time_limit_s,
+        )
+        self.user_agent = hello.get("userAgent")
+        self.codex_home = hello.get("codexHome")
+        await self._send({"method": "initialized"})
+
+    async def _list_setup(self) -> tuple[list[str], list[str]]:
+        """The user's switched-on plugins, and the tool servers from their own settings."""
+        plugins = set(await self._list_plugins())
+        servers: set[str] = set()
+        reply = await self._request("mcpServerStatus/list", {})
+        for server in reply.get("data") or []:
+            if server.get("pluginId"):
+                plugins.add(str(server["pluginId"]))
+            elif server.get("name"):
+                servers.add(str(server["name"]))
+        return sorted(plugins), sorted(servers)
+
+    async def _list_plugins(self) -> list[str]:
+        """The switched-on plugins. An older Codex without the request has none to report."""
+        try:
+            reply = await self._request("plugin/installed", {})
+        except AIUnavailable:
+            return []
+        self.plugins_installed = sorted(
+            {
+                str(p["id"])
+                for m in reply.get("marketplaces") or []
+                for p in (m or {}).get("plugins") or []
+                if p.get("id") and p.get("installed", True)
+            }
+        )
+        return enabled_plugins(reply)
 
     def _account_type(self, reply: Mapping[str, Any]) -> str | None:
         """Only the account type is kept: never the email or the plan."""
@@ -485,7 +584,8 @@ class CodexConnector:
             return
         if method in ("mcpServer/startupStatus/updated", "mcpServerStatus/updated"):
             name = params.get("name") or params.get("serverName")
-            if name and str(name) not in self.tool_servers:
+            running = params.get("status") in RUNNING_STATES
+            if name and running and str(name) not in self.tool_servers:
                 self.tool_servers.append(str(name))
             return
         thread = self._threads.get(str(params.get("threadId")))
@@ -537,6 +637,7 @@ class CodexConnector:
             "approvalsReviewer": APPROVALS_REVIEWER,
             "ephemeral": EPHEMERAL_THREADS,
             INSTRUCTIONS_FIELD: system_prompt(request),
+            "developerInstructions": USER_FILE_NOTE,
             "config": dict(
                 LINK_SEARCH_THREAD_CONFIG if request.allow_web_search else THREAD_CONFIG
             ),
@@ -550,6 +651,8 @@ class CodexConnector:
             "threadId": thread_id,
             "input": [{"type": "text", "text": user_message(request), "text_elements": []}],
         }
+        if self.plugins_installed:
+            params["disabledPluginIds"] = list(self.plugins_installed)
         if STRUCTURED_OUTPUT == "output_schema":
             params["outputSchema"] = request.schema.model_json_schema()
         return params
@@ -608,6 +711,7 @@ class CodexConnector:
             parts += list(self.stderr)[-10:]
             raise classify_error("codex", " | ".join(p for p in parts if p))
         started = thread.started
+        own, others = self._split_instruction_files(started.get("instructionSources") or [])
         return RawAnswer(
             text=thread.text(),
             model_id=started.get("model") or (started.get("thread") or {}).get("model"),
@@ -623,12 +727,25 @@ class CodexConnector:
                 "sandbox": started.get("sandbox"),
                 "approval_policy": started.get("approvalPolicy"),
                 "approvals_reviewer": started.get("approvalsReviewer"),
-                "instruction_sources": started.get("instructionSources") or [],
+                "instruction_sources": others,
+                "user_instruction_files": own,
+                "plugins_switched_off": list(self.plugins_off),
+                "servers_switched_off": list(self.servers_off),
                 "ephemeral": (started.get("thread") or {}).get("ephemeral"),
                 "refused_requests": list(self.refused),
             },
             rate_limit=self.rate_limit,
         )
+
+    def _split_instruction_files(self, sources: list[Any]) -> tuple[list[str], list[str]]:
+        """The user's own file in Codex's home folder, and every other instruction file."""
+        allowed = (
+            {os.path.normpath(os.path.join(self.codex_home, n)) for n in USER_INSTRUCTION_FILES}
+            if self.codex_home
+            else set()
+        )
+        own = [str(s) for s in sources if os.path.normpath(str(s)) in allowed]
+        return own, [str(s) for s in sources if str(s) not in own]
 
     # --- shutting down -------------------------------------------------------------------
 

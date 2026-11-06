@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import tomllib
 
 SCENARIO = json.loads(open(os.environ["FAKE_CODEX_SCENARIO"]).read())
 LOG = open(os.environ["FAKE_CODEX_LOG"], "a")
@@ -142,6 +143,17 @@ def run_turn(thread_id: str, turn: dict) -> None:
     )
 
 
+def switched_off(argv: list[str], key: str) -> set[str]:
+    """Entries the client switched off with `-c <key>={...}`, read as TOML like the real
+    program does (so a malformed override fails here too)."""
+    off = set()
+    for flag, value in zip(argv, argv[1:], strict=False):
+        if flag == "-c" and value.startswith(f"{key}="):
+            table = tomllib.loads(value)[key]
+            off |= {name for name, entry in table.items() if entry.get("enabled") is False}
+    return off
+
+
 def main() -> None:
     if sys.argv[1:] == ["--version"]:
         print(SCENARIO.get("version", "codex-cli 0.165.0"))
@@ -151,6 +163,32 @@ def main() -> None:
     log("env", sorted(os.environ))
     threads = list(SCENARIO.get("threads", []))
     count = 0
+    # Tool servers from the user's settings ("mcp_servers": [name]) and from plugins
+    # ("plugins": {"id": [name]}). Like the real program, a switched-off server is still listed,
+    # with no tools, unless the scenario says the switch is ignored.
+    plugins = SCENARIO.get("plugins", {})
+    ignore = SCENARIO.get("ignore_switch")
+    off = set() if ignore else switched_off(sys.argv[1:], "plugins")
+    servers_off = set() if ignore else switched_off(sys.argv[1:], "mcp_servers")
+    servers = [
+        {
+            "name": n,
+            "pluginId": None,
+            "runtimeStatus": None,
+            "tools": [] if n in servers_off else [{"name": "t1"}, {"name": "t2"}],
+        }
+        for n in SCENARIO.get("mcp_servers", [])
+    ]
+    servers += [
+        {
+            "name": n,
+            "pluginId": pid,
+            "runtimeStatus": None,
+            "tools": [] if pid in off else [{"name": "t"}],
+        }
+        for pid, names in plugins.items()
+        for n in names
+    ]
     while True:
         message = read()
         if message is None:
@@ -170,7 +208,7 @@ def main() -> None:
                     "id": request_id,
                     "result": {
                         "userAgent": "codex_cli_rs/0.165.0 (fake)",
-                        "codexHome": "/fake",
+                        "codexHome": SCENARIO.get("codex_home", "/fake"),
                         "platformFamily": "unix",
                         "platformOs": "macos",
                     },
@@ -195,12 +233,18 @@ def main() -> None:
             send(
                 {
                     "id": request_id,
-                    "result": {
-                        "data": [
-                            {"name": n, "status": "connected"}
-                            for n in SCENARIO.get("mcp_servers", [])
-                        ]
-                    },
+                    "result": {"data": servers},
+                }
+            )
+        elif method == "plugin/installed":
+            if SCENARIO.get("no_plugin_request"):
+                send({"id": request_id, "error": {"code": -32600, "message": "unknown method"}})
+                continue
+            entries = [{"id": pid, "installed": True, "enabled": pid not in off} for pid in plugins]
+            send(
+                {
+                    "id": request_id,
+                    "result": {"marketplaces": [{"name": "openai-bundled", "plugins": entries}]},
                 }
             )
         elif method == "thread/start":

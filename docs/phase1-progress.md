@@ -123,18 +123,20 @@ Not committed yet. Nothing here made a live AI call.
 *   **The Codex connector (item 10):** `ai/codex.py`, with 24 tests against a scripted fake `codex app-server`.
     *   The settings were read from your installed codex-cli 0.165.0's own protocol schema (`codex app-server generate-json-schema`, which runs offline). Each one is a named constant with a row in `docs/phase0-results.md`.
     *   **One design change to agree:** no Codex approval policy asks before its known-safe read commands (`untrusted` runs `cat` and `ls` without asking). So the connector switches the shell tools off at start-up instead of relying on approvals. Every approval request that still arrives is denied and counts as a tool-use attempt. The pass mark "a planted file read produces an approval request, which is denied" becomes "no command ever runs".
-*   **Your step:** run the Codex lock-down check.
-
-    ```bash
-    uv run --project engine tearsheet-engine lockdown-check --tool codex
-    ```
-
-    It makes 25 Codex calls on your ChatGPT plan, about 3–5 minutes. Until it passes, Connections shows Codex as "Not checked yet", and the skeptic stays self-checked.
+*   **The first Codex check (6 Nov) failed on two things, now fixed so Codex connects with no setup:**
+    *   **Tool servers:** two stayed loaded (`computer-use` and `node_repl`). They are servers in your own Codex settings, not plugins. The connector now asks Codex which servers and plugins it has, and starts it again with each one switched off by name. A second check on 6 Nov still showed them, because the connector read the wrong field. That's fixed, and on your Mac, with no AI calls, the connector's start-up now reports nothing loaded.
+    *   **Your own `~/.codex/AGENTS.md`:** it loaded, and Codex has no setting to stop that. The only other way out is a second sign-in, and you chose seamless. So that one file is allowed, and Codex is told it doesn't apply. Any other instruction file still fails, including the planted bait file, which never loaded.
+    *   Everything else passed: 20 of 20 answers valid, no tool use, no leaks, the ChatGPT sign-in, and model `gpt-6-astra`.
+*   **Connecting with no setup:** a tool you already have, Claude Code or Codex, is used straight away. If it has never been checked, or its version changed, the 5-call short check runs automatically before its first use. Only a tool that failed a check needs the terminal command.
+*   **Design wording to update:**
+    *   "no instruction files load" gains "except the user's own Codex `AGENTS.md`";
+    *   a tool counts as connected when it is found and not blocked, and the short check runs on first use.
+*   **Codex passed its full lock-down check on 6 Nov (third run):** 20 of 20 answers valid, no tool use, no leaks, nothing loaded, and your ChatGPT sign-in. Codex is connected, so the next full report's skeptic runs on Codex.
 *   **The other-tool skeptic (item 48):** when both tools are found and have passed their lock-down checks, the skeptic runs on the other one, and the report says "checked by Codex".
     *   It shares the run's one 50-call budget.
     *   If a call there fails, even on a usage limit, the rest of the draft is self-checked. The report says which sections, and why. The run isn't stopped.
 *   **Connections** now shows each tool's lock-down state.
-*   **Tests:** 471 engine tests and 11 app tests pass. The app typechecks and builds. Both the log and Connections were checked in the real app.
+*   **Tests:** 478 engine tests and 11 app tests pass. The app typechecks and builds. Both the log and Connections were checked in the real app.
 
 ## Decisions I took (none change a design rule)
 

@@ -1091,17 +1091,18 @@ def test_the_checker_is_the_other_tool_only_when_it_is_connected(database, tmp_p
     settings = config.Settings(database.conn)
     primary = AIClient(FakeConnector(), ToolState(database.conn, "claude"))
     monkeypatch.setattr(config, "find_program", lambda tool: tmp_path / tool)
-    assert checker_for(database.conn, settings, primary) is None  # never checked
-
-    ToolState(database.conn, "codex").record_check(
-        version="codex-cli 0.165.0", model_ids=[], form="full", passed=True
-    )
+    # Never checked: used without setup, and the gate runs the short check before its first call.
     checker = checker_for(database.conn, settings, primary)
     assert checker is not None and checker.connector.tool == "codex"
     assert checker.shared_budget is primary.shared_budget
 
     ToolState(database.conn, "codex").mark_tool_use_attempt()
-    assert checker_for(database.conn, settings, primary) is None  # blocked until re-checked
+    assert checker_for(database.conn, settings, primary) is not None  # the gate re-checks it
+
+    ToolState(database.conn, "codex").record_check(
+        version="codex-cli 0.165.0", model_ids=[], form="full", passed=False
+    )
+    assert checker_for(database.conn, settings, primary) is None  # failed: blocked
 
     monkeypatch.setattr(config, "find_program", lambda tool: None)
     ToolState(database.conn, "codex").record_check(
