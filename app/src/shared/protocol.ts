@@ -4,6 +4,8 @@ export type Query = string;
 export type Tool = ("claude" | "codex") | null;
 export type RunId = string;
 export type ReportId = string;
+export type View = "summary" | "full";
+export type Column = "both" | "numbers" | "text";
 export type Limit = number;
 export type Offset = number;
 export type ClaimId = string;
@@ -13,22 +15,55 @@ export type Service = "massive" | "fred" | "alphavantage";
 export type Key = string;
 export type Key1 = "raw_cap" | "backup_dir" | "primary_tool" | "sec_contact_email" | "goal1_round";
 export type Value = string;
+export type Query1 = string;
+export type Limit1 = number;
+export type ReportId1 = string;
+export type ReportId2 = string;
 export type Cik = number;
 export type Name = string;
 export type Ticker = string;
 export type RunId1 = string;
 export type Ok1 = boolean;
-export type ReportId1 = string;
+export type ReportId3 = string;
 export type RunId2 = string;
 export type Ticker1 = string;
 export type CreatedAt = string;
 export type NarrativeComplete = boolean;
 export type Html = string;
-export type ReportId2 = string;
+export type Cik1 = number;
+export type Ticker2 = string;
+export type Name1 = string;
+export type ReportId4 = string;
+export type ReportDate = string;
+export type Reports = number;
+export type Price = number | null;
+export type PriceDate = string | null;
+export type Ticker3 = string;
+export type Name2 = string;
+export type Sector = string | null;
+export type Cik2 = number;
+export type ReportId5 = string | null;
+export type ReportDate1 = string | null;
+export type Date = string;
+export type Form = string;
+export type Bear = number;
+export type Base = number;
+export type Bull = number;
+export type Dates = string[];
+export type Close = number[];
+export type Volume = number[];
+export type Peers = (number | null)[];
+export type Spy = (number | null)[];
+export type Filings = FilingMark[];
+export type Trigger = number | null;
+export type FirstDate = string;
+export type FirstDate1 = string;
+export type Days = number;
+export type ReportId6 = string;
 export type RunId3 = string;
-export type Cik1 = number | null;
-export type Ticker2 = string | null;
-export type Name1 = string | null;
+export type Cik3 = number | null;
+export type Ticker4 = string | null;
+export type Name3 = string | null;
 export type CreatedAt1 = string;
 export type Rating = string | null;
 export type NarrativeComplete1 = boolean;
@@ -42,25 +77,25 @@ export type CompanyReturn = number | null;
 export type EndDate = string | null;
 export type InsideRange = boolean | null;
 export type PredictionId = string;
-export type Cik2 = number;
-export type Ticker3 = string;
+export type Cik4 = number;
+export type Ticker5 = string;
 export type RunAt = string;
 export type Rating1 = string;
-export type Bear = number | null;
-export type Base = number | null;
-export type Bull = number | null;
+export type Bear1 = number | null;
+export type Base1 = number | null;
+export type Bull1 = number | null;
 export type Grades = Grade[];
 export type ReviewId = string;
 export type Deleted = number;
 export type Graded = number;
 export type Note1 = string | null;
-export type Name2 = string;
+export type Name4 = string;
 export type Key2 = string;
 export type Cost = string;
 export type Sent = string;
 export type Version = string | null;
 export type Passed = boolean;
-export type Form = string | null;
+export type Form1 = string | null;
 export type CheckedAt = string | null;
 export type BlockedReason = string | null;
 export type RawBytes = number;
@@ -80,7 +115,7 @@ export type Step = number;
 export type StepName = string;
 export type State = "started" | "done" | "skipped" | "retrying" | "failed";
 export type RunId5 = string;
-export type ReportId3 = string;
+export type ReportId7 = string;
 export type RunId6 = string;
 export type Step1 = string | null;
 export type Message = string;
@@ -126,6 +161,8 @@ export interface RunIdParams {
  */
 export interface GetReportParams {
   report_id: ReportId;
+  view?: View;
+  column?: Column;
 }
 /**
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
@@ -173,6 +210,28 @@ export interface SetSettingParams {
 }
 /**
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "SearchParams".
+ */
+export interface SearchParams {
+  query: Query1;
+  limit?: Limit1;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "ChartParams".
+ */
+export interface ChartParams {
+  report_id: ReportId1;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "HistoryParams".
+ */
+export interface HistoryParams {
+  report_id: ReportId2;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
  * via the `definition` "Candidate".
  */
 export interface Candidate {
@@ -199,7 +258,7 @@ export interface Ok {
  * via the `definition` "ReportResult".
  */
 export interface ReportResult {
-  report_id: ReportId1;
+  report_id: ReportId3;
   run_id: RunId2;
   ticker: Ticker1;
   created_at: CreatedAt;
@@ -208,14 +267,80 @@ export interface ReportResult {
 }
 /**
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
- * via the `definition` "ReportSummary".
+ * via the `definition` "CompanyRow".
  */
-export interface ReportSummary {
-  report_id: ReportId2;
-  run_id: RunId3;
+export interface CompanyRow {
   cik: Cik1;
   ticker: Ticker2;
   name: Name1;
+  report_id: ReportId4;
+  report_date: ReportDate;
+  reports: Reports;
+  price: Price;
+  price_date: PriceDate;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "SearchHit".
+ */
+export interface SearchHit {
+  ticker: Ticker3;
+  name: Name2;
+  sector: Sector;
+  cik: Cik2;
+  report_id: ReportId5;
+  report_date: ReportDate1;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "FilingMark".
+ */
+export interface FilingMark {
+  date: Date;
+  form: Form;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "PriceRange".
+ */
+export interface PriceRange {
+  bear: Bear;
+  base: Base;
+  bull: Bull;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "ChartSeries".
+ */
+export interface ChartSeries {
+  dates: Dates;
+  close: Close;
+  volume: Volume;
+  peers: Peers;
+  spy: Spy;
+  filings: Filings;
+  trigger: Trigger;
+  range: PriceRange | null;
+  first_date: FirstDate;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "FetchHistoryResult".
+ */
+export interface FetchHistoryResult {
+  first_date: FirstDate1;
+  days: Days;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "ReportSummary".
+ */
+export interface ReportSummary {
+  report_id: ReportId6;
+  run_id: RunId3;
+  cik: Cik3;
+  ticker: Ticker4;
+  name: Name3;
   created_at: CreatedAt1;
   rating: Rating;
   narrative_complete: NarrativeComplete1;
@@ -243,13 +368,13 @@ export interface Grade {
  */
 export interface PredictionSummary {
   prediction_id: PredictionId;
-  cik: Cik2;
-  ticker: Ticker3;
+  cik: Cik4;
+  ticker: Ticker5;
   run_at: RunAt;
   rating: Rating1;
-  bear: Bear;
-  base: Base;
-  bull: Bull;
+  bear: Bear1;
+  base: Base1;
+  bull: Bull1;
   grades: Grades;
 }
 /**
@@ -279,7 +404,7 @@ export interface GradeResult {
  * via the `definition` "Service".
  */
 export interface Service1 {
-  name: Name2;
+  name: Name4;
   key: Key2;
   cost: Cost;
   sent: Sent;
@@ -293,7 +418,7 @@ export interface Service1 {
 export interface LockdownState {
   version: Version;
   passed: Passed;
-  form: Form;
+  form: Form1;
   checked_at: CheckedAt;
   blocked_reason: BlockedReason;
 }
@@ -345,7 +470,7 @@ export interface Progress {
  */
 export interface ReportReady {
   run_id: RunId5;
-  report_id: ReportId3;
+  report_id: ReportId7;
 }
 /**
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema

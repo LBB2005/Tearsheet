@@ -251,6 +251,34 @@ async def fetch_company(
     store.store_dividends(cik, share_class, dividends.json())
 
 
+HISTORY_START = date(2000, 1, 1)
+
+
+async def fetch_history_bars(
+    http: HttpClient,
+    store: PriceStore,
+    cik: int,
+    share_class: str,
+    ticker: str,
+    *,
+    end: date | None = None,
+) -> int:
+    """The full daily history from 2000-01-01 in one call. Returns the rows stored."""
+    end = end or datetime.now(EASTERN).date()
+    fetched = await http.fetch(
+        "massive",
+        _url(
+            config.MASSIVE_DAILY_BARS,
+            ticker=ticker,
+            start=HISTORY_START.isoformat(),
+            end=end.isoformat(),
+        ),
+        kind="daily_bars",
+        params={"adjusted": "false", "sort": "asc", "limit": "50000"},
+    )
+    return store.store_bars(cik, share_class, fetched.json(), raw_hash=fetched.raw_hash)
+
+
 async def fetch_splits(
     http: HttpClient,
     store: PriceStore,

@@ -71,11 +71,28 @@ def _safe_url(url: str | None) -> str | None:
     return url if url and url.startswith("https://") else None
 
 
-def render_html(report: dict[str, Any], *, mode: str) -> str:
+def render_html(
+    report: dict[str, Any],
+    *,
+    mode: str,
+    view: str = "summary",
+    column: str = "both",
+    numbers: dict[str, Any] | None = None,
+) -> str:
     """`mode` is "app" (with flag and re-read links) or "file" (terminal mode: claim IDs shown,
     no tearsheet: links)."""
     if mode not in ("app", "file"):
         raise ValueError(mode)
+    if view not in ("summary", "full"):
+        raise ValueError(view)
+    if column not in ("both", "numbers", "text"):
+        raise ValueError(column)
     return _ENV.get_template("report.html.j2").render(
-        r=report, mode=mode, csp=CSP, safe_url=_safe_url
+        r=report,
+        mode=mode,
+        view=view,
+        column=column,
+        numbers=numbers,
+        csp=CSP,
+        safe_url=_safe_url,
     )

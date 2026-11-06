@@ -18,7 +18,7 @@
   .disclaimer { font-size: .85rem; color: #555; }
 </style>
 </head>
-<body>
+<body data-view="{{ view }}">
 <h1>{{ r.company }} ({{ r.ticker }})</h1>
 <p class="meta">Report run {{ r.run_at }}.{% if r.mode_note %} {{ r.mode_note }}{% endif %}</p>
 <p class="disclaimer">General research, not personalised investment advice. Check the sources and make your own decisions.</p>

@@ -128,6 +128,7 @@ class Server:
         data_factory=None,
         ai_factory=None,
         checker_factory=None,
+        http_factory=None,
         log_predictions: bool | None = None,
         now: Callable[[], datetime] | None = None,
     ):
@@ -143,6 +144,7 @@ class Server:
         self.data_factory = data_factory or self._live_data
         self.ai_factory = ai_factory or self._live_ai
         self.checker_factory = checker_factory or self._live_checker
+        self.http_factory = http_factory or self._live_http
         # Live runs from the app log official predictions (item 35). With injected (test) data
         # nothing is logged unless a test asks for it.
         self.log_predictions = data_factory is None if log_predictions is None else log_predictions
@@ -167,6 +169,18 @@ class Server:
             massive_key=config.get_key("massive"),
         ) as http:
             yield LiveData(http, rawstore, conn, fred_key=config.get_key("fred"))
+
+    @asynccontextmanager
+    async def _live_http(self, run_id: str, conn, rawstore):
+        from tearsheet.http import HttpClient
+
+        async with HttpClient(
+            rawstore,
+            run_id,
+            settings=config.Settings(conn),
+            massive_key=config.get_key("massive"),
+        ) as http:
+            yield http
 
     def _live_ai(self, conn, tool: str | None):
         from tearsheet.ai import client_for
@@ -442,6 +456,7 @@ class Server:
 
     async def m_get_report(self, p) -> dict[str, Any]:
         from tearsheet.render import render_html
+        from tearsheet.report_numbers import numbers_for
 
         row = self.db.conn.execute(
             "SELECT report_id, run_id, created_at, narrative_complete FROM reports WHERE report_id = ?",
@@ -453,14 +468,80 @@ class Server:
             "SELECT json FROM sections WHERE report_id = ? AND key = 'report'", (p.report_id,)
         ).fetchone()
         report = json.loads(stored[0])
+        run_row = self.db.conn.execute(
+            "SELECT cik FROM runs WHERE run_id = ?", (row["run_id"],)
+        ).fetchone()
+        numbers = (
+            numbers_for(self.db.conn, report, row["run_id"], run_row[0])
+            if run_row and run_row[0] is not None
+            else None
+        )
         return {
             "report_id": row["report_id"],
             "run_id": row["run_id"],
             "ticker": report.get("ticker", ""),
             "created_at": row["created_at"],
             "narrative_complete": bool(row["narrative_complete"]),
-            "html": render_html(report, mode="app"),
+            "html": render_html(report, mode="app", view=p.view, column=p.column, numbers=numbers),
         }
+
+    def _report_target(self, report_id: str) -> tuple[str, int, str]:
+        """The run id, company cik and ticker behind a stored report."""
+        from tearsheet.data import membership
+
+        row = self.db.conn.execute(
+            "SELECT r.run_id, u.cik, (SELECT json FROM step_outputs s WHERE s.run_id = r.run_id"
+            " AND s.step = 'resolve') FROM reports r JOIN runs u ON u.run_id = r.run_id"
+            " WHERE r.report_id = ?",
+            (report_id,),
+        ).fetchone()
+        if row is None or row[1] is None:
+            raise EngineError("ENGINE_ERROR", f"No report {report_id}.")
+        ticker = json.loads(row[2] or "{}").get("ticker") or ""
+        if not ticker:
+            holdings = membership.load_bundled()
+            ticker = holdings.tickers_of(row[1])[0] if holdings.has(row[1]) else ""
+        return row[0], row[1], ticker
+
+    async def m_list_companies(self, p) -> list[dict[str, Any]]:
+        from tearsheet.companies import list_companies
+
+        return list_companies(self.db.conn)
+
+    async def m_search_companies(self, p) -> list[dict[str, Any]]:
+        from tearsheet.companies import search_companies
+
+        return search_companies(self.db.conn, p.query, p.limit)
+
+    async def m_get_chart(self, p) -> dict[str, Any]:
+        from tearsheet.charts import chart_series
+
+        run_id, cik, _ = self._report_target(p.report_id)
+        return chart_series(self.db.conn, cik, run_id)
+
+    async def m_fetch_history(self, p) -> dict[str, Any]:
+        from tearsheet.charts import SPY_CIK
+        from tearsheet.data.prices import PriceStore, fetch_history_bars
+        from tearsheet.resolve import ticker_for
+
+        if self._busy():
+            raise EngineError(
+                "RUN_IN_PROGRESS", "A report is running. Wait for it, then load the history."
+            )
+        _, cik, ticker = self._report_target(p.report_id)
+        if not ticker:
+            raise EngineError("ENGINE_ERROR", "This report's company has no ticker to look up.")
+        store = PriceStore(self.db.conn)
+        async with self.http_factory(
+            f"history-{uuid.uuid4().hex[:8]}", self.db.conn, self.rawstore
+        ) as http:
+            await fetch_history_bars(http, store, cik, "", ticker_for("massive", ticker))
+            await fetch_history_bars(http, store, SPY_CIK, "", "SPY")
+        first, days = self.db.conn.execute(
+            "SELECT MIN(date), COUNT(*) FROM prices_daily WHERE cik = ? AND share_class = ''",
+            (cik,),
+        ).fetchone()
+        return {"first_date": first or "", "days": days}
 
     async def m_list_reports(self, p) -> list[dict[str, Any]]:
         rows = self.db.conn.execute(

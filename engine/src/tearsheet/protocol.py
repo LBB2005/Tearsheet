@@ -48,6 +48,21 @@ class RunIdParams(Strict):
 
 class GetReportParams(Strict):
     report_id: str
+    view: Literal["summary", "full"] = "summary"
+    column: Literal["both", "numbers", "text"] = "both"
+
+
+class SearchParams(Strict):
+    query: str
+    limit: int = 5
+
+
+class ChartParams(Strict):
+    report_id: str
+
+
+class HistoryParams(Strict):
+    report_id: str
 
 
 class ListReportsParams(Strict):
@@ -91,6 +106,10 @@ METHODS: dict[str, type[Strict]] = {
     "get_settings": NoParams,
     "set_setting": SetSettingParams,
     "grade_due": NoParams,
+    "list_companies": NoParams,
+    "search_companies": SearchParams,
+    "get_chart": ChartParams,
+    "fetch_history": HistoryParams,
 }
 
 
@@ -118,6 +137,54 @@ class ReportResult(Strict):
     created_at: str
     narrative_complete: bool
     html: str
+
+
+class CompanyRow(Strict):
+    cik: int
+    ticker: str
+    name: str
+    report_id: str
+    report_date: str
+    reports: int
+    price: float | None
+    price_date: str | None
+
+
+class SearchHit(Strict):
+    ticker: str
+    name: str
+    sector: str | None
+    cik: int
+    report_id: str | None
+    report_date: str | None
+
+
+class FilingMark(Strict):
+    date: str
+    form: str
+
+
+class PriceRange(Strict):
+    bear: float
+    base: float
+    bull: float
+
+
+class ChartSeries(Strict):
+    dates: list[str]
+    close: list[float]
+    volume: list[int]
+    peers: list[float | None]
+    spy: list[float | None]
+    filings: list[FilingMark]
+    trigger: float | None
+    range: PriceRange | None
+    first_date: str
+
+
+class FetchHistoryResult(Strict):
+    first_date: str
+    days: int
 
 
 class ReportSummary(Strict):
@@ -249,6 +316,12 @@ ALL_MODELS: tuple[type[BaseModel], ...] = (
     RunStarted,
     Ok,
     ReportResult,
+    CompanyRow,
+    SearchHit,
+    FilingMark,
+    PriceRange,
+    ChartSeries,
+    FetchHistoryResult,
     ReportSummary,
     Grade,
     PredictionSummary,
