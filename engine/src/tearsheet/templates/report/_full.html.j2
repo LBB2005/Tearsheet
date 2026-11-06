@@ -1,0 +1,101 @@
+{#- The Full report view, and the claim block the Summary shares. Imported with context: it uses
+    `r`, `mode`, `anchor`, `safe_url` and `source_label`. All report and source text is escaped. -#}
+
+{#- One surviving claim: its text, the checker's note, a chip per source that folds out the
+    quoted paragraph, then Read the section (in the Summary), and Flag (app) or the claim ID (file). -#}
+{%- macro claim(s, sent, read=false) -%}
+<div class="cl">
+<p>{{ sent.text }}</p>
+{%- if sent.note %}
+<div class="cnote">Checker's note: {{ sent.note }}</div>
+{%- endif %}
+<div class="meta">
+{%- for c in sent.citations or [] %}
+{%- set name = source_label(c) or ("Source " ~ loop.index) %}
+{%- set url = safe_url(c.url) %}
+<details class="src"><summary class="chip">{{ name }}</summary><div class="quote">{% if c.text %}“{{ c.text }}”{% else %}The quoted paragraph is not stored for this report.{% endif %}<span>{{ name }}.{% if url %} <a href="{{ url }}">{% if url.startswith("https://www.sec.gov/") %}Open the filing on sec.gov{% else %}Open the article{% endif %}</a>{% endif %}</span></div></details>
+{%- endfor %}
+{%- if read %}
+<a class="read" href="{{ anchor('s-' ~ s.key) }}">Read the section</a>
+{%- endif %}
+{%- if mode == "app" %}
+<a class="flag" href="tearsheet://flag/{{ sent.id }}">Flag</a>
+{%- else %}
+<span class="cid">[{{ sent.id }}]</span>
+{%- endif %}
+</div>
+</div>
+{%- endmacro -%}
+
+{#- A code-written line. Red-flag lines stand out, as in the Summary. -#}
+{%- macro code_line(text) -%}
+{%- if text is string and text.startswith("Red flag:") -%}
+<div class="rf"><b>Red flag:</b>{{ text[9:] }}</div>
+{%- else -%}
+<p class="code">{{ text }}</p>
+{%- endif -%}
+{%- endmacro -%}
+
+{%- macro full_view() -%}
+<section id="full" class="view" aria-label="Full report">
+<article class="txt glass">
+{%- for s in r.sections %}
+<section id="s-{{ s.key }}" class="rsec">
+<h3>{% if s.number %}{{ s.number }}. {% endif %}{{ s.title }}</h3>
+{%- for para in s.paragraphs or [] %}
+{{ code_line(para) }}
+{%- endfor %}
+{%- if s.table %}
+<table class="t">
+{%- for row in s.table %}
+{%- set head = loop.first %}
+<tr>{% for cell in row %}{% if head %}<th>{{ cell }}</th>{% else %}<td>{{ cell }}</td>{% endif %}{% endfor %}</tr>
+{%- endfor %}
+</table>
+{%- endif %}
+{%- if s.links %}
+<ul class="heads">
+{%- for l in s.links %}
+<li>{% if safe_url(l.url) %}<a href="{{ safe_url(l.url) }}">{{ l.title }}</a>{% else %}{{ l.title }}{% endif %}<small>{{ l.publisher }}{% if l.published %}, {{ l.published }}{% endif %}{% if l.note %}. {{ l.note }}{% endif %}</small></li>
+{%- endfor %}
+</ul>
+{%- endif %}
+{%- for sent in s.sentences or [] %}
+{{ claim(s, sent) }}
+{%- endfor %}
+</section>
+{%- endfor %}
+
+<section id="s-checks" class="rsec">
+<h3>Checks</h3>
+<p class="code">Checks that ran: {{ r.checks | join(", ") }}. Skeptic: {{ r.skeptic }}.{% if r.cuts %} Call budget: {{ r.cuts }}{% endif %}</p>
+<h4 class="sh">Removed claims</h4>
+{%- if r.removed %}
+<ul class="removed">
+{%- for c in r.removed %}
+<li>{% if mode == "file" %}<span class="cid">[{{ c.id }}]</span> {% endif %}{{ c.text }}<small>{{ c.reasons | join("; ") }}</small></li>
+{%- endfor %}
+</ul>
+{%- if r.direction_split %}
+<p class="code">By direction: {% for k, v in r.direction_split.items() %}{{ k }} {{ v }}{% if not loop.last %}, {% endif %}{% endfor %}.</p>
+{%- endif %}
+{%- else %}
+<p class="code">None.</p>
+{%- endif %}
+</section>
+
+<section id="s-methodology" class="rsec">
+<h3>9. Methodology and sources</h3>
+{%- for line in r.methodology or [] %}
+<p class="code">{{ line }}</p>
+{%- endfor %}
+<h4 class="sh">Filings used</h4>
+<ul class="filings">
+{%- for f in r.filings or [] %}
+<li>{{ f.form }}{% if safe_url(f.url) %}: <a href="{{ safe_url(f.url) }}">{{ f.accession }}</a>{% else %} {{ f.accession }}{% endif %}{% if mode == "app" %} <a class="read" href="tearsheet://reread/{{ f.accession }}">Re-read this filing</a>{% endif %}</li>
+{%- endfor %}
+</ul>
+</section>
+</article>
+</section>
+{%- endmacro -%}

@@ -1,0 +1,184 @@
+{#- The numbers column, in the spec's order. Every panel is drawn from `n` (the numbers dict);
+    a piece that is None says "not stored for this report". Imported with context: it uses `r`,
+    `n`, `fmt`, `metric_text` and `red_flag_labels`. -#}
+{%- from "report/_svg.html.j2" import gauge, donut, price_path, methods_chart -%}
+
+{%- set MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] -%}
+
+{%- macro gap(what="") -%}<p class="gap">{% if what %}{{ what }} not stored for this report.{% else %}Not stored for this report.{% endif %}</p>{%- endmacro -%}
+
+{#- "2025-11-14" → "Nov 2025", with `years` added. Anything else gives nothing. -#}
+{%- macro month_of_iso(day, years=0) -%}
+{%- set parts = (day|string).split("-") -%}
+{%- if parts|length == 3 and parts[0].isdigit() and parts[1].isdigit() and 1 <= parts[1]|int <= 12 -%}{{ MONTHS[parts[1]|int - 1] }} {{ parts[0]|int + years }}{%- endif -%}
+{%- endmacro -%}
+
+{#- "4 Nov 2026" → "4 Nov"; anything else is shown as it is. -#}
+{%- macro day_month(day) -%}
+{%- set parts = (day|string).split(" ") -%}
+{{ parts[0] ~ " " ~ parts[1] if parts|length == 3 and parts[2].isdigit() else day }}
+{%- endmacro -%}
+
+{%- macro flag_names(codes) -%}
+{%- for code in codes -%}{{ (red_flag_labels.get(code) or code|replace("_", " "))|lower }}{% if not loop.last %}, {% endif %}{%- endfor -%}
+{%- endmacro -%}
+
+{%- macro signed(v) -%}{{ ("%+.1f"|format(v)).replace("-", "−") }}%{%- endmacro -%}
+
+{%- macro numbers_column() -%}
+{%- set today = n.price.value if n.price else (n.weekly[-1].close if n.weekly else none) -%}
+<aside id="numbers" class="nums" aria-label="Numbers">
+
+{#- 1. The rating, with the score ring, the red-flag note, price, estimated value, buy trigger
+       and value gap percentile. #}
+<section class="p glass span2">
+<div class="tkr">{{ r.ticker }}<small>{{ r.company }}, report run {{ r.run_at }}</small></div>
+{%- if n.rating or n.score %}
+<div class="callrow">
+{%- if n.score %}
+<div class="ring">{{ gauge(84, 7, n.score.percentile / 100) }}<div><b>{{ n.score.percentile }}</b><span>score</span></div></div>
+{%- endif %}
+<div>{% if n.rating %}<div class="call {{ n.rating.call|lower }}">{{ n.rating.call }}</div><span>next 12 months, against its peers</span>{% else %}{{ gap("The rating is") }}{% endif %}</div>
+</div>
+{%- else %}
+{{ gap("The rating and score are") }}
+{%- endif %}
+{%- if n.rating and n.rating.capped %}
+<div class="note">Capped by a red flag{% if n.red_flags %}: {{ flag_names(n.red_flags) }}{% endif %}.</div>
+{%- elif n.red_flags %}
+<div class="note">Red flag: {{ flag_names(n.red_flags) }}. Any red flag caps the rating at Hold.</div>
+{%- endif %}
+<dl class="kvs">
+<div><dt>Price{% if n.price %}, {{ day_month(n.price.date) }}{% endif %}</dt>{% if n.price %}<dd>{{ fmt("price", n.price.value) }}</dd>{% else %}<dd class="miss">not stored</dd>{% endif %}</div>
+<div><dt>Estimated value</dt>{% if n.estimate %}<dd>{{ fmt("price", n.estimate.value) }}</dd>{% else %}<dd class="miss">not stored</dd>{% endif %}</div>
+{%- if n.triggers %}
+<div><dt>Buy trigger</dt>{% if n.triggers.buy is number %}<dd>{{ fmt("price", n.triggers.buy) }}</dd>{% else %}<dd class="words">{{ n.triggers.buy_text }}</dd>{% endif %}</div>
+{%- else %}
+<div><dt>Triggers</dt><dd class="miss">not stored</dd></div>
+{%- endif %}
+<div><dt>Value gap percentile</dt>{% if n.estimate and n.estimate.gap_percentile is number %}<dd>{{ n.estimate.gap_percentile }}</dd>{% elif n.estimate %}<dd class="miss">not available</dd>{% else %}<dd class="miss">not stored</dd>{% endif %}</div>
+</dl>
+</section>
+
+{#- 2. The past year's weekly prices running into the 12-month range, drawn as a fan. #}
+<section class="p glass span2">
+<h4><span>Past year and the 12-month range</span>{% if n.rating and n.rating.uncertainty %}<em>uncertainty {{ n.rating.uncertainty }}</em>{% endif %}</h4>
+{%- if n.weekly or n.range %}
+{%- set start = month_of_iso(n.weekly[0].date) if n.weekly else "" %}
+{%- set end = month_of_iso(n.weekly[-1].date, 1) if n.weekly else "" %}
+{%- set middle = ("Today " ~ fmt("price", today)) if today is number else "Today" %}
+{%- set label = "Weekly price over the past year" ~ ((", from " ~ fmt("price", n.weekly[0].close) ~ " to " ~ fmt("price", n.weekly[-1].close)) if n.weekly else "") ~ ((", then the 12-month range from " ~ fmt("price", n.range.bear) ~ " to " ~ fmt("price", n.range.bull)) if n.range else "") %}
+{{ price_path(n.weekly, today, n.range, start, middle, end, label) }}
+{%- else %}
+{{ gap() }}
+{%- endif %}
+</section>
+
+{#- 3. Factor percentiles with weights, with a line at the peer median. #}
+<section class="p glass span2">
+<h4><span>Score by factor</span><em>percentile and weight; line at the peer median</em></h4>
+{%- for f in n.factors or [] %}
+{%- set weight = ("%.1f"|format(f.weight * 100)).rstrip("0").rstrip(".") %}
+<div class="bar fbar"><span>{{ f.name|capitalize }}</span><div class="tr"><i style="width:{{ [[f.percentile, 0]|max, 100]|min }}%"></i><span class="mid"></span></div><b>{{ f.percentile }}</b><small>{{ weight }}%</small></div>
+{%- else %}
+{{ gap() }}
+{%- endfor %}
+</section>
+
+{#- 4. The key metrics against the peer median. #}
+<section class="p glass span2">
+<h4><span>Key metrics against the peer median</span><em>dot: share of peers below {{ r.ticker }}</em></h4>
+{%- if n.metrics %}
+<div class="tiles">
+{%- for m in n.metrics %}
+<div class="tile"><span>{{ m.label }}</span><b>{{ metric_text(m.name, m.value) }}</b><small>{% if m.peer_median is number %}peers {{ metric_text(m.name, m.peer_median) }}{% else %}no peer median{% endif %}</small><div class="rk">{% if m.percentile is number %}<i style="left:{{ [[m.percentile, 0]|max, 100]|min }}%"></i>{% endif %}</div></div>
+{%- endfor %}
+</div>
+{%- else %}
+{{ gap() }}
+{%- endif %}
+</section>
+
+{#- 5. Value per share by method. #}
+<section class="p glass span2">
+<h4><span>Value per share by method</span>{% if n.estimate %}<em>estimate {{ fmt("price", n.estimate.value) }}</em>{% endif %}</h4>
+{%- if n.methods %}
+{%- set label = "Value per share: " ~ (n.methods|map(attribute="method")|join(", ")) ~ (("; price " ~ fmt("price", today)) if today is number else "") %}
+{{ methods_chart(n.methods, today, n.range, label) }}
+{%- else %}
+{{ gap() }}
+{%- endif %}
+</section>
+
+{#- 6. The 12-month total return against the peers and the S&P 500. #}
+<section class="p glass">
+<h4><span>Total return, past 12 months</span></h4>
+{%- if n.returns_12m %}
+{%- set rows = [(r.ticker, n.returns_12m.company, true), ("Peer group", n.returns_12m.peers, false), ("S&P 500", n.returns_12m.spy, false)] %}
+{%- set lo0 = [0, n.returns_12m.company, n.returns_12m.peers, n.returns_12m.spy]|min %}
+{%- set hi0 = [0, n.returns_12m.company, n.returns_12m.peers, n.returns_12m.spy]|max %}
+{%- set pad = [(hi0 - lo0) * 0.1, 1]|max %}
+{%- set lo, span = lo0 - pad, hi0 - lo0 + 2 * pad %}
+{%- set zero = (0 - lo) / span * 100 %}
+{%- for name, v, own in rows %}
+{%- set at = (v - lo) / span * 100 %}
+<div class="bar rbar"><span>{{ name }}</span><div class="tr"><i class="{{ 'neg' if v < 0 else ('self' if own else '') }}" style="left:{{ '%.1f'|format([zero, at]|min) }}%;width:{{ '%.1f'|format((at - zero)|abs) }}%"></i><span class="zero" style="left:{{ '%.1f'|format(zero) }}%"></span></div><b>{{ signed(v) }}</b></div>
+{%- endfor %}
+{%- else %}
+{{ gap() }}
+{%- endif %}
+</section>
+
+{#- 7. The red-flag meter: the four checks, any one of which caps the rating at Hold. #}
+<section class="p glass">
+<h4><span>Red flags</span><em>any one caps the rating</em></h4>
+{%- if n.red_flags is not none %}
+{%- set others = n.red_flags|reject("in", red_flag_labels)|list %}
+<div class="flags" role="img" aria-label="{{ n.red_flags|length }} of {{ red_flag_labels|length + others|length }} red flags found">{% for code in red_flag_labels %}<i class="{{ 'on' if code in n.red_flags else '' }}"></i>{% endfor %}{% for code in others %}<i class="on"></i>{% endfor %}</div>
+{%- for code, label in red_flag_labels.items() %}
+<div class="kv"><span>{{ label }}</span>{% if code in n.red_flags %}<b class="found">found</b>{% else %}<b class="clear">clear</b>{% endif %}</div>
+{%- endfor %}
+{%- for code in others %}
+<div class="kv"><span>{{ code|replace("_", " ")|capitalize }}</span><b class="found">found</b></div>
+{%- endfor %}
+{%- else %}
+{{ gap() }}
+{%- endif %}
+</section>
+
+{#- 8. Five economic figures from FRED. #}
+<section class="p glass span2">
+<h4><span>Economy</span><em>FRED</em></h4>
+{%- if n.economy %}
+<div class="macro">
+{%- for e in n.economy %}
+<div><b>{{ e.value }}</b><span>{{ e.label }}</span><small>{{ e.date }}</small></div>
+{%- endfor %}
+</div>
+{%- else %}
+{{ gap() }}
+{%- endif %}
+</section>
+
+{#- 9. Rings for the peer ratings, and for the claims kept and removed. #}
+<section class="p glass span2">
+<h4><span>Peer ratings and checks</span>{% if n.peer_ratings %}<em>peer ratings before red-flag caps</em>{% endif %}</h4>
+<div class="donutrow">
+{%- if n.peer_ratings %}
+{%- set pr = n.peer_ratings %}
+<div class="donut">{{ donut(80, 10, [[pr.Buy, "dn-buy"], [pr.Hold, "dn-hold"], [pr.Sell, "dn-sell"]], "Peer ratings: " ~ pr.Buy ~ " Buy, " ~ pr.Hold ~ " Hold, " ~ pr.Sell ~ " Sell") }}<b>{{ pr.Buy + pr.Hold + pr.Sell }}</b></div>
+<div class="legend"><span><i class="buy"></i>{{ pr.Buy }} Buy</span><span><i class="hold"></i>{{ pr.Hold }} Hold</span><span><i class="sell"></i>{{ pr.Sell }} Sell</span></div>
+{%- else %}
+<div class="half">{{ gap("Peer ratings") }}</div>
+{%- endif %}
+{%- if n.claims %}
+{%- set cl = n.claims %}
+<div class="donut">{{ donut(80, 10, [[cl.kept, "dn-kept"], [cl.removed, "dn-removed"]], cl.kept ~ " claims kept, " ~ cl.removed ~ " removed") }}<b>{{ cl.kept + cl.removed }}</b></div>
+<div class="legend"><span><i class="kept"></i>{{ cl.kept }} claims kept</span><span><i class="sell"></i>{{ cl.removed }} removed</span>{% if r.direction_split %}<span class="sub">{% for k, v in r.direction_split.items() %}{{ v }} {{ k }}{% if not loop.last %}, {% endif %}{% endfor %}</span>{% endif %}</div>
+{%- else %}
+<div class="half">{{ gap("Claim counts") }}</div>
+{%- endif %}
+</div>
+</section>
+</aside>
+{%- endmacro -%}
