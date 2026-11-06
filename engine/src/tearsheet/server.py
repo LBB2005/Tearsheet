@@ -620,8 +620,16 @@ class Server:
         return chart_series(self.db.conn, cik, run_id)
 
     async def m_fetch_history(self, p) -> dict[str, Any]:
+        """The company's full daily history with its splits and dividends (three calls), then
+        SPY's (three more) unless an earlier download already stored them. Every call goes
+        through the shared Massive limiter."""
         from tearsheet.charts import SPY_CIK
-        from tearsheet.data.prices import PriceStore, fetch_history_bars
+        from tearsheet.data.prices import (
+            PriceStore,
+            fetch_history_actions,
+            fetch_history_bars,
+            history_stored,
+        )
         from tearsheet.resolve import ticker_for
 
         if self._busy():
@@ -636,8 +644,13 @@ class Server:
         async with self.http_factory(
             f"history-{uuid.uuid4().hex[:8]}", self.db.conn, self.rawstore
         ) as http:
-            await fetch_history_bars(http, store, cik, "", ticker_for("massive", ticker))
-            await fetch_history_bars(http, store, SPY_CIK, "", "SPY")
+            massive = ticker_for("massive", ticker)
+            await fetch_history_bars(http, store, cik, "", massive)
+            await fetch_history_actions(http, store, cik, "", massive)
+            closes = store.closes(cik)
+            if not closes or not history_stored(store, SPY_CIK, closes[0][0]):
+                await fetch_history_bars(http, store, SPY_CIK, "", "SPY")
+                await fetch_history_actions(http, store, SPY_CIK, "", "SPY")
         first, days = self.db.conn.execute(
             "SELECT MIN(date), COUNT(*) FROM prices_daily WHERE cik = ? AND share_class = ''",
             (cik,),

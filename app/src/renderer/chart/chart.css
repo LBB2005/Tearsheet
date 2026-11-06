@@ -43,7 +43,7 @@
 /* ---------- the pane's head: name, readout, ranges and toggles ---------- */
 .cph { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 18px; row-gap: 8px; flex: none; }
 .cpt b { font: 600 17px var(--ui); letter-spacing: .5px; }
-.cpt span { display: block; color: var(--muted); font-size: 12px; max-width: 260px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cpt span { display: block; color: var(--muted); font-size: 12px; max-width: 200px; }
 .cpbig { min-width: 210px; }
 .cpbig b { font: 600 24px/1.1 var(--ui); }
 .cpbig em { font-style: normal; font-weight: 600; margin-left: 8px; font-size: 14px; }

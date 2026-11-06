@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from datetime import date
 
 from tearsheet.data.prices import PriceStore, fetch_history_bars
 from tests.test_charts import DAYS, seed
@@ -155,11 +156,43 @@ class _Fetched:
 
 
 class FakeHttp:
+    """Massive's daily bars, splits and dividends, with one page of each (two for ABC's
+    dividends, to check the paging)."""
+
     def __init__(self):
         self.urls: list[str] = []
+        self.calls: list[tuple[str, dict | None]] = []
 
     async def fetch(self, service, url, *, kind, expect="json", params=None):
         self.urls.append(url)
+        self.calls.append((kind, params))
+        ticker = (params or {}).get("ticker") or ("SPY" if "/SPY/" in url else "ABC")
+        if kind == "splits":
+            return _Fetched(
+                {
+                    "results": [
+                        {
+                            "ticker": ticker,
+                            "execution_date": "2000-01-05",
+                            "split_from": 1,
+                            "split_to": 2,
+                        }
+                    ]
+                }
+            )
+        if kind == "dividends":
+            if url.endswith("page2"):
+                return _Fetched(
+                    {"results": [{"ex_dividend_date": "2000-01-06", "cash_amount": 0.2}]}
+                )
+            more = (
+                {"next_url": "https://api.massive.com/v3/reference/dividends?page2"}
+                if ticker == "ABC"
+                else {}
+            )
+            return _Fetched(
+                {"results": [{"ex_dividend_date": "2000-01-04", "cash_amount": 0.1}], **more}
+            )
         ms = 946_857_600_000 if "SPY" in url else 946_944_000_000  # 2000-01-03 / 2000-01-04
         return _Fetched(
             {"results": [{"t": ms, "c": 5.0, "v": 10}, {"t": ms + 86_400_000, "c": 6.0}]}
@@ -192,9 +225,42 @@ def test_fetch_history_method_downloads_company_and_spy(tmp_path):
         )
 
     reply = run(h.call("fetch_history", {"report_id": "rep-1"}))
-    assert len(http.urls) == 2 and any("/SPY/" in u for u in http.urls)
+    # The company's bars, splits and dividends (two pages), then SPY's bars, splits and
+    # dividends: seven calls, all through the shared Massive limiter.
+    kinds = [k for k, _ in http.calls]
+    assert kinds == [
+        "daily_bars",
+        "splits",
+        "dividends",
+        "dividends",
+        "daily_bars",
+        "splits",
+        "dividends",
+    ]
+    assert any("/SPY/" in u for u in http.urls)
+    assert http.calls[1][1] == {
+        "ticker": "ABC",
+        "execution_date.gte": "2000-01-01",
+        "limit": "1000",
+    }
+    assert http.calls[2][1] == {
+        "ticker": "ABC",
+        "ex_dividend_date.gte": "2000-01-01",
+        "limit": "1000",
+    }
     assert reply["result"]["days"] >= 2
     assert reply["result"]["first_date"] <= "2000-01-05"
+    store = PriceStore(h.server.db.conn)
+    assert store.splits(1) == {date(2000, 1, 5): 2.0}
+    assert store.dividends(1) == {date(2000, 1, 4): 0.1, date(2000, 1, 6): 0.2}
+    assert store.splits(884394) == {date(2000, 1, 5): 2.0}
+    assert store.dividends(884394) == {date(2000, 1, 4): 0.1}
+
+    # A second download: SPY's long history and its dividends are stored now, so only the
+    # company's three calls are made.
+    http.calls.clear()
+    run(h.call("fetch_history", {"report_id": "rep-1"}, id_=2))
+    assert [k for k, _ in http.calls] == ["daily_bars", "splits", "dividends", "dividends"]
     h.server.close()
 
 

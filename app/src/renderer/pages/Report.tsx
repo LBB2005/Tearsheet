@@ -97,6 +97,15 @@ export function Report({ page, wide }: { page: ReportPage; wide: boolean }) {
   }
   const onFull = () => page.setSplit(full ? half() : { mode: 'full', width: avail }, true)
 
+  // The divider goes (the chart closing, or a narrow window) mid-drag: drop the drag, so the
+  // shield and the cursor never stick and a stale drag never decides the next opening.
+  useEffect(() => {
+    if (split) return
+    dragNow.current = { on: false, snap: null }
+    setDragging(false)
+    setDrag(null)
+  }, [split])
+
   const snapped = drag !== null && (drag.mode === 'half' || drag.mode === 'full')
   const cls = ['rpage', chartOpen && 'chartopen', chartClosing && 'closing', full && !chartClosing && 'full', dragging && 'dragging', snapped && 'snapped'].filter(Boolean).join(' ')
   const reportId = page.reportId
@@ -140,6 +149,7 @@ export function Report({ page, wide }: { page: ReportPage; wide: boolean }) {
         <ChartPane
           key={reportId}
           reportId={reportId}
+          cik={named?.cik ?? null}
           ticker={named?.ticker ?? null}
           name={named?.name ?? null}
           width={paneW}

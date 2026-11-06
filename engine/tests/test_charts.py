@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import date
 
 from tearsheet.charts import SPY_CIK, chart_series
 
@@ -114,3 +115,43 @@ def test_chart_series_filing_dates_come_from_the_stored_submissions(database, ra
         {"date": "2026-10-27", "form": "10-K"},
         {"date": "2026-10-29", "form": "8-K"},
     ]
+
+
+def _actions(conn, cik, rows):
+    with conn:
+        conn.executemany(
+            "INSERT INTO corporate_actions VALUES (?, '', ?, ?, ?, 't')",
+            [(cik, day, kind, value) for day, kind, value in rows],
+        )
+
+
+def test_chart_series_adjusts_closes_for_splits(database):
+    seed(database.conn)
+    # A 2-for-1 split on the third day: 20 and 20 before it are 10 and 10 in today's shares.
+    with database.conn:
+        database.conn.execute("DELETE FROM prices_daily WHERE cik = 1")
+        for i, close in enumerate([20, 20, 11, 12, 11]):
+            database.conn.execute(
+                "INSERT INTO prices_daily VALUES (1, '', ?, ?, ?, 't', 'x')", (DAYS[i], close, 500)
+            )
+    _actions(database.conn, 1, [(DAYS[2], "split", 2.0), ("2026-12-01", "split", 4.0)])
+    s = chart_series(database.conn, 1, "run-1")
+    assert s["close"] == [10, 10, 11, 12, 11]  # no cliff, and the last close is the real one
+    assert s["volume"] == [1000, 1000, 500, 500, 500]  # in today's shares too
+    # The 4-for-1 split dated after the last close changed nothing.
+
+
+def test_chart_series_company_total_return_matches_the_store(database):
+    from tearsheet.data.prices import PriceStore
+
+    seed(database.conn)
+    _actions(database.conn, 1, [(DAYS[3], "dividend", 1.0)])
+    s = chart_series(database.conn, 1, "run-1")
+    store = PriceStore(database.conn)
+    expected = [100.0] + [
+        100.0 * (1 + store.total_return(1, "", date.fromisoformat(DAYS[0]), date.fromisoformat(d)))
+        for d in DAYS[1:]
+    ]
+    assert [round(v, 9) for v in s["total"]] == [round(v, 9) for v in expected]
+    # The dividend shows in the total return, not in the price line.
+    assert round(s["total"][3], 6) == 130.0 and s["close"][3] == 12

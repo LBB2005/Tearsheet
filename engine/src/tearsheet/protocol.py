@@ -202,8 +202,11 @@ class PriceRange(Strict):
 
 class ChartSeries(Strict):
     dates: list[str]
+    # Split-adjusted: in today's shares, so the last close is the real one.
     close: list[float]
     volume: list[int]
+    # Total-return indexes from 100: the company, its equal-weighted peers and SPY.
+    total: list[float | None]
     peers: list[float | None]
     spy: list[float | None]
     filings: list[FilingMark]

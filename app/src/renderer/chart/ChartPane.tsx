@@ -1,12 +1,14 @@
 // The price chart beside the report (the spec's "The chart"). It is app UI, not part of the report
 // frame, so it can be interactive. It draws, in SVG:
-//   - the daily closes, with the volume underneath;
+//   - the daily closes, adjusted for splits, with the volume underneath;
 //   - markers for the SEC filings the report read, and the buy-trigger line;
 //   - three toggles, all off at first: the 12-month range as a fan ahead of today, the peers
-//     (equal-weighted) and the S&P 500. With either compare line on, every line starts from 100.
+//     (equal-weighted) and the S&P 500. With either compare line on, every line starts from 100,
+//     and the company's line is its total return, on the same basis as the peers and SPY.
 // Hover reads a day's price, change and volume; dragging across measures two dates. The ranges
 // are 1W to All (series.ts). 5Y and All, the first time, download the company's full price
-// history in one call (fetch_history), then read the chart again. If the history is still
+// history (fetch_history: its bars, splits and dividends, and SPY's if they aren't stored yet),
+// then read the chart again. If the history is still
 // short, 5Y greys out and All shows what is there, with a note. The series comes from
 // get_chart. Motion: the line traces and the volume rises as the chart opens and on each range
 // or toggle change (chart.css); nothing moves under Reduce motion.
@@ -23,6 +25,8 @@ import './chart.css'
 
 export interface ChartPaneProps {
   reportId: string
+  // The company: its history is downloaded once a session, whichever of its reports asks.
+  cik: number | null
   ticker: string | null
   name: string | null
   // The pane's width; the content keeps it while the pane slides in or out.
@@ -43,20 +47,20 @@ interface Toggles {
 
 type History = { ok: true } | { ok: false; line: string }
 
-// Each report's full-history download, this session: one call, shared by every pane that asks
-// while it runs. A failed one is forgotten, so asking again tries again.
+// Each company's full-history download, this session, shared by every pane that asks while it
+// runs. A failed one is forgotten, so asking again tries again.
 const histories = new Map<string, Promise<History>>()
 const downloaded = new Set<string>()
 
 const unanswered = (e: unknown): CallResult<never> => ({ ok: false, error: { message: e instanceof Error ? e.message : 'Tearsheet’s engine didn’t answer.' } })
 
-function downloadHistory(reportId: string): Promise<History> {
-  let asked = histories.get(reportId)
+function downloadHistory(company: string, reportId: string): Promise<History> {
+  let asked = histories.get(company)
   if (!asked) {
     asked = window.tearsheet.fetchHistory(reportId).then(
       (reply): History => {
         if (reply.ok) {
-          downloaded.add(reportId)
+          downloaded.add(company)
           return { ok: true }
         }
         const code = reply.error?.code
@@ -67,9 +71,9 @@ function downloadHistory(reportId: string): Promise<History> {
       },
       (e: unknown): History => ({ ok: false, line: `The full price history didn’t download. ${unanswered(e).error?.message}` })
     )
-    histories.set(reportId, asked)
+    histories.set(company, asked)
     void asked.then((h) => {
-      if (!h.ok) histories.delete(reportId)
+      if (!h.ok) histories.delete(company)
     })
   }
   return asked
@@ -131,7 +135,8 @@ interface Geo {
   hi: number
   indexed: boolean
   fan: boolean
-  // The company's line, the compare lines (started from 100), and a price in the line's units.
+  // The company's line (its split-adjusted close, or with a compare line on its total return
+  // from 100), the compare lines from 100, and a price in the line's units.
   main: number[]
   peers: (number | null)[] | null
   spy: (number | null)[] | null
@@ -151,9 +156,15 @@ function geometry(sl: ChartSeries, t: Toggles, W: number, H: number): Geo {
   const x1 = W - PAD_R - fanW - (fan ? 10 : 0)
   const plotB = H - AXIS_H - VOL_H - 12
   const volB = H - AXIS_H
-  const first = sl.close[0]
-  const scale = (p: number) => (indexed ? (p / first) * 100 : p)
-  const main = sl.close.map(scale)
+  const total = indexed && sl.total?.length === n ? rebase(sl.total) : null
+  const main =
+    total && total.every((v) => v !== null)
+      ? (total as number[])
+      : indexed
+        ? sl.close.map((p) => (p / sl.close[0]) * 100)
+        : sl.close
+  // A price target, as a move from the last close on the line's own basis (the fan).
+  const scale = (p: number) => (indexed ? (main[n - 1] * p) / sl.close[n - 1] : p)
   const peers = t.peers ? rebase(sl.peers) : null
   const spy = t.spy ? rebase(sl.spy) : null
   const vals = [...main]
@@ -403,36 +414,42 @@ function drawHover(sl: ChartSeries, g: Geo, j: number, ticker: string): ReactEle
 }
 
 // The price and change above the chart: the last close over the range, a hovered day, or a
-// measured stretch.
-function readout(sl: ChartSeries, range: Range, filled: boolean, hover: number | null, span: { a: number; b: number } | null) {
+// measured stretch. With a compare line on (`total`, the company's line from 100), the change
+// is its total return, as the lines show it.
+function readout(sl: ChartSeries, range: Range, filled: boolean, hover: number | null, span: { a: number; b: number } | null, total: number[] | null) {
   const n = sl.dates.length
+  const move = (a: number, b: number) => (total ? measure(total[a], total[b]) : measure(sl.close[a], sl.close[b]))
   if (span && span.a !== span.b) {
     const a = Math.min(span.a, span.b)
     const b = Math.max(span.a, span.b)
-    const m = measure(sl.close[a], sl.close[b])
+    const m = move(a, b)
     const days = b - a
     return {
       price: money.format(sl.close[b]),
-      change: `${signedMoney(m.change)}, ${sgn(m.pct)}`,
+      change: total ? `${sgn(m.pct)} total return` : `${signedMoney(m.change)}, ${sgn(m.pct)}`,
       up: m.change >= 0,
       note: `from ${shortDate(sl.dates[a])} to ${shortDate(sl.dates[b])}, ${days} trading ${days === 1 ? 'day' : 'days'}`
     }
   }
   const i = hover ?? n - 1
-  const m = measure(sl.close[0], sl.close[i])
+  const m = move(0, i)
   const note =
     hover !== null
       ? `on ${shortDate(sl.dates[i])}, since ${shortDate(sl.dates[0])}`
       : filled && range !== 'All'
         ? `over ${RANGE_WORDS[range]}, to ${shortDate(sl.dates[n - 1])}`
         : `since ${shortDate(sl.dates[0])}, to ${shortDate(sl.dates[n - 1])}`
-  return { price: money.format(sl.close[i]), change: sgn(m.pct), up: m.pct >= 0, note }
+  return { price: money.format(sl.close[i]), change: total ? `${sgn(m.pct)} total return` : sgn(m.pct), up: m.pct >= 0, note }
 }
 
 // ---------- the pane ----------
 
-export function ChartPane({ reportId, ticker, name, width, wide, full, onClose, onFull }: ChartPaneProps) {
+export function ChartPane({ reportId, cik, ticker, name, width, wide, full, onClose, onFull }: ChartPaneProps) {
+  const company = cik === null ? `report:${reportId}` : `cik:${cik}`
   const [series, setSeries] = useState<ChartSeries | null>(null)
+  // The series on show was read after the company's history download, so a history still
+  // short is what the plan serves.
+  const [readAfter, setReadAfter] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
   const [attempt, setAttempt] = useState(0)
   const [range, setRange] = useState<Range>('1Y')
@@ -464,11 +481,14 @@ export function ChartPane({ reportId, ticker, name, width, wide, full, onClose, 
   useEffect(() => {
     let on = true
     setProblem(null)
+    const after = downloaded.has(company)
     window.tearsheet.getChart(reportId).then(
       (r) => {
         if (!on) return
-        if (r.ok && r.result) setSeries(r.result)
-        else setProblem(r.error?.message || 'Tearsheet’s engine didn’t answer.')
+        if (r.ok && r.result) {
+          setSeries(r.result)
+          setReadAfter(after)
+        } else setProblem(r.error?.message || 'Tearsheet’s engine didn’t answer.')
       },
       (e: unknown) => {
         if (on) setProblem(unanswered(e).error?.message ?? null)
@@ -490,8 +510,8 @@ export function ChartPane({ reportId, ticker, name, width, wide, full, onClose, 
     return () => watch.disconnect()
   }, [])
 
-  // Downloaded and still short: 5Y greys out, and All shows what there is.
-  const short = series !== null && downloaded.has(reportId) && needsHistory(series, '5Y')
+  // Downloaded, read again and still short: 5Y greys out, and All shows what there is.
+  const short = series !== null && readAfter && needsHistory(series, '5Y')
   const shown: Range = range === '5Y' && short ? 'All' : range
   const sl = useMemo(() => (series ? slice(series, shown) : null), [series, shown])
   const g = useMemo(() => (sl && sl.dates.length > 0 && box.W > 120 && box.H > 140 ? geometry(sl, toggles, box.W, box.H) : null), [sl, toggles, box])
@@ -510,12 +530,34 @@ export function ChartPane({ reportId, ticker, name, width, wide, full, onClose, 
     getHistory(next)
   }
 
+  // The series again, after the company's history download.
+  const reread = async () => {
+    const again = await window.tearsheet.getChart(reportId).catch(unanswered)
+    if (!live.current) return
+    if (again.ok && again.result) {
+      setSeries(again.result)
+      setReadAfter(true)
+      if (rangeNow.current === '5Y' && needsHistory(again.result, '5Y')) setRange('All')
+      restart()
+    } else setHistoryLine(`The history downloaded, but the chart didn’t read it again. ${again.error?.message ?? ''}`.trim())
+  }
+
   // 5Y and All, the first time: download the full history, then read the chart again.
   const getHistory = (next: Range) => {
-    waiting.current = !series && (next === '5Y' || next === 'All')
-    if (!series || downloading || downloaded.has(reportId) || !needsHistory(series, next)) return
+    const long = next === '5Y' || next === 'All'
+    waiting.current = !series && long
+    if (!series || downloading || !long) return
+    // Downloaded already, but not read since (the reading failed): read it now.
+    if (downloaded.has(company)) {
+      if (!readAfter) {
+        setDownloading(true)
+        void reread().finally(() => live.current && setDownloading(false))
+      }
+      return
+    }
+    if (!needsHistory(series, next)) return
     setDownloading(true)
-    void downloadHistory(reportId).then(async (h) => {
+    void downloadHistory(company, reportId).then(async (h) => {
       if (!h.ok) {
         if (live.current) {
           setDownloading(false)
@@ -523,14 +565,8 @@ export function ChartPane({ reportId, ticker, name, width, wide, full, onClose, 
         }
         return
       }
-      const again = await window.tearsheet.getChart(reportId).catch(unanswered)
-      if (!live.current) return
-      setDownloading(false)
-      if (again.ok && again.result) {
-        setSeries(again.result)
-        if (rangeNow.current === '5Y' && needsHistory(again.result, '5Y')) setRange('All')
-      } else setHistoryLine(`The history downloaded, but the chart didn’t read it again. ${again.error?.message ?? ''}`.trim())
-      restart()
+      await reread()
+      if (live.current) setDownloading(false)
     })
   }
 
@@ -538,6 +574,21 @@ export function ChartPane({ reportId, ticker, name, width, wide, full, onClose, 
     if (series && waiting.current) getHistory(rangeNow.current)
     // Only as the series arrives; getHistory reads the rest as it is now.
   }, [series])
+
+  // A download that another pane of this company started (the chart closed and opened again
+  // while it ran): read the series again once it lands.
+  useEffect(() => {
+    const pending = histories.get(company)
+    if (!pending || downloaded.has(company)) return
+    let on = true
+    void pending.then((h) => {
+      if (on && h.ok) void reread()
+    })
+    return () => {
+      on = false
+    }
+    // Once, as the pane opens.
+  }, [company])
 
   const flip = (k: keyof Toggles) => {
     setToggles((t) => ({ ...t, [k]: !t[k] }))
@@ -583,7 +634,7 @@ export function ChartPane({ reportId, ticker, name, width, wide, full, onClose, 
   const noPeers = !series || series.peers.every((v) => v === null)
   const noSpy = !series || series.spy.every((v) => v === null)
   const served = series ? `Massive’s free plan serves ${yearsServed(series)} for this company.` : ''
-  const read = sl && sl.dates.length > 0 && series ? readout(sl, shown, covers(series, shown), hover, span) : null
+  const read = sl && sl.dates.length > 0 && series ? readout(sl, shown, covers(series, shown), hover, span, g?.indexed ? g.main : null) : null
 
   const toggle = (k: keyof Toggles, text: string, colour: string, off: boolean, why: string) => (
     <button className={toggles[k] ? 'tg on' : 'tg'} aria-pressed={toggles[k]} disabled={off} title={off ? why : undefined} onClick={() => flip(k)}>
@@ -609,7 +660,7 @@ export function ChartPane({ reportId, ticker, name, width, wide, full, onClose, 
         <div className="skel" />
         <div className="loadbox" role="status">
           <b>Downloading the full price history…</b>
-          <span>One call to Massive, the first time only</span>
+          <span>A few calls to Massive, the first time only. It can take about a minute.</span>
           <div className="bar5" />
         </div>
       </>
@@ -648,7 +699,7 @@ export function ChartPane({ reportId, ticker, name, width, wide, full, onClose, 
         <div className="cph">
           <div className="cpt">
             <b>{ticker ?? 'Price'}</b>
-            <span>{name ? `${name}, daily close` : 'Daily close'}</span>
+            <span>{`${name ? `${name}, ` : ''}${toggles.peers || toggles.spy ? 'total return, with dividends' : 'daily close, adjusted for splits'}`}</span>
           </div>
           <div className="cpbig">
             {loading ? (
@@ -690,7 +741,7 @@ export function ChartPane({ reportId, ticker, name, width, wide, full, onClose, 
         </div>
         {long && !loading && historyLine && <p className="cline">{historyLine}</p>}
         {shown === 'All' && short && <p className="cnote5">{served}</p>}
-        <div ref={wrap} className="chartwrap" onPointerMove={onMove} onPointerDown={onDown} onPointerUp={onUp} onPointerCancel={onUp} onPointerLeave={onLeave}>
+        <div ref={wrap} className="chartwrap" onPointerMove={onMove} onPointerDown={onDown} onPointerUp={onUp} onPointerCancel={onUp} onLostPointerCapture={onUp} onPointerLeave={onLeave}>
           {inside}
         </div>
         <div className="cfoot">

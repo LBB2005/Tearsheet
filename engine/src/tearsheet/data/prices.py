@@ -279,6 +279,46 @@ async def fetch_history_bars(
     return store.store_bars(cik, share_class, fetched.json(), raw_hash=fetched.raw_hash)
 
 
+async def fetch_history_actions(
+    http: HttpClient,
+    store: PriceStore,
+    cik: int,
+    share_class: str,
+    ticker: str,
+    *,
+    start: date = HISTORY_START,
+) -> None:
+    """One ticker's splits and dividends since `start` (the history download), paged. Each is
+    one call unless Massive pages it; the bars' adjustment and total return need both."""
+    for path, kind, since in (
+        (config.MASSIVE_SPLITS, "splits", "execution_date.gte"),
+        (config.MASSIVE_DIVIDENDS, "dividends", "ex_dividend_date.gte"),
+    ):
+        url: str | None = _url(path)
+        params: dict[str, str] | None = {
+            "ticker": ticker,
+            since: start.isoformat(),
+            "limit": "1000",
+        }
+        while url:
+            data = (await http.fetch("massive", url, kind=kind, params=params)).json()
+            if kind == "splits":
+                store.store_splits(data, {ticker: (cik, share_class)})
+            else:
+                store.store_dividends(cik, share_class, data)
+            url, params = data.get("next_url"), None
+
+
+def history_stored(store: PriceStore, cik: int, since: date, *, share_class: str = "") -> bool:
+    """Whether a quarterly payer's history (SPY's) is already stored back to `since`, with its
+    dividends: what a history download stores, and runs (two years) never reach."""
+    closes = store.closes(cik, share_class)
+    dividends = store.dividends(cik, share_class)
+    if not closes or not dividends or closes[0][0] > since:
+        return False
+    return min(dividends) <= closes[0][0] + timedelta(days=120)
+
+
 async def fetch_splits(
     http: HttpClient,
     store: PriceStore,

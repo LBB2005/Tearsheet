@@ -106,6 +106,29 @@ def _index(prices: PriceStore, ciks: list[int], dates: list[str]) -> list[float 
     return out
 
 
+def _split_adjusted(
+    rows: list[tuple[str, float, float | None]], splits: dict[date, float]
+) -> tuple[list[float], list[int]]:
+    """Closes and volumes in today's shares: each day's close divided by the splits executed
+    after it (up to the last close), and its volume multiplied by them. The last close stays
+    the real one, and a split draws no cliff."""
+    if not rows:
+        return [], []
+    last = date.fromisoformat(rows[-1][0])
+    pending = sorted(((d, r) for d, r in splits.items() if d <= last and r > 0), reverse=True)
+    closes: list[float] = []
+    volumes: list[int] = []
+    factor, k = 1.0, 0
+    for day, close, volume in reversed(rows):
+        when = date.fromisoformat(day)
+        while k < len(pending) and pending[k][0] > when:
+            factor *= pending[k][1]
+            k += 1
+        closes.append(round(float(close) / factor, 6))
+        volumes.append(int(round((volume or 0) * factor)))
+    return closes[::-1], volumes[::-1]
+
+
 def chart_series(conn: sqlite3.Connection, cik: int, run_id: str) -> dict[str, Any]:
     prices = PriceStore(conn)
     rows = conn.execute(
@@ -114,6 +137,7 @@ def chart_series(conn: sqlite3.Connection, cik: int, run_id: str) -> dict[str, A
         (cik,),
     ).fetchall()
     dates = [r[0] for r in rows]
+    close, volume = _split_adjusted(rows, prices.splits(cik))
     peer_ciks = [
         r[0]
         for r in conn.execute(
@@ -126,8 +150,11 @@ def chart_series(conn: sqlite3.Connection, cik: int, run_id: str) -> dict[str, A
     triggers = numbers.get("triggers")
     return {
         "dates": dates,
-        "close": [float(r[1]) for r in rows],
-        "volume": [int(r[2] or 0) for r in rows],
+        "close": close,
+        "volume": volume,
+        # The company's total return (splits and dividends), on the same basis as the peers
+        # and SPY, for the chart's compare view.
+        "total": _index(prices, [cik], dates),
         "peers": _index(prices, peer_ciks, dates),
         "spy": _index(prices, [SPY_CIK], dates),
         "filings": _filings(conn, cik, run_id, report),

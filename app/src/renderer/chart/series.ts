@@ -40,6 +40,7 @@ export function slice(series: ChartSeries, range: Range): ChartSeries {
     dates,
     close: series.close.slice(s),
     volume: series.volume.slice(s),
+    total: series.total.slice(s),
     peers: series.peers.slice(s),
     spy: series.spy.slice(s),
     filings: from && to ? series.filings.filter((f) => f.date >= from && f.date <= to) : []

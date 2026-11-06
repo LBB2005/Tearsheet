@@ -62,6 +62,7 @@ export type Bull = number;
 export type Dates = string[];
 export type Close = number[];
 export type Volume = number[];
+export type Total = (number | null)[];
 export type Peers = (number | null)[];
 export type Spy = (number | null)[];
 export type Filings = FilingMark[];
@@ -122,7 +123,7 @@ export type Proof = string;
 export type Started = boolean;
 export type Tool2 = "claude" | "codex";
 export type N = number;
-export type Total = number;
+export type Total1 = number;
 export type Name7 = string;
 export type Ok2 = boolean;
 export type Tool3 = "claude" | "codex";
@@ -359,6 +360,7 @@ export interface ChartSeries {
   dates: Dates;
   close: Close;
   volume: Volume;
+  total: Total;
   peers: Peers;
   spy: Spy;
   filings: Filings;
@@ -510,7 +512,7 @@ export interface SafetyStarted {
 export interface SafetyProgress {
   tool: Tool2;
   n: N;
-  total: Total;
+  total: Total1;
   name: Name7;
   ok: Ok2;
 }

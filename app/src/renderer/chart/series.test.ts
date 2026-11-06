@@ -14,6 +14,7 @@ function series(start: string, end: string): ChartSeries {
     dates,
     close: dates.map((_, i) => 150 + i / 4),
     volume: dates.map((_, i) => 1e8 + i),
+    total: dates.map((_, i) => 100 + i / 3),
     peers: dates.map((_, i) => (i < 3 ? null : 100 + i / 10)),
     spy: dates.map((_, i) => 100 + i / 20),
     filings: [
@@ -36,6 +37,7 @@ describe('slice', () => {
     expect(week.dates).toHaveLength(5)
     expect(week.close).toHaveLength(5)
     expect(week.volume).toHaveLength(5)
+    expect(week.total).toEqual(STORED.total.slice(-5))
     expect(week.dates[4]).toBe('2026-11-04')
   })
 
