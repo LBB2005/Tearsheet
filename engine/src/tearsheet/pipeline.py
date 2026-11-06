@@ -19,7 +19,7 @@ import statistics
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -43,7 +43,7 @@ from tearsheet.methodology import Methodology
 from tearsheet.metrics import Metric, compute_metrics, inputs_from, tax_rate
 from tearsheet.narrate import Draft, narrate_section
 from tearsheet.news import search_links
-from tearsheet.normalize import Financials
+from tearsheet.normalize import Financials, newest_period
 from tearsheet.peers import PeerGroup, build_peer_group
 from tearsheet.prompts import load_prompt
 from tearsheet.rating import PeerGap, Rating, RatingInputs, peer_mix, rate, value_gap
@@ -104,6 +104,12 @@ FACTOR_ORDER = (
     "earnings_quality",
 )
 TRADING_DAYS = 252
+# SEC's company-facts file can lag a filing (design item 22). A peer's filing list is read only
+# when its newest period ended more than this many days ago: a 10-Q is due 40-45 days after
+# its quarter, so up-to-date facts are rarely older than this, and a fresh peer costs nothing.
+FACTS_AGE_CHECK_DAYS = 100
+# A 10-Q or 10-K counts as newer than the facts when its period ends this many days after theirs.
+FACTS_LAG_DAYS = 20
 MOMENTUM_SKIP = 21
 RATING_DEFINITION = (
     "The rating is relative to the company's peer group over the next 12 months: Buy means it is "
@@ -302,6 +308,12 @@ class Run:
         self.prediction_note = "No prediction is logged for this run."
         self.previous_rating: tuple[str, str] | None = None
         self.method = method
+        # Companies with a new SEC number since a reorganization: new CIK → old CIKs.
+        self.predecessors: dict[int, tuple[int, ...]] = {
+            int(k): tuple(int(c) for c in (v or ()))
+            for k, v in (method.aliases.get("predecessors") or {}).items()
+        }
+        self.older_submissions: list[tuple[int, dict[str, Any]]] = []
         self.mode = mode
         self.now = now or _now()
         self.today = self.now.astimezone(UTC).date()
@@ -609,6 +621,9 @@ class Run:
         self.company_class = financial_class(sic, found.cik, self.method.peers)
         self.company_name = subs.get("name") or found.name
         self.company_submissions = subs
+        self.older_submissions = [
+            (old, await self.data.submissions(old)) for old in self.predecessors.get(found.cik, ())
+        ]
         self.group = build_peer_group(
             self.holdings,
             found.cik,
@@ -629,8 +644,10 @@ class Run:
 
     async def fetch(self, resolved: Resolved, group: PeerGroup) -> list[Doc]:
         members = {cik: self.holdings.tickers_of(cik)[0] for cik in group.members}
-        await self.data.fill_prices(self.store, members, end=self.today)
+        # Top up to the latest session whose close is out, not the UTC date: in New York's
+        # evening the UTC date is already tomorrow, and Massive refuses a day that hasn't closed.
         self.price_date = last_completed_session(self.now)
+        await self.data.fill_prices(self.store, members, end=self.price_date)
         stale_company = self.store.is_stale(self.cik, "", self.now)
         stale_spy = self.store.is_stale(SPY_CIK, "", self.now)
         self.withheld = stale_company or stale_spy
@@ -653,6 +670,8 @@ class Run:
                     ) from exc
                 group = group.leave_out(cik, "no SEC company facts")
                 continue
+            facts = await self._with_predecessors(cik, facts)
+            facts = await self._with_newer_report(cik, facts)
             member.fin = Financials(
                 facts,
                 as_of=self.today,
@@ -670,7 +689,11 @@ class Run:
                 member.financial_class = financial_class(sic, cik, self.method.peers)
             self.members[cik] = member
         self.group = group
-        docs = await self.data.filing_documents(self.cik, today=self.today)
+        older = self.predecessors.get(self.cik, ())
+        docs = await self.data.filing_documents(
+            self.cik, today=self.today, **({"predecessors": older} if older else {})
+        )
+        self._successor_note(docs)
         if self.mode == "slice":
             docs = [d for d in docs if d.role in ("10-K", "10-Q", "10-K prior")]
         if self.mode == "full":
@@ -686,7 +709,14 @@ class Run:
                     )
             peer_documents = getattr(self.data, "peer_documents", None)
             if peer_documents is not None and group.trend_peers:
-                self.peer_docs = await peer_documents(group.trend_peers, today=self.today)
+                linked = {
+                    c: self.predecessors[c] for c in group.trend_peers if c in self.predecessors
+                }
+                self.peer_docs = await peer_documents(
+                    group.trend_peers,
+                    today=self.today,
+                    **({"predecessors": linked} if linked else {}),
+                )
                 for doc in self.peer_docs:
                     cik = int(doc.role.split()[1])
                     name = self.holdings.name_of(cik) if self.holdings.has(cik) else str(cik)
@@ -712,6 +742,104 @@ class Run:
             )
             self.insider_checked = trades is not None
         return docs + self.peer_docs
+
+    async def _with_predecessors(self, cik: int, facts: dict[str, Any]) -> dict[str, Any]:
+        """A successor company's facts with its predecessor's added (aliases.yaml)."""
+        for old in self.predecessors.get(cik, ()):
+            try:
+                facts = sec_data.merge_company_facts(facts, await self.data.company_facts(old))
+            except Exception:  # noqa: BLE001 - the successor's own facts are still used
+                if cik == self.cik:
+                    self.notes.append(
+                        f"The facts of the predecessor company (CIK {old}) couldn't be read, so "
+                        "only the reports filed under the company's new SEC number were used."
+                    )
+                continue
+            if cik == self.cik:
+                self.notes.append(
+                    f"{self.company_name} took over from a predecessor company with a different "
+                    f"SEC number (CIK {old}); that company's reports are read as well."
+                )
+        return facts
+
+    async def _with_newer_report(self, cik: int, facts: dict[str, Any]) -> dict[str, Any]:
+        """Facts that stop before the member's newest 10-Q or 10-K, with that filing's own
+        inline XBRL added: SEC's company-facts file can lag a filing by months. A peer's filing
+        list is read only when its facts look old."""
+        reader = getattr(self.data, "report_facts", None)
+        if reader is None:
+            return facts
+        newest = newest_period(facts, as_of=self.today)
+        if (
+            cik != self.cik
+            and newest is not None
+            and (self.today - newest).days <= FACTS_AGE_CHECK_DAYS
+        ):
+            return facts
+        if cik == self.cik:
+            filings = self._company_filings()
+        else:
+            try:
+                subs = await self.data.submissions(cik)
+            except Exception:  # noqa: BLE001 - the facts are used as they are
+                return facts
+            filings = sec_data.filings_from(subs.get("filings", {}).get("recent", {}), cik)
+        newer = [
+            f
+            for f in filings
+            if f.form in ("10-Q", "10-K")
+            and f.primary_document
+            and f.report_date is not None
+            and f.filed <= self.today
+            and (newest is None or f.report_date > newest + timedelta(days=FACTS_LAG_DAYS))
+        ]
+        if not newer:
+            return facts
+        filing = max(newer, key=lambda f: (f.filed, f.accession))
+        try:
+            extra = await reader(filing)
+        except Exception:  # noqa: BLE001 - reported below for the company
+            extra = {}
+        found = any((extra.get("facts") or {}).get("us-gaap", {}).values())
+        if cik == self.cik:
+            period = f"{filing.report_date:%-d %b %Y}"
+            stop = (
+                f"SEC's company facts for {self.company_name} stop at the period ended "
+                f"{newest:%-d %b %Y}"
+                if newest
+                else f"SEC's company facts for {self.company_name} have no reported period"
+            )
+            if found:
+                self.notes.append(
+                    f"{stop}, so the figures of its {filing.form} for the period ended {period} "
+                    "were read from that filing directly."
+                )
+            else:
+                self.notes.append(
+                    f"{stop}, and the figures of its {filing.form} for the period ended {period} "
+                    "couldn't be read from the filing, so the numbers are as of the older period."
+                )
+        return sec_data.merge_company_facts(facts, extra) if found else facts
+
+    def _company_filings(self) -> list[sec_data.Filing]:
+        """The company's filing list, with any predecessor's."""
+        filings = sec_data.filings_from(
+            self.company_submissions.get("filings", {}).get("recent", {}), self.cik
+        )
+        for old, subs in self.older_submissions:
+            filings += sec_data.filings_from(subs.get("filings", {}).get("recent", {}), old)
+        return filings
+
+    def _successor_note(self, docs: list[Doc]) -> None:
+        """A company with a new SEC number that isn't in the predecessors list yet."""
+        if any(d.role == "10-K" for d in docs) or self.cik in self.predecessors:
+            return
+        if any(f.form == sec_data.SUCCESSION_FORM for f in self._company_filings()):
+            self.notes.append(
+                f"{self.company_name} filed an {sec_data.SUCCESSION_FORM}, so it took over from "
+                "a predecessor company with a different SEC number, whose annual report wasn't "
+                "read. Add the old number under `predecessors` in aliases.yaml."
+            )
 
     # --- step 4 -----------------------------------------------------------------------------
 
@@ -811,6 +939,8 @@ class Run:
             m.total_return_12m = twelve_month_return(self.store, cik, self.price_date)
             m.dividend_yield = dividend_yield(self.store, cik, self.price_date, price)
             m.inputs = inputs  # type: ignore[attr-defined]
+            if cik == self.cik:
+                self.notes += [n for n in m.fin.corrections if n not in self.notes]
             with self.conn:
                 self.conn.executemany(
                     "INSERT OR REPLACE INTO metrics (run_id, cik, name, value, inputs_json) VALUES (?, ?, ?, ?, ?)",
@@ -1009,9 +1139,7 @@ class Run:
         def text(role: str, key: str) -> str:
             return "\n".join(p.text for p in paragraphs.get((role, key), []))
 
-        filings = sec_data.filings_from(
-            self.company_submissions.get("filings", {}).get("recent", {}), self.cik
-        )
+        filings = self._company_filings()
         eight_ks = [(f.form, f.filed, f.items) for f in filings if f.form.startswith("8-K")]
         this_year = [p.text for p in paragraphs.get(("10-K", "Item 1A"), [])]
         last_year = [p.text for p in paragraphs.get(("10-K prior", "Item 1A"), [])]
@@ -1112,9 +1240,7 @@ class Run:
 
     def _acceptance_times(self, docs) -> list[datetime]:
         """When SEC accepted each filing this run used, from the company's filing list."""
-        filings = sec_data.filings_from(
-            self.company_submissions.get("filings", {}).get("recent", {}), self.cik
-        )
+        filings = self._company_filings()
         by_accession = {f.accession: f.accepted for f in filings}
         times = []
         for d in docs:

@@ -195,8 +195,19 @@ Not committed yet. Nothing here made a live AI call.
     *   A first report in a new sector took 27.0 minutes, against a goal of 20. 17.4 minutes was Massive's free plan (88 calls at 5 a minute).
     *   A report in an already-downloaded sector took 9.1 minutes, against a goal of 5. About 8 minutes was its 35 AI calls.
 *   **Design wording.** 13 updates the code already follows are listed for the design owner in the shared notes.
-*   **Tests:** 505 engine tests (1 more live test, skipped unless asked for) and 11 app tests.
+*   **Tests:** 505 engine tests (1 more live test, skipped unless asked for) and 11 app tests. 519 after the golden-set fixes below.
+
+## The golden set's first findings (6 Nov 2026)
+
+The frozen store's first offline run found three SEC data problems that would have put wrong numbers in reports. All three are fixed and tested, and METHOD_CODE_VERSION is now 2 (the stored test runs are rebuilt).
+
+*   **Share counts filed in the wrong scale.** McDonald's 10-Qs give 711.1 diluted shares where they mean 711.1 million, which valued each share at about $24 million. A diluted count is now checked against net income ÷ diluted earnings per share for the same period, and multiplied by a thousand or a million when that brings it in line. The report's notes say so.
+*   **A company with a new SEC number.** On 1 July 2026 Exxon moved under a new parent, ExxonMobil Holdings (CIK 2115436), whose record has only filings since then; the 2025 10-K is under the old Exxon (CIK 34088). `aliases.yaml` now lists such pairs under `predecessors`, and both numbers' facts and filings are read. A company that filed an 8-K12B (the successor form) but isn't listed is named in the notes. XOM is the golden set's `successor` case.
+*   **SEC's company facts lagging the filings.** Prologis's and Duke's June and September 10-Qs were filed but missing from SEC's company-facts file, so their numbers stopped at March. When a member's facts end before its newest 10-Q or 10-K, that filing's own inline XBRL is now read and added (the company's newest filing is downloaded anyway; a peer's filing list is read only when its facts are over 100 days old). The notes say which filing was read.
+*   Also: an offline (stored) run no longer uses a filing dated after the run, and now reads a stored Exhibit 13 (Wells Fargo's annual report), as the live run does.
+*   The check still flags two companies that no longer show their hard case, both correctly: NVDA's split (June 2024) is now over two years old, and INTC's free cash flow is no longer negative. Swapping them is your choice.
 
 ## Still to do
 
+*   `eval golden --add-predecessors` (live, SEC only, a few requests), so the frozen store has the old Exxon's data; then the hand checks.
 *   Your golden-set steps (above), the four calibration questions, the timing decision, and the Goal 1 test.

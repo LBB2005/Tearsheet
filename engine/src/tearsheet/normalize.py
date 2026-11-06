@@ -117,6 +117,18 @@ DEI_BALANCE: dict[str, tuple[str, ...]] = {
 SHARE_ITEMS = {"diluted_shares", "shares_outstanding"}
 PER_SHARE_ITEMS = {"diluted_eps"}
 
+# Share counts filed in the wrong scale: McDonald's 2025-26 reports give 711.1 diluted shares
+# where they mean 711.1 million. A count is checked against net income ÷ diluted earnings per
+# share for the same period, and multiplied by a thousand or a million when that brings it
+# inside the band and the count as filed is outside it.
+SHARE_SCALES = (1_000.0, 1_000_000.0)
+SHARE_CHECK_BAND = (0.5, 2.0)
+DILUTED_INCOME_TAGS = (
+    "NetIncomeLossAvailableToCommonStockholdersDiluted",
+    "NetIncomeLossAvailableToCommonStockholdersBasic",
+    "NetIncomeLoss",
+)
+
 YEAR = timedelta(days=365)
 YEAR_TOLERANCE = timedelta(days=45)
 # A tag whose newest value is this much older than the newest value of any tag for the
@@ -177,6 +189,21 @@ def _parse_rows(rows: list[dict[str, Any]], as_of: date) -> list[_Fact]:
     return sorted(best.values(), key=lambda f: (f.end, f.start or f.end))
 
 
+def newest_period(company_facts: dict[str, Any], *, as_of: date) -> date | None:
+    """The end of the newest period in a company-facts file (by total assets or revenue),
+    counting only facts filed by the run date."""
+    us_gaap = (company_facts.get("facts") or {}).get("us-gaap") or {}
+    newest = None
+    for tag in (*BALANCE["total_assets"], *FLOW["revenue"]):
+        for rows in ((us_gaap.get(tag) or {}).get("units") or {}).values():
+            for row in rows:
+                if not row.get("end") or not row.get("filed") or row["filed"] > as_of.isoformat():
+                    continue
+                end = date.fromisoformat(row["end"])
+                newest = end if newest is None or end > newest else newest
+    return newest
+
+
 class Financials:
     """One company's normalized facts as of a run date."""
 
@@ -189,6 +216,8 @@ class Financials:
     ):
         self.as_of = as_of
         self.name = company_facts.get("entityName", "")
+        # Plain-language notes on any filed value the code put right (a share count's scale).
+        self.corrections: list[str] = []
         self._split_factor = split_factor or (lambda after, up_to: 1.0)
         self._tags: dict[str, dict[str, list[_Fact]]] = {}
         for ns in ("us-gaap", "dei"):
@@ -501,8 +530,45 @@ class Financials:
         if item in DEI_BALANCE:
             return self._instant(item, DEI_BALANCE[item], near)
         if item in AVERAGE:
-            return self._latest_duration(item, AVERAGE[item], near)
+            value = self._latest_duration(item, AVERAGE[item], near)
+            return self._checked_scale(value) if item == "diluted_shares" else value
         raise KeyError(item)
+
+    def _implied_shares(self, start: date, end: date) -> float | None:
+        """Net income ÷ diluted earnings per share for one period: the share count they imply."""
+
+        def at(tags: tuple[str, ...]) -> float | None:
+            for tag in tags:
+                for f in self._facts(tag):
+                    if f.start == start and f.end == end:
+                        return f.value
+            return None
+
+        income, eps = at(DILUTED_INCOME_TAGS), at(FLOW["diluted_eps"])
+        if income is None or eps is None or abs(eps) < 0.01:
+            return None
+        implied = income / eps
+        return implied if implied > 0 else None
+
+    def _checked_scale(self, value: Value | None) -> Value | None:
+        if value is None or value.start is None:
+            return value
+        implied = self._implied_shares(value.start, value.end)
+        low, high = SHARE_CHECK_BAND
+        if implied is None or low <= value.value / implied <= high:
+            return value
+        for scale in SHARE_SCALES:
+            if low <= value.value * scale / implied <= high:
+                unit = "thousands" if scale == 1_000.0 else "millions"
+                note = (
+                    f"The diluted share count for the period ended {value.end:%-d %b %Y} is filed "
+                    f"as {value.value:,.6g}; net income ÷ diluted earnings per share shows it is "
+                    f"in {unit}, so it was read as {value.value * scale:,.0f}."
+                )
+                if note not in self.corrections:
+                    self.corrections.append(note)
+                return value.scaled(scale)
+        return value
 
     def year_ago(self, item: str) -> Value | None:
         now = self.latest(item)

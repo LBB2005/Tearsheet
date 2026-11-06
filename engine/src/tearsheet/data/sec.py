@@ -637,6 +637,121 @@ def auditor_report(sections: dict[str, str]) -> str | None:
     return None
 
 
+# --- a filing's own figures -------------------------------------------------------------
+# SEC's company-facts file can lag a filing by months (Prologis's and Duke's June and
+# September 2026 10-Qs were missing from it in November). The filing's inline XBRL has the
+# same facts, so they are read from it in the company-facts shape: every us-gaap and dei
+# number whose context has no dimension (company facts leave those out too).
+
+_ANY_CONTEXT = re.compile(
+    r"<(?:xbrli:)?context\b[^>]*\bid=\"([^\"]+)\"[^>]*>(.*?)</(?:xbrli:)?context>",
+    re.IGNORECASE | re.DOTALL,
+)
+_ANY_UNIT = re.compile(
+    r"<(?:xbrli:)?unit\b[^>]*\bid=\"([^\"]+)\"[^>]*>(.*?)</(?:xbrli:)?unit>",
+    re.IGNORECASE | re.DOTALL,
+)
+_MEASURE = re.compile(r"<(?:xbrli:)?measure>\s*([^<\s]+)\s*<", re.IGNORECASE)
+_SEGMENT = re.compile(r"<(?:xbrli:)?(segment|scenario)\b", re.IGNORECASE)
+_START = re.compile(r"<(?:xbrli:)?startDate>\s*([0-9-]+)\s*<", re.IGNORECASE)
+_END = re.compile(r"<(?:xbrli:)?endDate>\s*([0-9-]+)\s*<", re.IGNORECASE)
+_ANY_INSTANT = re.compile(r"<(?:xbrli:)?instant>\s*([0-9-]+)\s*<", re.IGNORECASE)
+_NON_FRACTION = re.compile(
+    r"<ix:nonFraction\b([^>]*?)(?:/>|>(.*?)</ix:nonFraction>)", re.IGNORECASE | re.DOTALL
+)
+_DASHES = {"-", "—", "–", ""}
+_WORD_ZEROS = {"no", "none", "nil", "zero"}
+
+
+def _ix_number(text: str, fmt: str) -> float | None:
+    """One inline XBRL number's displayed text, read by its transformation format."""
+    shown = re.sub(r"<[^>]+>", "", text or "").replace("&nbsp;", " ").replace("\xa0", " ")
+    shown = shown.strip()
+    fmt = fmt.lower()
+    if "zero" in fmt or (shown in _DASHES and "dash" in fmt):
+        return 0.0
+    if "numwords" in fmt:
+        return 0.0 if shown.lower() in _WORD_ZEROS else None
+    if "comma-decimal" in fmt or "numcommadecimal" in fmt:
+        shown = shown.replace(".", "").replace(" ", "").replace(",", ".")
+    else:
+        shown = shown.replace(",", "").replace(" ", "")
+    try:
+        return float(shown)
+    except ValueError:
+        return None
+
+
+def inline_facts(html: bytes, *, accession: str, form: str, filed: date) -> dict[str, Any]:
+    """A filing's undimensioned us-gaap and dei numbers, shaped like SEC's company facts."""
+    text = html.decode("utf-8", errors="replace")
+    periods: dict[str, tuple[str | None, str]] = {}
+    for cid, body in _ANY_CONTEXT.findall(text):
+        if _SEGMENT.search(body):
+            continue
+        start, end, instant = _START.search(body), _END.search(body), _ANY_INSTANT.search(body)
+        if start and end:
+            periods[cid] = (start.group(1), end.group(1))
+        elif instant:
+            periods[cid] = (None, instant.group(1))
+    units: dict[str, str] = {}
+    for uid, body in _ANY_UNIT.findall(text):
+        names = [m.split(":")[-1] for m in _MEASURE.findall(body)]
+        units[uid] = "/".join(names) if names else uid
+    facts: dict[str, dict[str, Any]] = {"us-gaap": {}, "dei": {}}
+    seen: set[tuple[str, str, str]] = set()
+    for attrs, inner in _NON_FRACTION.findall(text):
+        a = dict(_ATTR.findall(attrs))
+        prefix, _, tag = a.get("name", "").partition(":")
+        context, unit = a.get("contextRef", ""), units.get(a.get("unitRef", ""), "")
+        if prefix not in facts or context not in periods or a.get("xsi:nil") == "true":
+            continue
+        if (tag, context, unit) in seen:
+            continue
+        number = _ix_number(inner, a.get("format", ""))
+        if number is None:
+            continue
+        seen.add((tag, context, unit))
+        number *= 10 ** int(a.get("scale", "0") or 0)
+        start, end = periods[context]
+        row: dict[str, Any] = {
+            "end": end,
+            "val": -number if a.get("sign") == "-" else number,
+            "accn": accession,
+            "form": form,
+            "filed": filed.isoformat(),
+        }
+        if start:
+            row["start"] = start
+        units_of = facts[prefix].setdefault(tag, {"units": {}})["units"]
+        units_of.setdefault(unit, []).append(row)
+    return {"facts": facts}
+
+
+# --- successor companies -------------------------------------------------------------
+# A company that moves under a new parent (ExxonMobil Holdings in 2026) gets a new CIK and
+# files an 8-K12B; its earlier reports stay under the old CIK. aliases.yaml lists such pairs
+# (`predecessors`), and both CIKs' facts and filings are read.
+SUCCESSION_FORM = "8-K12B"
+
+
+def merge_company_facts(base: dict[str, Any], extra: dict[str, Any]) -> dict[str, Any]:
+    """Company facts with another set's rows added (a predecessor's, or a filing's own inline
+    XBRL). Where both have a value for one period, normalization keeps the later filing's."""
+    out: dict[str, Any] = {**base, "facts": {}}
+    for ns in [*(base.get("facts") or {}), *(extra.get("facts") or {})]:
+        if ns in out["facts"]:
+            continue
+        tags: dict[str, Any] = {}
+        for source in (base, extra):
+            for tag, entry in ((source.get("facts") or {}).get(ns) or {}).items():
+                units = tags.setdefault(tag, {"units": {}})["units"]
+                for unit, rows in (entry.get("units") or {}).items():
+                    units.setdefault(unit, []).extend(rows)
+        out["facts"][ns] = tags
+    return out
+
+
 def latest_report(filings: Iterable[Filing]) -> Filing | None:
     """The newest 10-Q or 10-K, whose cover page has the latest share counts."""
     chosen = [f for f in filings if f.form in ("10-Q", "10-K") and f.primary_document]

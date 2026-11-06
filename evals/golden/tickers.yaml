@@ -2,7 +2,7 @@
 # drafter defaults; change any of them. `as_of` is the date the store was frozen, set by
 # `tearsheet-engine eval golden --freeze`. Each `cases` entry is checked on every eval, so a
 # company that no longer shows its hard case is flagged to be swapped.
-as_of: null
+as_of: "2026-11-06T02:21:02+00:00"
 tickers:
   - {ticker: JPM, cases: [bank]}
   - {ticker: TRV, cases: [insurer]}
@@ -20,7 +20,7 @@ tickers:
   - {ticker: AAPL, cases: []}
   - {ticker: AMZN, cases: []}
   - {ticker: META, cases: []}
-  - {ticker: XOM, cases: []}
+  - {ticker: XOM, cases: [successor]}  # a new SEC number since 1 Jul 2026 (aliases.yaml)
   - {ticker: JNJ, cases: []}
   - {ticker: PG, cases: []}
   - {ticker: CAT, cases: []}

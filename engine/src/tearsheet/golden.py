@@ -21,7 +21,7 @@ import json
 import sqlite3
 import tempfile
 from dataclasses import dataclass, field
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -136,6 +136,7 @@ def _numbers(run) -> tuple[dict[str, Any], dict[str, Any]]:
         "exhibit_13": any(d.exhibit_13 for d in getattr(run, "docs_used", []) if d.role == "10-K"),
         "red_flags": [f.key for f in getattr(run, "flags", [])],
         "fiscal_year_end": str(getattr(run, "company_submissions", {}).get("fiscalYearEnd") or ""),
+        "successor": run.cik in getattr(run, "predecessors", {}),
         "recent_split": run.store.split_factor(
             run.cik, after=run.today.replace(year=run.today.year - 2), up_to=run.today
         )
@@ -296,6 +297,7 @@ HARD_CASES = {
     "exhibit_13": lambda f: f["exhibit_13"],
     "january_fiscal_year": lambda f: f["fiscal_year_end"].startswith("01"),
     "restatement": lambda f: "restatement" in f["red_flags"] or "going_concern" in f["red_flags"],
+    "successor": lambda f: f["successor"],
 }
 
 
@@ -416,3 +418,49 @@ async def freeze(store: Path, tickers: list[dict[str, Any]], settings, progress=
     finally:
         database.close()
     return now
+
+
+async def add_predecessors(store: Path, as_of: datetime, settings, progress=print) -> int:
+    """Download into the frozen store the company facts and last two annual reports of each
+    predecessor company (aliases.yaml `predecessors`) whose successor is in it: the code reads
+    them since the successor fix, and the store was frozen before. Nothing else is fetched, so
+    the rest of the store is as frozen. Returns how many predecessors were downloaded."""
+    from tearsheet.data import sec as sec_data
+    from tearsheet.db import open_database
+    from tearsheet.http import HttpClient
+    from tearsheet.methodology import load
+    from tearsheet.rawstore import RawStore
+
+    links = {
+        int(k): [int(c) for c in (v or ())]
+        for k, v in (load().aliases.get("predecessors") or {}).items()
+    }
+    paths = config.Paths(store).ensure()
+    database = open_database(paths.db)
+    done = 0
+    try:
+        known = {r[0] for r in database.conn.execute("SELECT DISTINCT cik FROM tickers")}
+        pairs = [(new, old) for new, olds in links.items() if new in known for old in olds]
+        if not pairs:
+            return 0
+        rawstore = RawStore(paths.raw, database.conn)
+        run_id = f"golden-predecessors-{datetime.now(UTC):%Y%m%dT%H%M%SZ}"
+        since = as_of.date() - timedelta(days=sec_data.FILING_HISTORY_DAYS)
+        async with HttpClient(
+            rawstore, run_id, settings=settings, sec_user_agent=config.sec_user_agent(settings)
+        ) as http:
+            sec = sec_data.SECClient(http, rawstore)
+            for new, old in pairs:
+                await sec.company_facts(old)
+                filings = [
+                    f for f in await sec.filings(old, since=since) if f.filed <= as_of.date()
+                ]
+                ten_k = sec_data.latest(filings, "10-K")
+                for chosen in (ten_k, sec_data.previous(filings, ten_k) if ten_k else None):
+                    if chosen is not None:
+                        await sec.filing_documents("10-K", chosen, exhibit=sec_data.EX_13)
+                progress(f"  CIK {new}: added its predecessor, CIK {old}")
+                done += 1
+    finally:
+        database.close()
+    return done

@@ -474,3 +474,132 @@ def test_a_single_class_cover_page_has_no_member():
     <ix:nonFraction name="dei:EntityCommonStockSharesOutstanding" contextRef="c1">14,776,353,000</ix:nonFraction>"""
     [count] = cover_share_counts(html)
     assert count.member is None and count.shares == 14_776_353_000
+
+
+INLINE_10Q = b"""<html><body>
+<ix:header><ix:resources>
+<xbrli:context id="q3"><xbrli:entity><xbrli:identifier scheme="http://www.sec.gov/CIK">0001045609</xbrli:identifier></xbrli:entity>
+  <xbrli:period><xbrli:startDate>2026-07-01</xbrli:startDate><xbrli:endDate>2026-09-30</xbrli:endDate></xbrli:period></xbrli:context>
+<xbrli:context id="sep30"><xbrli:entity><xbrli:identifier scheme="http://www.sec.gov/CIK">0001045609</xbrli:identifier></xbrli:entity>
+  <xbrli:period><xbrli:instant>2026-09-30</xbrli:instant></xbrli:period></xbrli:context>
+<xbrli:context id="q3-sub"><xbrli:entity><xbrli:identifier scheme="http://www.sec.gov/CIK">0001045609</xbrli:identifier>
+  <xbrli:segment><xbrldi:explicitMember dimension="dei:LegalEntityAxis">pld:PrologisLPMember</xbrldi:explicitMember></xbrli:segment></xbrli:entity>
+  <xbrli:period><xbrli:startDate>2026-07-01</xbrli:startDate><xbrli:endDate>2026-09-30</xbrli:endDate></xbrli:period></xbrli:context>
+<xbrli:unit id="usd"><xbrli:measure>iso4217:USD</xbrli:measure></xbrli:unit>
+<xbrli:unit id="shares"><xbrli:measure>xbrli:shares</xbrli:measure></xbrli:unit>
+<xbrli:unit id="usdPerShare"><xbrli:divide><xbrli:unitNumerator><xbrli:measure>iso4217:USD</xbrli:measure></xbrli:unitNumerator>
+  <xbrli:unitDenominator><xbrli:measure>xbrli:shares</xbrli:measure></xbrli:unitDenominator></xbrli:divide></xbrli:unit>
+</ix:resources></ix:header>
+<td><ix:nonFraction name="us-gaap:Revenues" contextRef="q3" unitRef="usd" decimals="-3" scale="3" format="ixt:num-dot-decimal">2,387,518</ix:nonFraction></td>
+<td><ix:nonFraction name="us-gaap:Revenues" contextRef="q3" unitRef="usd" decimals="-3" scale="3" format="ixt:num-dot-decimal">2,387,518</ix:nonFraction></td>
+<td><ix:nonFraction name="us-gaap:Revenues" contextRef="q3-sub" unitRef="usd" decimals="-3" scale="3">2,400,000</ix:nonFraction></td>
+<td>(<ix:nonFraction name="us-gaap:OtherNonoperatingIncomeExpense" contextRef="q3" unitRef="usd" scale="6" sign="-" format="ixt:num-dot-decimal">12.5</ix:nonFraction>)</td>
+<td><ix:nonFraction name="us-gaap:InterestExpense" contextRef="q3" unitRef="usd" format="ixt:fixed-zero">&#8212;</ix:nonFraction></td>
+<td><ix:nonFraction name="us-gaap:EarningsPerShareDiluted" contextRef="q3" unitRef="usdPerShare" decimals="2"><span>0.86</span></ix:nonFraction></td>
+<td><ix:nonFraction name="us-gaap:Assets" contextRef="sep30" unitRef="usd" scale="3">103,894,706</ix:nonFraction></td>
+<td><ix:nonFraction name="us-gaap:Goodwill" contextRef="sep30" unitRef="usd" xsi:nil="true"/></td>
+<td><ix:nonFraction name="pld:OwnMetric" contextRef="q3" unitRef="usd">5</ix:nonFraction></td>
+</body></html>"""
+
+
+def test_a_filing_s_own_figures_are_read_in_the_company_facts_shape():
+    from tearsheet.data.sec import inline_facts
+
+    facts = inline_facts(INLINE_10Q, accession="0001-26-1", form="10-Q", filed=date(2026, 10, 28))
+    us = facts["facts"]["us-gaap"]
+    revenue = us["Revenues"]["units"]["USD"]
+    assert revenue == [  # once, and without the subsidiary's dimensioned value
+        {
+            "start": "2026-07-01",
+            "end": "2026-09-30",
+            "val": 2_387_518_000.0,
+            "accn": "0001-26-1",
+            "form": "10-Q",
+            "filed": "2026-10-28",
+        }
+    ]
+    assert us["OtherNonoperatingIncomeExpense"]["units"]["USD"][0]["val"] == -12_500_000.0
+    assert us["InterestExpense"]["units"]["USD"][0]["val"] == 0.0
+    assert us["EarningsPerShareDiluted"]["units"]["USD/shares"][0]["val"] == 0.86
+    assert us["Assets"]["units"]["USD"][0] == {
+        "end": "2026-09-30",
+        "val": 103_894_706_000.0,
+        "accn": "0001-26-1",
+        "form": "10-Q",
+        "filed": "2026-10-28",
+    }
+    assert "Goodwill" not in us  # a nil value is no value
+    assert set(facts["facts"]) == {"us-gaap", "dei"}  # the company's own tags are left out
+
+
+def test_two_sets_of_company_facts_are_merged_row_by_row():
+    from tearsheet.data.sec import merge_company_facts
+
+    a = {
+        "entityName": "New Co",
+        "facts": {"us-gaap": {"Revenues": {"units": {"USD": [{"end": "1"}]}}}},
+    }
+    b = {
+        "entityName": "Old Co",
+        "facts": {
+            "us-gaap": {
+                "Revenues": {"units": {"USD": [{"end": "0"}]}},
+                "Assets": {"units": {"USD": [{"end": "0"}]}},
+            },
+            "dei": {"EntityCommonStockSharesOutstanding": {"units": {"shares": [{"end": "0"}]}}},
+        },
+    }
+    merged = merge_company_facts(a, b)
+    assert merged["entityName"] == "New Co"
+    assert merged["facts"]["us-gaap"]["Revenues"]["units"]["USD"] == [{"end": "1"}, {"end": "0"}]
+    assert "Assets" in merged["facts"]["us-gaap"] and "dei" in merged["facts"]
+    assert a["facts"]["us-gaap"]["Revenues"]["units"]["USD"] == [{"end": "1"}]  # inputs untouched
+
+
+def test_offline_runs_read_a_stored_exhibit_13(tmp_path):
+    """Wells Fargo files its annual report as Exhibit 13; an offline run (the golden set,
+    replay) reads the stored copy, as the live run did."""
+    import json
+
+    from tearsheet import config
+    from tearsheet.data.sec import SUBMISSIONS_URL
+    from tearsheet.db import open_database
+    from tearsheet.sources import StoredData
+
+    paths = config.Paths(tmp_path).ensure()
+    database = open_database(paths.db)
+    raw = RawStore(paths.raw, database.conn)
+    accession, folder = "0000072971-26-000133", "000007297126000133"
+    subs = {
+        "filings": {
+            "recent": {
+                "accessionNumber": [accession, "0000072971-27-000001"],
+                "form": ["10-K", "10-K"],
+                "filingDate": ["2026-02-20", "2027-02-20"],  # the second is after the run
+                "reportDate": ["2025-12-31", "2026-12-31"],
+                "primaryDocument": ["wfc-20251231.htm", "wfc-20261231.htm"],
+            }
+        }
+    }
+    base = f"https://www.sec.gov/Archives/edgar/data/72971/{folder}/"
+    index = (
+        '<html><body><table class="tableFile" summary="Document Format Files">'
+        "<tr><th>Seq</th><th>Description</th><th>Document</th><th>Type</th><th>Size</th></tr>"
+        f'<tr><td>1</td><td>10-K</td><td><a href="/Archives/edgar/data/72971/{folder}/wfc-20251231.htm">'
+        "wfc-20251231.htm</a></td><td>10-K</td><td>100</td></tr>"
+        f'<tr><td>2</td><td>annual report</td><td><a href="/Archives/edgar/data/72971/{folder}/wfc-20251231_d2.htm">'
+        "wfc-20251231_d2.htm</a></td><td>EX-13</td><td>100</td></tr></table></body></html>"
+    )
+    for body, url in (
+        (json.dumps(subs).encode(), SUBMISSIONS_URL.format(cik=72971)),
+        (b"<html>the 10-K</html>", base + "wfc-20251231.htm"),
+        (index.encode(), base + f"{accession}-index.htm"),
+        (b"<html>the annual report</html>", base + "wfc-20251231_d2.htm"),
+    ):
+        raw.put(body, url, "sec", "text/html", "run-1")
+    database.close()
+    data = StoredData([tmp_path], risk_free=0.04, risk_free_date=date(2026, 11, 5))
+    docs = asyncio.run(data.filing_documents(72971, today=date(2026, 11, 5)))
+    [ten_k] = [d for d in docs if d.role == "10-K"]
+    assert ten_k.accession == accession  # not the 10-K filed after the run date
+    assert ten_k.exhibit_13 == b"<html>the annual report</html>"

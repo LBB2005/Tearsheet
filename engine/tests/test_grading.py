@@ -284,7 +284,8 @@ def test_the_grading_job_tops_up_prices_grades_and_backs_up(database, tmp_path):
     assert result["graded"] == 3
     members, end = data.asked
     assert set(members) == {COMPANY, *PEERS}
-    assert end == date(2026, 4, 1)
+    # Midnight UTC on 1 April is 8pm on 31 March in New York: the newest closed session.
+    assert end == date(2026, 3, 31)
     assert list((tmp_path / "b").glob("tearsheet-*.sqlite"))
     again = asyncio.run(
         grade_job(

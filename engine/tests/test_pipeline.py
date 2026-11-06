@@ -1363,3 +1363,167 @@ def test_a_backup_opens_and_holds_every_prediction_and_its_prices(database, tmp_
         assert peers > 0
     finally:
         copy.close()
+
+
+def test_prices_are_topped_up_only_to_the_latest_closed_session(database, tmp_path):
+    """6 Nov 2026, the golden-set download: at 9pm in New York the UTC date is already the next
+    day, and asking Massive for that day got HTTP 403. The top-up stops at the latest session
+    whose close is out."""
+    from tearsheet.data.prices import last_completed_session
+
+    asked = []
+
+    class Recording(FakeData):
+        async def fill_prices(self, store, members, *, end):
+            asked.append(end)
+            await super().fill_prices(store, members, end=end)
+
+    evening = datetime(2026, 11, 6, 2, 0, tzinfo=UTC)  # 9pm on 5 Nov in New York
+    run = Run(database.conn, Recording(), None, load(), mode="full", now=evening, out_dir=None)
+    asyncio.run(run.run("T0"))
+    assert asked == [date(2026, 11, 5)] == [last_completed_session(evening)]
+    assert evening.date() == date(2026, 11, 6)  # what it used to ask for
+
+
+# --- SEC data gaps (golden set, 6 Nov 2026) ----------------------------------------------------
+
+OLD_CIK = 5000  # the predecessor company's SEC number
+
+
+def _with_predecessor(method, links):
+    from dataclasses import replace
+
+    return replace(method, aliases={**method.aliases, "predecessors": links})
+
+
+def _rows_where(facts, keep):
+    """A copy of company facts keeping only the rows `keep(row)` accepts."""
+    out = {**facts, "facts": {}}
+    for ns, tags in facts["facts"].items():
+        out["facts"][ns] = {}
+        for tag, entry in tags.items():
+            units = {u: [r for r in rows if keep(r)] for u, rows in entry["units"].items()}
+            out["facts"][ns][tag] = {"units": units}
+    return out
+
+
+class Successor(FakeData):
+    """The company moved under a new parent on 1 Jul 2026 (as Exxon did): its new SEC number
+    has only reports filed since then, and its 10-K is under the old number."""
+
+    def __init__(self):
+        super().__init__()
+        self.asked: dict[str, object] = {}
+
+    async def company_facts(self, cik):
+        if cik == OLD_CIK:
+            return _rows_where(company_facts(0), lambda r: r["filed"] < "2026-07-01")
+        facts = await super().company_facts(cik)
+        if cik == COMPANY:
+            return _rows_where(facts, lambda r: r["filed"] >= "2026-07-01")
+        return facts
+
+    async def filing_documents(self, cik, *, today, predecessors=()):
+        self.asked["predecessors"] = predecessors
+        docs = await super().filing_documents(cik, today=today)
+        return docs if OLD_CIK in predecessors else [d for d in docs if d.role != "10-K"]
+
+
+def test_a_successor_company_reads_its_predecessor_s_facts_and_filings(database, tmp_path):
+    method = _with_predecessor(load(), {COMPANY: [OLD_CIK]})
+    data = Successor()
+    run = Run(database.conn, data, None, method, mode="full", now=NOW, out_dir=None)
+    asyncio.run(run.run("T0"))
+    company = run.members[COMPANY]
+    from tearsheet.normalize import Financials
+
+    whole = Financials(company_facts(0), as_of=NOW.date()).ttm("revenue")
+    assert company.fin.ttm("revenue") == whole  # the two numbers' facts together are the whole
+    assert data.asked["predecessors"] == (OLD_CIK,)
+    assert any("CIK 5000" in n for n in run.notes)
+
+
+def test_without_the_link_a_successor_has_no_annual_figures(database, tmp_path):
+    run = Run(database.conn, Successor(), None, load(), mode="full", now=NOW, out_dir=None)
+    asyncio.run(run.run("T0"))
+    assert run.members[COMPANY].fin.ttm("revenue") is None
+
+
+class UnlistedSuccessor(Successor):
+    async def submissions(self, cik):
+        subs = await super().submissions(cik)
+        if cik == COMPANY:
+            subs["filings"] = {
+                "recent": {
+                    "accessionNumber": ["0001-26-000009"],
+                    "form": ["8-K12B"],
+                    "filingDate": ["2026-07-01"],
+                    "reportDate": [""],
+                    "primaryDocument": ["d8k12b.htm"],
+                }
+            }
+        return subs
+
+
+def test_a_successor_missing_from_the_list_is_named_in_the_notes(database, tmp_path):
+    run = Run(database.conn, UnlistedSuccessor(), None, load(), mode="full", now=NOW, out_dir=None)
+    asyncio.run(run.run("T0"))
+    assert any("8-K12B" in n and "predecessors" in n for n in run.notes)
+
+
+class LaggingFacts(FakeData):
+    """SEC's company facts stop at the 2025 year end for the company (as they did for Prologis
+    and Duke), while its September 10-Q has been filed; the filing's own figures fill the gap."""
+
+    def __init__(self, *, readable=True):
+        super().__init__()
+        self.readable = readable
+        self.read: list[str] = []
+        self.listed: list[int] = []
+
+    async def company_facts(self, cik):
+        facts = await super().company_facts(cik)
+        if cik == COMPANY:
+            return _rows_where(facts, lambda r: r["filed"] < "2026-10-01")
+        return facts
+
+    async def submissions(self, cik):
+        self.listed.append(cik)
+        subs = await super().submissions(cik)
+        subs["filings"] = {
+            "recent": {
+                "accessionNumber": ["0001-26-000002"],
+                "form": ["10-Q"],
+                "filingDate": ["2026-10-30"],
+                "reportDate": ["2026-09-30"],
+                "primaryDocument": ["q.htm"],
+            }
+        }
+        return subs
+
+    async def report_facts(self, filing):
+        self.read.append(filing.accession)
+        if not self.readable:
+            raise LookupError("not stored")
+        return _rows_where(company_facts(0), lambda r: r["filed"] >= "2026-10-01")
+
+
+def test_figures_missing_from_sec_facts_are_read_from_the_newer_filing(database, tmp_path):
+    data = LaggingFacts()
+    run = Run(database.conn, data, None, load(), mode="full", now=NOW, out_dir=None)
+    asyncio.run(run.run("T0"))
+    fin = run.members[COMPANY].fin
+    assert fin.ttm("revenue").end == date(2026, 9, 30)
+    assert fin.latest("total_assets").end == date(2026, 9, 30)
+    assert data.read == ["0001-26-000002"]
+    assert any("read from that filing directly" in n for n in run.notes)
+    # Peers whose facts are up to date don't have their filing lists read.
+    assert COMPANY + 1 not in data.listed
+
+
+def test_an_unreadable_newer_filing_is_named_and_the_older_figures_kept(database, tmp_path):
+    data = LaggingFacts(readable=False)
+    run = Run(database.conn, data, None, load(), mode="full", now=NOW, out_dir=None)
+    asyncio.run(run.run("T0"))
+    assert run.members[COMPANY].fin.ttm("revenue").end == date(2025, 12, 31)
+    assert any("couldn't be read from the filing" in n for n in run.notes)

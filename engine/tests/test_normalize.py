@@ -239,3 +239,50 @@ def test_ebit_falls_back_to_pretax_income_plus_interest():
     ebit = f.ttm("operating_income")
     assert ebit.value == pytest.approx(430 * 0.21)
     assert "+" in ebit.tag
+
+
+def _mcd_like(shares: float, *, eps: float | None = 3.14):
+    q = ("2026-04-01", "2026-06-30")
+    tags = {
+        "WeightedAverageNumberOfDilutedSharesOutstanding": (
+            "shares",
+            [fact(*q, shares, "2026-08-07", fp="Q2")],
+        ),
+        "NetIncomeLoss": ("USD", [fact(*q, 2_250_000_000.0, "2026-08-07", fp="Q2")]),
+    }
+    if eps is not None:
+        tags["EarningsPerShareDiluted"] = ("USD/shares", [fact(*q, eps, "2026-08-07", fp="Q2")])
+    return Financials(facts(tags), as_of=date(2026, 11, 5))
+
+
+def test_a_share_count_filed_in_millions_is_put_right():
+    # McDonald's files 711.1 for 711.1 million diluted shares.
+    f = _mcd_like(711.1)
+    shares = f.shares("diluted_shares", price_date=date(2026, 11, 5))
+    assert shares.value == pytest.approx(711_100_000.0)
+    assert len(f.corrections) == 1 and "in millions" in f.corrections[0]
+    f.shares("diluted_shares", price_date=date(2026, 11, 5))
+    assert len(f.corrections) == 1  # noted once
+
+
+def test_a_share_count_filed_in_thousands_is_put_right():
+    f = _mcd_like(716_600.0)
+    assert f.latest("diluted_shares").value == pytest.approx(716_600_000.0)
+    assert "in thousands" in f.corrections[0]
+
+
+def test_a_right_share_count_or_one_with_nothing_to_check_against_is_kept():
+    assert _mcd_like(716_600_000.0).latest("diluted_shares").value == 716_600_000.0
+    unchecked = _mcd_like(711.1, eps=None)
+    assert unchecked.latest("diluted_shares").value == 711.1 and not unchecked.corrections
+    # A count no scale explains (a hundred times off) is left as filed.
+    assert _mcd_like(7_166_000.0).latest("diluted_shares").value == 7_166_000.0
+
+
+def test_the_newest_period_counts_only_facts_filed_by_the_run_date():
+    from tearsheet.normalize import newest_period
+
+    data = facts({"Revenues": REVENUE})
+    assert newest_period(data, as_of=date(2026, 6, 1)) == date(2026, 3, 28)
+    assert newest_period(data, as_of=date(2026, 2, 1)) == date(2025, 12, 27)
+    assert newest_period(facts({}), as_of=date(2026, 6, 1)) is None
