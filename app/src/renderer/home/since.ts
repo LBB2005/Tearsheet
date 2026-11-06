@@ -31,18 +31,18 @@ export interface SinceInput {
 }
 
 // The grading horizons, in months (engine/src/tearsheet/methodology/grading.yaml).
-const HORIZONS: [months: number, ordinal: string, after: string][] = [
+export const HORIZONS: [months: number, ordinal: string, after: string][] = [
   [3, 'first', 'three months'],
   [6, 'second', 'six months'],
   [12, 'third', 'a year']
 ]
 
 const pad = (n: number) => String(n).padStart(2, '0')
-const isoDay = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+export const isoDay = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 
 // A calendar day plus whole months, kept inside the month as the engine does (grading.add_months):
 // Aug 31 plus 6 months is Feb 28.
-function addMonths(iso: string, months: number): string {
+export function addMonths(iso: string, months: number): string {
   const [y, m, d] = iso.split('-').map(Number)
   const index = m - 1 + months
   const year = y + Math.floor(index / 12)

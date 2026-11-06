@@ -2,14 +2,14 @@
 // first-time setup until setup is finished (setup_done), and on the home page after that. Home is
 // New report, and shows the run view while a report is written (home/useRun.ts). The report page
 // keeps its state in report/useReport.ts, so the toolbar, the menus and the flag sheet share it.
-// The prediction log, and settings with connections, are still the interim views (views/) until
-// their replacements land.
+// The prediction log grades through the same gradeDue as the launch, so the sidebar's status line
+// follows it; Settings shares the AI tools and this session's safety check with the sidebar.
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import type { MenuCommand } from '../main/menu'
-import type { EngineNotification, ToolStatus } from '../preload/api'
-import type { CompanyRow, SearchHit, SettingsResult } from '../shared/protocol'
+import type { CallResult, EngineNotification, ToolStatus } from '../preload/api'
+import type { CompanyRow, GradeResult, SearchHit, SettingsResult } from '../shared/protocol'
 import { bootView, GIVE_UP_AFTER_MS, STARTING_AFTER_MS } from './boot'
 import { setSidebarHidden, sidebarHidden } from './chart/prefs'
 import { runTitle } from './home/run'
@@ -22,7 +22,9 @@ import { FlagSheet } from './overlays/FlagSheet'
 import { LookUp } from './overlays/LookUp'
 import { Toast, type Notice } from './overlays/Toast'
 import { Home } from './pages/Home'
+import { Log } from './pages/Log'
 import { Report, ReportSubtitle, ReportTools } from './pages/Report'
+import { Settings } from './pages/Settings'
 import { Setup } from './pages/Setup'
 import { useReport } from './report/useReport'
 import { nextView, reportSubtitle } from './report/view'
@@ -30,9 +32,6 @@ import { applySafetyNote, SAFETY_CALLS, safetyStarted, type SafetyState, type To
 import { Sidebar, SidebarButton } from './shell/Sidebar'
 import { Toolbar } from './shell/Toolbar'
 import { useWide } from './shell/useWide'
-import { Connections } from './views/Connections'
-import { Log } from './views/Log'
-import { Settings } from './views/Settings'
 
 export function App() {
   const wide = useWide()
@@ -67,6 +66,8 @@ export function App() {
   const [finding, setFinding] = useState(false)
   const [findFocus, setFindFocus] = useState(0)
   const [notice, setNotice] = useState<Notice | null>(null)
+  // The prediction log's line in the toolbar ("2 logged, 0 graded"), once it has loaded.
+  const [logLine, setLogLine] = useState<string | undefined>(undefined)
 
   // The page being shown, or the one on its way in while the old one leaves.
   const target = useRef<Page>('home')
@@ -106,15 +107,18 @@ export function App() {
   // Grade whatever has come due each time the app opens (design item 48). The engine answers it
   // off its request loop, so look-ups go on meanwhile; it waits behind any run, and no report
   // starts until it is done. Grading may update prices. During setup it waits until setup is
-  // finished, so it can't hold up the key checks.
-  const gradeDue = useCallback(() => {
+  // finished, so it can't hold up the key checks. The prediction log's Grade what is due comes
+  // here too, and gets the engine's answer (null if it never came).
+  const gradeDue = useCallback((): Promise<CallResult<GradeResult> | null> => {
     setGrading(true)
     const done = () => {
       setGrading(false)
       setGraded((n) => n + 1)
       loadCompanies()
     }
-    window.tearsheet.gradeDue().then(done, done)
+    const asked = window.tearsheet.gradeDue()
+    asked.then(done, done)
+    return asked.catch(() => null)
   }, [loadCompanies])
 
   useEffect(() => {
@@ -346,7 +350,7 @@ export function App() {
           ) : undefined
         }
       : page === 'log'
-        ? { title: 'Prediction log' }
+        ? { title: 'Prediction log', subtitle: logLine }
         : page === 'settings'
           ? { title: 'Settings', subtitle: 'and connections' }
           : runView
@@ -378,13 +382,19 @@ export function App() {
       />
     )
   else if (page === 'report') content = <Report page={reportPage} wide={wide} />
-  else if (page === 'log') content = <Log />
+  else if (page === 'log') content = <Log grading={grading} refresh={graded} onGrade={gradeDue} onSubtitle={setLogLine} />
   else if (page === 'settings')
     content = (
-      <>
-        <Settings />
-        <Connections />
-      </>
+      <Settings
+        tools={tools}
+        onTools={setTools}
+        safety={safety}
+        onSafetyStarted={safetyBegan}
+        onSettings={(s) => {
+          setPrimaryTool(s.primary_tool)
+          setBootSettings(s)
+        }}
+      />
     )
 
   const sideShown = page !== 'setup' && (wide ? !sideHidden : sideOver)

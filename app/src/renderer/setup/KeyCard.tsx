@@ -1,9 +1,10 @@
 // The two key cards of setup's Prices and Economic figures steps: Get a free key, which opens
 // the service's site in the browser, and Paste it here, which checks the key with one call
 // (checkKey) and shows a real number as proof. The engine saves the key to the Keychain only
-// when the check works; the window then forgets it and never shows it again.
+// when the check works; the window then forgets it and never shows it again. Settings uses the
+// same Paste it here card for its data keys, with its own heading.
 
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 
 import { Card, CheckIcon, Changes, ExternalIcon, Spinner } from './parts'
 import { keyProblem, SERVICE_NAME, type KeyService } from './steps'
@@ -59,8 +60,18 @@ export function GetKeyCard({ service, i }: { service: KeyService; i: number }) {
 
 type Status = { kind: 'idle' } | { kind: 'checking' } | { kind: 'works'; proof: string } | { kind: 'bad'; text: string }
 
-// Paste it here. `proof` is the line from a check that already worked, if any.
-export function KeyCard({ service, i, proof, onWorks }: { service: KeyService; i: number; proof?: string; onWorks: (proof: string) => void }) {
+export interface KeyCardProps {
+  service: KeyService
+  i: number
+  // The line from a check that already worked, if any.
+  proof?: string
+  // In place of setup's numbered "Paste it here"; null for none.
+  heading?: ReactNode
+  onWorks: (proof: string) => void
+}
+
+// Paste it here.
+export function KeyCard({ service, i, proof, heading, onWorks }: KeyCardProps) {
   const [value, setValue] = useState('')
   const [status, setStatus] = useState<Status>(proof ? { kind: 'works', proof } : { kind: 'idle' })
   const name = SERVICE_NAME[service]
@@ -101,9 +112,13 @@ export function KeyCard({ service, i, proof, onWorks }: { service: KeyService; i
 
   return (
     <Card i={i} className={works ? 'done' : undefined}>
-      <h4>
-        <span className="n">{works ? <CheckIcon /> : '2'}</span>Paste it here
-      </h4>
+      {heading === undefined ? (
+        <h4>
+          <span className="n">{works ? <CheckIcon /> : '2'}</span>Paste it here
+        </h4>
+      ) : (
+        heading
+      )}
       <div className="field">
         <input
           type="password"

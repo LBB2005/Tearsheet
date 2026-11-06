@@ -123,8 +123,6 @@ button, input, textarea, select { font: inherit; color: inherit; }
 /* ---------- the page frame ---------- */
 .pagebody { flex: 1; min-height: 0; overflow: auto; position: relative; padding: 26px 32px 48px; }
 .pagebody[data-page="report"] { padding: 0; overflow: hidden; }
-.pagebody > section { max-width: 980px; }
-.pagebody > section + section { margin-top: 34px; padding-top: 26px; border-top: 1px solid var(--line); }
 .fatal { margin: 12px 20px 0; flex: none; }
 
 /* ---------- motion: A. Settle ----------
@@ -178,30 +176,69 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .toast4 b { display: block; font-weight: 600; }
 .toast4 span { color: var(--muted); font-size: 12.5px; }
 
-/* ---------- the interim pages (views/) in the new look, until Tasks 9 to 13 replace them ---------- */
-.pagebody h2 { margin: 0 0 14px; font: 600 22px/1.25 var(--ui); }
-.pagebody h3 { margin: 26px 0 8px; font: 600 15px var(--ui); }
+/* ---------- small shared parts: notices, plain and primary buttons, fields ---------- */
 .pagebody p { margin: 0 0 12px; }
-.muted { color: var(--muted); }
 .error { color: var(--down); }
 .ok { color: var(--up); }
 .row { display: flex; gap: 8px; align-items: center; }
 code { font: 12.5px var(--mono); background: rgba(255, 255, 255, .06); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; }
 .pagebody input[type="text"], .pagebody input[type="password"], textarea { padding: 8px 11px; border-radius: 9px; border: 1px solid var(--line); background: rgba(255, 255, 255, .06); color: var(--text); outline: none; transition: border-color .15s, box-shadow .15s; }
 .pagebody input[type="text"]:focus, .pagebody input[type="password"]:focus, textarea:focus { border-color: var(--chipline); box-shadow: 0 0 0 3px rgba(127, 227, 247, .12); }
-button.primary, button.plain, .pagebody section button:not([class]) { padding: 7px 14px; border-radius: 8px; border: 1px solid var(--line); background: rgba(255, 255, 255, .04); color: var(--text); cursor: pointer; transition: background .15s, border-color .15s; }
-button.plain:hover, .pagebody section button:not([class]):hover { background: rgba(255, 255, 255, .08); }
+button.primary, button.plain { padding: 7px 14px; border-radius: 8px; border: 1px solid var(--line); background: rgba(255, 255, 255, .04); color: var(--text); cursor: pointer; transition: background .15s, border-color .15s; }
+button.plain:hover { background: rgba(255, 255, 255, .08); }
 button.primary { background: var(--accent); border-color: var(--accent); color: #062029; font-weight: 600; }
 button.primary:hover { background: #A6EDFA; }
 button:disabled, button:disabled:hover { opacity: .45; cursor: default; }
 button.plain + button.plain { margin-left: 6px; }
-table { border-collapse: collapse; width: 100%; font-size: 13px; }
-th, td { text-align: left; padding: 8px 12px 8px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
-th { font-weight: 500; font-size: 12px; color: var(--muted); }
-tr:has(> td.row) > td { vertical-align: middle; }
 .notice { margin: 12px 0; padding: 11px 14px; border-radius: var(--r); background: var(--panel); border: 1px solid var(--line); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .05); }
 .notice.error { background: rgba(255, 127, 138, .08); border-color: rgba(255, 127, 138, .3); }
 .notice p:last-child { margin-bottom: 0; }
+
+/* ---------- panels: the Settings and Prediction log pages (class panels on their root) ----------
+   Look C's glass panels, tiles, pills and tables, from docs/designs/report-look-c-chart-split.html
+   (.p, .glass, .pill, .dot, table.t, .notice). Each panel settles in on its own (class mv), so
+   the root's own entrance is off. The segmented switch (.segc) is the report's (report.css). */
+.panels { display: grid; gap: 14px; align-content: start; max-width: 1180px; container-type: inline-size; }
+.enter > .panels { animation: none; }
+.panels p { margin: 0; }
+.panels .glass { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .05); }
+.panels .p { padding: 12px 14px; min-width: 0; }
+.panels .p h4 { margin: 0 0 8px; min-height: 22px; display: flex; justify-content: space-between; align-items: center; gap: 8px; font: 500 12px var(--ui); color: var(--muted); }
+.panels .p h4 em { font-style: normal; }
+.panels .notice { margin: 0; padding: 10px 14px; border-radius: 12px; background: rgba(255, 255, 255, .03); color: var(--muted); font-size: 13.5px; backdrop-filter: none; -webkit-backdrop-filter: none; box-shadow: none; }
+.panels .notice b { color: var(--text); font-weight: 600; }
+.panels .notice.error { color: #FFB3BA; background: rgba(255, 127, 138, .08); }
+.panels .loading { color: var(--muted); }
+.panels .fine { font-size: 12.5px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+.panels .fine.bad { color: #FFB3BA; }
+.panels .fine.hold { color: var(--hold); }
+.panels .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.panels .pill { display: inline-block; font-size: 11.5px; line-height: 1.6; border-radius: 999px; padding: 0 9px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.panels .pill.ok { color: var(--up); border-color: rgba(99, 223, 165, .4); background: rgba(99, 223, 165, .07); }
+.panels .pill.bad { color: var(--down); border-color: rgba(255, 127, 138, .4); background: rgba(255, 127, 138, .07); }
+.panels .pill.hold { color: var(--hold); border-color: rgba(255, 197, 107, .4); background: rgba(255, 197, 107, .07); }
+.panels .pill.run { color: var(--accent); border-color: var(--chipline); background: rgba(127, 227, 247, .07); }
+.panels .dot { display: inline-block; flex: none; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; background: #5D6B7D; }
+.panels .dot.ok { background: var(--up); }
+.panels .dot.bad { background: var(--down); }
+.panels .dot.hold { background: var(--hold); }
+.panels .dot.run { background: var(--accent); animation: pulse 1.4s ease-in-out infinite; }
+.panels table.t { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.panels table.t th { text-align: left; font: 500 12px var(--ui); color: var(--muted); padding: 7px 10px; border-bottom: 1px solid var(--line); }
+.panels table.t td { padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.panels table.t tbody tr:last-child td { border-bottom: 0; }
+.panels table.t .r { text-align: right; }
+.panels table.t.small { font-size: 12.5px; }
+.panels .empty { display: flex; flex-direction: column; gap: 3px; padding: 6px 2px 4px; }
+.panels .empty b { font: 600 14px var(--ui); color: var(--text); }
+.panels .empty span { color: var(--muted); font-size: 13px; max-width: 70ch; }
+.panels .st { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); }
+.panels .st.ok { color: var(--up); }
+.panels .st.bad { color: #FFB3BA; }
+.panels .st svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 2.4; flex: none; }
+.panels .sp { flex: none; display: inline-block; width: 13px; height: 13px; border-radius: 50%; border: 2px solid rgba(127, 227, 247, .25); border-top-color: var(--accent); animation: spin .9s linear infinite; }
+.panels .chg { animation: settle-in .4s var(--settle) backwards; }
+@keyframes spin { to { transform: rotate(360deg); } }
 
 /* ---------- Reduce motion: nothing moves ---------- */
 @media (prefers-reduced-motion: reduce) {
