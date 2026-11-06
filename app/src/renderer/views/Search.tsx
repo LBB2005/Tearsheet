@@ -2,7 +2,7 @@ import { useState } from 'react'
 
 import { Mark } from '../mark/Mark'
 
-export function Search({ onStarted }: { onStarted: (runId: string) => void }) {
+export function Search({ onStarted }: { onStarted: (runId: string, query: string) => void }) {
   const [query, setQuery] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -15,7 +15,7 @@ export function Search({ onStarted }: { onStarted: (runId: string) => void }) {
     setCandidates([])
     const reply = await window.tearsheet.runReport(text.trim())
     setBusy(false)
-    if (reply.ok && reply.result) return onStarted(reply.result.run_id)
+    if (reply.ok && reply.result) return onStarted(reply.result.run_id, text.trim())
     const code = reply.error?.code
     if (code === 'NOT_COVERED') {
       const found = (reply.error?.data?.candidates as string[] | undefined) ?? []
