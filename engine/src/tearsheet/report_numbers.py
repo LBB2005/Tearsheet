@@ -11,11 +11,11 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
-from datetime import date
+from datetime import UTC, date, datetime
 from statistics import median
 from typing import Any
 
-from tearsheet.data.prices import PriceStore, split_factor_after
+from tearsheet.data.prices import PriceStore, last_completed_session, split_factor_after
 
 FRED_LABELS = {
     "UNRATE": "Unemployment rate",
@@ -253,14 +253,29 @@ def _metrics(conn: sqlite3.Connection, run_id: str, cik: int) -> list[dict] | No
     return rows or None
 
 
-def _weekly(conn: sqlite3.Connection, run_id: str, cik: int) -> list[dict] | None:
-    """The last close of each of the past 52 weeks, in the run date's shares: each close is
-    divided by the splits executed after it up to the run date, so a split draws no cliff and
-    the series ends at the run-date close, on the report's own basis."""
-    run = conn.execute("SELECT started_at FROM runs WHERE run_id = ?", (run_id,)).fetchone()
-    if not run:
+def run_price_date(conn: sqlite3.Connection, run_id: str) -> date | None:
+    """The close the run's report is priced at: the last NYSE close in when the run started,
+    as the pipeline chose it. The report's price, range and triggers are in this day's shares.
+    It is not the run's calendar date in UTC, which is a day later most evenings."""
+    row = conn.execute("SELECT started_at FROM runs WHERE run_id = ?", (run_id,)).fetchone()
+    if not row:
         return None
-    end = date.fromisoformat(run[0][:10])
+    try:
+        started = datetime.fromisoformat(str(row[0]))
+    except ValueError:
+        return None
+    if started.tzinfo is None:
+        started = started.replace(tzinfo=UTC)
+    return last_completed_session(started)
+
+
+def _weekly(conn: sqlite3.Connection, run_id: str, cik: int) -> list[dict] | None:
+    """The last close of each of the past 52 weeks, in the shares of the report's price date:
+    each close is divided by the splits executed after it up to that date, so a split draws no
+    cliff and the series ends at the close the report was priced at, on its own basis."""
+    end = run_price_date(conn, run_id)
+    if end is None:
+        return None
     store = PriceStore(conn)
     splits = store.splits(cik)
     last_of_week: dict[tuple[int, int], tuple[date, float]] = {}

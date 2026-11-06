@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from datetime import date
 
+import pytest
+
 from tearsheet.charts import SPY_CIK, chart_series
 
 DAYS = ["2026-10-26", "2026-10-27", "2026-10-28", "2026-10-29", "2026-10-30"]
@@ -180,6 +182,41 @@ def test_chart_trigger_and_range_move_to_todays_shares_after_a_later_split(datab
     assert s["close"][-1] == 11  # the real last close
     assert s["trigger"] == 4.75
     assert s["range"] == {"bear": 2.5, "base": 5.5, "bull": 10.0}
+
+
+@pytest.mark.parametrize(
+    ("started_at", "trigger", "bull"),
+    [
+        # On the split day, before that day's close is in: the report is priced at the
+        # 2 Nov close, in pre-split shares, so the 3 Nov split halves its numbers.
+        ("2026-11-03T15:00:00+00:00", 4.75, 10.0),
+        # The evening before (8:30 pm in New York, already 3 Nov in UTC): the same.
+        ("2026-11-03T01:30:00+00:00", 4.75, 10.0),
+        # The evening of the split day: priced at the 3 Nov close, already in post-split shares.
+        ("2026-11-04T01:30:00+00:00", 9.5, 20.0),
+    ],
+)
+def test_chart_trigger_and_range_follow_the_reports_price_date_on_a_split_day(
+    database, started_at, trigger, bull
+):
+    """The report's numbers are in the shares of the close it was priced at, which is the last
+    NYSE close in when the run started, not the run's calendar date in UTC."""
+    seed(database.conn)
+    with database.conn:
+        database.conn.execute(
+            "UPDATE runs SET started_at = ? WHERE run_id = 'run-1'", (started_at,)
+        )
+        for day, close in zip(
+            ["2026-11-02", "2026-11-03", "2026-11-04"], [22, 11, 11], strict=True
+        ):
+            database.conn.execute(
+                "INSERT INTO prices_daily VALUES (1, '', ?, ?, 1000, 't', 'x')", (day, close)
+            )
+    _actions(database.conn, 1, [("2026-11-03", "split", 2.0)])
+    s = chart_series(database.conn, 1, "run-1")
+    assert s["close"][-3:] == [11, 11, 11]  # the price line is in today's shares
+    assert s["trigger"] == trigger
+    assert s["range"]["bull"] == bull
 
 
 def test_chart_trigger_and_range_stay_without_a_later_split(database):

@@ -11,7 +11,7 @@ from typing import Any
 from tearsheet.data.prices import PriceStore, split_factor_after
 from tearsheet.data.sec import SUBMISSIONS_URL, filings_from
 from tearsheet.rawstore import RawStore
-from tearsheet.report_numbers import parse_code_lines
+from tearsheet.report_numbers import parse_code_lines, run_price_date
 
 SPY_CIK = 884394
 
@@ -124,26 +124,18 @@ def _split_adjusted(
     return closes, volumes
 
 
-def _run_date(conn: sqlite3.Connection, run_id: str) -> date | None:
-    row = conn.execute("SELECT started_at FROM runs WHERE run_id = ?", (run_id,)).fetchone()
-    try:
-        return date.fromisoformat(str(row[0])[:10]) if row else None
-    except ValueError:
-        return None
-
-
 def _in_todays_shares(
-    numbers: dict[str, Any], splits: dict[date, float], run_date: date | None, last: date | None
+    numbers: dict[str, Any], splits: dict[date, float], price_date: date | None, last: date | None
 ) -> tuple[float | None, dict[str, float] | None]:
-    """The buy trigger and the 12-month range, which the report gives in the run date's
+    """The buy trigger and the 12-month range, which the report gives in its price date's
     shares, divided by the splits executed since (up to the last close), so they sit on the
     same scale as the price line."""
     triggers = numbers.get("triggers")
     trigger = triggers["buy"] if triggers else None
     price_range = numbers.get("range")
-    if run_date is None or last is None:
+    if price_date is None or last is None:
         return trigger, price_range
-    factor = split_factor_after(splits, run_date, up_to=last)
+    factor = split_factor_after(splits, price_date, up_to=last)
     if trigger is not None:
         trigger = round(trigger / factor, 6)
     if price_range:
@@ -172,7 +164,7 @@ def chart_series(conn: sqlite3.Connection, cik: int, run_id: str) -> dict[str, A
     trigger, price_range = _in_todays_shares(
         parse_code_lines(report),
         splits,
-        _run_date(conn, run_id),
+        run_price_date(conn, run_id),
         date.fromisoformat(dates[-1]) if dates else None,
     )
     return {

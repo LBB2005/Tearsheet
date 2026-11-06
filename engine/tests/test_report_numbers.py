@@ -127,7 +127,7 @@ def seed(conn, started=date(2026, 11, 4)):
         "INSERT INTO runs (run_id, cik, mode, started_at, status, engine_version,"
         " method_code_version, methodology_hash, reference_version)"
         " VALUES ('r1', 1, 'full', ?, 'done', 'x', 1, 'h', 'v')",
-        (f"{started.isoformat()}T15:00:00+00:00",),
+        (f"{started.isoformat()}T20:00:00-05:00",),  # after that day's close is in
     )
     for peer in (2, 3, 4):
         conn.execute("INSERT INTO peer_groups VALUES ('r1', 1, ?, 0.33)", (peer,))
@@ -204,7 +204,7 @@ def test_weekly_closes_are_split_adjusted_to_the_run_date(database):
         "INSERT INTO runs (run_id, cik, mode, started_at, status, engine_version,"
         " method_code_version, methodology_hash, reference_version)"
         " VALUES ('r1', 1, 'full', ?, 'done', 'x', 1, 'h', 'v')",
-        (f"{started.isoformat()}T15:00:00+00:00",),
+        (f"{started.isoformat()}T20:00:00-05:00",),  # after that day's close is in
     )
     for d in range(400):
         day = started - timedelta(days=d)
@@ -235,6 +235,45 @@ def test_weekly_closes_are_split_adjusted_to_the_run_date(database):
     assert len(weekly) == 52
     assert {w["close"] for w in weekly} == {100.0}
     assert weekly[-1] == {"date": "2026-11-04", "close": 100.0}
+
+
+def test_weekly_closes_end_at_the_reports_price_date_on_a_split_day(database):
+    """A run started on a 10-for-1 split's day, before that day's close is in, is priced at the
+    day before's close, in pre-split shares. The weekly path ends there and stays in those
+    shares, on the same scale as the report's range, even once the split day's close is stored."""
+    from tearsheet.data.prices import PriceStore
+
+    split = date(2026, 11, 4)
+    conn = database.conn
+    conn.execute(
+        "INSERT INTO runs (run_id, cik, mode, started_at, status, engine_version,"
+        " method_code_version, methodology_hash, reference_version)"
+        " VALUES ('r1', 1, 'full', '2026-11-04T15:00:00+00:00', 'done', 'x', 1, 'h', 'v')"
+    )
+    for d in range(400):
+        day = split - timedelta(days=d)
+        close = 100.0 if day >= split else 1000.0  # unadjusted closes
+        conn.execute(
+            "INSERT INTO prices_daily VALUES (1, '', ?, ?, 1000, 'massive', 'h')",
+            (day.isoformat(), close),
+        )
+    PriceStore(conn).store_splits(
+        {
+            "results": [
+                {
+                    "ticker": "X",
+                    "execution_date": split.isoformat(),
+                    "split_from": 1,
+                    "split_to": 10,
+                }
+            ]
+        },
+        {"X": (1, "")},
+    )
+    conn.commit()
+    weekly = stored_numbers(conn, "r1", 1)["weekly"]
+    assert weekly[-1] == {"date": "2026-11-03", "close": 1000.0}
+    assert {w["close"] for w in weekly} == {1000.0}
 
 
 def test_odd_stored_rows_give_none_and_never_raise(database):
