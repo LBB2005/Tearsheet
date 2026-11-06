@@ -24,10 +24,10 @@ import random
 import sqlite3
 import statistics
 from collections import defaultdict
-from datetime import UTC, date, datetime, time, timedelta
+from datetime import date, datetime, time, timedelta
 from typing import Any
 
-from tearsheet.data.prices import SPY_CIK, PriceStore
+from tearsheet.data.prices import SPY_CIK, PriceStore, last_completed_session
 from tearsheet.http import EASTERN
 
 CLOSE = time(16, 0)
@@ -462,7 +462,8 @@ async def grade_job(
     }
     tickers = _tickers(conn)
     members = {cik: tickers[cik] for cik in sorted(ciks) if cik in tickers}
-    await data.fill_prices(store, members, end=now.astimezone(UTC).date())
+    # Up to the latest session whose close is out (not the UTC date; see pipeline.fetch).
+    await data.fill_prices(store, members, end=last_completed_session(now))
     graded = grade_due(conn, store, rules, now=now)
     if graded:
         backup(conn, backup_dir)

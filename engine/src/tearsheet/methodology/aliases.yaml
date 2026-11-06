@@ -9,3 +9,8 @@ aliases:
   chase: 19617          # JPMorgan Chase
   berkshire: 1067983    # Berkshire Hathaway
   j&j: 200406           # Johnson & Johnson
+
+# Companies that moved under a new parent with a new SEC number (CIK). SEC keeps the earlier
+# reports under the old number, so the facts and filings of both are read. New CIK → old CIKs.
+predecessors:
+  2115436: [34088]  # ExxonMobil Holdings Corp ← Exxon Mobil Corp (redomiciled 1 Jul 2026)

@@ -144,11 +144,33 @@ class StoredData:
             raise LookupError(f"no stored company facts for CIK {cik}")
         return json.loads(body)
 
-    async def filing_documents(self, cik: int, *, today: date) -> list[Doc]:
-        subs = await self.submissions(cik)
-        filings = sec_data.filings_from(subs.get("filings", {}).get("recent", {}), cik)
+    async def report_facts(self, filing: sec_data.Filing) -> dict[str, Any]:
+        """A stored 10-Q's or 10-K's own inline XBRL numbers, in the company-facts shape."""
+        body = self._body(filing.url(filing.primary_document))
+        if body is None:
+            raise LookupError(f"filing {filing.accession} isn't stored")
+        return sec_data.inline_facts(
+            body, accession=filing.accession, form=filing.form, filed=filing.filed
+        )
+
+    async def filing_documents(
+        self, cik: int, *, today: date, predecessors: tuple[int, ...] = ()
+    ) -> list[Doc]:
+        filings = []
+        for c in (cik, *predecessors):
+            subs = await self.submissions(c)
+            filings += sec_data.filings_from(subs.get("filings", {}).get("recent", {}), c)
+        # A stored list can be newer than the run date: a run never uses a later filing.
+        filings = [f for f in filings if f.filed <= today]
 
         def exhibits(f: sec_data.Filing) -> bytes | None:
+            """A 10-K's stored Exhibit 13 (the annual report some companies file it in)."""
+            index = self._body(f.index_url)
+            if index is None:
+                return None
+            for entry in sec_data.parse_filing_index(index.decode("utf-8", errors="replace")):
+                if sec_data.EX_13.match(entry.doc_type):
+                    return self._body(entry.url)
             return None
 
         docs = _report_docs(filings, lambda url: self._body(url), exhibits)
@@ -217,12 +239,20 @@ class StoredData:
                 trades += sec_data.form4_trades(body, f.filed)
         return trades
 
-    async def peer_documents(self, ciks: list[int], *, today: date) -> list[Doc]:
+    async def peer_documents(
+        self,
+        ciks: list[int],
+        *,
+        today: date,
+        predecessors: dict[int, tuple[int, ...]] | None = None,
+    ) -> list[Doc]:
         out = []
         for cik in ciks:
-            subs = await self.submissions(cik)
-            filings = sec_data.filings_from(subs.get("filings", {}).get("recent", {}), cik)
-            chosen = sec_data.latest(filings, "10-K")
+            filings = []
+            for c in (cik, *(predecessors or {}).get(cik, ())):
+                subs = await self.submissions(c)
+                filings += sec_data.filings_from(subs.get("filings", {}).get("recent", {}), c)
+            chosen = sec_data.latest([f for f in filings if f.filed <= today], "10-K")
             if chosen is None:
                 continue
             url = chosen.url(chosen.primary_document)
@@ -274,6 +304,16 @@ class LiveData:
     async def company_facts(self, cik: int) -> dict[str, Any]:
         return (await self.sec.company_facts(cik))[1]
 
+    async def report_facts(self, filing: sec_data.Filing) -> dict[str, Any]:
+        """A 10-Q's or 10-K's own inline XBRL numbers (its primary document, downloaded once
+        and stored like every filing), in the company-facts shape."""
+        return sec_data.inline_facts(
+            await self.sec.primary_document(filing),
+            accession=filing.accession,
+            form=filing.form,
+            filed=filing.filed,
+        )
+
     async def cover_share_counts(self, cik: int, *, today: date):
         """Per-class share counts from the latest 10-Q or 10-K cover page (one document,
         stored like every filing, so it is downloaded once)."""
@@ -285,10 +325,13 @@ class LiveData:
             await self.sec.primary_document(filing)
         ), filing.accession
 
-    async def filing_documents(self, cik: int, *, today: date) -> list[Doc]:
-        filings = await self.sec.filings(
-            cik, since=today - timedelta(days=sec_data.FILING_HISTORY_DAYS)
-        )
+    async def filing_documents(
+        self, cik: int, *, today: date, predecessors: tuple[int, ...] = ()
+    ) -> list[Doc]:
+        since = today - timedelta(days=sec_data.FILING_HISTORY_DAYS)
+        filings = await self.sec.filings(cik, since=since)
+        for old in predecessors:
+            filings += await self.sec.filings(old, since=since)
         bodies: dict[str, bytes] = {}
         latest_k = sec_data.latest(filings, "10-K")
         for form, chosen in (
@@ -360,12 +403,19 @@ class LiveData:
         found = value_on(series, day)
         return (found[0], found[1] / 100) if found else None
 
-    async def peer_documents(self, ciks: list[int], *, today: date) -> list[Doc]:
+    async def peer_documents(
+        self,
+        ciks: list[int],
+        *,
+        today: date,
+        predecessors: dict[int, tuple[int, ...]] | None = None,
+    ) -> list[Doc]:
         out = []
+        since = today - timedelta(days=sec_data.FILING_HISTORY_DAYS)
         for cik in ciks:
-            filings = await self.sec.filings(
-                cik, since=today - timedelta(days=sec_data.FILING_HISTORY_DAYS)
-            )
+            filings = await self.sec.filings(cik, since=since)
+            for old in (predecessors or {}).get(cik, ()):
+                filings += await self.sec.filings(old, since=since)
             chosen = sec_data.latest(filings, "10-K")
             if chosen is None:
                 continue

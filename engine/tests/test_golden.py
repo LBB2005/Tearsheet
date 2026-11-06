@@ -152,3 +152,73 @@ def test_eval_golden_before_the_freeze_says_how(tmp_path, capsys):
     ]
     assert cli.main(args) == 2
     assert "--freeze" in capsys.readouterr().err
+
+
+def test_predecessor_companies_are_added_to_the_frozen_store(tmp_path):
+    """Exxon's new SEC number (2115436) has its old one (34088) listed in aliases.yaml: the
+    top-up downloads only the old number's facts and its last two 10-Ks filed by the freeze."""
+    import asyncio
+    from datetime import UTC, datetime
+
+    import httpx
+    import respx
+
+    from tearsheet import config
+    from tearsheet.db import open_database
+
+    store = tmp_path / "store"
+    database = open_database(config.Paths(store).ensure().db)
+    with database.conn:
+        database.conn.execute(
+            "INSERT INTO tickers (ticker, cik, share_class, conversion_ratio, date_from) "
+            "VALUES ('XOM', 2115436, '', 1, '2026-11-01')"
+        )
+    settings = config.Settings(database.conn)
+    settings.set("sec_contact_email", "test@example.com")
+    rows = [  # accession, form, filed, primary document
+        ("0000034088-26-000050", "15-12B", "2026-07-02", "d15.htm"),
+        ("0000034088-26-000012", "10-K", "2026-02-18", "xom-20251231.htm"),
+        ("0000034088-25-000010", "10-K", "2025-02-19", "xom-20241231.htm"),
+        ("0000034088-24-000009", "10-K", "2024-02-21", "xom-20231231.htm"),
+    ]
+    subs = {
+        "name": "EXXON MOBIL CORP",
+        "filings": {
+            "recent": {
+                "accessionNumber": [r[0] for r in rows],
+                "form": [r[1] for r in rows],
+                "filingDate": [r[2] for r in rows],
+                "reportDate": ["" for _ in rows],
+                "primaryDocument": [r[3] for r in rows],
+            },
+            "files": [],
+        },
+    }
+
+    def archive(request):
+        name = request.url.path.rsplit("/", 1)[1]
+        if name.endswith("-index.htm"):
+            return httpx.Response(200, html="<html><body><table></table></body></html>")
+        return httpx.Response(200, html=f"<html><body>{name}</body></html>")
+
+    with respx.mock as mock:
+        mock.get("https://data.sec.gov/submissions/CIK0000034088.json").mock(
+            return_value=httpx.Response(200, json=subs)
+        )
+        mock.get("https://data.sec.gov/api/xbrl/companyfacts/CIK0000034088.json").mock(
+            return_value=httpx.Response(200, json={"facts": {}})
+        )
+        mock.get(url__regex=r"https://www\.sec\.gov/Archives/edgar/data/34088/.*").mock(
+            side_effect=archive
+        )
+        added = asyncio.run(
+            golden.add_predecessors(
+                store, datetime(2026, 11, 6, 2, 21, tzinfo=UTC), settings, progress=lambda _: None
+            )
+        )
+    assert added == 1
+    keys = {r[0] for r in database.conn.execute("SELECT request_key FROM fetch_log")}
+    database.close()
+    assert "https://data.sec.gov/api/xbrl/companyfacts/CIK0000034088.json" in keys
+    docs = {k.rsplit("/", 1)[1] for k in keys if k.endswith(".htm") and "index" not in k}
+    assert docs == {"xom-20251231.htm", "xom-20241231.htm"}  # the last two 10-Ks only

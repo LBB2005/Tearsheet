@@ -578,6 +578,18 @@ def cmd_eval(args: argparse.Namespace) -> int:
         golden.set_as_of(folder, frozen)
         print(f"Frozen at {frozen:%Y-%m-%d %H:%M} UTC; tickers.yaml now records it. Commit it.")
         return 0
+    if args.add_predecessors:
+        if as_of is None:
+            print("Freeze the golden store first: eval golden --freeze.", file=sys.stderr)
+            return 2
+        _, database = _open(args, "eval")
+        try:
+            settings = config.Settings(database.conn)
+            added = asyncio.run(golden.add_predecessors(store, as_of, settings))
+        finally:
+            database.close()
+        print(f"Added {added} predecessor companies to {store}; the freeze date is unchanged.")
+        return 0
     if as_of is None or not (store / "tearsheet.sqlite").exists():
         print(
             f"The golden store isn't frozen yet. Run: tearsheet-engine eval golden --freeze "
@@ -687,6 +699,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     evaluate.add_argument("suite", choices=("golden",))
     evaluate.add_argument("--freeze", action="store_true", help="download every input once, live")
+    evaluate.add_argument(
+        "--add-predecessors",
+        action="store_true",
+        help="download listed predecessor companies' SEC data into the frozen store, live",
+    )
     evaluate.add_argument("--update", action="store_true", help="rewrite last_run.json")
     evaluate.add_argument(
         "--draft-checks", action="store_true", help="print candidate hand checks to verify"
