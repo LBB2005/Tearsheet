@@ -109,6 +109,16 @@ describe('statusLine', () => {
     expect(statusLine({ tools: 'Claude Code', signedOut: false, safetyFailed: true })).toEqual({ tone: 'stop', text: 'Safety check didn’t pass' })
   })
 
+  it('says when past predictions are being graded', () => {
+    expect(statusLine({ tools: 'Claude Code', signedOut: false, grading: true })).toEqual({ tone: 'run', text: 'Grading past predictions' })
+  })
+
+  it('puts grading after a run and the safety check, and before ready', () => {
+    expect(statusLine({ run: { ticker: 'JPM', steps: stepsDone(8) }, tools: 'Claude Code', signedOut: false, grading: true }).text).toBe('Writing JPM, step 9 of 14')
+    expect(statusLine({ safety: { n: 7, total: 25 }, tools: 'Claude Code', signedOut: false, grading: true }).text).toBe('Safety check, 7 of 25')
+    expect(statusLine({ tools: 'Claude Code', signedOut: true, grading: true }).text).toBe('Claude Code signed out')
+  })
+
   it('puts a failed safety check after a sign-out and before anything running', () => {
     expect(statusLine({ tools: 'Claude Code', signedOut: true, safetyFailed: true }).text).toBe('Claude Code signed out')
     const line = statusLine({ run: { ticker: 'JPM', steps: stepsDone(8) }, safety: { n: 7, total: 25 }, tools: 'Claude Code', signedOut: false, safetyFailed: true })

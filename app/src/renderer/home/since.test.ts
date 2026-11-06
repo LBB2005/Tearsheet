@@ -152,15 +152,26 @@ describe('sinceLines', () => {
     })
   })
 
+  it('makes a missing Massive key a problem, with the fix', () => {
+    expect(sinceLines(input({ keys: { massive: 'missing', fred: 'set' } }))[0]).toEqual({
+      tone: 'down',
+      text: 'Prices aren’t connected, so new reports can’t be rated',
+      detail: 'Add your Massive key in Settings. Your saved reports still open.',
+      action: 'addMassive'
+    })
+    // Not yet known is not missing.
+    expect(sinceLines(input({ keys: { fred: 'set' } })).some((l) => l.action === 'addMassive')).toBe(false)
+  })
+
   it('orders problems, then prices, the next grade and anything not connected', () => {
     const lines = sinceLines(
       input({
         predictions: [prediction('NVDA', 1045810, '2026-11-05T19:55:10+00:00')],
-        keys: { massive: 'set', fred: 'missing' },
+        keys: { massive: 'missing', fred: 'missing' },
         tool: { name: 'Claude Code', signedOut: true, safetyFailed: true }
       })
     )
-    expect(lines.map((l) => l.tone)).toEqual(['down', 'down', 'up', 'accent', 'hold'])
+    expect(lines.map((l) => l.action ?? l.tone)).toEqual(['signIn', 'recheck', 'addMassive', 'up', 'accent', 'addFred'])
   })
 })
 

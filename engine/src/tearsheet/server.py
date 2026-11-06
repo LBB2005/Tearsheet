@@ -3,8 +3,10 @@
 Reads one JSON-RPC request per line from standard input, writes only protocol messages to
 standard output, and sends all logging to standard error. The `hello` notification goes first.
 Only one run (or resume) happens at a time; it runs in the background and reports through
-`progress`, `report_ready` and `run_failed` notifications. Only the engine writes to the
-database.
+`progress`, `report_ready` and `run_failed` notifications. Grading (`grade_due`) is a job like a
+run: it is answered off the request loop, so look-ups and settings answer while it fetches
+prices, and no run, resume, safety check or history download starts until it is done
+(GRADING_IN_PROGRESS). Only the engine writes to the database.
 """
 
 from __future__ import annotations
@@ -81,6 +83,9 @@ SERVICES = [
     },
 ]
 ICLOUD_FOLDERS = ("Documents", "Desktop", "Library/Mobile Documents")
+# Requests answered off the request loop, because they can take minutes (grading fetches prices
+# at Massive's calls-per-minute pace).
+OFF_LOOP = frozenset({"grade_due"})
 
 
 class EngineError(Exception):
@@ -155,6 +160,9 @@ class Server:
         self.log_predictions = data_factory is None if log_predictions is None else log_predictions
         self.now = now or (lambda: datetime.now(UTC))
         self.job: asyncio.Task | None = None
+        self.grading_job: asyncio.Task | None = None
+        # Requests answered off the loop (grade_due), until their reply is written.
+        self.background: set[asyncio.Task] = set()
         self._massive_limiter = None
         self.active = None  # the Run in progress
         mark_interrupted(self.db.conn)
@@ -288,6 +296,14 @@ class Server:
                 id_, INVALID_PARAMS, f"Bad parameters for {method}: {exc.errors()[0]['msg']}"
             )
             return
+        if method in OFF_LOOP:
+            task = asyncio.create_task(self._answer(id_, method, params))
+            self.background.add(task)
+            task.add_done_callback(self.background.discard)
+            return
+        await self._answer(id_, method, params)
+
+    async def _answer(self, id_: Any, method: str, params: BaseModel) -> None:
         try:
             result = await getattr(self, f"m_{method}")(params)
         except EngineError as exc:
@@ -310,6 +326,16 @@ class Server:
 
     def _safety_running(self) -> bool:
         return self.safety_job is not None and not self.safety_job.done()
+
+    def _grading(self) -> bool:
+        return self.grading_job is not None and not self.grading_job.done()
+
+    def _refuse_during_grading(self) -> None:
+        if self._grading():
+            raise EngineError(
+                "GRADING_IN_PROGRESS",
+                "Tearsheet is grading past predictions. Try again in a few minutes.",
+            )
 
     def _refuse_during_safety_check(self) -> None:
         if self._safety_running():
@@ -341,8 +367,8 @@ class Server:
                 run, query, resume = make_run(data)
                 self.active = run
                 result = await run.run(query, resume=resume)
-            if result.report_id:
-                self.notify("report_ready", ReportReady(run_id=run_id, report_id=result.report_id))
+            # A stopped run says so before its report so far, so the app never takes the
+            # partial report for a finished one.
             if result.status == "stopped" and run.stop_error is not None:
                 code, data_ = error_code(run.stop_error)
                 self.notify(
@@ -355,6 +381,8 @@ class Server:
                         **data_,
                     ),
                 )
+            if result.report_id:
+                self.notify("report_ready", ReportReady(run_id=run_id, report_id=result.report_id))
         except RunCancelled:
             pass
         except Exception as exc:  # noqa: BLE001 - reported to the app, logged to standard error
@@ -417,6 +445,7 @@ class Server:
             raise EngineError(
                 "RUN_IN_PROGRESS", "A report is already running. Wait for it, or cancel it."
             )
+        self._refuse_during_grading()
         ai = self.ai_factory(self.db.conn, p.tool)
         checker = self.checker_factory(self.db.conn, ai) if ai is not None else None
         now = self.now()
@@ -450,6 +479,7 @@ class Server:
         self._refuse_during_safety_check()
         if self._busy():
             raise EngineError("RUN_IN_PROGRESS", "A report is already running.")
+        self._refuse_during_grading()
         row = self.db.conn.execute(
             "SELECT ai_tool FROM runs WHERE run_id = ?", (p.run_id,)
         ).fetchone()
@@ -502,6 +532,13 @@ class Server:
     async def wait_for_safety_check(self) -> None:
         if self.safety_job is not None:
             await self.safety_job
+
+    async def wait_for_grading(self) -> None:
+        """Until grading is done and every reply answered off the loop has been written."""
+        while self.background or self._grading():
+            await asyncio.gather(*self.background, return_exceptions=True)
+            if self.grading_job is not None:
+                await asyncio.gather(self.grading_job, return_exceptions=True)
 
     # --- reports, predictions and reviews --------------------------------------------------------
 
@@ -579,6 +616,7 @@ class Server:
             raise EngineError(
                 "RUN_IN_PROGRESS", "A report is running. Wait for it, then load the history."
             )
+        self._refuse_during_grading()
         _, cik, ticker = self._report_target(p.report_id)
         if not ticker:
             raise EngineError("ENGINE_ERROR", "This report's company has no ticker to look up.")
@@ -677,17 +715,24 @@ class Server:
         return {"deleted": reread_filing(self.db.conn, p.accession)}
 
     async def m_grade_due(self, p) -> dict[str, Any]:
-        """Grading is a job like a run: it waits for any report (item 48)."""
-        from tearsheet.grading import grade_job
+        """Grading is a job like a run (item 48): it waits for any report, and nothing that
+        would overlap it starts until it is done. It is answered off the request loop (OFF_LOOP);
+        a second ask while it goes gets the same answer."""
+        if not self._grading():
+            self.grading_job = asyncio.create_task(self._grade())
+        return await asyncio.shield(self.grading_job)
+
+    async def _grade(self) -> dict[str, Any]:
+        from tearsheet import grading
 
         if self._busy():
-            await self.job
+            await asyncio.wait({self.job})  # however the report ends, grading goes on
         settings = config.Settings(self.db.conn)
         backup_dir = Path(settings.get("backup_dir") or config.DEFAULT_BACKUP_DIR).expanduser()
         async with self.data_factory(
             f"grade-{self.now():%Y%m%dT%H%M%SZ}", self.db.conn, self.rawstore
         ) as data:
-            return await grade_job(
+            return await grading.grade_job(
                 self.db.conn, data, self.method.grading, now=self.now(), backup_dir=backup_dir
             )
 
@@ -714,6 +759,7 @@ class Server:
                 "RUN_IN_PROGRESS", "A report is running. Wait for it before the safety check."
             )
         self._refuse_during_safety_check()
+        self._refuse_during_grading()
         connector = self.safety_connector_factory(self.db.conn, p.tool)
         self.safety_job = asyncio.create_task(self._safety_job(p.tool, connector))
         return {"started": True}
@@ -830,6 +876,14 @@ async def serve(paths: config.Paths) -> int:
                 await server.job
             except Exception:  # noqa: BLE001
                 pass
+        # Grading stops with the engine; it is graded again next time the app opens.
+        for task in [*server.background, *([server.grading_job] if server.grading_job else [])]:
+            task.cancel()
+        await asyncio.gather(
+            *server.background,
+            *([server.grading_job] if server.grading_job else []),
+            return_exceptions=True,
+        )
     finally:
         server.close()
     return 0

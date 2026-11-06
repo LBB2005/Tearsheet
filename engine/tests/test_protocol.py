@@ -53,10 +53,17 @@ class Harness:
         )
 
     async def call(self, method: str, params: dict | None = None, *, id_: int = 1) -> dict:
+        start = len(self.messages)
         await self.server.handle(
             json.dumps({"jsonrpc": "2.0", "id": id_, "method": method, "params": params or {}})
         )
-        return next(m for m in reversed(self.messages) if m.get("id") == id_)
+        # Most replies are written before handle() returns; grade_due's comes from a task.
+        for _ in range(2000):
+            reply = next((m for m in self.messages[start:] if m.get("id") == id_), None)
+            if reply is not None:
+                return reply
+            await asyncio.sleep(0.005)
+        raise AssertionError(f"no reply to {method}")
 
     async def finish(self) -> None:
         await self.server.wait_for_job()

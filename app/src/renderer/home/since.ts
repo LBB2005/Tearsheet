@@ -7,9 +7,9 @@ import { shortDate } from '../nav'
 
 export type SinceTone = 'up' | 'accent' | 'hold' | 'down'
 
-// The fix a line offers: add the FRED key (Settings), sign the AI tool in again, or run the
-// safety check again.
-export type SinceAction = 'addFred' | 'signIn' | 'recheck'
+// The fix a line offers: add the FRED or Massive key (Settings), sign the AI tool in again, or
+// run the safety check again.
+export type SinceAction = 'addFred' | 'addMassive' | 'signIn' | 'recheck'
 
 export interface SinceLine {
   tone: SinceTone
@@ -111,6 +111,15 @@ export function sinceLines(s: SinceInput): SinceLine[] {
       text: `${s.tool.name} didn’t pass the safety check`,
       detail: 'New reports can’t be written until it passes. Your saved reports still open.',
       action: 'recheck'
+    })
+  }
+  // Only a key the settings say is missing counts; one not yet known doesn't.
+  if (s.keys.massive === 'missing') {
+    lines.push({
+      tone: 'down',
+      text: 'Prices aren’t connected, so new reports can’t be rated',
+      detail: 'Add your Massive key in Settings. Your saved reports still open.',
+      action: 'addMassive'
     })
   }
   const prices = pricesLine(s.companies, now)

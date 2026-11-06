@@ -40,6 +40,8 @@ export interface StatusInput {
   signedOut: boolean
   // The tool's safety check (the lock-down check) didn't pass (safetyFailed below).
   safetyFailed?: boolean
+  // Past predictions being graded (grade_due), which no report may overlap.
+  grading?: boolean
 }
 
 export interface StatusLine {
@@ -50,8 +52,8 @@ export interface StatusLine {
 }
 
 // The sidebar's status line. A sign-out comes first, then a failed safety check, both in red,
-// because new reports can't be written until they're fixed; then a run, then the safety check,
-// then "ready".
+// because new reports can't be written until they're fixed; then a run, the safety check and
+// grading, then "ready".
 export function statusLine(input: StatusInput): StatusLine {
   const total = REPORT_STEPS.length
   if (input.signedOut) return { tone: 'stop', text: `${input.tools} signed out` }
@@ -64,6 +66,7 @@ export function statusLine(input: StatusInput): StatusLine {
     const { n, total: calls } = input.safety
     return { tone: 'run', text: `Safety check, ${n} of ${calls}`, progress: calls > 0 ? Math.min(1, n / calls) : 0 }
   }
+  if (input.grading) return { tone: 'run', text: 'Grading past predictions' }
   return { tone: 'ok', text: `${input.tools} ready` }
 }
 

@@ -35,17 +35,20 @@ export interface HomeProps {
   tool: { kind: ToolKind; name: string; signedOut: boolean; safetyFailed: boolean }
   // ⌘K on this page puts the cursor here.
   fieldRef: RefObject<HTMLInputElement>
+  // Changes when grading finishes, so the predictions are asked for again.
+  refresh: number
   // Starts a report; gives what went wrong, or null once it has started.
   onStart: (ticker: string) => Promise<string | null>
   onOpen: (row: CompanyRow) => void
-  onAddFred: () => void
+  // Settings, to add a missing key.
+  onKeys: () => void
   // The AI tools, looked at again while waiting for a sign-in.
   onTools: (tools: ToolStatus[]) => void
   // Runs the safety check again; gives what went wrong, or null once it has started.
   onRecheck: () => Promise<string | null>
 }
 
-export function Home({ companies, tool, fieldRef, onStart, onOpen, onAddFred, onTools, onRecheck }: HomeProps) {
+export function Home({ companies, tool, fieldRef, refresh, onStart, onOpen, onKeys, onTools, onRecheck }: HomeProps) {
   const [query, setQuery] = useState('')
   const [hits, setHits] = useState<SearchHit[]>([])
   const [searched, setSearched] = useState('')
@@ -57,7 +60,8 @@ export function Home({ companies, tool, fieldRef, onStart, onOpen, onAddFred, on
   const [settings, setSettings] = useState<SettingsResult | null>(null)
   const latest = useRef(0)
 
-  // The since lines need the predictions and the keys; asked for each time the page opens.
+  // The since lines need the predictions and the keys; asked for each time the page opens, and
+  // again after grading.
   useEffect(() => {
     let live = true
     void window.tearsheet.listPredictions().then((r) => live && setPredictions(r.ok && r.result ? r.result : []))
@@ -65,7 +69,7 @@ export function Home({ companies, tool, fieldRef, onStart, onOpen, onAddFred, on
     return () => {
       live = false
     }
-  }, [])
+  }, [refresh])
 
   // Searching on each keystroke. Only the newest answer counts, so a slow one can't replace it.
   useEffect(() => {
@@ -107,7 +111,7 @@ export function Home({ companies, tool, fieldRef, onStart, onOpen, onAddFred, on
   const lines = sinceLines({
     companies: companies ?? [],
     predictions: predictions ?? [],
-    // Until the settings answer, nothing is said about the FRED key.
+    // Until the settings answer, nothing is said about the keys.
     keys: settings?.keys ?? { fred: 'set' },
     fredSkipped: settings?.fred_skipped ?? false,
     tool
@@ -133,7 +137,7 @@ export function Home({ companies, tool, fieldRef, onStart, onOpen, onAddFred, on
   return (
     <div className="homev">
       {problems.map((line) => (
-        <Problem key={line.action ?? line.text} line={line} login={TOOL_TEXT[tool.kind].login} onTools={onTools} onRecheck={onRecheck} />
+        <Problem key={line.action ?? line.text} line={line} login={TOOL_TEXT[tool.kind].login} onTools={onTools} onRecheck={onRecheck} onKeys={onKeys} />
       ))}
       {companies !== null && (
         <div className="hello mv" style={at(0)}>
@@ -151,7 +155,7 @@ export function Home({ companies, tool, fieldRef, onStart, onOpen, onAddFred, on
           autoFocus
           role="combobox"
           aria-label="Look up a company"
-          aria-expanded={q !== ''}
+          aria-expanded={q !== '' && !why}
           aria-controls="home-hits"
           aria-activedescendant={shown.length ? `home-hit-${sel}` : undefined}
           aria-autocomplete="list"
@@ -167,7 +171,8 @@ export function Home({ companies, tool, fieldRef, onStart, onOpen, onAddFred, on
           onKeyDown={onKey}
         />
         <kbd>⌘K</kbd>
-        {q !== '' && (current || lookFailed) && (
+        {/* Why a report didn't start shows in the dropdown's place until the text changes. */}
+        {q !== '' && (current || lookFailed) && !why && (
           <div className="dd" id="home-hits" role="listbox" aria-label="Companies">
             {shown.map((h, i) => (
               <button
@@ -234,7 +239,7 @@ export function Home({ companies, tool, fieldRef, onStart, onOpen, onAddFred, on
               <i className={line.tone} />
               {line.text}
               {line.action === 'addFred' && (
-                <button className="btn2" onClick={onAddFred}>
+                <button className="btn2" onClick={onKeys}>
                   Add the key
                 </button>
               )}
@@ -248,7 +253,19 @@ export function Home({ companies, tool, fieldRef, onStart, onOpen, onAddFred, on
 
 // A problem, in red at the top of the page, with its fix. "Sign in again" shows the one Terminal
 // line and notices by itself, looking again every 2 seconds; the box goes once it is fixed.
-function Problem({ line, login, onTools, onRecheck }: { line: SinceLine; login: string; onTools: (tools: ToolStatus[]) => void; onRecheck: () => Promise<string | null> }) {
+function Problem({
+  line,
+  login,
+  onTools,
+  onRecheck,
+  onKeys
+}: {
+  line: SinceLine
+  login: string
+  onTools: (tools: ToolStatus[]) => void
+  onRecheck: () => Promise<string | null>
+  onKeys: () => void
+}) {
   const [signing, setSigning] = useState(false)
   const [busy, setBusy] = useState(false)
   const [failed, setFailed] = useState<string | null>(null)
@@ -311,6 +328,11 @@ function Problem({ line, login, onTools, onRecheck }: { line: SinceLine; login: 
       {line.action === 'recheck' && (
         <button className="btn2" disabled={busy} onClick={() => void recheck()}>
           Run the check again
+        </button>
+      )}
+      {line.action === 'addMassive' && (
+        <button className="btn2" onClick={onKeys}>
+          Add the key
         </button>
       )}
     </div>

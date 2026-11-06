@@ -10,7 +10,8 @@ import type { MenuCommand } from '../main/menu'
 import type { EngineNotification, ToolStatus } from '../preload/api'
 import type { CompanyRow, SearchHit, SettingsResult } from '../shared/protocol'
 import { bootView, GIVE_UP_AFTER_MS, STARTING_AFTER_MS } from './boot'
-import { RunView, runTitle } from './home/RunView'
+import { runTitle } from './home/run'
+import { RunView } from './home/RunView'
 import { useRun } from './home/useRun'
 import { Mark } from './mark/Mark'
 import { leaveMs } from './motion'
@@ -19,7 +20,7 @@ import { LookUp } from './overlays/LookUp'
 import { Toast, type Notice } from './overlays/Toast'
 import { Home } from './pages/Home'
 import { Setup } from './pages/Setup'
-import { applySafetyNote, safetyStarted, type SafetyState, type ToolKind } from './setup/steps'
+import { applySafetyNote, SAFETY_CALLS, safetyStarted, type SafetyState, type ToolKind } from './setup/steps'
 import { Sidebar, SidebarButton } from './shell/Sidebar'
 import { Toolbar } from './shell/Toolbar'
 import { useWide } from './shell/useWide'
@@ -46,6 +47,10 @@ export function App() {
   const [companies, setCompanies] = useState<CompanyRow[]>([])
   // False until the first list arrives, so the home page knows a new user from a returning one.
   const [listed, setListed] = useState(false)
+  // Past predictions being graded (grade_due); no report starts until it is done. `graded`
+  // counts the gradings finished, so the home page asks for the predictions again.
+  const [grading, setGrading] = useState(false)
+  const [graded, setGraded] = useState(0)
   const [tools, setTools] = useState<ToolStatus[]>([])
   const [primaryTool, setPrimaryTool] = useState<string | null>(null)
   // This session's safety check; setup's chip and the sidebar's status line both read it.
@@ -83,7 +88,8 @@ export function App() {
 
   const loadCompanies = useCallback(() => {
     void window.tearsheet.listCompanies().then((r) => {
-      if (r.ok && r.result) setCompanies(r.result)
+      if (!r.ok || !r.result) return
+      setCompanies(r.result)
       setListed(true)
     })
   }, [])
@@ -91,11 +97,18 @@ export function App() {
     void window.tearsheet.getTools(force).then(setTools)
   }, [])
 
-  // Grade whatever has come due each time the app opens (design item 48). It waits behind any
-  // run, and behind the calls before it, so the sidebar fills first; grading may update prices.
-  // During setup it waits until setup is finished, so it can't hold up the key checks.
+  // Grade whatever has come due each time the app opens (design item 48). The engine answers it
+  // off its request loop, so look-ups go on meanwhile; it waits behind any run, and no report
+  // starts until it is done. Grading may update prices. During setup it waits until setup is
+  // finished, so it can't hold up the key checks.
   const gradeDue = useCallback(() => {
-    void window.tearsheet.gradeDue().then(loadCompanies)
+    setGrading(true)
+    const done = () => {
+      setGrading(false)
+      setGraded((n) => n + 1)
+      loadCompanies()
+    }
+    window.tearsheet.gradeDue().then(done, done)
   }, [loadCompanies])
 
   useEffect(() => {
@@ -138,7 +151,13 @@ export function App() {
     }
   }, [booted, bootTry, gradeDue])
 
-  const report = useRun({ page, target, go, notify, loadCompanies, loadTools, openReport: setOpenReport })
+  // The engine's gate found the tool failing its safety check during a run: the red status line
+  // and the home page's red box show at once, as for a check that failed here.
+  const kindNow = useRef<ToolKind>('claude')
+  const lockdownFailed = useCallback((message: string) => {
+    setSafety({ tool: kindNow.current, n: 0, total: SAFETY_CALLS, done: true, passed: false, reason: message })
+  }, [])
+  const report = useRun({ page, target, go, notify, loadCompanies, loadTools, openReport: setOpenReport, onLockdownFailed: lockdownFailed })
   const { run, onNote } = report
 
   // The one listener for the engine's notes. The run's notes go to useRun.
@@ -276,6 +295,7 @@ export function App() {
 
   const tool = tools.find((t) => t.kind === (primaryTool ?? 'claude')) ?? tools.find((t) => t.available) ?? tools[0]
   const toolKind: ToolKind = tool?.kind ?? 'claude'
+  kindNow.current = toolKind
   const toolName = tool?.name ?? 'Claude Code'
   const signedOut = tool?.available === true && tool.loggedIn === false
   const checkFailed = safetyFailed(safety, toolKind, bootSettings?.lockdown?.[toolKind])
@@ -285,7 +305,8 @@ export function App() {
     safety: safety && !safety.done ? { n: safety.n, total: safety.total } : null,
     tools: toolName,
     signedOut,
-    safetyFailed: checkFailed
+    safetyFailed: checkFailed,
+    grading
   })
 
   // The run view, on the home page while a report is written (or waits for Resume).
@@ -305,15 +326,23 @@ export function App() {
   let content = null
   if (page === 'home')
     content = runView ? (
-      <RunView run={runView} ready={report.readyHold} resuming={report.resuming} onResume={() => void report.resume()} />
+      <RunView
+        run={runView}
+        ready={report.readyHold}
+        resuming={report.resuming}
+        safety={checkFailed ? 'failed' : safety && !safety.done ? 'running' : 'ok'}
+        onResume={() => void report.resume()}
+        onRecheck={() => void recheck().then((problem) => problem && notify('The safety check didn’t start', problem, 'stop'))}
+      />
     ) : (
       <Home
         companies={listed ? companies : null}
         tool={{ kind: toolKind, name: toolName, signedOut, safetyFailed: checkFailed }}
         fieldRef={homeField}
+        refresh={graded}
         onStart={report.start}
         onOpen={openCompany}
-        onAddFred={() => go('settings')}
+        onKeys={() => go('settings')}
         onTools={setTools}
         onRecheck={recheck}
       />

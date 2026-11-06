@@ -1,6 +1,10 @@
 // The report being written: starting it, following its notes, Resume, Cancel run, and the
 // "report ready" moment before the report opens. App's one notification listener hands each
 // note to `onNote`. The run is named by the company the engine resolved, not by the query typed.
+//
+// The run is kept in a ref as well as in state, and both change together (`track`), so a note
+// handled straight after another sees what the first one did: a stopped run's `run_failed`
+// comes just before its report so far (`report_ready`).
 
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react'
 
@@ -10,11 +14,14 @@ import type { StepStates } from '../../shared/steps'
 import { leaveMs, readyPauseMs } from '../motion'
 import type { Page } from '../nav'
 import type { Notice } from '../overlays/Toast'
-import type { RunState } from './RunView'
+import type { RunState } from './run'
 
 // A cancelled run stops at its next step, and the engine says nothing when it has, so for a
 // while afterwards "already running" most likely means the cancelled run is still stopping.
 const STOPPING_MS = 5 * 60_000
+
+// What a start or a resume refused while past predictions are graded says.
+export const GRADING_FIRST = 'Tearsheet is grading past predictions first. Try again in a few minutes.'
 
 export interface RunDeps {
   page: Page
@@ -25,23 +32,27 @@ export interface RunDeps {
   loadCompanies: () => void
   loadTools: (force?: boolean) => void
   openReport: (reportId: string) => void
+  // The AI tool's safety check failed during the run (the engine's gate).
+  onLockdownFailed: (message: string) => void
 }
 
-export function useRun({ page, target, go, notify, loadCompanies, loadTools, openReport }: RunDeps) {
+export function useRun({ page, target, go, notify, loadCompanies, loadTools, openReport, onLockdownFailed }: RunDeps) {
   const [run, setRun] = useState<RunState | null>(null)
   // Holds the run view on screen for the "report ready" moment before the report opens.
   const [readyHold, setReadyHold] = useState(false)
   const [resuming, setResuming] = useState(false)
-  const current = useRef(run)
-  current.current = run
-  // run_report answers once step 1 is done, so its first notes come before the run is known.
+  const current = useRef<RunState | null>(null)
+  // Notes for a run not tracked yet: run_report answers once step 1 is done, so the first notes
+  // come before the run is known; and a resume replays from step 1 while its call is answered.
   const early = useRef<{ runId: string; steps: StepStates } | null>(null)
+  const resumingId = useRef<string | null>(null)
+  const cancelled = useRef(new Set<string>())
   const cancelledAt = useRef(0)
 
-  const track = (next: RunState | null) => {
+  const track = useCallback((next: RunState | null) => {
     current.current = next
     setRun(next)
-  }
+  }, [])
 
   useEffect(() => {
     if (page !== 'home') setReadyHold(false)
@@ -50,37 +61,43 @@ export function useRun({ page, target, go, notify, loadCompanies, loadTools, ope
   const onNote = useCallback(
     (note: EngineNotification) => {
       const p = note.params as Record<string, never>
-      const mine = current.current !== null && current.current.runId === p.run_id
+      const r = current.current
+      const mine = r !== null && r.runId === p.run_id
       if (note.method === 'progress') {
-        if (mine) setRun((r) => (r && r.runId === p.run_id ? { ...r, steps: { ...r.steps, [p.step_name]: p.state } } : r))
+        if (mine && resumingId.current !== r.runId) track({ ...r, steps: { ...r.steps, [p.step_name]: p.state } })
         else early.current = { runId: p.run_id, steps: { ...(early.current?.runId === p.run_id ? early.current.steps : {}), [p.step_name]: p.state } }
       } else if (note.method === 'report_ready') {
-        setRun((r) => (r && r.runId === p.run_id ? { ...r, reportId: p.report_id } : r))
-        openReport(p.report_id)
         loadCompanies()
-        // On the run view, hold the "report ready" moment before opening the report. A run
-        // that stopped (a usage limit saves the report so far) stays, with its red box and
-        // Resume; the report so far opens from the sidebar.
-        if (mine && target.current === 'home') {
-          setReadyHold(true)
-          window.setTimeout(() => {
-            // Going to the report, the hold ends once the page has changed (above), so the
-            // run view stays while it leaves.
-            if (target.current === 'home' && !current.current?.failure) go('report')
-            else setReadyHold(false)
-          }, readyPauseMs())
-        } else go('report')
+        // A cancelled run that saved its report anyway: it shows in the sidebar, and nothing
+        // opens by itself.
+        if (cancelled.current.has(p.run_id)) return
+        openReport(p.report_id)
+        if (!mine) return go('report')
+        track({ ...r, reportId: p.report_id })
+        // A stopped run's report so far: the run view stays, with its red box and Resume.
+        if (r.failure) return
+        if (target.current !== 'home') return go('report')
+        // On the run view, hold the "report ready" moment before opening the report.
+        setReadyHold(true)
+        window.setTimeout(() => {
+          // Going to the report, the hold ends once the page has changed (above), so the run
+          // view stays while it leaves.
+          if (target.current === 'home' && !current.current?.failure) go('report')
+          else setReadyHold(false)
+        }, readyPauseMs())
       } else if (note.method === 'run_failed') {
         if (!mine) return
-        setRun((r) => (r && r.runId === p.run_id ? { ...r, failure: { message: p.message, code: p.code, resetAt: p.reset_at, fix: p.fix_command } } : r))
+        track({ ...r, failure: { message: p.message, code: p.code, resetAt: p.reset_at, fix: p.fix_command, step: p.step } })
+        setReadyHold(false)
         if (p.code === 'AUTH_EXPIRED') loadTools(true)
+        if (p.code === 'LOCKDOWN_FAILED') onLockdownFailed(p.message)
         go('home')
       } else if (note.method === 'engine_restarted') {
         // A restart ends the run with it, if it was still going.
-        setRun((r) => (r && !r.reportId && !r.failure ? { ...r, failure: { message: 'The engine stopped and was restarted. You can resume the run.', code: 'ENGINE_ERROR' } } : r))
+        if (r && !r.reportId && !r.failure) track({ ...r, failure: { message: 'The engine stopped and was restarted. You can resume the run.', code: 'ENGINE_ERROR' } })
       }
     },
-    [go, loadCompanies, loadTools, openReport, target]
+    [go, loadCompanies, loadTools, onLockdownFailed, openReport, target, track]
   )
 
   const begin = (started: RunStarted) => {
@@ -98,7 +115,9 @@ export function useRun({ page, target, go, notify, loadCompanies, loadTools, ope
       begin(reply.result)
       return null
     }
-    if (reply.error?.code === 'RUN_IN_PROGRESS') {
+    const code = reply.error?.code
+    if (code === 'GRADING_IN_PROGRESS') return GRADING_FIRST
+    if (code === 'RUN_IN_PROGRESS') {
       return Date.now() - cancelledAt.current < STOPPING_MS
         ? 'The cancelled report is still stopping. Try again in a minute.'
         : 'A report is already running. You can start another when it finishes.'
@@ -106,19 +125,32 @@ export function useRun({ page, target, go, notify, loadCompanies, loadTools, ope
     return reply.error?.message || 'The report didn’t start.'
   }
 
-  // Resume a stopped run. It keeps its steps so far, its company and its id.
+  // Resume a stopped run. The engine replays it from step 1 with its stored inputs, so its steps
+  // start again; it keeps its company and its id.
   const resume = async () => {
     const r = current.current
     if (!r || resuming) return
     setResuming(true)
+    resumingId.current = r.runId
+    early.current = null
     const reply = await window.tearsheet.resume(r.runId)
+    resumingId.current = null
     setResuming(false)
-    if (reply.ok && reply.result) {
+    const now = current.current
+    if (reply.ok && reply.result && now && now.runId === r.runId) {
+      // The replay's notes that came in while the call was answered (read afresh: they
+      // arrived during the await).
+      const buffered = early.current as { runId: string; steps: StepStates } | null
+      const steps = buffered?.runId === r.runId ? buffered.steps : {}
+      early.current = null
       const { ticker, name } = reply.result
-      setRun((cur) => (cur && cur.runId === r.runId ? { ...cur, ticker: ticker ?? cur.ticker, name: name ?? cur.name, reportId: null, failure: null } : cur))
+      track({ ...now, ticker: ticker ?? now.ticker, name: name ?? now.name, steps, reportId: null, failure: null })
       setReadyHold(false)
       go('home')
-    } else notify('The report didn’t resume', reply.error?.message, 'stop')
+      return
+    }
+    early.current = null
+    if (!reply.ok) notify('The report didn’t resume', reply.error?.code === 'GRADING_IN_PROGRESS' ? GRADING_FIRST : reply.error?.message, 'stop')
   }
 
   // Cancel run: the engine stops it at the next step. Nothing more is heard of it.
@@ -127,6 +159,9 @@ export function useRun({ page, target, go, notify, loadCompanies, loadTools, ope
     if (!r) return
     const reply = await window.tearsheet.cancel(r.runId)
     if (!reply.ok) return notify('The report didn’t cancel', reply.error?.message, 'stop')
+    // The engine had no such run going: it has just ended, and its own note says how.
+    if (reply.result?.ok === false) return notify('The report had already finished')
+    cancelled.current.add(r.runId)
     cancelledAt.current = Date.now()
     if (current.current?.runId === r.runId) track(null)
     const label = r.ticker ?? r.name
