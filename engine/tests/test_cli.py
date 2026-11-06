@@ -110,3 +110,8 @@ def test_run_offline_with_no_ai(monkeypatch, tmp_path, capsys):
     assert code == 0
     assert seen == {"query": "AAPL", "ai": None, "data": "StoredData"}
     assert "Rating: Hold" in out and "a note" in out and "r.html" in out
+
+
+def test_news_sites_with_nothing_read_yet(tmp_path, capsys):
+    assert cli.main(["--data-dir", str(tmp_path), "news-sites"]) == 0
+    assert "No articles have been read or skipped yet." in capsys.readouterr().out

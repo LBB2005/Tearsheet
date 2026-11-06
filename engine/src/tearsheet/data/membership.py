@@ -116,9 +116,10 @@ def _check(rows: list[HoldingRow], unmatched: list[str]) -> None:
         )
 
 
-def parse_ivv(text: str, sec_tickers: dict[str, int]) -> Holdings:
+def parse_ivv(text: str, sec_tickers: dict[str, int], *, check: bool = True) -> Holdings:
     """Parse the IVV CSV: skip the lines before the header row, keep Equity rows, map each
-    ticker to a CIK with SEC's ticker list, and check the row count."""
+    ticker to a CIK with SEC's ticker list, and check the row count. A replay passes
+    `check=False`: the run already accepted this file."""
     lines = text.splitlines()
     header_at = next(
         (i for i, line in enumerate(lines) if line.startswith("Ticker,") and "Asset Class" in line),
@@ -152,7 +153,8 @@ def parse_ivv(text: str, sec_tickers: dict[str, int]) -> Holdings:
                 ticker, sec_tickers[ticker], (record.get("Name") or "").strip(), sector, weight
             )
         )
-    _check(rows, unmatched)
+    if check:
+        _check(rows, unmatched)
     return Holdings(as_of=as_of, source="ivv", rows=rows)
 
 

@@ -68,6 +68,18 @@ class Allowlist:
     def sites(self) -> list[str]:
         return [e.host + (e.path if e.path != "/" else "") for e in self.entries]
 
+    def site_for(self, url: str) -> str:
+        """The allowlist entry an address matches, or its host when none does."""
+        parts = urlsplit(url)
+        host = (parts.hostname or "").lower()
+        path = parts.path or "/"
+        for entry in self.entries:
+            if host not in (entry.host, "www." + entry.host):
+                continue
+            if entry.path == "/" or path == entry.path or path.startswith(entry.path + "/"):
+                return entry.host + (entry.path if entry.path != "/" else "")
+        return host.removeprefix("www.")
+
 
 @dataclass(frozen=True)
 class Paragraph:

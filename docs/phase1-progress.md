@@ -154,8 +154,49 @@ Not committed yet. Nothing here made a live AI call.
 *   **No rewrites in the slice.** The full mode allows one per section, as designed.
 *   **A new placeholder family, `{{macro:<FRED series>}}`,** for the economic series in section 8. The design lists metric, value, price, date, consensus and quote.
 
-## Still to build in Phase 1b
+## The rest of the build (6 Nov 2026)
 
-*   Replay of step 12 (rendering): its output isn't saved as a step yet.
-*   The golden set (item 40).
-*   Per-class market value.
+*   **Replay covers step 12.** A replay now also compares the text code writes: sections 1-3, the red flags and the trigger prices.
+    *   It found that the score table listed factors in a different order from run to run. Now fixed.
+    *   Older stored runs replay with today's database layout.
+    *   `replay --all` replays every finished run.
+*   **Stored test runs.** `engine/tests/fixtures/runs/` holds a thin-slice run and a full run on the synthetic test companies, built by `scripts/make_test_runs.py`. They are under 1 MB, with no keys or personal data.
+    *   CI replays them on every push, so a change that moves a number fails until it's deliberate. Rebuild them only for a deliberate change, together with a `METHOD_CODE_VERSION` increase.
+    *   CI also enforces the 85% coverage bar on the number-making modules (now 94%).
+*   **Share classes.** SEC's company facts drop anything reported by class. For Berkshire that leaves no share count at all, so it got "no valid valuation".
+    *   The engine now reads the counts from the latest 10-Q or 10-K cover page instead, per class, and converts them to the rated class (1 BRK.A = 1,500 BRK.B).
+    *   It was checked on Berkshire's stored 10-K: 511,820 A shares and 1,389,605,139 B shares.
+    *   Alphabet's classes trade one-for-one and are priced alike, so they're added as before.
+*   **News.** 27 free or mostly-free business and industry sites are added to the allowlist. Every article the engine couldn't read is now recorded with its site and the reason.
+    *   `tearsheet-engine news-sites` lists reads and skips per site, and flags sites that are never read.
+    *   To drop a site, list it under `remove:` in your `allowlist.local.yaml`.
+*   **The golden set** (`evals/golden/`, `tearsheet-engine eval golden`). It holds the design's 20 companies, each with its hard case.
+    *   It runs steps 1-8 offline from a frozen store, with no AI.
+    *   It checks your hand-checked numbers (within 0.5%, exact for share counts and dates).
+    *   It flags a company that no longer shows its hard case.
+    *   It lists every rating, score and range change since `last_run.json`.
+    *   **Your steps:**
+        *   `eval golden --freeze` downloads the inputs once, live. Expect several hours: each new sector's prices take about 15 minutes on Massive's free plan.
+        *   Then `eval golden --draft-checks` prints candidate numbers. Check each against EDGAR and paste them into `hand_checked.yaml`.
+        *   Then `eval golden --update` writes `last_run.json`.
+        *   One slot is left for a company with a restatement or a negated going-concern mention, found by an EDGAR full-text search.
+*   **Prompt injection.** A planted article tells the AI to run commands, read a key, open an address, change the rating, break out of its source markers and put a phrase in the report.
+    *   The offline test (`test_injection.py`) uses an AI that obeys it. It checks that:
+        *   the article reaches only section 7's calls;
+        *   its marker break-out is defused;
+        *   its paragraph is marked, and the skeptic is told to take extra care with it;
+        *   none of the obeying sentences survive;
+        *   the rating and every number are unchanged.
+    *   The live version (`tests/live/test_prompt_injection.py`) runs only with `-m live`, at about 35 Claude Code calls. It's your call.
+*   **Fixed: a stale-price run could have logged an official Hold.** With stale prices, the report withholds sections 1-3, but the rating code still returned a placeholder Hold. The log now skips any withheld rating (tested).
+*   **Backups.** A backup now has a test showing it opens with every prediction and its peer prices.
+*   **Timings** (item 34). Two marks were missed, which is your decision (the design adjusts the goal, or you trade something for speed):
+    *   The value step takes 0.01 seconds for all three methods and 40 peers. Pass.
+    *   A first report in a new sector took 27.0 minutes, against a goal of 20. 17.4 minutes was Massive's free plan (88 calls at 5 a minute).
+    *   A report in an already-downloaded sector took 9.1 minutes, against a goal of 5. About 8 minutes was its 35 AI calls.
+*   **Design wording.** 13 updates the code already follows are listed for the design owner in the shared notes.
+*   **Tests:** 505 engine tests (1 more live test, skipped unless asked for) and 11 app tests.
+
+## Still to do
+
+*   Your golden-set steps (above), the four calibration questions, the timing decision, and the Goal 1 test.

@@ -34,7 +34,12 @@ class MemoryKeyring(keyring.backend.KeyringBackend):
 
 
 @pytest.fixture(autouse=True)
-def offline(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def offline(request, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    if request.node.get_closest_marker("live"):
+        # Live tests (tests/live/, run only with -m live) use the real AI tool on purpose. They
+        # still keep to their own temporary data folder.
+        monkeypatch.setattr(config, "DEFAULT_DATA_DIR", tmp_path / "default-data")
+        return
     real_connect = socket.socket.connect
 
     def guarded_connect(sock: socket.socket, address: object) -> None:

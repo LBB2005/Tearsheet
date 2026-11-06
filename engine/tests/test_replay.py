@@ -99,6 +99,10 @@ class LoggedData(FakeData):
         )
         return (day, 0.042)
 
+    async def form4_trades(self, cik, *, today):
+        # As a live run with no insider trades sees it; the replay reads the same (none).
+        return []
+
 
 def parse_ivv_small(text, sec_tickers):
     from tearsheet.data import membership
@@ -302,3 +306,19 @@ def test_a_logged_prediction_replays_identically_and_logs_nothing_more(
     result = replay(database.path, "run-p", raw_dir=tmp_path / "data" / "raw")
     assert result.identical, result.differences
     assert counts(database.conn) == before and before["predictions"] == 1
+
+
+def test_the_stored_test_runs_replay_identically():
+    """engine/tests/fixtures/runs, built by scripts/make_test_runs.py; CI also replays them with
+    `tearsheet-engine replay --all`. A difference means a change moved a number."""
+    from pathlib import Path
+
+    from tearsheet.replay import replayable_runs
+
+    folder = Path(__file__).parent / "fixtures" / "runs"
+    runs = replayable_runs(folder / "tearsheet.sqlite")
+    assert runs == ["run-fixture-slice", "run-fixture-full"]
+    for run_id in runs:
+        result = replay(folder / "tearsheet.sqlite", run_id, raw_dir=folder / "raw")
+        assert result.identical, (run_id, result.differences)
+        assert result.compared == 8

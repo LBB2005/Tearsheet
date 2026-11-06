@@ -48,7 +48,7 @@ from tearsheet.peers import PeerGroup, build_peer_group
 from tearsheet.prompts import load_prompt
 from tearsheet.rating import PeerGap, Rating, RatingInputs, peer_mix, rate, value_gap
 from tearsheet.render import PlaceholderValue, fill, format_value, render_html
-from tearsheet.resolve import Resolved, resolve
+from tearsheet.resolve import CONVERSION_RATIOS, Resolved, canonical_ticker, resolve
 from tearsheet.scoring import (
     SLICE_METRICS,
     ScoreResult,
@@ -94,6 +94,15 @@ STEPS = (
     "save",
 )
 STOPPING = (AIUsageLimit, AIAuthError, AILockdownFailed)
+# The order the score table lists factors in (weights.yaml's order).
+FACTOR_ORDER = (
+    "profitability",
+    "momentum",
+    "valuation",
+    "capital_discipline",
+    "balance_sheet",
+    "earnings_quality",
+)
 TRADING_DAYS = 252
 MOMENTUM_SKIP = 21
 RATING_DEFINITION = (
@@ -179,6 +188,9 @@ class MemberData:
     dividend_yield: float = 0.0
     valuation_inputs: ValuationInputs | None = None
     financial_class: str = ""
+    # Shares from the cover page, all classes, in this member's own ticker's units, when SEC's
+    # company-facts file has no usable count (it drops per-class facts).
+    cover_shares: float | None = None
 
 
 @dataclass
@@ -334,6 +346,30 @@ class Run:
                 ),
             )
 
+    def _factor_order(self) -> dict[str, int]:
+        # Fixed in code: a run's stored methodology copy keeps no key order.
+        return {name: i for i, name in enumerate(FACTOR_ORDER)}
+
+    def _record_render(self, sections, watch_lines) -> None:
+        """Step 12's output for replay (item 38): the text code writes, sections 1-3, the red
+        flags and the trigger prices. Whether a prediction was logged is left out, because a
+        replay never logs one; so are the AI-written parts, because a replay makes no AI calls."""
+        code = {
+            s["key"]: {
+                "title": s["title"],
+                "paragraphs": [line for line in s["paragraphs"] if line != self.prediction_note],
+                "table": s.get("table"),
+            }
+            for s in sections
+            if s["key"] in ("rating", "score", "valuation")
+        }
+        output = {"code_sections": code, "risk_lines": self._risk_lines(), "triggers": watch_lines}
+        with self.conn:
+            self.conn.execute(
+                "INSERT OR REPLACE INTO step_outputs (run_id, step, json) VALUES (?, ?, ?)",
+                (self.run_id, "render", json.dumps(output, default=str)),
+            )
+
     def _save_step(self, step: str, output: dict[str, Any]) -> None:
         with self.conn:
             self.conn.execute(
@@ -406,6 +442,7 @@ class Run:
             step = "fetch"
             self._step(step)
             docs = await self.fetch(resolved, group)
+            self.docs_used = docs
             group = self.group
             self._save_step(
                 step, {"documents": [d.accession for d in docs], "left_out": group.left_out}
@@ -460,6 +497,7 @@ class Run:
             step = "rate"
             self._step(step)
             rating, rng, level, mix = self.rate(score)
+            self.rated = (rating, rng)
             self._log_prediction(resolved, docs, score, rating, rng, level)
             self._save_step(
                 step,
@@ -623,6 +661,7 @@ class Run:
                 ),
             )
             member.price = self.store.latest_close(cik, up_to=self.price_date)
+            await self._cover_shares(member)
             if cik == self.cik:
                 member.financial_class = self.company_class
             elif financial_sector:
@@ -708,6 +747,40 @@ class Run:
                     )
         return out
 
+    async def _cover_shares(self, member: MemberData) -> None:
+        """Per-class cover-page counts, when the company-facts file has no usable count. Each
+        class is converted to the member's own ticker's units with the conversion ratios
+        (1 BRK.A = 1,500 BRK.B) and split-adjusted to the price date."""
+        fin, cover = member.fin, getattr(self.data, "cover_share_counts", None)
+        if fin is None or cover is None or fin.latest("shares_outstanding") is not None:
+            return
+        try:
+            counts, accession = await cover(member.cik, today=self.today)
+        except Exception:  # noqa: BLE001 - without a count the member gets no market value
+            return
+        if not counts:
+            return
+
+        def ratio(ticker: str | None) -> float:
+            return CONVERSION_RATIOS.get(canonical_ticker(ticker), 1.0) if ticker else 1.0
+
+        own = ratio(member.ticker)
+        total = 0.0
+        for c in counts:
+            factor = (
+                self.store.split_factor(member.cik, after=c.as_of, up_to=self.price_date)
+                if c.as_of
+                else 1.0
+            )
+            total += c.shares * factor * ratio(c.ticker) / own
+        member.cover_shares = total
+        classes = ", ".join(f"{c.ticker or 'unlisted'} {c.shares:,.0f}" for c in counts)
+        if member.cik == self.cik:
+            self.notes.append(
+                f"Shares outstanding come from the cover page of filing {accession} ({classes}), "
+                f"in {member.ticker} units, because SEC's company facts report them only by class."
+            )
+
     # --- steps 5-8 --------------------------------------------------------------------------
 
     def compute_metrics(self) -> None:
@@ -715,10 +788,16 @@ class Run:
             if m.fin is None or m.price is None:
                 continue
             price = m.price[1]
-            shares = m.fin.shares("shares_outstanding", price_date=self.price_date) or m.fin.shares(
-                "diluted_shares", price_date=self.price_date
+            # Shares outstanding: the company-facts count, else the cover page's per-class
+            # count, else the latest diluted average.
+            outstanding = m.fin.shares("shares_outstanding", price_date=self.price_date)
+            diluted = m.fin.shares("diluted_shares", price_date=self.price_date)
+            count = (
+                outstanding.value
+                if outstanding
+                else m.cover_shares or (diluted.value if diluted else None)
             )
-            market_value = price * shares.value if shares else None
+            market_value = price * count if count else None
             inputs = inputs_from(
                 m.fin,
                 cik=cik,
@@ -777,9 +856,10 @@ class Run:
             return None
         c = m.inputs  # type: ignore[attr-defined]
         fin = m.fin
-        shares = fin.shares("diluted_shares", price_date=self.price_date) or fin.shares(
+        found = fin.shares("diluted_shares", price_date=self.price_date) or fin.shares(
             "shares_outstanding", price_date=self.price_date
         )
+        shares = found.value if found else m.cover_shares
         if shares is None or c.market_value is None:
             return None
         ocf, capex = (
@@ -796,7 +876,7 @@ class Run:
         return ValuationInputs(
             cik=m.cik,
             price=m.price[1],
-            shares=shares.value,
+            shares=shares,
             market_value=c.market_value,
             revenue=c.revenue,
             ebit=c.ebit,
@@ -985,7 +1065,9 @@ class Run:
                 "(not offline runs on stored data, replays or resumes)."
             )
             return
-        if rating.rating is None:
+        if rating.rating is None or self.withheld:
+            # Stale or missing prices withhold the rating as shown (sections 1-3), even though
+            # the rating code still returns a placeholder; neither uses up the slot.
             self.prediction_note = "No prediction is logged: the rating is withheld."
             return
         if not predictions.slot_open(self.conn, self.cik, self.now):
@@ -1241,6 +1323,17 @@ class Run:
             got = await fetch(link.url, allowlist)
             if isinstance(got, Skipped):
                 skipped[got.reason] = skipped.get(got.reason, 0) + 1
+                with self.conn:
+                    self.conn.execute(
+                        "INSERT OR IGNORE INTO article_skips (run_id, url, site, reason, at) VALUES (?, ?, ?, ?, ?)",
+                        (
+                            self.run_id,
+                            link.url,
+                            allowlist.site_for(link.url),
+                            got.reason,
+                            _now().isoformat(),
+                        ),
+                    )
                 continue
             source_id = got.paragraphs[0].id.rsplit("-p", 1)[0] if got.paragraphs else None
             if source_id is None:
@@ -1612,7 +1705,10 @@ class Run:
                     f"{v:.0f}",
                     f"{score.weights_used[self.cik].get(f, 0) * 100:.1f}%",
                 ]
-                for f, v in factors.items()
+                # In the methodology's factor order, so the table reads the same on every run.
+                for f, v in sorted(
+                    factors.items(), key=lambda kv: self._factor_order().get(kv[0], 99)
+                )
             ]
             sections.append(
                 {
@@ -1753,6 +1849,7 @@ class Run:
         sections.append(ai_section(SectionKey.WATCH, None, "What to watch", watch_lines))
         # Report order: sections 1-8, then the What to watch block just before section 9.
         sections.sort(key=lambda s: s["number"] if s["number"] is not None else 8.5)
+        self._record_render(sections, watch_lines)
 
         methodology = [
             RATING_DEFINITION,

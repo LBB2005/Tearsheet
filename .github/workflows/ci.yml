@@ -1,6 +1,6 @@
-# Continuous integration (design item 52): the engine's lint and offline tests, and the app's
-# typecheck, tests and generated protocol types. Still to add: the coverage bar and replay of the
-# stored test runs (Phase 1b, with the golden set).
+# Continuous integration (design item 52): the engine's lint, offline tests with the coverage
+# bar, and replay of the stored test runs; the app's typecheck, tests and generated protocol
+# types.
 name: CI
 
 on:
@@ -22,8 +22,10 @@ jobs:
         run: uv sync --locked
       - name: Lint
         run: uv run ruff check . ../scripts && uv run ruff format --check . ../scripts
-      - name: Offline tests
-        run: uv run pytest
+      - name: Offline tests, with the coverage bar on the number-making modules
+        run: uv run pytest --cov --cov-report=term
+      - name: Replay the stored test runs (identical numbers)
+        run: uv run tearsheet-engine --data-dir tests/fixtures/runs replay --all
 
   app:
     runs-on: macos-latest

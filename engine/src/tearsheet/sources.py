@@ -129,6 +129,15 @@ class StoredData:
         body = self._body(sec_data.SUBMISSIONS_URL.format(cik=cik))
         return json.loads(body) if body else {}
 
+    async def cover_share_counts(self, cik: int, *, today: date):
+        """Per-class share counts from the latest stored 10-Q or 10-K cover page."""
+        subs = await self.submissions(cik)
+        filing = sec_data.latest_report(
+            sec_data.filings_from(subs.get("filings", {}).get("recent", {}), cik)
+        )
+        body = self._body(filing.url(filing.primary_document)) if filing else None
+        return (sec_data.cover_share_counts(body), filing.accession) if body else ([], None)
+
     async def company_facts(self, cik: int) -> dict[str, Any]:
         body = self._body(sec_data.COMPANY_FACTS_URL.format(cik=cik))
         if body is None:
@@ -264,6 +273,17 @@ class LiveData:
 
     async def company_facts(self, cik: int) -> dict[str, Any]:
         return (await self.sec.company_facts(cik))[1]
+
+    async def cover_share_counts(self, cik: int, *, today: date):
+        """Per-class share counts from the latest 10-Q or 10-K cover page (one document,
+        stored like every filing, so it is downloaded once)."""
+        filings = await self.sec.filings(cik, since=today - timedelta(days=400))
+        filing = sec_data.latest_report(filings)
+        if filing is None:
+            return [], None
+        return sec_data.cover_share_counts(
+            await self.sec.primary_document(filing)
+        ), filing.accession
 
     async def filing_documents(self, cik: int, *, today: date) -> list[Doc]:
         filings = await self.sec.filings(

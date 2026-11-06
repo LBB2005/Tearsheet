@@ -690,6 +690,37 @@ def test_news_reaches_only_section_7(database, tmp_path):
     )
     assert database.conn.execute("SELECT COUNT(*) FROM articles").fetchone()[0] == 2
     assert any("paywalled" in n for n in result.notes)
+    # The skipped address is kept by site, for `tearsheet-engine news-sites`.
+    skips = database.conn.execute("SELECT url, site, reason FROM article_skips").fetchall()
+    assert [tuple(s) for s in skips] == [("https://www.wsj.com/paywalled", "wsj.com", "paywalled")]
+
+
+def test_the_site_report_finds_sites_that_are_never_read(database):
+    from tearsheet.data.articles import Allowlist
+    from tearsheet.news import site_report
+
+    with database.conn:
+        database.conn.execute(
+            "INSERT INTO articles (id, url, final_url, publisher, source_type, published_at, fetched_at, raw_hash)"
+            " VALUES ('art-1', 'https://www.reuters.com/a', 'https://www.reuters.com/a', 'Reuters', 'news', '2026-11-01', '2026-11-05', 'h')"
+        )
+        database.conn.executemany(
+            "INSERT INTO article_skips (run_id, url, site, reason, at) VALUES (?, ?, ?, ?, '2026-11-05')",
+            [(f"run-{n}", f"https://www.wsj.com/{n}", "wsj.com", "paywalled") for n in range(3)]
+            + [("run-0", "https://www.reuters.com/b", "reuters.com", "under 150 words")],
+        )
+    rows = {r["site"]: r for r in site_report(database.conn, Allowlist(["reuters.com", "wsj.com"]))}
+    assert rows["wsj.com"]["drop_candidate"] and rows["wsj.com"]["skipped"] == {"paywalled": 3}
+    assert rows["reuters.com"]["read"] == 1 and not rows["reuters.com"]["drop_candidate"]
+
+
+def test_an_address_is_matched_to_its_allowlist_entry():
+    from tearsheet.data.articles import Allowlist
+
+    allow = Allowlist(["cnn.com/business", "reuters.com"])
+    assert allow.site_for("https://www.cnn.com/business/apple-q4") == "cnn.com/business"
+    assert allow.site_for("https://reuters.com/x") == "reuters.com"
+    assert allow.site_for("https://www.example.com/x") == "example.com"
 
 
 def test_without_news_section_7_says_so(database, tmp_path):
@@ -1248,3 +1279,87 @@ def test_logged_predictions_can_never_be_changed(database, tmp_path):
         with database.conn:
             database.conn.execute("DELETE FROM predictions")
     assert len(prediction_rows(database)) == 1
+
+
+# --- share counts from the cover page (per-class market value) ---------------------------------
+
+
+class CoverOnly(FakeData):
+    """The company's facts have no cover-page count (as for Berkshire, whose counts SEC reports
+    only by class), so the count comes from its filing's cover page: 100 shares of a class worth
+    10 of the rated class each, plus 1,000 of the rated class."""
+
+    async def company_facts(self, cik):
+        facts = await super().company_facts(cik)
+        if cik == COMPANY:
+            facts["facts"]["dei"] = {}
+        return facts
+
+    async def cover_share_counts(self, cik, *, today):
+        from tearsheet.data.sec import CoverCount
+
+        return [
+            CoverCount("T0.A", "us-gaap:CommonClassAMember", 100.0, date(2026, 10, 20)),
+            CoverCount("T0", "us-gaap:CommonClassBMember", 1000.0, date(2026, 10, 20)),
+        ], "0001-26-000002"
+
+
+def test_cover_page_counts_are_converted_to_the_rated_class(database, tmp_path, monkeypatch):
+    from tearsheet import pipeline as pl
+
+    monkeypatch.setitem(pl.CONVERSION_RATIOS, "T0.A", 10.0)
+    run = Run(
+        database.conn, CoverOnly(), None, load(), mode="full", now=NOW, out_dir=tmp_path / "r"
+    )
+    asyncio.run(run.run("T0"))
+    company = run.members[COMPANY]
+    assert company.cover_shares == pytest.approx(100 * 10 + 1000)
+    assert company.inputs.market_value == pytest.approx(company.price[1] * 2000)
+    assert any("cover page of filing 0001-26-000002" in n for n in run.notes)
+    # A peer with a usable count in its company facts doesn't fetch its cover page.
+    assert run.members[COMPANY + 1].cover_shares is None
+
+
+def test_a_run_with_stale_prices_logs_no_prediction(database, tmp_path):
+    from datetime import timedelta
+
+    # The test data's prices end on 4 Nov, so a run 10 days later has stale prices.
+    state = ToolState(database.conn, "claude")
+    state.record_check(version="1.0", model_ids=["m"], form="full", passed=True)
+    run = Run(
+        database.conn,
+        FakeData(),
+        None,
+        load(),
+        mode="full",
+        now=NOW + timedelta(days=10),
+        out_dir=tmp_path / "r",
+        log_predictions=True,
+        backup_dir=tmp_path / "backups",
+    )
+    asyncio.run(run.run("T0"))
+    assert run.withheld and run.prediction_id is None
+    assert prediction_rows(database) == []
+    assert "the rating is withheld" in run.prediction_note
+
+
+def test_a_backup_opens_and_holds_every_prediction_and_its_prices(database, tmp_path):
+    from datetime import timedelta
+
+    from tearsheet.db import open_database
+
+    logged(database, tmp_path)
+    logged(database, tmp_path, now=NOW + timedelta(days=31))
+    backups = sorted((tmp_path / "backups").glob("tearsheet-*.sqlite"))
+    assert backups
+    copy = open_database(backups[-1])
+    try:
+        held = {r[0] for r in copy.conn.execute("SELECT prediction_id FROM predictions")}
+        assert held == {r["prediction_id"] for r in prediction_rows(database)} and len(held) == 2
+        # Each prediction's peer prices travel with it, so it can be graded from the copy.
+        peers = copy.conn.execute(
+            "SELECT COUNT(DISTINCT cik) FROM prices_daily WHERE cik IN (SELECT peer_cik FROM peer_groups)"
+        ).fetchone()[0]
+        assert peers > 0
+    finally:
+        copy.close()

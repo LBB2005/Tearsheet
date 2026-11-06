@@ -1,0 +1,27 @@
+# The golden set (design item 40): 20 companies chosen for their hard cases. The tickers are
+# drafter defaults; change any of them. `as_of` is the date the store was frozen, set by
+# `tearsheet-engine eval golden --freeze`. Each `cases` entry is checked on every eval, so a
+# company that no longer shows its hard case is flagged to be swapped.
+as_of: null
+tickers:
+  - {ticker: JPM, cases: [bank]}
+  - {ticker: TRV, cases: [insurer]}
+  - {ticker: PLD, cases: [reit]}
+  - {ticker: DUK, cases: [utility]}
+  - {ticker: INTC, cases: [negative_fcf]}
+  - {ticker: MCD, cases: [negative_book_value]}
+  - {ticker: NVDA, cases: [january_fiscal_year, recent_split]}
+  - {ticker: GOOGL, cases: [multi_class]}
+  - {ticker: BRK.B, cases: [multi_class, insurer]}
+  - {ticker: MMM, cases: [digits_in_name]}
+  - {ticker: WFC, cases: [exhibit_13]}
+  # A company with a restatement or a negated going-concern mention, found by an EDGAR
+  # full-text search; add it here with cases: [restatement].
+  - {ticker: AAPL, cases: []}
+  - {ticker: AMZN, cases: []}
+  - {ticker: META, cases: []}
+  - {ticker: XOM, cases: []}
+  - {ticker: JNJ, cases: []}
+  - {ticker: PG, cases: []}
+  - {ticker: CAT, cases: []}
+  - {ticker: LIN, cases: []}

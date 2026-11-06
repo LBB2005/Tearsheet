@@ -30,6 +30,35 @@ news_outlets:
   - supplychaindive.com
   - constructiondive.com
   - retaildive.com
+  # Added 6 Nov 2026 (Phase 0 news result: Apple got 1 readable article). Free or mostly free
+  # business and industry coverage. `tearsheet-engine news-sites` shows which ones get read.
+  - nasdaq.com/articles
+  - investing.com/news
+  - thestreet.com
+  - benzinga.com
+  - forbes.com
+  - businessinsider.com
+  - cnn.com/business
+  - cbsnews.com/news
+  - usatoday.com/money
+  - semafor.com
+  - qz.com
+  - fastcompany.com
+  - morningstar.com/news
+  - kiplinger.com
+  - engadget.com
+  - zdnet.com
+  - wired.com
+  - 9to5mac.com
+  - macrumors.com
+  - electrek.co
+  - utilitydive.com
+  - healthcaredive.com
+  - biopharmadive.com
+  - fooddive.com
+  - insurancejournal.com
+  - freightwaves.com
+  - rigzone.com
 bank_research:
   - goldmansachs.com/insights
   - morganstanley.com/insights

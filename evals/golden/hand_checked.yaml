@@ -1,0 +1,6 @@
+# Hand-checked numbers (design item 40): at least 5 per ticker, each checked by hand against
+# the filing on EDGAR. `eval golden` fails if any checked number is more than 0.5% off (share
+# counts and dates must match exactly). After the store is frozen, `eval golden --draft-checks`
+# prints candidates from the engine's own numbers with `checked: false`: compare each with the
+# filing, correct any that differ, set `checked: true`, and paste them here.
+checks: []

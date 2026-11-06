@@ -51,6 +51,25 @@ filterwarnings = [
     "ignore:Series.values returning an ndarray",
 ]
 
+[tool.coverage.run]
+# The modules that make or check numbers (Verification Plan): CI fails under 85% across them.
+source = [
+    "tearsheet.normalize",
+    "tearsheet.text",
+    "tearsheet.metrics",
+    "tearsheet.flags",
+    "tearsheet.peers",
+    "tearsheet.scoring",
+    "tearsheet.valuation",
+    "tearsheet.rating",
+    "tearsheet.data.prices",
+    "tearsheet.verify",
+    "tearsheet.predictions",
+]
+
+[tool.coverage.report]
+fail_under = 85
+
 [tool.ruff]
 line-length = 100
 target-version = "py312"

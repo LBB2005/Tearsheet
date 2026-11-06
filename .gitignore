@@ -24,6 +24,8 @@ app/dist/
 *.sqlite-shm
 *.sqlite-wal
 *.sqlite.*.bak
+# Except the stored test runs CI replays (synthetic data, no keys): scripts/make_test_runs.py
+!engine/tests/fixtures/runs/tearsheet.sqlite
 
 # macOS
 .DS_Store

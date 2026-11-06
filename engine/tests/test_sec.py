@@ -437,3 +437,40 @@ def test_form4_trades_reads_the_owner_dates_and_codes():
         ("Fish James C Jr", date(2026, 11, 3), "S"),
     ]
     assert form4_trades(b"not xml", date(2026, 11, 4)) == []
+
+
+COVER = b"""
+<ix:header><ix:resources>
+<xbrli:context id="cA"><xbrli:entity><xbrli:segment><xbrldi:explicitMember dimension="us-gaap:StatementClassOfStockAxis">us-gaap:CommonClassAMember</xbrldi:explicitMember></xbrli:segment></xbrli:entity><xbrli:period><xbrli:instant>2026-01-31</xbrli:instant></xbrli:period></xbrli:context>
+<xbrli:context id="cB"><xbrli:entity><xbrli:segment><xbrldi:explicitMember dimension="us-gaap:StatementClassOfStockAxis">us-gaap:CommonClassBMember</xbrldi:explicitMember></xbrli:segment></xbrli:entity><xbrli:period><xbrli:instant>2026-01-31</xbrli:instant></xbrli:period></xbrli:context>
+<xbrli:context id="cC"><xbrli:entity><xbrli:segment><xbrldi:explicitMember dimension="us-gaap:StatementClassOfStockAxis">goog:CapitalClassCMember</xbrldi:explicitMember></xbrli:segment></xbrli:entity><xbrli:period><xbrli:instant>2026-01-31</xbrli:instant></xbrli:period></xbrli:context>
+<xbrli:context id="dA"><xbrli:entity><xbrli:segment><xbrldi:explicitMember dimension="us-gaap:StatementClassOfStockAxis">us-gaap:CommonClassAMember</xbrldi:explicitMember></xbrli:segment></xbrli:entity><xbrli:period><xbrli:startDate>2025-01-01</xbrli:startDate><xbrli:endDate>2025-12-31</xbrli:endDate></xbrli:period></xbrli:context>
+<xbrli:context id="dC"><xbrli:entity><xbrli:segment><xbrldi:explicitMember dimension="us-gaap:StatementClassOfStockAxis">goog:CapitalClassCMember</xbrldi:explicitMember></xbrli:segment></xbrli:entity><xbrli:period><xbrli:startDate>2025-01-01</xbrli:startDate><xbrli:endDate>2025-12-31</xbrli:endDate></xbrli:period></xbrli:context>
+</ix:resources></ix:header>
+<p>Class A <ix:nonNumeric name="dei:TradingSymbol" contextRef="dA">googl</ix:nonNumeric>,
+Class C <ix:nonNumeric name="dei:TradingSymbol" contextRef="dC">GOOG</ix:nonNumeric></p>
+<p><ix:nonFraction name="dei:EntityCommonStockSharesOutstanding" contextRef="cA" unitRef="shares" decimals="INF"><span>5,817,000,000</span></ix:nonFraction> Class A,
+<ix:nonFraction name="dei:EntityCommonStockSharesOutstanding" contextRef="cB" unitRef="shares" scale="6" decimals="-6">861</ix:nonFraction> Class B (unlisted),
+<ix:nonFraction name="dei:EntityCommonStockSharesOutstanding" contextRef="cC" unitRef="shares">5,450,000,000</ix:nonFraction> Class C</p>
+"""
+
+
+def test_cover_page_share_counts_by_class_with_their_symbols():
+    from tearsheet.data.sec import cover_share_counts
+
+    counts = {c.member: c for c in cover_share_counts(COVER)}
+    assert counts["us-gaap:CommonClassAMember"].ticker == "GOOGL"
+    assert counts["us-gaap:CommonClassAMember"].shares == 5_817_000_000
+    assert counts["us-gaap:CommonClassBMember"].ticker is None  # unlisted
+    assert counts["us-gaap:CommonClassBMember"].shares == 861_000_000  # scale 6
+    assert counts["goog:CapitalClassCMember"].ticker == "GOOG"
+    assert {c.as_of for c in counts.values()} == {date(2026, 1, 31)}
+
+
+def test_a_single_class_cover_page_has_no_member():
+    from tearsheet.data.sec import cover_share_counts
+
+    html = b"""<xbrli:context id="c1"><xbrli:entity></xbrli:entity><xbrli:period><xbrli:instant>2026-10-17</xbrli:instant></xbrli:period></xbrli:context>
+    <ix:nonFraction name="dei:EntityCommonStockSharesOutstanding" contextRef="c1">14,776,353,000</ix:nonFraction>"""
+    [count] = cover_share_counts(html)
+    assert count.member is None and count.shares == 14_776_353_000

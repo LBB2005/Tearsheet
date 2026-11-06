@@ -31,7 +31,7 @@ from tearsheet.methodology import from_stored
 from tearsheet.rawstore import RawStore
 from tearsheet.sources import StoredData
 
-COMPARED_STEPS = ("resolve", "normalize", "text", "metrics", "score", "value", "rate")
+COMPARED_STEPS = ("resolve", "normalize", "text", "metrics", "score", "value", "rate", "render")
 
 
 class ReplayError(Exception):
@@ -75,7 +75,9 @@ class ReplayData(StoredData):
             body = self._body(IVV_HOLDINGS_URL)
             if body is not None:
                 return Refreshed(
-                    parse_ivv(body.decode("utf-8", errors="replace"), sec_tickers), None
+                    # The run already accepted this file, so its sanity checks aren't repeated.
+                    parse_ivv(body.decode("utf-8", errors="replace"), sec_tickers, check=False),
+                    None,
                 )
             as_of = self._resolved.get("holdings_as_of")
             rows = self._conn.execute(
@@ -107,8 +109,29 @@ def _copy_read_only(db_path: Path) -> sqlite3.Connection:
         source.backup(memory)
     finally:
         source.close()
+    # A run stored by an older engine replays with today's schema: upgrade the copy in memory.
+    from tearsheet.db import migrations
+
+    current = memory.execute("PRAGMA user_version").fetchone()[0]
+    for number, sql in migrations():
+        if number > current:
+            memory.executescript(f"BEGIN;\n{sql}\nPRAGMA user_version = {number};\nCOMMIT;")
     memory.row_factory = sqlite3.Row
     return memory
+
+
+def replayable_runs(db_path: Path) -> list[str]:
+    """Every finished run in a data folder, oldest first."""
+    conn = sqlite3.connect(f"{Path(db_path).resolve().as_uri()}?mode=ro", uri=True)
+    try:
+        return [
+            r[0]
+            for r in conn.execute(
+                "SELECT run_id FROM runs WHERE status IN ('done', 'done_incomplete') ORDER BY started_at"
+            )
+        ]
+    finally:
+        conn.close()
 
 
 def _compare(name: str, before: Any, after: Any, out: list[str], path: str = "") -> None:

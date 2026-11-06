@@ -16,6 +16,8 @@ from tearsheet.ai.schemas import Link, LinkList
 from tearsheet.data.articles import Allowlist
 
 LINK_LIMIT = 15
+# A site never read and skipped this many times is shown as a candidate to drop.
+DROP_AFTER_SKIPS = 3
 WINDOW_DAYS = 30
 
 
@@ -86,3 +88,24 @@ async def search_links(
         prompt_version=prompt_version,
     )
     return keep_allowed(answer.links, allowlist)
+
+
+def site_report(conn, allowlist: Allowlist) -> list[dict]:
+    """Per allowlisted site: articles read, and articles skipped by reason, over every run.
+    A site that is never read and keeps being skipped is a candidate to drop."""
+    sites: dict[str, dict] = {}
+
+    def row(site: str) -> dict:
+        return sites.setdefault(site, {"site": site, "read": 0, "skipped": {}})
+
+    for (url,) in conn.execute("SELECT final_url FROM articles"):
+        row(allowlist.site_for(url))["read"] += 1
+    for site, reason, count in conn.execute(
+        "SELECT site, reason, COUNT(*) FROM article_skips GROUP BY site, reason"
+    ):
+        row(site)["skipped"][reason] = count
+    out = sorted(sites.values(), key=lambda r: (-sum(r["skipped"].values()), -r["read"], r["site"]))
+    for r in out:
+        total = sum(r["skipped"].values())
+        r["drop_candidate"] = r["read"] == 0 and total >= DROP_AFTER_SKIPS
+    return out

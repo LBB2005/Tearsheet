@@ -296,28 +296,41 @@ def cmd_resume(args: argparse.Namespace) -> int:
 
 
 def cmd_replay(args: argparse.Namespace) -> int:
-    from tearsheet.replay import ReplayError, replay
+    from tearsheet.replay import ReplayError, replay, replayable_runs
 
     paths = config.Paths(config.resolve_data_dir(getattr(args, "data_dir", None)))
-    try:
-        result = replay(paths.db, args.run_id, raw_dir=paths.raw)
-    except ReplayError as exc:
-        print(str(exc), file=sys.stderr)
+    if args.all:
+        run_ids = replayable_runs(paths.db)
+    elif args.run_id:
+        run_ids = [args.run_id]
+    else:
+        print("Name a run ID, or use --all.", file=sys.stderr)
         return 2
-    if result.identical:
-        print(
-            f"Replayed {result.run_id}: identical numbers in {result.compared} steps and every metric."
-        )
-        return 0
-    print(f"Replayed {result.run_id}: {len(result.differences)} differences.")
-    for line in result.differences[:50]:
-        print(f"  - {line}")
-    if not result.same_method_code:
-        print(
-            "The run was made by an older method code version, so differences are expected (listed only)."
-        )
-        return 0
-    return 1
+    worst = 0
+    for run_id in run_ids:
+        try:
+            result = replay(paths.db, run_id, raw_dir=paths.raw)
+        except ReplayError as exc:
+            print(str(exc), file=sys.stderr)
+            worst = max(worst, 2)
+            continue
+        if result.identical:
+            print(
+                f"Replayed {run_id}: identical numbers in {result.compared} steps and every metric."
+            )
+            continue
+        print(f"Replayed {run_id}: {len(result.differences)} differences.")
+        for line in result.differences[:50]:
+            print(f"  - {line}")
+        if not result.same_method_code:
+            print(
+                "  The run was made by an older method code version, so differences are expected (listed only)."
+            )
+        else:
+            worst = max(worst, 1)
+    if not run_ids:
+        print("No finished runs to replay.")
+    return worst
 
 
 def _goal1_round(database) -> int:
@@ -519,6 +532,93 @@ def cmd_grade(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_news_sites(args: argparse.Namespace) -> int:
+    from tearsheet.data.articles import Allowlist
+    from tearsheet.methodology import load
+    from tearsheet.news import site_report
+
+    paths, database = _open(args, "news-sites")
+    try:
+        method = load(local_allowlist=paths.data_dir / "allowlist.local.yaml")
+        rows = site_report(database.conn, Allowlist(method.allowlist_sites()))
+    finally:
+        database.close()
+    if not rows:
+        print("No articles have been read or skipped yet.")
+        return 0
+    print("Site: articles read; not read, by reason")
+    for r in rows:
+        reasons = ", ".join(f"{k} {v}" for k, v in sorted(r["skipped"].items())) or "none"
+        flag = "  <- never read; consider dropping it" if r["drop_candidate"] else ""
+        print(f"  {r['site']}: {r['read']} read; not read: {reasons}{flag}")
+    print(f"To drop a site, list it under `remove:` in {paths.data_dir / 'allowlist.local.yaml'}.")
+    return 0
+
+
+def cmd_eval(args: argparse.Namespace) -> int:
+    from tearsheet import golden
+
+    folder = Path(args.evals).expanduser() if args.evals else golden.evals_dir()
+    store = Path(args.store).expanduser() if args.store else golden.GOLDEN_DIR
+    as_of, tickers = golden.load_tickers(folder)
+    if not tickers:
+        print(f"No tickers in {folder / 'tickers.yaml'}.", file=sys.stderr)
+        return 2
+    if args.freeze:
+        _, database = _open(args, "eval")
+        try:
+            settings = config.Settings(database.conn)
+            print(
+                f"Downloading every input for {len(tickers)} companies into {store}, with no AI "
+                "calls. Prices for each new sector take about 15 minutes on Massive's free plan."
+            )
+            frozen = asyncio.run(golden.freeze(store, tickers, settings))
+        finally:
+            database.close()
+        golden.set_as_of(folder, frozen)
+        print(f"Frozen at {frozen:%Y-%m-%d %H:%M} UTC; tickers.yaml now records it. Commit it.")
+        return 0
+    if as_of is None or not (store / "tearsheet.sqlite").exists():
+        print(
+            f"The golden store isn't frozen yet. Run: tearsheet-engine eval golden --freeze "
+            f"(it downloads into {store}).",
+            file=sys.stderr,
+        )
+        return 2
+    print(
+        f"Golden set: {len(tickers)} companies, offline from {store}, as of {as_of:%Y-%m-%d %H:%M} UTC."
+    )
+    results = golden.run_all(store, tickers, as_of)
+    for r in results:
+        rng = "" if r.base is None else f", range {r.bear:.2f} / {r.base:.2f} / {r.bull:.2f}"
+        score = "" if r.score is None else f", score {r.score:.0f}"
+        print(
+            f"  {r.ticker}: {r.status}, {r.rating or 'withheld'}{score}{rng}{f' ({r.error})' if r.error else ''}"
+        )
+    if args.draft_checks:
+        print(golden.draft_checks(results))
+        return 0
+    if args.update:
+        (folder / "last_run.json").write_text(golden.last_run_json(results, as_of) + "\n")
+        print(f"Wrote {folder / 'last_run.json'}; commit it.")
+        return 0
+    checks = (golden.read_yaml(folder / "hand_checked.yaml") or {}).get("checks") or []
+    problems = golden.check_numbers(results, checks)
+    cases = golden.check_cases(results, tickers)
+    last = golden.read_yaml(folder / "last_run.json")
+    changes = golden.compare(results, last)
+    checked = sum(1 for c in checks if c.get("checked"))
+    print(f"Hand-checked numbers: {checked - len(problems)} of {checked} within the limits.")
+    for line in problems:
+        print(f"  - {line}")
+    for line in cases:
+        print(f"  - {line}")
+    print("Changes since last_run.json:" if changes else "No changes since last_run.json.")
+    for line in changes:
+        print(f"  - {line}")
+    return 1 if problems else 0
+
+
 def cmd_serve(args: argparse.Namespace) -> int:
     from tearsheet.server import serve
 
@@ -578,8 +678,27 @@ def build_parser() -> argparse.ArgumentParser:
     again = commands.add_parser(
         "replay", parents=[common], help="re-run a run's code steps from its stored inputs"
     )
-    again.add_argument("run_id")
+    again.add_argument("run_id", nargs="?")
+    again.add_argument("--all", action="store_true", help="replay every finished run")
     again.set_defaults(handler=cmd_replay)
+
+    evaluate = commands.add_parser(
+        "eval", parents=[common], help="the golden set: hand-checked numbers and rating changes"
+    )
+    evaluate.add_argument("suite", choices=("golden",))
+    evaluate.add_argument("--freeze", action="store_true", help="download every input once, live")
+    evaluate.add_argument("--update", action="store_true", help="rewrite last_run.json")
+    evaluate.add_argument(
+        "--draft-checks", action="store_true", help="print candidate hand checks to verify"
+    )
+    evaluate.add_argument("--store", help="the golden data folder (default ~/Tearsheet Golden)")
+    evaluate.add_argument("--evals", help="the evals/golden folder (default: the repository's)")
+    evaluate.set_defaults(handler=cmd_eval)
+
+    news_sites = commands.add_parser(
+        "news-sites", parents=[common], help="articles read and skipped, per news site"
+    )
+    news_sites.set_defaults(handler=cmd_news_sites)
 
     grade = commands.add_parser(
         "grade", parents=[common], help="grade the logged predictions that are due"

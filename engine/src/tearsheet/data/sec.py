@@ -302,6 +302,69 @@ def filed_for_months(filed: date, months: set[int]) -> bool:
 # --- the client ----------------------------------------------------------------------
 
 
+# --- cover-page share counts --------------------------------------------------------------
+# SEC's company-facts file drops every fact that is broken out by a dimension, and companies
+# with several share classes (Berkshire) report their cover-page share counts only per class.
+# The filing's own inline XBRL keeps them, with each class's trading symbol in a matching
+# context, so the counts are read from the latest 10-Q or 10-K cover page instead.
+
+_IX_FACT = re.compile(
+    r"<ix:(nonFraction|nonNumeric)\b([^>]*)>(.*?)</ix:\1>", re.IGNORECASE | re.DOTALL
+)
+_IX_CONTEXT = re.compile(
+    r"<xbrli:context\b[^>]*\bid=\"([^\"]+)\"[^>]*>(.*?)</xbrli:context>", re.IGNORECASE | re.DOTALL
+)
+_CLASS_MEMBER = re.compile(
+    r"<xbrldi:explicitMember[^>]*dimension=\"us-gaap:StatementClassOfStockAxis\"[^>]*>\s*([^<\s]+)\s*<",
+    re.IGNORECASE,
+)
+_INSTANT = re.compile(r"<xbrli:instant>\s*([0-9-]+)\s*<", re.IGNORECASE)
+_ATTR = re.compile(r'\b([a-zA-Z:]+)="([^"]*)"')
+
+
+@dataclass(frozen=True)
+class CoverCount:
+    """One share class's count on a filing's cover page."""
+
+    ticker: str | None  # the class's trading symbol; None for an unlisted class
+    member: str | None  # the XBRL class member, such as us-gaap:CommonClassBMember
+    shares: float
+    as_of: date | None
+
+
+def cover_share_counts(html: bytes) -> list[CoverCount]:
+    """`dei:EntityCommonStockSharesOutstanding` per class, with each class's symbol."""
+    text = html.decode("utf-8", errors="replace")
+    contexts = {}
+    for cid, body in _IX_CONTEXT.findall(text):
+        member = _CLASS_MEMBER.search(body)
+        instant = _INSTANT.search(body)
+        contexts[cid] = (
+            member.group(1) if member else None,
+            date.fromisoformat(instant.group(1)) if instant else None,
+        )
+    symbols: dict[str | None, str] = {}
+    counts: list[tuple[str | None, float, date | None]] = []
+    for _, attrs, inner in _IX_FACT.findall(text):
+        a = dict(_ATTR.findall(attrs))
+        name, context = a.get("name", ""), contexts.get(a.get("contextRef", ""), (None, None))
+        value = re.sub(r"<[^>]+>", "", inner).strip()
+        if name == "dei:TradingSymbol" and value:
+            symbols.setdefault(context[0], value.upper())
+        elif name == "dei:EntityCommonStockSharesOutstanding":
+            digits = value.replace(",", "").replace(" ", "")
+            try:
+                number = float(digits)
+            except ValueError:
+                continue
+            number *= 10 ** int(a.get("scale", "0") or 0)
+            counts.append((context[0], -number if a.get("sign") == "-" else number, context[1]))
+    return [
+        CoverCount(symbols.get(member) if member else (symbols.get(None)), member, n, day)
+        for member, n, day in counts
+    ]
+
+
 @dataclass(frozen=True)
 class StoredDoc:
     role: str
@@ -408,6 +471,13 @@ class SECClient:
             raw_hash, _ = await self._permanent(url, kind, "text")
             docs.append(StoredDoc(role, filing, doc_type, url, raw_hash))
         return docs
+
+    async def primary_document(self, filing: Filing) -> bytes:
+        """A filing's primary document, fetched once and then reused."""
+        _, body = await self._permanent(
+            filing.url(filing.primary_document), "filing_document", "text"
+        )
+        return body
 
     async def form4_documents(self, filings: list[Filing]) -> list[tuple[Filing, bytes]]:
         """Each Form 4's XML, fetched once and then reused."""
@@ -565,3 +635,9 @@ def auditor_report(sections: dict[str, str]) -> str | None:
         if start is not None:
             return text[start : start + AUDITOR_REPORT_CHARS]
     return None
+
+
+def latest_report(filings: Iterable[Filing]) -> Filing | None:
+    """The newest 10-Q or 10-K, whose cover page has the latest share counts."""
+    chosen = [f for f in filings if f.form in ("10-Q", "10-K") and f.primary_document]
+    return max(chosen, key=lambda f: (f.filed, f.accession), default=None)
