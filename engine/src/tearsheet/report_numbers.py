@@ -15,7 +15,7 @@ from datetime import date
 from statistics import median
 from typing import Any
 
-from tearsheet.data.prices import PriceStore
+from tearsheet.data.prices import PriceStore, split_factor_after
 
 FRED_LABELS = {
     "UNRATE": "Unemployment rate",
@@ -252,14 +252,20 @@ def _metrics(conn: sqlite3.Connection, run_id: str, cik: int) -> list[dict] | No
 
 
 def _weekly(conn: sqlite3.Connection, run_id: str, cik: int) -> list[dict] | None:
+    """The last close of each of the past 52 weeks, in the run date's shares: each close is
+    divided by the splits executed after it up to the run date, so a split draws no cliff and
+    the series ends at the run-date close, on the report's own basis."""
     run = conn.execute("SELECT started_at FROM runs WHERE run_id = ?", (run_id,)).fetchone()
     if not run:
         return None
     end = date.fromisoformat(run[0][:10])
+    store = PriceStore(conn)
+    splits = store.splits(cik)
     last_of_week: dict[tuple[int, int], tuple[date, float]] = {}
-    for day, close in PriceStore(conn).closes(cik, up_to=end):  # ascending by date
+    for day, close in store.closes(cik, up_to=end):  # ascending by date
         iso = day.isocalendar()
-        last_of_week[(iso[0], iso[1])] = (day, close)
+        adjusted = round(close / split_factor_after(splits, day, up_to=end), 6)
+        last_of_week[(iso[0], iso[1])] = (day, adjusted)
     points = sorted(last_of_week.values())[-WEEKS:]
     return [{"date": d.isoformat(), "close": c} for d, c in points] or None
 

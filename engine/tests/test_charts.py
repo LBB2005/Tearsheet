@@ -155,3 +155,36 @@ def test_chart_series_company_total_return_matches_the_store(database):
     assert [round(v, 9) for v in s["total"]] == [round(v, 9) for v in expected]
     # The dividend shows in the total return, not in the price line.
     assert round(s["total"][3], 6) == 130.0 and s["close"][3] == 12
+
+
+def test_chart_trigger_and_range_move_to_todays_shares_after_a_later_split(database):
+    """The buy trigger and the range are in the run date's shares; the price line is in today's.
+    A 2-for-1 split after the run date (31 Oct) halves them, so they sit on the same scale."""
+    seed(database.conn)
+    later = ["2026-11-02", "2026-11-03", "2026-11-04"]
+    with database.conn:
+        for day, close in zip(later, [22, 11, 11], strict=True):
+            database.conn.execute(
+                "INSERT INTO prices_daily VALUES (1, '', ?, ?, 1000, 't', 'x')", (day, close)
+            )
+    _actions(
+        database.conn,
+        1,
+        [
+            (DAYS[2], "split", 3.0),  # before the run date: already in the report's numbers
+            ("2026-11-03", "split", 2.0),  # after the run date, before the last close
+            ("2026-12-01", "split", 5.0),  # after the last close: changes nothing yet
+        ],
+    )
+    s = chart_series(database.conn, 1, "run-1")
+    assert s["close"][-1] == 11  # the real last close
+    assert s["trigger"] == 4.75
+    assert s["range"] == {"bear": 2.5, "base": 5.5, "bull": 10.0}
+
+
+def test_chart_trigger_and_range_stay_without_a_later_split(database):
+    seed(database.conn)
+    _actions(database.conn, 1, [(DAYS[2], "split", 2.0)])  # before the run date only
+    s = chart_series(database.conn, 1, "run-1")
+    assert s["trigger"] == 9.5
+    assert s["range"] == {"bear": 5.0, "base": 11.0, "bull": 20.0}

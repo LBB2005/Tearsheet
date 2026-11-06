@@ -65,6 +65,17 @@ def sessions_between(start: date, end: date) -> list[date]:
     return [ts.date() for ts in _nyse().sessions_in_range(start.isoformat(), end.isoformat())]
 
 
+def split_factor_after(splits: dict[date, float], day: date, *, up_to: date) -> float:
+    """New shares per old share for the splits executed after `day`, up to and including
+    `up_to`. A price from `day` divided by it is in `up_to`'s shares; a ratio of zero or less is
+    bad data, not a split, and counts for nothing."""
+    factor = 1.0
+    for when, ratio in splits.items():
+        if day < when <= up_to and ratio > 0:
+            factor *= ratio
+    return factor
+
+
 class PriceStore:
     def __init__(self, conn: sqlite3.Connection):
         self.conn = conn
@@ -158,11 +169,7 @@ class PriceStore:
     def split_factor(self, cik: int, *, after: date, up_to: date, share_class: str = "") -> float:
         """New shares per old share for splits after `after`, up to and including `up_to`.
         Share counts and per-share filing values are adjusted with it (Technical Plan §5)."""
-        factor = 1.0
-        for day, ratio in self.splits(cik, share_class).items():
-            if after < day <= up_to:
-                factor *= ratio
-        return factor
+        return split_factor_after(self.splits(cik, share_class), after, up_to=up_to)
 
     def daily_gross_returns(
         self, cik: int, share_class: str = "", *, up_to: date | None = None

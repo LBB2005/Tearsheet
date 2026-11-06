@@ -190,3 +190,48 @@ def test_numbers_for_merges_both(database):
     n = numbers_for(database.conn, make_report(), "r1", 1)
     assert n["rating"]["call"] == "Hold"
     assert n["claims"] == {"kept": 2, "removed": 1}
+
+
+def test_weekly_closes_are_split_adjusted_to_the_run_date(database):
+    """A 10-for-1 split in the past year draws no cliff: closes before it are divided by 10,
+    and the last weekly close is the run-date close. A split after the run date counts for
+    nothing here (the report's numbers are in the run date's shares)."""
+    from tearsheet.data.prices import PriceStore
+
+    started, split = date(2026, 11, 4), date(2026, 6, 10)
+    conn = database.conn
+    conn.execute(
+        "INSERT INTO runs (run_id, cik, mode, started_at, status, engine_version,"
+        " method_code_version, methodology_hash, reference_version)"
+        " VALUES ('r1', 1, 'full', ?, 'done', 'x', 1, 'h', 'v')",
+        (f"{started.isoformat()}T15:00:00+00:00",),
+    )
+    for d in range(400):
+        day = started - timedelta(days=d)
+        close = 100.0 if day >= split else 1000.0  # unadjusted closes
+        conn.execute(
+            "INSERT INTO prices_daily VALUES (1, '', ?, ?, 1000, 'massive', 'h')",
+            (day.isoformat(), close),
+        )
+    conn.execute(
+        "INSERT INTO prices_daily VALUES (1, '', '2026-11-20', 50.0, 1000, 'massive', 'h')"
+    )
+    PriceStore(conn).store_splits(
+        {
+            "results": [
+                {
+                    "ticker": "X",
+                    "execution_date": split.isoformat(),
+                    "split_from": 1,
+                    "split_to": 10,
+                },
+                {"ticker": "X", "execution_date": "2026-11-18", "split_from": 1, "split_to": 2},
+            ]
+        },
+        {"X": (1, "")},
+    )
+    conn.commit()
+    weekly = stored_numbers(conn, "r1", 1)["weekly"]
+    assert len(weekly) == 52
+    assert {w["close"] for w in weekly} == {100.0}
+    assert weekly[-1] == {"date": "2026-11-04", "close": 100.0}

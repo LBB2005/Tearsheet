@@ -8,7 +8,7 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
-from tearsheet.data.prices import PriceStore
+from tearsheet.data.prices import PriceStore, split_factor_after
 from tearsheet.data.sec import SUBMISSIONS_URL, filings_from
 from tearsheet.rawstore import RawStore
 from tearsheet.report_numbers import parse_code_lines
@@ -115,18 +115,40 @@ def _split_adjusted(
     if not rows:
         return [], []
     last = date.fromisoformat(rows[-1][0])
-    pending = sorted(((d, r) for d, r in splits.items() if d <= last and r > 0), reverse=True)
     closes: list[float] = []
     volumes: list[int] = []
-    factor, k = 1.0, 0
-    for day, close, volume in reversed(rows):
-        when = date.fromisoformat(day)
-        while k < len(pending) and pending[k][0] > when:
-            factor *= pending[k][1]
-            k += 1
+    for day, close, volume in rows:
+        factor = split_factor_after(splits, date.fromisoformat(day), up_to=last)
         closes.append(round(float(close) / factor, 6))
         volumes.append(int(round((volume or 0) * factor)))
-    return closes[::-1], volumes[::-1]
+    return closes, volumes
+
+
+def _run_date(conn: sqlite3.Connection, run_id: str) -> date | None:
+    row = conn.execute("SELECT started_at FROM runs WHERE run_id = ?", (run_id,)).fetchone()
+    try:
+        return date.fromisoformat(str(row[0])[:10]) if row else None
+    except ValueError:
+        return None
+
+
+def _in_todays_shares(
+    numbers: dict[str, Any], splits: dict[date, float], run_date: date | None, last: date | None
+) -> tuple[float | None, dict[str, float] | None]:
+    """The buy trigger and the 12-month range, which the report gives in the run date's
+    shares, divided by the splits executed since (up to the last close), so they sit on the
+    same scale as the price line."""
+    triggers = numbers.get("triggers")
+    trigger = triggers["buy"] if triggers else None
+    price_range = numbers.get("range")
+    if run_date is None or last is None:
+        return trigger, price_range
+    factor = split_factor_after(splits, run_date, up_to=last)
+    if trigger is not None:
+        trigger = round(trigger / factor, 6)
+    if price_range:
+        price_range = {k: round(v / factor, 6) for k, v in price_range.items()}
+    return trigger, price_range
 
 
 def chart_series(conn: sqlite3.Connection, cik: int, run_id: str) -> dict[str, Any]:
@@ -137,7 +159,8 @@ def chart_series(conn: sqlite3.Connection, cik: int, run_id: str) -> dict[str, A
         (cik,),
     ).fetchall()
     dates = [r[0] for r in rows]
-    close, volume = _split_adjusted(rows, prices.splits(cik))
+    splits = prices.splits(cik)
+    close, volume = _split_adjusted(rows, splits)
     peer_ciks = [
         r[0]
         for r in conn.execute(
@@ -146,8 +169,12 @@ def chart_series(conn: sqlite3.Connection, cik: int, run_id: str) -> dict[str, A
         )
     ]
     report = _report(conn, run_id)
-    numbers = parse_code_lines(report)
-    triggers = numbers.get("triggers")
+    trigger, price_range = _in_todays_shares(
+        parse_code_lines(report),
+        splits,
+        _run_date(conn, run_id),
+        date.fromisoformat(dates[-1]) if dates else None,
+    )
     return {
         "dates": dates,
         "close": close,
@@ -158,7 +185,8 @@ def chart_series(conn: sqlite3.Connection, cik: int, run_id: str) -> dict[str, A
         "peers": _index(prices, peer_ciks, dates),
         "spy": _index(prices, [SPY_CIK], dates),
         "filings": _filings(conn, cik, run_id, report),
-        "trigger": triggers["buy"] if triggers else None,
-        "range": numbers.get("range"),
+        # In today's shares, like the price line.
+        "trigger": trigger,
+        "range": price_range,
         "first_date": dates[0] if dates else "",
     }
