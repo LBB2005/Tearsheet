@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 
 import type { EngineNotification } from '../preload/api'
+import { readyPauseMs } from './fan/FanMark'
 import { Connections } from './views/Connections'
 import { Log } from './views/Log'
 import { Progress, type RunState } from './views/Progress'
@@ -38,7 +39,9 @@ export function App() {
       } else if (note.method === 'report_ready') {
         setRun((r) => (r && r.runId === p.run_id ? { ...r, reportId: p.report_id } : r))
         setOpenReport(p.report_id)
-        setView('report')
+        // On the Progress view, hold the "report ready" moment before opening the report.
+        setView((v) => (v === 'progress' ? v : 'report'))
+        window.setTimeout(() => setView((v) => (v === 'progress' ? 'report' : v)), readyPauseMs())
       } else if (note.method === 'run_failed') {
         setRun((r) => (r && r.runId === p.run_id ? { ...r, failure: { message: p.message, code: p.code, resetAt: p.reset_at, fix: p.fix_command } } : r))
         setView('progress')

@@ -1,5 +1,7 @@
 import { useState } from 'react'
 
+import { FanMark } from '../fan/FanMark'
+
 export function Search({ onStarted }: { onStarted: (runId: string) => void }) {
   const [query, setQuery] = useState('')
   const [busy, setBusy] = useState(false)
@@ -25,7 +27,10 @@ export function Search({ onStarted }: { onStarted: (runId: string) => void }) {
 
   return (
     <section>
-      <h2>New report</h2>
+      <div className="fm-heading">
+        <FanMark mode="intro" size={64} />
+        <h2>New report</h2>
+      </div>
       <p className="muted">Type an S&amp;P 500 company name or ticker. Code makes every number; your AI tool writes the cited narrative.</p>
       <form
         className="row"

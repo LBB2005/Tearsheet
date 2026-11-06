@@ -1,3 +1,5 @@
+import { FanMark } from '../fan/FanMark'
+
 export interface RunState {
   runId: string
   steps: Record<string, string>
@@ -33,6 +35,7 @@ export function Progress({ run, onResumed }: { run: RunState | null; onResumed: 
   return (
     <section>
       <h2>Progress</h2>
+      <FanMark mode="run" size={128} className="fm-progress" steps={run.steps} ready={Boolean(run.reportId)} failed={Boolean(run.failure)} />
       <p className="muted">Run {run.runId}</p>
       <ol className="steps">
         {STEPS.map(([key, label], i) => {

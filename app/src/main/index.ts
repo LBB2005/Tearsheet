@@ -7,7 +7,8 @@ import { join, resolve } from 'node:path'
 
 import { app, BrowserWindow, shell } from 'electron'
 
-import { Engine } from './engine'
+import { dockUpdate, NO_RUN } from './dockProgress'
+import { Engine, type Notification } from './engine'
 import { registerIpc } from './ipc'
 import { loginShellPath } from './loginShellPath'
 import { navigationAction } from './navigation'
@@ -28,7 +29,28 @@ function engineCommand(): { command: string; args: string[]; cwd: string } {
   return { command: 'uv', args: ['run', '--project', join(repo, 'engine'), 'tearsheet-engine', 'serve'], cwd: repo }
 }
 
+// The Dock icon in development. A packaged app takes build/icon.icns from its bundle instead.
+function setDevDockIcon(): void {
+  if (process.platform === 'darwin' && !app.isPackaged) app.dock?.setIcon(join(app.getAppPath(), 'build', 'icon.png'))
+}
+
+// macOS's own progress bar on the Dock icon while a report runs, and one bounce when it is ready
+// if Tearsheet is behind another app.
+function showProgressInDock(window: BrowserWindow, engine: Engine): void {
+  let run = NO_RUN
+  const apply = (note: Notification) => {
+    const update = dockUpdate(run, note)
+    run = update.run
+    if (window.isDestroyed()) return
+    if (update.bar !== null) window.setProgressBar(update.bar)
+    if (update.bounce && !window.isFocused()) app.dock?.bounce('informational')
+  }
+  engine.on('notification', apply)
+  engine.on('crashed', () => apply({ method: 'engine_restarted', params: {} }))
+}
+
 async function createWindow(): Promise<void> {
+  setDevDockIcon()
   const tools = await getTools(fixedPath)
   const tool = (kind: string) => tools.find((t) => t.kind === kind)?.path ?? ''
   const { command, args, cwd } = engineCommand()
@@ -59,6 +81,7 @@ async function createWindow(): Promise<void> {
     }
   })
   registerIpc(window, engine, fixedPath)
+  showProgressInDock(window, engine)
   engine.start()
 
   // The window itself never navigates, and never opens pop-ups.

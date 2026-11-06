@@ -5,6 +5,8 @@ __pycache__/
 *.egg-info/
 build/
 dist/
+# ...except app/build, which holds the app icon and its sources.
+!app/build/
 .pytest_cache/
 .ruff_cache/
 .coverage
