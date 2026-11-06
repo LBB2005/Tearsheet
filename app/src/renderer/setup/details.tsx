@@ -149,6 +149,9 @@ function SafetyRow({ view }: { view: SafetyView }) {
   } else if (view.state === 'running') {
     icon = <Ring p={view.total > 0 ? view.n / view.total : 0} size={18} width={3} />
     text = `Finishing: ${view.total - view.n} of ${view.total} calls to go`
+  } else if (view.state === 'unfinished') {
+    icon = <i />
+    text = 'Didn’t finish. The chip at the top right can run it again; it also runs by itself before the first report.'
   } else {
     icon = <i />
     text = 'Didn’t pass. The chip at the top right says why.'
@@ -156,7 +159,7 @@ function SafetyRow({ view }: { view: SafetyView }) {
   // Only a change of state fades in; the count ticks down in place.
   return (
     <Changes k={view.state} className="ci mv" style={at(2)} live>
-      <span className={view.state === 'failed' ? 'ic bad' : 'ic'}>{icon}</span>
+      <span className={view.state === 'failed' ? 'ic bad' : view.state === 'unfinished' ? 'ic muted' : 'ic'}>{icon}</span>
       <b>Safety check</b>
       <span>{text}</span>
     </Changes>

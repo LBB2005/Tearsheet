@@ -5,7 +5,8 @@
 import type { CompanyRow, PredictionSummary } from '../../shared/protocol'
 import { shortDate } from '../nav'
 
-export type SinceTone = 'up' | 'accent' | 'hold' | 'down'
+// 'down' is a problem (the red box); 'muted' is a note in the same place, without alarm.
+export type SinceTone = 'up' | 'accent' | 'hold' | 'down' | 'muted'
 
 // The fix a line offers: add the FRED or Massive key (Settings), sign the AI tool in again, or
 // run the safety check again.
@@ -25,8 +26,9 @@ export interface SinceInput {
   keys: Record<string, 'set' | 'missing'>
   // Skipped in setup or not, a missing FRED key reads the same: reports leave the figures out.
   fredSkipped: boolean
-  // The AI tool in use, by name, and what is wrong with it.
-  tool: { name: string; signedOut: boolean; safetyFailed: boolean }
+  // The AI tool in use, by name, and what is wrong with it. A safety check that stopped part way
+  // (safetyUnfinished) is not a failure.
+  tool: { name: string; signedOut: boolean; safetyFailed: boolean; safetyUnfinished?: boolean }
   now?: Date
 }
 
@@ -110,6 +112,13 @@ export function sinceLines(s: SinceInput): SinceLine[] {
       tone: 'down',
       text: `${s.tool.name} didn’t pass the safety check`,
       detail: 'New reports can’t be written until it passes. Your saved reports still open.',
+      action: 'recheck'
+    })
+  } else if (s.tool.safetyUnfinished) {
+    lines.push({
+      tone: 'muted',
+      text: `${s.tool.name}’s safety check didn’t finish`,
+      detail: 'It runs again by itself before the next report, or you can run it now.',
       action: 'recheck'
     })
   }

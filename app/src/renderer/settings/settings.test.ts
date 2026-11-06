@@ -20,7 +20,7 @@ const tool = (kind: 'claude' | 'codex', over: Partial<ToolStatus> = {}): ToolSta
 })
 const passed: LockdownState = { version: '2.1.317 (Claude Code)', passed: true, form: 'full', checked_at: '2026-11-04T22:52:56+00:00', blocked_reason: null }
 const failed: LockdownState = { version: 'codex-cli 0.165.0', passed: false, form: 'full', checked_at: '2026-11-06T01:10:14+00:00', blocked_reason: 'lockdown_failed' }
-const done = (tool: 'claude' | 'codex', ok: boolean): SafetyState => ({ tool, n: ok ? 25 : 9, total: 25, done: true, passed: ok, reason: ok ? null : 'It ran a command.' })
+const done = (tool: 'claude' | 'codex', ok: boolean): SafetyState => ({ tool, n: ok ? 25 : 9, total: 25, done: true, passed: ok, stopped: false, reason: ok ? null : 'It ran a command.' })
 
 const base: HealthInput = {
   tools: [tool('claude'), tool('codex')],
@@ -114,6 +114,16 @@ describe('healthTiles', () => {
     expect(tiles({ safety: { ...safetyStarted('codex'), n: 3 } })[3]).toMatchObject({ tone: 'run', text: 'Checking Codex, 3 of 25' })
     // A check running for the other tool doesn't touch the main tool's tile.
     expect(tiles({ safety: { ...safetyStarted('codex'), n: 3 } })[0]).toMatchObject({ tone: 'ok', text: 'Claude Code ready' })
+  })
+})
+
+describe('a safety check that stopped part way', () => {
+  const stopped = (kind: 'claude' | 'codex'): SafetyState => ({ ...safetyStarted(kind), n: 9, done: true, passed: false, stopped: true, reason: 'The check couldn’t finish: usage limit' })
+
+  it('is not shown as failed: the tile and the pill go by the last stored check', () => {
+    expect(tiles({ safety: stopped('claude') })[0]).toMatchObject({ tone: 'off', text: 'Safety check didn’t finish' })
+    expect(tiles({ safety: stopped('codex') })[3]).toMatchObject({ tone: 'ok', text: 'On: Codex checks the drafts' })
+    expect(toolPill(tool('claude'), undefined, stopped('claude'))).toEqual({ tone: 'ok', text: 'Ready' })
   })
 })
 

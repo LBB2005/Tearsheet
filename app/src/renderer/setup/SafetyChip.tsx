@@ -27,6 +27,16 @@ export function SafetyChip({ view, open, onToggle }: { view: SafetyView; open: b
         Safety check passed
       </>
     )
+  } else if (view.state === 'unfinished') {
+    // Stopped part way, with no verdict: muted, not red.
+    label = (
+      <>
+        <span className="mutedot">
+          <i />
+        </span>
+        Safety check didn’t finish
+      </>
+    )
   } else {
     label = (
       <>
@@ -45,7 +55,13 @@ export function SafetyChip({ view, open, onToggle }: { view: SafetyView; open: b
 }
 
 const chipText = (view: SafetyView) =>
-  view.state === 'running' ? `Safety check, ${view.n} of ${view.total}` : view.state === 'passed' ? 'Safety check passed' : 'Safety check didn’t pass'
+  view.state === 'running'
+    ? `Safety check, ${view.n} of ${view.total}`
+    : view.state === 'passed'
+      ? 'Safety check passed'
+      : view.state === 'unfinished'
+        ? 'Safety check didn’t finish'
+        : 'Safety check didn’t pass'
 
 export interface SafetyPopoverProps {
   view: SafetyView
@@ -96,6 +112,16 @@ export function SafetyPopover({ view, tool, onRetry, onClose }: SafetyPopoverPro
         <>
           <p className="last bad">{view.reason}</p>
           <p>Tearsheet won’t use {tool.name} for reports until the check passes.</p>
+          <div className="row">
+            <button className="btn2" onClick={onRetry}>
+              Run the check again
+            </button>
+          </div>
+        </>
+      ) : view.state === 'unfinished' ? (
+        <>
+          <p className="last">{view.reason}</p>
+          <p>It runs again by itself before {tool.name}’s next report, or you can run it now.</p>
           <div className="row">
             <button className="btn2" onClick={onRetry}>
               Run the check again

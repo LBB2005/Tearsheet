@@ -119,11 +119,14 @@ export interface SafetyState {
   total: number
   done: boolean
   passed: boolean
+  // The check ended part way with no verdict: the engine restarted, or a usage limit, a
+  // sign-out or a crash stopped it (safety_done's finished: false). Not a failure.
+  stopped: boolean
   reason: string | null
 }
 
 export function safetyStarted(tool: ToolKind): SafetyState {
-  return { tool, n: 0, total: SAFETY_CALLS, done: false, passed: false, reason: null }
+  return { tool, n: 0, total: SAFETY_CALLS, done: false, passed: false, stopped: false, reason: null }
 }
 
 const asTool = (v: unknown, fallback: ToolKind): ToolKind => (v === 'claude' || v === 'codex' ? v : fallback)
@@ -132,22 +135,29 @@ const asNumber = (v: unknown, fallback: number) => (typeof v === 'number' && Num
 export function applySafetyNote(state: SafetyState | null, method: string, params: Record<string, unknown>): SafetyState | null {
   if (method === 'safety_progress') {
     const total = asNumber(params.total, state?.total ?? SAFETY_CALLS)
-    return { tool: asTool(params.tool, state?.tool ?? 'claude'), n: asNumber(params.n, 0), total, done: false, passed: false, reason: null }
+    return { tool: asTool(params.tool, state?.tool ?? 'claude'), n: asNumber(params.n, 0), total, done: false, passed: false, stopped: false, reason: null }
   }
   if (method === 'safety_done') {
     const total = state?.total ?? SAFETY_CALLS
     const passed = params.passed === true
     const reason = typeof params.reason === 'string' && params.reason ? params.reason : null
-    return { tool: asTool(params.tool, state?.tool ?? 'claude'), n: passed ? total : (state?.n ?? 0), total, done: true, passed, reason }
+    // Only a check that ran to the end and didn't pass is a failure.
+    const stopped = !passed && params.finished === false
+    return { tool: asTool(params.tool, state?.tool ?? 'claude'), n: passed ? total : (state?.n ?? 0), total, done: true, passed, stopped, reason }
   }
-  // A restart ends the engine's check with it.
+  // A restart ends the engine's check with it, unfinished.
   if (method === 'engine_restarted' && state && !state.done) {
-    return { ...state, done: true, passed: false, reason: 'Tearsheet’s engine stopped and restarted, so the check stopped too.' }
+    return { ...state, done: true, passed: false, stopped: true, reason: 'Tearsheet’s engine stopped and restarted, so the check stopped too.' }
   }
   return state
 }
 
-export type SafetyView = { state: 'running'; n: number; total: number } | { state: 'passed' } | { state: 'failed'; reason: string }
+export type SafetyView =
+  | { state: 'running'; n: number; total: number }
+  | { state: 'passed' }
+  | { state: 'failed'; reason: string }
+  // Stopped part way, with no verdict: shown muted, with Run the check again.
+  | { state: 'unfinished'; reason: string }
 
 // What the chip, the Connected screen and the ready list show for the tool being set up: this
 // session's check, else a check that passed before for this version, else a check that couldn't
@@ -155,7 +165,9 @@ export type SafetyView = { state: 'running'; n: number; total: number } | { stat
 export function safetyView(s: SafetyState | null, kind: ToolKind, alreadyPassed: boolean, startError: string | null): SafetyView {
   if (s && s.tool === kind) {
     if (!s.done) return { state: 'running', n: s.n, total: s.total }
-    return s.passed ? { state: 'passed' } : { state: 'failed', reason: s.reason ?? 'The check did not pass.' }
+    if (s.passed) return { state: 'passed' }
+    if (s.stopped) return { state: 'unfinished', reason: s.reason ?? 'The check stopped before it finished.' }
+    return { state: 'failed', reason: s.reason ?? 'The check did not pass.' }
   }
   if (alreadyPassed) return { state: 'passed' }
   if (startError) return { state: 'failed', reason: startError }

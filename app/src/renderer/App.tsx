@@ -17,7 +17,7 @@ import { RunView } from './home/RunView'
 import { useRun } from './home/useRun'
 import { Mark } from './mark/Mark'
 import { leaveMs } from './motion'
-import { nextCompany, safetyFailed, shortDate, statusLine, type Page } from './nav'
+import { nextCompany, safetyFailed, safetyUnfinished, shortDate, statusLine, type Page } from './nav'
 import { FlagSheet } from './overlays/FlagSheet'
 import { LookUp } from './overlays/LookUp'
 import { Toast, type Notice } from './overlays/Toast'
@@ -165,7 +165,7 @@ export function App() {
   // and the home page's red box show at once, as for a check that failed here.
   const kindNow = useRef<ToolKind>('claude')
   const lockdownFailed = useCallback((message: string) => {
-    setSafety({ tool: kindNow.current, n: 0, total: SAFETY_CALLS, done: true, passed: false, reason: message })
+    setSafety({ tool: kindNow.current, n: 0, total: SAFETY_CALLS, done: true, passed: false, stopped: false, reason: message })
   }, [])
   const report = useRun({ page, target, go, notify, loadCompanies, loadTools, openReport: setOpenReport, onLockdownFailed: lockdownFailed })
   const { run, onNote } = report
@@ -322,6 +322,7 @@ export function App() {
   const toolName = tool?.name ?? 'Claude Code'
   const signedOut = tool?.available === true && tool.loggedIn === false
   const checkFailed = safetyFailed(safety, toolKind, bootSettings?.lockdown?.[toolKind])
+  const checkUnfinished = safetyUnfinished(safety, toolKind)
   const runLabel = run ? (run.ticker ?? run.name ?? 'New report') : ''
   const status = statusLine({
     run: report.running && run ? { ticker: runLabel, steps: run.steps } : null,
@@ -371,7 +372,7 @@ export function App() {
     ) : (
       <Home
         companies={listed ? companies : null}
-        tool={{ kind: toolKind, name: toolName, signedOut, safetyFailed: checkFailed }}
+        tool={{ kind: toolKind, name: toolName, signedOut, safetyFailed: checkFailed, safetyUnfinished: checkUnfinished }}
         fieldRef={homeField}
         refresh={graded}
         onStart={report.start}

@@ -1,12 +1,13 @@
 // The look-up box (⌘K). It searches the bundled S&P 500 list as you type, shows up to five
-// companies and says which already have a report. Return or a click opens the company's report,
-// or starts a new one; the arrows move; Esc closes it.
+// companies, says which already have a report, and gives the highlighted one's peer-group rule.
+// Return (on a hit for the text typed now) or a click opens the company's report, or starts a
+// new one; the arrows move; Esc closes it.
 
 import { useEffect, useRef, useState } from 'react'
 
 import type { SearchHit } from '../../shared/protocol'
 import { leaveMs } from '../motion'
-import { shortDate } from '../nav'
+import { freshHits, peerRule, shortDate } from '../nav'
 import { ICONS } from '../shell/Sidebar'
 
 const LIMIT = 5
@@ -85,7 +86,8 @@ export function LookUp({ onPick, onClose }: { onPick: (hit: SearchHit) => void; 
                 setAt((i) => Math.max(i - 1, 0))
               } else if (e.key === 'Enter') {
                 e.preventDefault()
-                pick(hits[at])
+                // Only a hit for the text in the field now: never one left from an older query.
+                pick(freshHits(query, searched, hits)[at])
               } else if (e.key === 'Escape') {
                 e.preventDefault()
                 close()
@@ -106,6 +108,7 @@ export function LookUp({ onPick, onClose }: { onPick: (hit: SearchHit) => void; 
             ))}
           </ul>
         )}
+        {peerRule(hits, at) && <p className="rule">{peerRule(hits, at)}</p>}
         {failed && <p className="none">{failed}</p>}
         {!failed && searched && hits.length === 0 && <p className="none">No S&amp;P 500 company matches “{searched}”.</p>}
         <div className="ft">

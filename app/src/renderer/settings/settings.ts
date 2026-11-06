@@ -4,7 +4,7 @@
 
 import type { ToolStatus } from '../../preload/api'
 import type { LockdownState } from '../../shared/protocol'
-import { safetyFailed } from '../nav'
+import { safetyFailed, safetyUnfinished } from '../nav'
 import { isEmail, TOOL_TEXT, type SafetyState, type ToolKind } from '../setup/steps'
 
 // ok green, hold amber, bad red, run accent (something under way), off grey (nothing wrong).
@@ -67,7 +67,8 @@ export function toolPill(tool: ToolStatus, stored: LockdownState | undefined, sa
   if (!tool.available) return { tone: 'off', text: 'Not found' }
   if (tool.loggedIn === false) return { tone: 'bad', text: 'Signed out' }
   if (runningFor(safety, tool.kind)) return { tone: 'run', text: 'Checking' }
-  const session = safety && safety.tool === tool.kind && safety.done ? safety : null
+  // A check that stopped part way gave no verdict, so the stored one stands.
+  const session = safety && safety.tool === tool.kind && safety.done && !safety.stopped ? safety : null
   const notUsable = session ? !session.passed : storedNotUsable(stored)
   return notUsable ? { tone: 'bad', text: 'Not usable' } : { tone: 'ok', text: 'Ready' }
 }
@@ -100,6 +101,7 @@ export function healthTiles(h: HealthInput): Tile[] {
   else if (!main.available) ai = { name: 'AI tool', tone: 'bad', text: `${name} not found` }
   else if (main.loggedIn === false) ai = { name: 'AI tool', tone: 'bad', text: `${name} signed out` }
   else if (safetyFailed(h.safety, h.primary, h.lockdown[h.primary])) ai = { name: 'AI tool', tone: 'bad', text: 'Safety check didn’t pass' }
+  else if (safetyUnfinished(h.safety, h.primary)) ai = { name: 'AI tool', tone: 'off', text: 'Safety check didn’t finish' }
   else {
     const running = runningFor(h.safety, h.primary)
     ai = running ? { name: 'AI tool', tone: 'run', text: `Safety check, ${running.n} of ${running.total}` } : { name: 'AI tool', tone: 'ok', text: `${name} ready` }

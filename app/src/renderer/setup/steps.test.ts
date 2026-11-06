@@ -226,7 +226,7 @@ describe('applySafetyNote', () => {
   const progress = (n: number) => ({ tool: 'claude', n, total: 25, name: `probe ${n}`, ok: true })
 
   it('starts at 0 of 25', () => {
-    expect(safetyStarted('claude')).toEqual({ tool: 'claude', n: 0, total: 25, done: false, passed: false, reason: null })
+    expect(safetyStarted('claude')).toEqual({ tool: 'claude', n: 0, total: 25, done: false, passed: false, stopped: false, reason: null })
   })
 
   it('follows each call, then the end', () => {
@@ -234,30 +234,41 @@ describe('applySafetyNote', () => {
     s = applySafetyNote(s, 'safety_progress', progress(7))
     expect(s).toMatchObject({ n: 7, total: 25, done: false })
     s = applySafetyNote(s, 'safety_done', { tool: 'claude', passed: true, reason: null })
-    expect(s).toEqual({ tool: 'claude', n: 25, total: 25, done: true, passed: true, reason: null })
+    expect(s).toEqual({ tool: 'claude', n: 25, total: 25, done: true, passed: true, stopped: false, reason: null })
   })
 
   it('keeps the count and the reason when the check fails', () => {
     let s = applySafetyNote(null, 'safety_progress', progress(12))
-    s = applySafetyNote(s, 'safety_done', { tool: 'claude', passed: false, reason: 'The check couldn’t finish: usage limit' })
-    expect(s).toEqual({ tool: 'claude', n: 12, total: 25, done: true, passed: false, reason: 'The check couldn’t finish: usage limit' })
+    s = applySafetyNote(s, 'safety_done', { tool: 'claude', passed: false, reason: '2 of 20 answers matched the schema', finished: true })
+    expect(s).toEqual({ tool: 'claude', n: 12, total: 25, done: true, passed: false, stopped: false, reason: '2 of 20 answers matched the schema' })
   })
 
-  it('ends a running check when the engine restarts, and ignores other notes', () => {
+  it('marks a check the engine says didn’t finish as stopped, not failed', () => {
+    let s = applySafetyNote(null, 'safety_progress', progress(12))
+    s = applySafetyNote(s, 'safety_done', { tool: 'claude', passed: false, reason: 'The check couldn’t finish: usage limit', finished: false })
+    expect(s).toEqual({ tool: 'claude', n: 12, total: 25, done: true, passed: false, stopped: true, reason: 'The check couldn’t finish: usage limit' })
+  })
+
+  it('ends a running check when the engine restarts, as stopped, and ignores other notes', () => {
     const running = applySafetyNote(null, 'safety_progress', progress(3))
-    expect(applySafetyNote(running, 'engine_restarted', {})).toMatchObject({ n: 3, done: true, passed: false })
+    expect(applySafetyNote(running, 'engine_restarted', {})).toMatchObject({ n: 3, done: true, passed: false, stopped: true })
     expect(applySafetyNote(running, 'progress', { run_id: 'r1' })).toBe(running)
     expect(applySafetyNote(null, 'engine_restarted', {})).toBeNull()
   })
 })
 
 describe('safetyView', () => {
-  const run = (n: number): SafetyState => ({ tool: 'claude', n, total: 25, done: false, passed: false, reason: null })
+  const run = (n: number): SafetyState => ({ tool: 'claude', n, total: 25, done: false, passed: false, stopped: false, reason: null })
 
   it('shows this session’s check for the tool being set up', () => {
     expect(safetyView(run(7), 'claude', false, null)).toEqual({ state: 'running', n: 7, total: 25 })
     expect(safetyView({ ...run(25), done: true, passed: true }, 'claude', false, null)).toEqual({ state: 'passed' })
     expect(safetyView({ ...run(9), done: true, reason: 'No.' }, 'claude', false, null)).toEqual({ state: 'failed', reason: 'No.' })
+  })
+
+  it('shows a check that stopped part way as not finished, not as failed', () => {
+    expect(safetyView({ ...run(9), done: true, stopped: true, reason: 'The check couldn’t finish: usage limit' }, 'claude', false, null)).toEqual({ state: 'unfinished', reason: 'The check couldn’t finish: usage limit' })
+    expect(safetyView({ ...run(9), done: true, stopped: true, reason: null }, 'claude', false, null)).toEqual({ state: 'unfinished', reason: 'The check stopped before it finished.' })
   })
 
   it('counts a check that already passed, a check that didn’t start, and one about to start', () => {

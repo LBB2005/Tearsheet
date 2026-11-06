@@ -229,6 +229,7 @@ export function Connected({ kind, tool, view, docking, docked, nextLabel, onNext
   let after
   if (view.state === 'passed') after = `The safety check has passed for ${T.name} ${version}: ${T.short} can only read and write text.`
   else if (view.state === 'failed') after = 'The safety check didn’t pass. The chip at the top right says why.'
+  else if (view.state === 'unfinished') after = 'The safety check didn’t finish. The chip at the top right can run it again.'
   else after = 'The safety check keeps running at the top right. You can carry on.'
   return (
     <div className="col center">

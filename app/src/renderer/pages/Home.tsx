@@ -13,7 +13,7 @@ import type { ToolStatus } from '../../preload/api'
 import type { CompanyRow, PredictionSummary, SearchHit, SettingsResult } from '../../shared/protocol'
 import { greeting, sinceLines, type SinceLine } from '../home/since'
 import { Mark } from '../mark/Mark'
-import { shortDate } from '../nav'
+import { freshHits, peerRule, shortDate } from '../nav'
 import { at, CodeLine, Spinner } from '../setup/parts'
 import { TOOL_TEXT, type ToolKind } from '../setup/steps'
 import { ICONS, money } from '../shell/Sidebar'
@@ -32,7 +32,7 @@ const TRY: [string, string][] = [
 export interface HomeProps {
   // The sidebar's companies, or null until they are listed.
   companies: CompanyRow[] | null
-  tool: { kind: ToolKind; name: string; signedOut: boolean; safetyFailed: boolean }
+  tool: { kind: ToolKind; name: string; signedOut: boolean; safetyFailed: boolean; safetyUnfinished: boolean }
   // ⌘K on this page puts the cursor here.
   fieldRef: RefObject<HTMLInputElement>
   // Changes when grading finishes, so the predictions are asked for again.
@@ -105,7 +105,7 @@ export function Home({ companies, tool, fieldRef, refresh, onStart, onOpen, onKe
   const q = query.trim()
   // The hits shown belong to what is in the field now, so Return never starts an older one.
   const current = q !== '' && searched === q
-  const shown = current ? hits : []
+  const shown = freshHits(query, searched, hits)
   const first = companies !== null && companies.length === 0
 
   const lines = sinceLines({
@@ -116,8 +116,9 @@ export function Home({ companies, tool, fieldRef, refresh, onStart, onOpen, onKe
     fredSkipped: settings?.fred_skipped ?? false,
     tool
   })
-  const problems = lines.filter((l) => l.tone === 'down')
-  const since = companies && predictions && settings ? lines.filter((l) => l.tone !== 'down') : []
+  // Problems in red at the top, and notes without alarm (a safety check that didn't finish) there too.
+  const problems = lines.filter((l) => l.tone === 'down' || l.tone === 'muted')
+  const since = companies && predictions && settings ? lines.filter((l) => l.tone !== 'down' && l.tone !== 'muted') : []
 
   const onKey = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
@@ -194,6 +195,8 @@ export function Home({ companies, tool, fieldRef, refresh, onStart, onOpen, onKe
                 <em>{starting === h.ticker ? 'Starting…' : h.report_id && h.report_date ? `Report from ${shortDate(h.report_date)}` : 'New report'}</em>
               </button>
             ))}
+            {/* The company, its sector (above) and the peer-group rule, as the engine words it. */}
+            {peerRule(shown, sel) && <div className="rule">{peerRule(shown, sel)}</div>}
             {shown.length > 0 && <div className="ft">Return starts the report. The up and down arrows move.</div>}
             {lookFailed && <div className="none">{lookFailed}</div>}
             {!lookFailed && current && shown.length === 0 && <div className="none">No S&amp;P 500 company matches “{searched}”. Tearsheet covers the S&amp;P 500 only.</div>}
@@ -299,7 +302,7 @@ function Problem({
   }
 
   return (
-    <div className="card alert mv" style={at(0)} role="alert">
+    <div className={line.tone === 'muted' ? 'card alert note mv' : 'card alert mv'} style={at(0)} role={line.tone === 'muted' ? 'status' : 'alert'}>
       <div>
         <b>{line.text}</b>
         <span>{line.detail}</span>

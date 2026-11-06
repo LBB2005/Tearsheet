@@ -27,3 +27,13 @@ test('developer tools only in dev', () => {
   expect(has(true)).toBe(true)
   expect(has(false)).toBe(false)
 })
+
+test('File > Close window closes the window with ⌘W', () => {
+  const file = menuTemplate(() => undefined, false).find((i) => i.label === 'File')
+  const items = Array.isArray(file?.submenu) ? file.submenu : []
+  const close = items.find((i) => i.role === 'close')
+  expect(close).toBeDefined()
+  expect(close!.accelerator).toBe('CmdOrCtrl+W')
+  expect(items[items.length - 1]).toBe(close) // last, after a separator, as on every Mac app
+  expect(items[items.length - 2].type).toBe('separator')
+})

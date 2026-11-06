@@ -1,7 +1,7 @@
 // Pure logic for the app shell: the pages, ⌘[ and ⌘] through the sidebar's companies, and the
 // sidebar's status line.
 
-import type { CompanyRow, LockdownState } from '../shared/protocol'
+import type { CompanyRow, LockdownState, SearchHit } from '../shared/protocol'
 import { REPORT_STEPS, stepsBehind, type StepStates } from '../shared/steps'
 import type { SafetyState, ToolKind } from './setup/steps'
 
@@ -71,10 +71,29 @@ export function statusLine(input: StatusInput): StatusLine {
 }
 
 // Whether the tool's safety check has failed: this session's check if one ran for this tool,
-// else the last stored one. Only a check that ran and failed counts. A newer version of the tool,
-// or a one-off attempt to use a tool in a run, is checked again by the engine before the next
-// AI call, so neither shows as failed.
+// else the last stored one. Only a check that ran and failed counts: one stopped part way (an
+// engine restart, a usage limit) gave no verdict, so the stored one stands. A newer version of
+// the tool, or a one-off attempt to use a tool in a run, is checked again by the engine before
+// the next AI call, so neither shows as failed.
 export function safetyFailed(session: SafetyState | null, kind: ToolKind, stored: LockdownState | undefined): boolean {
-  if (session && session.tool === kind) return session.done && !session.passed
+  if (session && session.tool === kind && !session.stopped) return session.done && !session.passed
   return stored?.blocked_reason === 'lockdown_failed'
+}
+
+// Whether this session's check for the tool stopped part way, so it shows as not finished.
+export function safetyUnfinished(session: SafetyState | null, kind: ToolKind): boolean {
+  return Boolean(session && session.tool === kind && session.done && session.stopped)
+}
+
+// The look-up's hits, only while they answer the text in the field now: until the answer for
+// newer text comes, there are none, so Return never starts a company from an older query.
+export function freshHits(query: string, searched: string, hits: SearchHit[]): SearchHit[] {
+  const q = query.trim()
+  return q !== '' && searched === q ? hits : []
+}
+
+// The peer-group rule for the highlighted company, in the engine's own words (search_companies'
+// peer_rule, from peers.yaml and the bundled list), or null.
+export function peerRule(hits: SearchHit[], at: number): string | null {
+  return hits[at]?.peer_rule ?? null
 }

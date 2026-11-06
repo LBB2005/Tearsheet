@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
-import type { CompanyRow } from '../shared/protocol'
+import type { CompanyRow, SearchHit } from '../shared/protocol'
 import { REPORT_STEPS } from '../shared/steps'
 import type { LockdownState } from '../shared/protocol'
-import { nextCompany, safetyFailed, shortDate, statusLine } from './nav'
+import { freshHits, nextCompany, peerRule, safetyFailed, safetyUnfinished, shortDate, statusLine } from './nav'
 import { safetyStarted, type SafetyState } from './setup/steps'
 
 const row = (ticker: string): CompanyRow => ({
@@ -172,5 +172,58 @@ describe('shortDate', () => {
 
   it('passes anything else through', () => {
     expect(shortDate('soon', now)).toBe('soon')
+  })
+})
+
+describe('freshHits', () => {
+  const hit = (ticker: string): SearchHit => ({ ticker, name: ticker, sector: null, cik: ticker.length, report_id: null, report_date: null })
+  const old = [hit('AAPL')]
+
+  it('gives the hits only when they answer the text in the field now', () => {
+    expect(freshHits('aapl', 'aapl', old)).toBe(old)
+    expect(freshHits(' aapl ', 'aapl', old)).toBe(old)
+  })
+
+  it('gives none while the answer for newer text is on its way, so Return never picks an older hit', () => {
+    expect(freshHits('jpm', 'aapl', old)).toEqual([])
+    expect(freshHits('', '', old)).toEqual([])
+  })
+})
+
+describe('a safety check that stopped part way', () => {
+  const stored = (over: Partial<LockdownState> = {}): LockdownState => ({ version: '2.1.317', passed: true, form: 'full', checked_at: '2026-11-05T19:00:00+00:00', blocked_reason: null, ...over })
+  const stopped: SafetyState = { ...safetyStarted('claude'), n: 9, done: true, passed: false, stopped: true, reason: 'The check couldn’t finish: usage limit' }
+
+  it('is not a failure: the last stored check still counts', () => {
+    expect(safetyFailed(stopped, 'claude', stored())).toBe(false)
+    expect(safetyFailed(stopped, 'claude', undefined)).toBe(false)
+    expect(safetyFailed(stopped, 'claude', stored({ passed: false, blocked_reason: 'lockdown_failed' }))).toBe(true)
+  })
+
+  it('shows as not finished, for this tool only', () => {
+    expect(safetyUnfinished(stopped, 'claude')).toBe(true)
+    expect(safetyUnfinished(stopped, 'codex')).toBe(false)
+    expect(safetyUnfinished({ ...stopped, stopped: false }, 'claude')).toBe(false)
+    expect(safetyUnfinished(null, 'claude')).toBe(false)
+  })
+
+  it('leaves the status line ready, not red', () => {
+    expect(statusLine({ tools: 'Claude Code', signedOut: false, safetyFailed: safetyFailed(stopped, 'claude', stored()) })).toEqual({ tone: 'ok', text: 'Claude Code ready' })
+  })
+})
+
+describe('peerRule', () => {
+  const hit = (ticker: string, peer_rule?: string | null): SearchHit => ({ ticker, name: ticker, sector: 'Materials', cik: ticker.length, report_id: null, report_date: null, peer_rule })
+
+  it('gives the engine’s peer-group rule for the highlighted company', () => {
+    const hits = [hit('LIN', 'Compared with the other 23 S&P 500 Materials companies'), hit('SHW', 'Compared with the other 23 S&P 500 Materials companies, too')]
+    expect(peerRule(hits, 0)).toBe('Compared with the other 23 S&P 500 Materials companies')
+    expect(peerRule(hits, 1)).toBe('Compared with the other 23 S&P 500 Materials companies, too')
+  })
+
+  it('gives nothing with no highlighted company, or none from the engine', () => {
+    expect(peerRule([], 0)).toBeNull()
+    expect(peerRule([hit('LIN')], 0)).toBeNull()
+    expect(peerRule([hit('LIN', null)], 3)).toBeNull()
   })
 })

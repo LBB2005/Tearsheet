@@ -262,10 +262,12 @@ function ToolRow({ tool, stored, safety, anyChecking, onSafetyStarted }: { tool:
       </>
     )
   } else if (why) line = why
+  else if (mine?.done && mine.stopped) line = mine.reason ?? 'The check stopped before it finished.'
   else if (mine?.done && !mine.passed) line = mine.reason ?? 'The check did not pass.'
   else if (mine?.done && mine.passed) line = 'Safety check passed.'
-  // Why a check didn't start is the newest news, so it shows over the last check's result.
-  const tone = running || why ? 'st' : mine?.done && !mine.passed ? 'st bad' : mine?.done && mine.passed ? 'st ok' : 'st'
+  // Why a check didn't start is the newest news, so it shows over the last check's result. A
+  // check stopped part way is muted: it gave no verdict.
+  const tone = running || why || mine?.stopped ? 'st' : mine?.done && !mine.passed ? 'st bad' : mine?.done && mine.passed ? 'st ok' : 'st'
   const canCheck = tool.available && tool.loggedIn !== false && !running
 
   return (

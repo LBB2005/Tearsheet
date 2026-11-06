@@ -28,6 +28,8 @@
 .setup .chip .okdot, .setup .chip .baddot { width: 18px; display: grid; place-items: center; }
 .setup .chip .okdot svg { width: 13px; height: 13px; stroke: var(--up); fill: none; stroke-width: 2.6; }
 .setup .chip .baddot i { width: 8px; height: 8px; border-radius: 50%; background: var(--down); }
+.setup .chip .mutedot { width: 18px; display: grid; place-items: center; }
+.setup .chip .mutedot i { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
 .setup .chip.bad { color: #FFB3BA; border-color: rgba(255, 127, 138, .3); }
 .setup .ring { display: block; }
 .setup .ring .rt { stroke: var(--track); fill: none; }
@@ -150,6 +152,7 @@
 .setup .ci .ic .ring { width: 18px; height: 18px; }
 .setup .ci .ic.skip i { display: block; width: 12px; height: 2px; background: var(--hold); border-radius: 1px; margin: 0 0 0 3px; }
 .setup .ci .ic.bad i { display: block; width: 8px; height: 8px; border-radius: 50%; background: var(--down); margin: 0 0 0 4px; }
+.setup .ci .ic.muted i { display: block; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); margin: 0 0 0 4px; }
 .setup .ci b { font-weight: 600; }
 .setup .ci span { color: var(--muted); min-width: 0; overflow-wrap: anywhere; }
 

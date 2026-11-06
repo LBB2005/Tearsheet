@@ -152,6 +152,17 @@ describe('sinceLines', () => {
     })
   })
 
+  it('says, without alarm, that a stopped safety check didn’t finish', () => {
+    const lines = sinceLines(input({ tool: { name: 'Claude Code', signedOut: false, safetyFailed: false, safetyUnfinished: true } }))
+    expect(lines[0]).toEqual({
+      tone: 'muted',
+      text: 'Claude Code’s safety check didn’t finish',
+      detail: 'It runs again by itself before the next report, or you can run it now.',
+      action: 'recheck'
+    })
+    expect(lines.some((l) => l.tone === 'down')).toBe(false)
+  })
+
   it('makes a missing Massive key a problem, with the fix', () => {
     expect(sinceLines(input({ keys: { massive: 'missing', fred: 'set' } }))[0]).toEqual({
       tone: 'down',

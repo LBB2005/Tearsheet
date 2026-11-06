@@ -25,7 +25,10 @@ export function menuTemplate(send: (c: MenuCommand) => void, isDev: boolean): Me
         { role: 'quit' }
       ]
     },
-    { label: 'File', submenu: [item('New report', 'CmdOrCtrl+N', 'new'), item('Look up', 'CmdOrCtrl+K', 'lookup')] },
+    {
+      label: 'File',
+      submenu: [item('New report', 'CmdOrCtrl+N', 'new'), item('Look up', 'CmdOrCtrl+K', 'lookup'), { type: 'separator' }, { role: 'close', accelerator: 'CmdOrCtrl+W' }]
+    },
     {
       label: 'Edit',
       submenu: [
