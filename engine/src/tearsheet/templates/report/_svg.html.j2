@@ -41,15 +41,16 @@
     drawn as a fan from today's price to the bear, base and bull values. Either half may be
     missing; that half then says so. -#}
 {%- macro price_path(weekly, today, rng, start, middle, end, label, w=494, h=170) -%}
-{%- set left, right, top, bot = 46, w - 44, 10, h - 24 -%}
+{%- set has_fan = rng and today is number -%}
+{#- The range's labels need room on the right: a name and price, with the move under it. -#}
+{%- set left, right, top, bot = 46, w - (96 if has_fan else 44), 10, h - 24 -%}
 {%- set mid = left + (right - left) * 0.55 -%}
 {%- set closes = (weekly or [])|map(attribute="close")|list -%}
-{%- set has_fan = rng and today is number -%}
 {%- set vals = closes + ([today] if today is number else []) + ([rng.bear, rng.base, rng.bull] if rng else []) -%}
 {%- set lo0, hi0 = vals|min, vals|max -%}
 {%- set pad = [(hi0 - lo0) * 0.06, (hi0|abs) * 0.02, 0.01]|max -%}
 {%- set lo, hi = lo0 - pad, hi0 + pad -%}
-{%- set ns = namespace(step=none, pts="", bull="", bear="", base="") -%}
+{%- set ns = namespace(step=none, pts="") -%}
 {%- for s in STEPS -%}{%- if ns.step is none and (hi - lo) / s <= 4.5 -%}{%- set ns.step = s -%}{%- endif -%}{%- endfor -%}
 {%- set step = ns.step or STEPS[-1] -%}
 {%- set ky = (bot - top) / (hi - lo) -%}
@@ -70,16 +71,12 @@
 <text class="ch-lab" x="{{ f1((left + mid) / 2) }}" y="{{ f1((top + bot) / 2) }}" text-anchor="middle">Weekly prices not stored for this report</text>
 {%- endif -%}
 {%- if has_fan -%}
-{%- for k in range(13) -%}
-{%- set x = mid + k / 12 * (right - mid) -%}
-{%- set s = (k / 12) ** 0.5 -%}
-{%- set ns.bull = ns.bull ~ "%.1f,%.1f "|format(x, bot - (today + (rng.bull - today) * s - lo) * ky) -%}
-{%- set ns.base = ns.base ~ "%.1f,%.1f "|format(x, bot - (today + (rng.base - today) * s - lo) * ky) -%}
-{%- endfor -%}
-{%- for k in range(12, -1, -1) -%}
-{%- set ns.bear = ns.bear ~ "%.1f,%.1f "|format(mid + k / 12 * (right - mid), bot - (today + (rng.bear - today) * (k / 12) ** 0.5 - lo) * ky) -%}
-{%- endfor -%}
-<polygon class="ch-fan" points="{{ ns.bull }}{{ ns.bear|trim }}"/><polyline class="ch-base" points="{{ ns.base|trim }}"/>
+{#- The 12-month range: a straight line from today's price to each target a year out, bull in
+    green, bear in red and base dotted, over a light fill between bull and bear. -#}
+{%- set y_now = bot - (today - lo) * ky -%}
+{%- set ys = {"bull": bot - (rng.bull - lo) * ky, "base": bot - (rng.base - lo) * ky, "bear": bot - (rng.bear - lo) * ky} -%}
+<polygon class="ch-fan" points="{{ "%.1f,%.1f %.1f,%.1f %.1f,%.1f"|format(mid, y_now, right, ys.bull, right, ys.bear) }}"/>
+{%- for name in ("bull", "base", "bear") %}<line class="ch-{{ name }}" x1="{{ f1(mid) }}" y1="{{ f1(y_now) }}" x2="{{ f1(right) }}" y2="{{ f1(ys[name]) }}"/>{% endfor -%}
 {%- elif not rng -%}
 <text class="ch-lab" x="{{ f1((mid + right) / 2) }}" y="{{ f1((top + bot) / 2) }}" text-anchor="middle">Range not stored for this report</text>
 {%- endif -%}
@@ -87,10 +84,17 @@
 <line class="ch-axis" x1="{{ f1(mid) }}" x2="{{ f1(mid) }}" y1="{{ top }}" y2="{{ bot }}"/>
 {%- if today is number -%}<circle class="ch-today" cx="{{ f1(mid) }}" cy="{{ f1(bot - (today - lo) * ky) }}" r="4"/>{%- endif -%}
 {%- if has_fan -%}
-{%- set y_bull = bot - (rng.bull - lo) * ky -%}
-{%- set y_bear = bot - (rng.bear - lo) * ky -%}
-{%- set y_base = [[bot - (rng.base - lo) * ky, y_bull + 13]|max, y_bear - 13]|min -%}
-<text class="ch-val" x="{{ right + 6 }}" y="{{ f1(y_bull + 4) }}">Bull</text><text class="ch-val" x="{{ right + 6 }}" y="{{ f1(y_base + 4) }}">Base</text><text class="ch-val" x="{{ right + 6 }}" y="{{ f1(y_bear + 4) }}">Bear</text>
+{#- Each target named at its line's end, with its price and its move from today; kept 26 px
+    apart, and above the dates along the bottom, so the two-line labels never touch. -#}
+{%- set y_bull = [ys.bull, top + 4]|max -%}
+{%- set y_base = [ys.base, y_bull + 26]|max -%}
+{%- set y_bear = [[ys.bear, y_base + 26]|max, bot - 4]|min -%}
+{%- set y_base = [y_base, y_bear - 26]|min -%}
+{%- set y_bull = [y_bull, y_base - 26]|min -%}
+{%- for name, y, target in (("Bull", y_bull, rng.bull), ("Base", y_base, rng.base), ("Bear", y_bear, rng.bear)) -%}
+{%- set move = (target / today - 1) * 100 -%}
+<text class="ch-val" x="{{ right + 6 }}" y="{{ f1(y + 2) }}"><tspan class="ch-{{ name|lower }}n">{{ name }}</tspan> {{ "${:,.2f}".format(target) }}</text><text class="ch-lab" x="{{ right + 6 }}" y="{{ f1(y + 15) }}">{{ ("+" if move >= 0 else "−") ~ "%.0f"|format(move|abs) }}%</text>
+{%- endfor -%}
 {%- endif -%}
 <text class="ch-lab" x="{{ left }}" y="{{ h - 6 }}">{{ start }}</text><text class="ch-lab" x="{{ f1(mid) }}" y="{{ h - 6 }}" text-anchor="middle">{{ middle }}</text><text class="ch-lab" x="{{ right }}" y="{{ h - 6 }}" text-anchor="end">{{ end }}</text>
 </svg>

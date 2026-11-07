@@ -336,3 +336,23 @@ def test_a_narrow_window_keeps_one_column_at_any_frame_width():
     assert ".col-auto.narrow.side-text .nums" in outside
     wide = render_html(r, mode="app", column="auto", numbers=numbers())
     assert 'class="mode-app col-auto side-text"' in wide
+
+
+def _range_chart(html: str) -> str:
+    start = html.index("Past year and the 12-month range")
+    return html[start : html.index("</svg>", start)]
+
+
+def test_the_12_month_range_is_three_straight_labelled_lines():
+    """Bull in green, bear in red and base dotted, each a straight line from today's price to its
+    target a year out, over a light fill, and each named with its price and its move from
+    today's $200.13."""
+    svg = _range_chart(render_html(report("Plain sentence."), mode="app", numbers=numbers()))
+    for cls in ("ch-bull", "ch-base", "ch-bear"):
+        assert re.search(
+            rf'<line class="{cls}" x1="[\d.]+" y1="[\d.]+" x2="[\d.]+" y2="[\d.]+"', svg
+        ), cls
+    fill = re.search(r'<polygon class="ch-fan" points="([^"]+)"', svg)
+    assert fill and len(fill.group(1).split()) == 3  # a triangle: today, the bull and the bear
+    for text in ("Bull", "$419.62", "+110%", "Base", "$233.70", "+17%", "Bear", "$130.16", "−35%"):
+        assert text in svg, text

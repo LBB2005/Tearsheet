@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { ChartSeries } from '../../shared/protocol'
-import { covers, measure, namedFilings, needsHistory, niceTicks, RANGES, rebase, slice, volumeText, yearsServed } from './series'
+import { covers, measure, namedFilings, needsHistory, niceTicks, RANGES, rangeLabel, rebase, slice, volumeText, yearsServed } from './series'
 
 // Weekday closes from `start` to `end`, skipping New Year's Day as the market does.
 function series(start: string, end: string): ChartSeries {
@@ -144,5 +144,14 @@ describe('namedFilings', () => {
     // A name is about 28 px wide, centred on its line; the heading starts at `stop`.
     expect(namedFilings([{ x: 300, form: '10-Q' }, { x: 380, form: '10-K' }], 390)).toEqual([true, false])
     expect(namedFilings([{ x: 380, form: '10-K' }], 394)).toEqual([true])
+  })
+})
+
+describe('rangeLabel', () => {
+  it('names a 12-month target by its price and its move from today', () => {
+    expect(rangeLabel(593.78, 344.04)).toEqual({ price: '$594', move: '+73%' })
+    expect(rangeLabel(358.1, 344.04)).toEqual({ price: '$358', move: '+4%' })
+    expect(rangeLabel(216.34, 344.04)).toEqual({ price: '$216', move: '−37%' })
+    expect(rangeLabel(1250, 1000)).toEqual({ price: '$1,250', move: '+25%' })
   })
 })

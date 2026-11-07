@@ -133,3 +133,9 @@ export function namedFilings(marks: { x: number | null; form: string }[], stop =
     return true
   })
 }
+
+// A 12-month target's label at the end of its line: its price, and its move from today.
+export function rangeLabel(target: number, today: number): { price: string; move: string } {
+  const pct = Math.round((target / today - 1) * 100)
+  return { price: `$${Math.round(target).toLocaleString('en-US')}`, move: `${pct >= 0 ? '+' : '−'}${Math.abs(pct)}%` }
+}

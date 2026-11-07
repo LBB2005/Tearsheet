@@ -133,7 +133,10 @@ a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outli
 .ch-pline { stroke: var(--hold); stroke-dasharray: 3 3; } .ch-today { fill: var(--hold); }
 .ch-line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; }
 .ch-area { fill: url(#area-g); } .ch-fan { fill: url(#fan-g); }
-.ch-base { stroke: var(--accent2); stroke-dasharray: 4 4; stroke-width: 1.5; fill: none; }
+/* The 12-month range: bull green, bear red, base dotted, with the names in the same colours. */
+.ch-bull { stroke: var(--up); stroke-width: 2; } .ch-bear { stroke: var(--down); stroke-width: 2; }
+.ch-base { stroke: var(--accent2); stroke-dasharray: 4 4; stroke-width: 1.8; fill: none; }
+.ch-bulln { fill: var(--up); } .ch-basen { fill: var(--accent2); } .ch-bearn { fill: var(--down); }
 .g-track { stroke: var(--track); fill: none; } .g-fill { stroke: url(#ring-g); fill: none; stroke-linecap: round; }
 .dn-seg { fill: none; } .dn-buy { stroke: var(--up); } .dn-hold { stroke: var(--hold); } .dn-sell, .dn-removed { stroke: var(--down); } .dn-kept { stroke: var(--accent); }
 
@@ -237,7 +240,7 @@ table.t td { padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-a
   .g-fill, .dn-seg { animation: draw 1.4s .2s cubic-bezier(.2,.7,.2,1) both; }
   .ch-line { stroke-dasharray: 1; animation: trace 1.6s .25s cubic-bezier(.4,.1,.2,1) both; }
   .ch-area { animation: fade .8s .9s both; }
-  .ch-fan, .ch-base { animation: fade .9s 1.5s both; }
+  .ch-fan, .ch-bull, .ch-base, .ch-bear { animation: fade .9s 1.5s both; }
   .ch-band { transform-box: fill-box; transform-origin: left; animation: grow 1s .3s cubic-bezier(.2,.7,.2,1) both; }
   .tile .rk i { animation: rise .5s .6s both; }
   .view .txt { animation: rise .5s .15s cubic-bezier(.2,.7,.2,1) both; }
@@ -254,7 +257,7 @@ table.t td { padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-a
 <svg class="defs" width="0" height="0" aria-hidden="true" focusable="false"><defs>
 <linearGradient id="ring-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4C8DFF"/><stop offset="1" stop-color="#7FE3F7"/></linearGradient>
 <linearGradient id="area-g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7FE3F7" stop-opacity=".18"/><stop offset="1" stop-color="#7FE3F7" stop-opacity="0"/></linearGradient>
-<linearGradient id="fan-g" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#8FA2FF" stop-opacity=".05"/><stop offset="1" stop-color="#8FA2FF" stop-opacity=".24"/></linearGradient>
+<linearGradient id="fan-g" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#8FA2FF" stop-opacity=".04"/><stop offset="1" stop-color="#8FA2FF" stop-opacity=".14"/></linearGradient>
 </defs></svg>
 {%- if mode == "file" %}
 <header class="rhead">

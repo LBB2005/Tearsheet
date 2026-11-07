@@ -21,7 +21,7 @@ import type { ChartSeries } from '../../shared/protocol'
 import { reduced } from '../motion'
 import { shortDate } from '../nav'
 import { money } from '../shell/Sidebar'
-import { covers, measure, namedFilings, needsHistory, niceTicks, RANGE_ORDER, rebase, slice, volumeText, yearsServed, type Range } from './series'
+import { covers, measure, namedFilings, needsHistory, niceTicks, RANGE_ORDER, rangeLabel, rebase, slice, volumeText, yearsServed, type Range } from './series'
 import { carryOn, GLIDE_MS, glideTrack, nextGlide, resample, trackXs, type GlideState, type Track } from './glide'
 import { SHARE_DEFAULT, shareFor, volumeHeight } from './height'
 import { setVolumeOn, setVolumeShare, startRange, volumeOn, volumeShare } from './prefs'
@@ -102,7 +102,6 @@ const RANGE_WORDS: Record<Range, string> = {
 
 const sgn = (v: number, digits = 1) => `${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(digits)}%`
 const signedMoney = (v: number) => `${v >= 0 ? '+' : '−'}${money.format(Math.abs(v))}`
-const dollars = (v: number) => `$${Math.round(v).toLocaleString('en-US')}`
 const day = (iso: string) => `${MONTHS[Number(iso.slice(5, 7)) - 1]} ${Number(iso.slice(8, 10))}`
 const f1 = (v: number) => v.toFixed(1)
 
@@ -120,6 +119,8 @@ const ICON = {
 
 const PAD_L = 50
 const PAD_R = 14
+// Room right of the 12-month range for its labels: a name and price, with the move under it.
+const FAN_LABELS = 64
 const AXIS_H = 22
 const TOP = 18
 // Half the width of the fan's "Next 12 months" heading, at its 11 px.
@@ -158,7 +159,7 @@ function geometry(sl: ChartSeries, t: Toggles, W: number, H: number, volH: numbe
   const n = sl.dates.length
   const indexed = t.peers || t.spy
   const fan = t.fan && sl.range !== null
-  const fanW = fan ? Math.round((W - PAD_L) * 0.24) : 0
+  const fanW = fan ? Math.round((W - PAD_L) * 0.24) + FAN_LABELS : 0
   const x0 = PAD_L
   const x1 = W - PAD_R - fanW - (fan ? 10 : 0)
   const plotB = H - AXIS_H - volH - 12
@@ -316,7 +317,7 @@ function drawChart(sl: ChartSeries, g: Geo, ticker: string, over: Over | null): 
 
   // The fan, when it is on, runs from fx0 to fx1, with its heading centred above.
   const fx0 = x1 + 10
-  const fx1 = W - PAD_R - 42
+  const fx1 = W - PAD_R - FAN_LABELS
   const headStart = g.fan && sl.range ? (fx0 + fx1) / 2 - FAN_HEAD_HALF - 4 : Infinity
 
   // Each filing's line and dot; the 10-K and 10-Q forms are named above, thinned so the names
@@ -373,17 +374,11 @@ function drawChart(sl: ChartSeries, g: Geo, ticker: string, over: Over | null): 
   let fan: ReactElement | null = null
   if (g.fan && sl.range) {
     const py = Y(end)
-    const curve = (target: number) => {
-      const out: string[] = []
-      for (let q = 0; q <= 12; q++) {
-        const f = q / 12
-        out.push(`${f1(fx0 + f * (fx1 - fx0))},${f1(Y(end + (g.scale(target) - end) * Math.sqrt(f)))}`)
-      }
-      return out
-    }
     const r = sl.range
-    // Each label is two lines; keep them apart, top to bottom.
-    const named = ([['Bull', r.bull], ['Base', r.base], ['Bear', r.bear]] as [string, number][]).map(([label, v]) => ({ label, v, y: Y(g.scale(v)) + 4 }))
+    // A straight line from today to each target a year out (the report's chart draws it the same way).
+    const at = (target: number) => Y(g.scale(target))
+    // Each label is two lines, the name and price, then the move from today; keep them apart.
+    const named = ([['Bull', r.bull, 'c-bulln'], ['Base', r.base, 'c-basen'], ['Bear', r.bear, 'c-bearn']] as [string, number, string][]).map(([label, v, cls]) => ({ label, v, cls, y: at(v) + 4 }))
     named.sort((a, b) => a.y - b.y)
     for (let k = 1; k < named.length; k++) if (named[k].y - named[k - 1].y < 28) named[k].y = named[k - 1].y + 28
     fan = (
@@ -392,19 +387,24 @@ function drawChart(sl: ChartSeries, g: Geo, ticker: string, over: Over | null): 
         <text className="c-fanh" x={(fx0 + fx1) / 2} y={TOP - 5} textAnchor="middle">
           Next 12 months
         </text>
-        <polygon className="c-fan" points={[...curve(r.bull), ...curve(r.bear).reverse()].join(' ')} />
-        <polyline className="c-base" points={curve(r.base).join(' ')} />
+        <polygon className="c-fan" points={`${f1(fx0)},${f1(py)} ${f1(fx1)},${f1(at(r.bull))} ${f1(fx1)},${f1(at(r.bear))}`} />
+        <line className="c-bull" x1={fx0} y1={py} x2={fx1} y2={at(r.bull)} />
+        <line className="c-base" x1={fx0} y1={py} x2={fx1} y2={at(r.base)} />
+        <line className="c-bear" x1={fx0} y1={py} x2={fx1} y2={at(r.bear)} />
         <line className="c-div" x1={x1} x2={fx0} y1={py} y2={py} />
-        {named.map(({ label, v, y }) => (
-          <g key={label}>
-            <text className="c-fanl" x={fx1 + 4} y={y}>
-              {label}
-            </text>
-            <text className="c-fanh" x={fx1 + 4} y={y + 13}>
-              {g.indexed ? sgn(g.scale(v) - 100, 0) : dollars(v)}
-            </text>
-          </g>
-        ))}
+        {named.map(({ label, v, cls, y }) => {
+          const l = rangeLabel(v, sl.close[n - 1])
+          return (
+            <g key={label}>
+              <text className="c-fanl" x={fx1 + 4} y={y}>
+                <tspan className={cls}>{label}</tspan> {l.price}
+              </text>
+              <text className="c-fanh" x={fx1 + 4} y={y + 13}>
+                {l.move}
+              </text>
+            </g>
+          )
+        })}
       </g>
     )
   }
