@@ -40,6 +40,6 @@
 .mdot, .mpeer, .mmed { position: absolute; transform: translateX(-50%); }
 .mdot { top: 1px; width: 12px; height: 12px; border-radius: 50%; background: var(--accent); }
 .mmed { top: 0; height: 14px; width: 0; border-left: 2px solid var(--muted); }
-.mpeer { all: unset; box-sizing: border-box; cursor: pointer; position: absolute; top: 3px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent2); }
+.mpeer { all: unset; box-sizing: border-box; cursor: pointer; position: absolute; transform: translateX(-50%); top: 3px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent2); }
 .mpeer:hover { outline: 2px solid var(--accent2); }
 .mpeer:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
