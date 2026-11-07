@@ -12,6 +12,7 @@ import type { ViewMemory } from './memory'
 import { viewTitle } from './titles'
 import { FACTORS_START } from '../views/factors'
 import { Factors } from '../views/FactorsPane'
+import { Economy, RedFlags, Rings } from '../views/FiguresPane'
 import { METRICS_START } from '../views/metrics'
 import { Metrics } from '../views/MetricsPane'
 import { METHODS_START } from '../views/methods'
@@ -35,6 +36,9 @@ export const VIEW_PANES: Partial<Record<ViewKind | 'table', ViewSpec>> = {
   metrics: { start: METRICS_START, Pane: Metrics },
   methods: { start: METHODS_START, Pane: Methods },
   returns: { start: RETURNS_START, Pane: Returns },
+  flags: { start: null, Pane: RedFlags },
+  economy: { start: null, Pane: Economy },
+  rings: { start: null, Pane: Rings },
   table: { start: TABLE_START, Pane: Table }
 }
 

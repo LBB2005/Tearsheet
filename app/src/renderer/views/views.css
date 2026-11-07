@@ -89,3 +89,42 @@
 th[aria-sort='ascending'] .tsort, th[aria-sort='descending'] .tsort { color: var(--accent); }
 .ttable tbody tr.picked { background: rgba(127, 227, 247, .08); outline: 1px solid var(--accent); outline-offset: -1px; }
 .tnone { color: var(--muted); padding: 12px 10px; }
+
+/* Red flags: the meter is one cell for each check, then one button for each check. */
+.rfmeter { display: flex; align-items: center; gap: 12px; padding: 6px 4px 14px; font-size: 18px; }
+.rfcells { flex: 1; display: flex; gap: 4px; }
+.rfcells i { flex: 1; height: 14px; border-radius: 4px; background: var(--line); }
+.rfcells i.found { background: var(--hold); }
+.rfrows { display: flex; flex-direction: column; gap: 4px; padding-bottom: 12px; }
+.rfrow { all: unset; box-sizing: border-box; cursor: pointer; display: flex; justify-content: space-between; gap: 12px; padding: 10px; border-radius: 10px;
+  border: 1px solid transparent; color: var(--text); font-size: 14px; }
+.rfrow:hover { background: rgba(127, 227, 247, .06); }
+.rfrow:focus-visible { outline: 2px solid var(--accent); }
+.rfrow.picked { border-color: var(--accent); background: rgba(127, 227, 247, .08); }
+.rfstate { flex: none; color: var(--muted); }
+.rfstate.found { color: var(--hold); font-weight: 600; }
+
+/* Economy: a large tile for each figure. */
+.etiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; padding: 4px 0 12px; }
+.etile { all: unset; box-sizing: border-box; cursor: pointer; display: flex; flex-direction: column; gap: 4px; padding: 14px; border-radius: 12px;
+  border: 1px solid var(--line); background: var(--panel); color: var(--text); }
+.etile b { font-size: 26px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.etile small { color: var(--muted); font-size: 12px; }
+.etile:hover { background: rgba(127, 227, 247, .06); }
+.etile:focus-visible { outline: 2px solid var(--accent); }
+.etile.picked { border-color: var(--accent); background: rgba(127, 227, 247, .08); }
+
+/* Rings: each ring with its lists under it. */
+.rings { display: flex; flex-direction: column; gap: 24px; padding: 4px 0 12px; }
+.ringfig h3 { margin: 0 0 8px; font-size: 14px; }
+.ringsvg { display: block; margin: 0 auto 10px; fill: none; }
+.rarc { stroke-width: 18; cursor: pointer; }
+.rarc:hover, .rarc:focus-visible, .rarc.picked { stroke-width: 22; outline: none; }
+.rtotal { fill: var(--text); font-size: 28px; font-weight: 600; stroke: none; }
+.rlists details { border-top: 1px solid var(--line); padding: 8px 4px; font-size: 13px; }
+.rlists summary { cursor: pointer; display: flex; align-items: center; gap: 8px; }
+.rlists summary:focus-visible { outline: 2px solid var(--accent); }
+.rlists summary i { width: 10px; height: 10px; border-radius: 50%; }
+.rcount { color: var(--muted); font-variant-numeric: tabular-nums; }
+.rlists ul { margin: 8px 0 0; padding-left: 22px; line-height: 1.5; }
+.rnone { margin: 8px 0 0; color: var(--muted); }
