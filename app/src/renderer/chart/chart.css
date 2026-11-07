@@ -2,9 +2,9 @@
    Class names, colours and spacing follow docs/designs/report-look-c-chart-split.html (.divider,
    .cpane5, .cph, .tg, .ibtn, .chartwrap, .loadbox, .cnote5, the c- chart parts). Motion is
    A. Settle: the split slides in from the right as it opens and away as it closes, resizes live
-   while the divider is dragged (no transitions), and settles into Half or Full as it snaps. On a
-   range or toggle change the line traces again and the volume rises. Under Reduce motion nothing
-   moves (styles.css). */
+   while the divider is dragged (no transitions), and settles into Half or Full as it snaps. The
+   line draws in as the chart opens; on a range or toggle change it glides. Under Reduce motion
+   nothing moves (styles.css). */
 
 /* ---------- the split: the divider and the pane ---------- */
 .divider { flex: none; width: 8px; position: relative; z-index: 3; cursor: col-resize; touch-action: none; outline: none;
@@ -121,14 +121,18 @@
 .c-measl { stroke: rgba(127, 227, 247, .6); stroke-width: 1; }
 .c-hovg { pointer-events: none; }
 
-/* The line traces and the volume rises, as the chart opens and on each range or toggle change. */
-.play .c-line, .play .ln-peer { stroke-dasharray: 1; animation: trace 1.1s .1s cubic-bezier(.4, .1, .2, 1) both; }
-.play .ln-spy { animation: fade .6s .6s both; }
-.play .c-area { animation: fade .7s .7s both; }
-.play .c-volg { transform-box: fill-box; transform-origin: bottom; animation: grow-y .7s .15s var(--settle) both; }
-.play .c-fang { animation: fade .6s 1s both; }
-.play .c-mkg { animation: settle-in .45s 1.1s var(--settle) both; }
-.play .c-buyg { animation: fade .5s .9s both; }
+/* The line traces and the volume rises as the chart opens, once (.first). After that, a range or
+   toggle change glides the lines (ChartPane, glide.ts); a part that wasn't there fades in, and a
+   line switched off fades out. */
+.play.first .c-line, .play.first .ln-peer { stroke-dasharray: 1; animation: trace 1.1s .1s cubic-bezier(.4, .1, .2, 1) both; }
+.play.first .ln-spy { animation: fade .6s .6s both; }
+.play.first .c-area { animation: fade .7s .7s both; }
+.play.first .c-volg { transform-box: fill-box; transform-origin: bottom; animation: grow-y .7s .15s var(--settle) both; }
+.play.first .c-fang { animation: fade .6s 1s both; }
+.play.first .c-mkg { animation: settle-in .45s 1.1s var(--settle) both; }
+.play.first .c-buyg { animation: fade .5s .9s both; }
+.c-enter { animation: fade .2s ease-out both; }
+.c-leave { animation: fade-out .2s ease-in forwards; pointer-events: none; }
 @keyframes trace { from { stroke-dashoffset: 1; } }
 @keyframes grow-y { from { transform: scaleY(0); } }
 

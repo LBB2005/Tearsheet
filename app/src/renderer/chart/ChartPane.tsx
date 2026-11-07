@@ -10,8 +10,9 @@
 // history (fetch_history: its bars, splits and dividends, and SPY's if they aren't stored yet),
 // then read the chart again. If the history is still
 // short, 5Y greys out and All shows what is there, with a note. The series comes from
-// get_chart. Motion: the line traces and the volume rises as the chart opens and on each range
-// or toggle change (chart.css); nothing moves under Reduce motion.
+// get_chart. Motion: the line traces and the volume rises as the chart opens (chart.css); after
+// that, a range or toggle change glides the lines to their new shape (glide.ts), and a part that
+// comes or goes fades. Nothing moves under Reduce motion.
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactElement } from 'react'
 
@@ -20,6 +21,7 @@ import type { ChartSeries } from '../../shared/protocol'
 import { shortDate } from '../nav'
 import { money } from '../shell/Sidebar'
 import { covers, measure, namedFilings, needsHistory, niceTicks, RANGE_ORDER, rebase, slice, volumeText, yearsServed, type Range } from './series'
+import { between, ease, GLIDE_MS, resample } from './glide'
 import { SHARE_DEFAULT, shareFor, volumeHeight } from './height'
 import { setVolumeOn, setVolumeShare, volumeOn, volumeShare } from './prefs'
 import { PRESETS, type Preset, type SnapMode } from './split'
@@ -230,10 +232,88 @@ const linePath = (values: (number | null)[], g: Geo): string => {
   return d
 }
 
+// ---------- the glide ----------
+
+// A line as drawn: its y at ys.length evenly spaced x from xa to xb. Read at the new line's own
+// points, a glide always lands exactly on the line it is going to (glide.ts).
+interface Track {
+  xa: number
+  xb: number
+  ys: number[]
+}
+interface Tracks {
+  main: Track | null
+  peers: Track | null
+  spy: Track | null
+}
+// A range or toggle change on its way: the lines from where they were to where they go, `t` of
+// the way there. `enter` names the parts that weren't there before, which fade in.
+interface Glide {
+  from: Tracks
+  to: Tracks
+  t: number
+  enter: { peers: boolean; spy: boolean; fan: boolean; price: boolean }
+}
+// What a glide changes in the drawing.
+interface Over extends Tracks {
+  main: Track
+  ghosts: { cls: string; track: Track }[]
+  enter: Glide['enter']
+}
+
+const trackXs = (t: Track) => t.ys.map((_, i) => (t.ys.length < 2 ? t.xa : t.xa + ((t.xb - t.xa) * i) / (t.ys.length - 1)))
+
+function trackOf(values: (number | null)[] | null, g: Geo): Track | null {
+  if (!values) return null
+  const first = values.findIndex((v) => v !== null)
+  let last = -1
+  for (let j = values.length - 1; j >= 0; j--)
+    if (values[j] !== null) {
+      last = j
+      break
+    }
+  if (first < 0 || last <= first) return null
+  const ys = resample(
+    values.map((_, j) => g.X(j)),
+    values.map((v) => (v === null ? null : g.Y(v))),
+    g.X(first),
+    g.X(last),
+    last - first + 1
+  )
+  return ys ? { xa: g.X(first), xb: g.X(last), ys } : null
+}
+
+const tracksOf = (g: Geo): Tracks => ({ main: trackOf(g.main, g), peers: trackOf(g.peers, g), spy: trackOf(g.spy, g) })
+
+function glideTrack(from: Track | null, to: Track, t: number): Track {
+  if (!from) return to
+  const f = from.ys.length === to.ys.length ? from : { ...from, ys: resample(trackXs(from), from.ys, from.xa, from.xb, to.ys.length) ?? to.ys }
+  const e = ease(t)
+  return { xa: f.xa + (to.xa - f.xa) * e, xb: f.xb + (to.xb - f.xb) * e, ys: between(f.ys, to.ys, t) }
+}
+
+const glideNow = (gl: Glide): Tracks => ({
+  main: gl.to.main ? glideTrack(gl.from.main, gl.to.main, gl.t) : null,
+  peers: gl.to.peers ? glideTrack(gl.from.peers, gl.to.peers, gl.t) : null,
+  spy: gl.to.spy ? glideTrack(gl.from.spy, gl.to.spy, gl.t) : null
+})
+
+const trackPoints = (t: Track) =>
+  trackXs(t)
+    .map((x, i) => `${f1(x)},${f1(t.ys[i])}`)
+    .join(' ')
+const trackPath = (t: Track) =>
+  trackXs(t)
+    .map((x, i) => `${i ? 'L' : 'M'}${f1(x)} ${f1(t.ys[i])}`)
+    .join('')
+
+const reducedMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
+
 // ---------- drawing ----------
 
-// Everything but the hover and the measured stretch, which change as the pointer moves.
-function drawChart(sl: ChartSeries, g: Geo, ticker: string): ReactElement {
+// Everything but the hover and the measured stretch, which change as the pointer moves. During
+// a glide, `over` gives the lines where they are now, and what fades in or out.
+function drawChart(sl: ChartSeries, g: Geo, ticker: string, over: Over | null): ReactElement {
   const { n, X, Y, x0, x1, plotB, volB, W, H } = g
   const ticks = niceTicks(g.lo, g.hi, 5)
   const step = ticks.length > 1 ? ticks[1] - ticks[0] : 1
@@ -280,8 +360,11 @@ function drawChart(sl: ChartSeries, g: Geo, ticker: string): ReactElement {
     )
   })
 
-  const points = g.main.map((v, j) => `${f1(X(j))},${f1(Y(v))}`).join(' ')
+  const points = over ? trackPoints(over.main) : g.main.map((v, j) => `${f1(X(j))},${f1(Y(v))}`).join(' ')
   const end = g.main[n - 1]
+  const endX = over ? over.main.xb : X(n - 1)
+  const endY = over ? over.main.ys[over.main.ys.length - 1] : Y(end)
+  const enter = (cls: string, on: boolean | undefined) => (on ? `${cls} c-enter` : cls)
 
   // With a compare line on: each line's name and change at its end, kept apart.
   const ends: ReactElement[] = []
@@ -323,7 +406,7 @@ function drawChart(sl: ChartSeries, g: Geo, ticker: string): ReactElement {
     named.sort((a, b) => a.y - b.y)
     for (let k = 1; k < named.length; k++) if (named[k].y - named[k - 1].y < 28) named[k].y = named[k - 1].y + 28
     fan = (
-      <g className="c-fang">
+      <g className={over?.enter.fan ? 'c-fang c-enter' : 'c-fang'}>
         <line className="c-div" x1={x1 + 5} x2={x1 + 5} y1={TOP} y2={plotB} />
         <text className="c-fanh" x={(fx0 + fx1) / 2} y={TOP - 5} textAnchor="middle">
           Next 12 months
@@ -364,13 +447,16 @@ function drawChart(sl: ChartSeries, g: Geo, ticker: string): ReactElement {
         <path className="c-vol" d={volume} />
       </g>
       <g className="c-mkg">{filings}</g>
-      {!g.indexed && <polygon className="c-area" points={`${f1(X(0))},${plotB} ${points} ${f1(X(n - 1))},${plotB}`} />}
-      {g.spy && <path className="ln-spy" d={linePath(g.spy, g)} />}
-      {g.peers && <path className="ln-peer" pathLength={1} d={linePath(g.peers, g)} />}
+      {!g.indexed && <polygon className={enter('c-area', over?.enter.price)} points={`${f1(over ? over.main.xa : X(0))},${plotB} ${points} ${f1(endX)},${plotB}`} />}
+      {over?.ghosts.map(({ cls, track }) => (
+        <path key={`gone-${cls}`} className={`${cls} c-leave`} d={trackPath(track)} />
+      ))}
+      {g.spy && <path className={enter('ln-spy', over?.enter.spy)} d={over?.spy ? trackPath(over.spy) : linePath(g.spy, g)} />}
+      {g.peers && <path className={enter('ln-peer', over?.enter.peers)} pathLength={1} d={over?.peers ? trackPath(over.peers) : linePath(g.peers, g)} />}
       <polyline className="c-line" pathLength={1} points={points} />
       {ends}
       {!g.indexed && sl.trigger !== null && (
-        <g className="c-buyg">
+        <g className={enter('c-buyg', over?.enter.price)}>
           <line className="c-buy" x1={x0} x2={x1} y1={Y(sl.trigger)} y2={Y(sl.trigger)} />
           <text className="c-buyl" x={x0 + 6} y={Y(sl.trigger) - 6}>
             Buy trigger {money.format(sl.trigger)}
@@ -378,7 +464,7 @@ function drawChart(sl: ChartSeries, g: Geo, ticker: string): ReactElement {
         </g>
       )}
       {fan}
-      <circle cx={X(n - 1)} cy={Y(end)} r={4} fill="var(--hold)" />
+      <circle cx={endX} cy={endY} r={4} fill="var(--hold)" />
     </>
   )
 }
@@ -467,8 +553,15 @@ export function ChartPane({ reportId, cik, ticker, name, width, wide, size, onCl
   const [sizing, setSizing] = useState(false)
   const [downloading, setDownloading] = useState(false)
   const [historyLine, setHistoryLine] = useState<string | null>(null)
-  // Changes on each range or toggle change, so the line traces and the volume rises again.
-  const [play, setPlay] = useState(0)
+  // The draw-in plays as the chart opens, until the first range or toggle change; after that
+  // the lines glide (glide.ts).
+  const [first, setFirst] = useState(true)
+  const [glide, setGlide] = useState<Glide | null>(null)
+  const glideRef = useRef<Glide | null>(null)
+  glideRef.current = glide
+  // A range or toggle change is on its way: the next drawing glides to it.
+  const pending = useRef(false)
+  const lastG = useRef<Geo | null>(null)
   const [hover, setHover] = useState<number | null>(null)
   const [span, setSpan] = useState<{ a: number; b: number } | null>(null)
   const [box, setBox] = useState({ W: 0, H: 0 })
@@ -529,12 +622,53 @@ export function ChartPane({ reportId, cik, ticker, name, width, wide, size, onCl
   const sl = useMemo(() => (series ? slice(series, shown) : null), [series, shown])
   const volH = volumeHeight(share, plotHeight(box.H), toggles.volume)
   const g = useMemo(() => (sl && sl.dates.length > 0 && box.W > 120 && box.H > 140 ? geometry(sl, toggles, box.W, box.H, volH) : null), [sl, toggles, box, volH])
-  const body = useMemo(() => (sl && g ? drawChart(sl, g, label) : null), [sl, g, label])
+  // A change glides from the lines as they were (or as they are now, mid-glide) to the new ones;
+  // a resize, the first drawing, or Reduce motion just draws.
+  useLayoutEffect(() => {
+    const prev = lastG.current
+    lastG.current = g
+    if (!g || !pending.current) return
+    pending.current = false
+    const to = tracksOf(g)
+    if (!prev || reducedMotion() || !to.main) {
+      setGlide(null)
+      return
+    }
+    const now = glideRef.current
+    setGlide({
+      from: now ? glideNow(now) : tracksOf(prev),
+      to,
+      t: 0,
+      enter: { peers: !prev.peers && !!g.peers, spy: !prev.spy && !!g.spy, fan: !prev.fan && g.fan, price: prev.indexed && !g.indexed }
+    })
+  }, [g])
+  useEffect(() => {
+    if (!glide) return
+    const start = performance.now() - glide.t * GLIDE_MS
+    let raf = requestAnimationFrame(function step(at: number) {
+      const t = Math.min(1, (at - start) / GLIDE_MS)
+      setGlide((gl) => (gl && t >= 1 ? null : gl ? { ...gl, t } : gl))
+      if (t < 1) raf = requestAnimationFrame(step)
+    })
+    return () => cancelAnimationFrame(raf)
+    // One loop per glide: a new one starts it again, and its own steps don't.
+  }, [glide?.from, glide?.to])
+  const over = useMemo((): Over | null => {
+    if (!glide) return null
+    const now = glideNow(glide)
+    if (!now.main) return null
+    const ghosts: Over['ghosts'] = []
+    if (glide.from.peers && !glide.to.peers) ghosts.push({ cls: 'ln-peer', track: glide.from.peers })
+    if (glide.from.spy && !glide.to.spy) ghosts.push({ cls: 'ln-spy', track: glide.from.spy })
+    return { main: now.main, peers: now.peers, spy: now.spy, ghosts, enter: glide.enter }
+  }, [glide])
+  const body = useMemo(() => (sl && g ? drawChart(sl, g, label, over) : null), [sl, g, label, over])
 
   const restart = () => {
     setHover(null)
     setSpan(null)
-    setPlay((n) => n + 1)
+    setFirst(false)
+    pending.current = true
   }
 
   const pick = (next: Range) => {
@@ -741,7 +875,7 @@ export function ChartPane({ reportId, cik, ticker, name, width, wide, size, onCl
             <line className="c-measl" x1={g.X(span.b)} x2={g.X(span.b)} y1={TOP} y2={g.plotB} />
           </g>
         )}
-        <g key={play} className="play">
+        <g className={first ? 'play first' : 'play'}>
           {body}
         </g>
         {hover !== null && hover < g.n && drawHover(sl, g, hover, label)}
