@@ -42,7 +42,8 @@ export const ICONS: Record<'side' | 'plus' | 'search' | 'log' | 'gear', ReactEle
 export const money = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' })
 
 // The button beside the window buttons (left 88 px, top 13 px). It stays when the sidebar is
-// hidden, so the sidebar can come back.
+// hidden, so the sidebar can come back. It sits on strips that drag the window, so App puts it
+// after them in the page: there, the later of two overlapping drag areas wins, not z-index.
 export function SidebarButton({ shown, onClick }: { shown: boolean; onClick: () => void }) {
   return (
     <button className="sbt" aria-label={shown ? 'Hide the sidebar' : 'Show the sidebar'} aria-expanded={shown} title="Show or hide the sidebar (⌃⌘S)" onClick={onClick}>

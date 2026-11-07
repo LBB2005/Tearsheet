@@ -442,7 +442,6 @@ export function App() {
 
   return (
     <div className={cls}>
-      {page !== 'setup' && <SidebarButton shown={sideShown} onClick={toggleSidebar} />}
       <Sidebar
         page={page}
         companies={companies}
@@ -495,6 +494,9 @@ export function App() {
         )}
         {lookUp && <LookUp onPick={(hit) => void pick(hit)} onClose={() => setLookUp(false)} />}
       </div>
+      {/* After the sidebar and the toolbar, whose top strips drag the window under it: where drag
+          areas overlap, the later one in the page wins (shell/sidebar.test.ts). */}
+      {page !== 'setup' && <SidebarButton shown={sideShown} onClick={toggleSidebar} />}
       <div className="toasts" aria-live="polite">
         {notice && <Toast key={notice.id} notice={notice} onDone={() => setNotice((n) => (n && n.id === notice.id ? null : n))} />}
       </div>
