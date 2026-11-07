@@ -1,5 +1,5 @@
 // Settings and connections (the spec's "Settings and connections" and "The chart → The Settings
-// choice"), in look C. In order: the Chart section ("When the chart opens"), four health tiles,
+// choice"), in look C. In order: the Chart section, four health tiles,
 // the AI tools with their lock-down status, the data keys (each with setup's paste-and-check
 // card), the raw downloads against their cap, the general settings, and "What leaves your Mac".
 // Ported from docs/designs/report-look-c-chart-split.html (settingsPage, chartSettings), in
@@ -15,8 +15,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 import type { ToolStatus } from '../../preload/api'
 import type { LockdownState, SettingsResult } from '../../shared/protocol'
-import { chartOpens, setChartOpens } from '../chart/prefs'
-import type { ChartOpens } from '../chart/split'
 import { GeneralPanel } from '../settings/General'
 import { KeysPanel } from '../settings/Keys'
 import { lockdownText } from '../settings/lockdown'
@@ -147,36 +145,14 @@ export function Settings({ tools, onTools, safety, onSafetyStarted, onSettings }
 
 // ---------- the Chart section ----------
 
-const OPENS: [ChartOpens, string][] = [
-  ['full', 'Full'],
-  ['half', 'Half'],
-  ['last', 'Where I left it']
-]
-
-// "When the chart opens", kept in the window's own storage (chart/prefs.ts); the chart reads it
-// each time it opens.
+// The chart opens at Half beside the report; its own buttons set Narrow, Half, Wide or Full.
 function ChartSection({ i }: { i: number }) {
-  const [opens, setOpens] = useState<ChartOpens>(() => chartOpens())
-  const pick = (value: ChartOpens) => {
-    setChartOpens(value)
-    setOpens(value)
-  }
   return (
     <section className="p glass prefc mv" style={at(i)}>
       <h4>
         <span>Chart</span>
         <em>⌘3 opens and closes it</em>
       </h4>
-      <div className="field">
-        <span id="set-opens">When the chart opens</span>
-        <div className="segc" role="group" aria-labelledby="set-opens">
-          {OPENS.map(([value, label]) => (
-            <button key={value} className={opens === value ? 'on' : undefined} aria-pressed={opens === value} onClick={() => pick(value)}>
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
       <div className="field">
         <span>Full size</span>
         <span>Everything right of the sidebar. It never covers the sidebar.</span>

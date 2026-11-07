@@ -20,6 +20,7 @@ import type { ChartSeries } from '../../shared/protocol'
 import { shortDate } from '../nav'
 import { money } from '../shell/Sidebar'
 import { covers, measure, namedFilings, needsHistory, niceTicks, RANGE_ORDER, rebase, slice, volumeText, yearsServed, type Range } from './series'
+import { PRESETS, type Preset, type SnapMode } from './split'
 
 import './chart.css'
 
@@ -31,12 +32,13 @@ export interface ChartPaneProps {
   name: string | null
   // The pane's width; the content keeps it while the pane slides in or out.
   width: number
-  // A wide window shows the Full size button and the divider; a narrow one gives the chart the
+  // A wide window shows the width buttons and the divider; a narrow one gives the chart the
   // whole window.
   wide: boolean
-  full: boolean
+  // The width button that is on: the split's mode (chart/split.ts), or none after a drag between.
+  size: SnapMode | null
   onClose: () => void
-  onFull: () => void
+  onSize: (p: Preset) => void
 }
 
 interface Toggles {
@@ -97,17 +99,9 @@ const dollars = (v: number) => `$${Math.round(v).toLocaleString('en-US')}`
 const day = (iso: string) => `${MONTHS[Number(iso.slice(5, 7)) - 1]} ${Number(iso.slice(8, 10))}`
 const f1 = (v: number) => v.toFixed(1)
 
+const PRESET_WORDS: Record<Preset, string> = { narrow: 'Narrow', half: 'Half', wide: 'Wide', full: 'Full' }
+
 const ICON = {
-  wide: (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M4 9V4h5M20 15v5h-5M4 4l6 6M20 20l-6-6" />
-    </svg>
-  ),
-  narrow: (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M10 4v6H4M14 20v-6h6M10 10L4 4M14 14l6 6" />
-    </svg>
-  ),
   close: (
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <path d="M6 6l12 12M18 6L6 18" />
@@ -450,7 +444,7 @@ function readout(sl: ChartSeries, range: Range, filled: boolean, hover: number |
 
 // ---------- the pane ----------
 
-export function ChartPane({ reportId, cik, ticker, name, width, wide, full, onClose, onFull }: ChartPaneProps) {
+export function ChartPane({ reportId, cik, ticker, name, width, wide, size, onClose, onSize }: ChartPaneProps) {
   const company = cik === null ? `report:${reportId}` : `cik:${cik}`
   const [series, setSeries] = useState<ChartSeries | null>(null)
   // The series on show was read after the company's history download, so a history still
@@ -737,9 +731,13 @@ export function ChartPane({ reportId, cik, ticker, name, width, wide, full, onCl
             {toggle('peers', 'Peers', '#8FA2FF', noPeers, 'No peer prices are stored for this report.')}
             {toggle('spy', 'S&P 500', '#D8DCE6', noSpy, 'No S&P 500 prices are stored.')}
             {wide && (
-              <button className="ibtn" aria-label={full ? 'Back to half' : 'Full size'} title={full ? 'Back to half' : 'Full size'} onClick={onFull}>
-                {full ? ICON.narrow : ICON.wide}
-              </button>
+              <div className="segc cwid" role="group" aria-label="Chart width">
+                {PRESETS.map((p) => (
+                  <button key={p} className={size === p ? 'on' : ''} aria-pressed={size === p} onClick={() => onSize(p)}>
+                    {PRESET_WORDS[p]}
+                  </button>
+                ))}
+              </div>
             )}
             <button className="ibtn" aria-label="Close the chart" title="Close the chart (⌘3)" onClick={onClose}>
               {ICON.close}

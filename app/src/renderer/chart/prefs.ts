@@ -1,16 +1,12 @@
 // The window's own small preferences, kept in localStorage:
-//   chart.opens      the Settings choice "When the chart opens": 'full', 'half' or 'last'
-//                    (Where I left it, the default). Settings writes it; the chart reads it.
-//   chart.lastWidth  where the chart was left: 'full', or a width in px. No entry means Half.
 //   sidebar.hidden   '1' while the sidebar is hidden (⌃⌘S).
 // A storage that can't be read or written (it shouldn't happen in the app) falls back to the
 // defaults.
 
-import type { ChartOpens, Split } from './split'
-
 type Store = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
 
-const KEYS = { opens: 'chart.opens', lastWidth: 'chart.lastWidth', sidebar: 'sidebar.hidden' } as const
+const KEYS = { sidebar: 'sidebar.hidden' } as const
+const OLD_KEYS = ['chart.opens', 'chart.lastWidth'] as const
 
 const local = (): Store | null => {
   try {
@@ -37,26 +33,10 @@ function write(key: string, value: string | null, store: Store | null): void {
   }
 }
 
-export function chartOpens(store: Store | null = local()): ChartOpens {
-  const v = read(KEYS.opens, store)
-  return v === 'full' || v === 'half' ? v : 'last'
-}
-
-export function setChartOpens(value: ChartOpens, store: Store | null = local()): void {
-  write(KEYS.opens, value, store)
-}
-
-// The width the chart was left at, as split.ts's openWidth takes it: null for Half or nothing
-// kept, Infinity for Full, else the width in px.
-export function lastWidth(store: Store | null = local()): number | null {
-  const v = read(KEYS.lastWidth, store)
-  if (v === 'full') return Infinity
-  const n = v === null ? NaN : Number(v)
-  return Number.isFinite(n) && n > 0 ? n : null
-}
-
-export function setLastWidth(split: Split, store: Store | null = local()): void {
-  write(KEYS.lastWidth, split.mode === 'full' ? 'full' : split.mode === 'half' ? null : String(Math.round(split.width)), store)
+// The keys an earlier version kept: the "When the chart opens" choice and the width the chart was
+// left at. The chart opens at Half now, so they are cleared once, as the window starts.
+export function forgetOldChartPrefs(store: Store | null = local()): void {
+  for (const key of OLD_KEYS) write(key, null, store)
 }
 
 export function sidebarHidden(store: Store | null = local()): boolean {

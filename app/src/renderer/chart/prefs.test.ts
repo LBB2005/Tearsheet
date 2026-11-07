@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { chartOpens, lastWidth, setChartOpens, setLastWidth, setSidebarHidden, sidebarHidden } from './prefs'
+import { forgetOldChartPrefs, setSidebarHidden, sidebarHidden } from './prefs'
 
 const fake = () => {
   const m = new Map<string, string>()
@@ -8,26 +8,13 @@ const fake = () => {
 }
 
 describe('prefs', () => {
-  it('opens where it was left by default, and keeps the Settings choice', () => {
+  it('forgets the old opening width and the Settings choice it came from', () => {
     const s = fake()
-    expect(chartOpens(s)).toBe('last')
-    setChartOpens('full', s)
-    expect(chartOpens(s)).toBe('full')
-    s.m.set('chart.opens', 'sideways')
-    expect(chartOpens(s)).toBe('last')
-  })
-
-  it('keeps the last width: Half as nothing, Full as Infinity, else the px', () => {
-    const s = fake()
-    expect(lastWidth(s)).toBeNull()
-    setLastWidth({ mode: 'free', width: 612.4 }, s)
-    expect(lastWidth(s)).toBe(612)
-    setLastWidth({ mode: 'full', width: 1048 }, s)
-    expect(lastWidth(s)).toBe(Infinity)
-    setLastWidth({ mode: 'half', width: 524 }, s)
-    expect(s.m.has('chart.lastWidth')).toBe(false)
-    s.m.set('chart.lastWidth', 'wide')
-    expect(lastWidth(s)).toBeNull()
+    s.m.set('chart.opens', 'last')
+    s.m.set('chart.lastWidth', '612')
+    s.m.set('sidebar.hidden', '1')
+    forgetOldChartPrefs(s)
+    expect([...s.m.keys()]).toEqual(['sidebar.hidden'])
   })
 
   it('keeps whether the sidebar is hidden', () => {
@@ -40,8 +27,6 @@ describe('prefs', () => {
   })
 
   it('falls back to the defaults without a storage', () => {
-    expect(chartOpens(null)).toBe('last')
-    expect(lastWidth(null)).toBeNull()
     expect(sidebarHidden(null)).toBe(false)
   })
 })

@@ -7,7 +7,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import type { ReportResult, ReportSummary } from '../../shared/protocol'
-import { setLastWidth } from '../chart/prefs'
 import type { Split } from '../chart/split'
 import { splitOutMs } from '../motion'
 import type { Notice } from '../overlays/Toast'
@@ -51,8 +50,8 @@ export interface ReportPage {
   // The chart is open beside the report, or on its way out (`chartClosing`).
   chartOpen: boolean
   chartClosing: boolean
-  // Where the chart sits while it is open; null until the report page places it as it opens
-  // (from the Settings choice "When the chart opens" and the space there is).
+  // Where the chart sits while it is open; null until the report page places it at Half as it
+  // opens. Nothing is kept once it closes.
   split: Split | null
   others: ReportSummary[]
   flag: FlagRequest | null
@@ -60,8 +59,8 @@ export interface ReportPage {
   show: (view: View) => void
   setSide: (side: Side) => void
   toggleChart: () => void
-  // Moves the divider; `keep` remembers the place for "Where I left it".
-  setSplit: (split: Split, keep?: boolean) => void
+  // Moves the divider, or picks one of the chart's width buttons.
+  setSplit: (split: Split) => void
   closeFlag: () => void
   // Saves the flag; answers with what went wrong, or null once it is saved.
   saveFlag: (note: string) => Promise<string | null>
@@ -215,10 +214,7 @@ export function useReport({ reportId, wide, active, notify, refresh }: Options):
       setChart('open')
     }
   }, [])
-  const setSplit = useCallback((next: Split, keep = false) => {
-    setSplitState(next)
-    if (keep) setLastWidth(next)
-  }, [])
+  const setSplit = useCallback((next: Split) => setSplitState(next), [])
   const closeFlag = useCallback(() => setFlag(null), [])
 
   const saveFlag = useCallback(

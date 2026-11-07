@@ -12,8 +12,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type 
 import type { ReportSummary } from '../../shared/protocol'
 import { ChartPane } from '../chart/ChartPane'
 import { Divider } from '../chart/Divider'
-import { chartOpens, lastWidth } from '../chart/prefs'
-import { DIV, openSplit, snapWidth, splitWidth, TEXT_MIN, type Snap } from '../chart/split'
+import { DIV, presetSplit, snapWidth, splitWidth, TEXT_MIN, type Preset, type Snap } from '../chart/split'
 import type { ReportPage } from '../report/useReport'
 import { oneColumn, reportChoice, shownSide } from '../report/view'
 
@@ -57,8 +56,8 @@ export function Report({ page, wide }: { page: ReportPage; wide: boolean }) {
   const [dragging, setDragging] = useState(false)
   const dragNow = useRef<{ on: boolean; snap: Snap | null }>({ on: false, snap: null })
 
-  // The chart opens where Settings says ("When the chart opens"), in the space there is.
-  const placed = page.split ?? (chartOpen && avail > 0 ? openSplit(chartOpens(), lastWidth(), avail) : null)
+  // The chart opens at Half, in the space there is.
+  const placed = page.split ?? (chartOpen && avail > 0 ? presetSplit('half', avail) : null)
   useLayoutEffect(() => {
     if (chartOpen && !page.split && placed) page.setSplit(placed)
   })
@@ -77,7 +76,6 @@ export function Report({ page, wide }: { page: ReportPage; wide: boolean }) {
     if (page.oneColumn !== one) page.setOneColumn(one)
   })
   const showing = shownSide(page.side, one, page.numbers !== null && page.numbersReady)
-  const half = () => ({ mode: 'half' as const, width: splitWidth({ mode: 'half', width: 0 }, avail) })
 
   const onStart = () => {
     dragNow.current = { on: true, snap: null }
@@ -96,14 +94,14 @@ export function Report({ page, wide }: { page: ReportPage; wide: boolean }) {
     dragNow.current = { on: false, snap: null }
     setDragging(false)
     setDrag(null)
-    if (snap) page.setSplit({ mode: snap.mode, width: snap.width }, true)
+    if (snap) page.setSplit({ mode: snap.mode, width: snap.width })
   }
-  const onHalf = () => page.setSplit(half(), true)
+  const onHalf = () => page.setSplit(presetSplit('half', avail))
   const onStep = (delta: number) => {
     const next = full && delta < 0 ? snapWidth(avail - TEXT_MIN - DIV, avail) : snapWidth(chartW + delta, avail)
-    page.setSplit({ mode: next.mode, width: next.width }, true)
+    page.setSplit({ mode: next.mode, width: next.width })
   }
-  const onFull = () => page.setSplit(full ? half() : { mode: 'full', width: avail }, true)
+  const onSize = (p: Preset) => page.setSplit(presetSplit(p, avail))
 
   // The divider goes (the chart closing, or a narrow window) mid-drag: drop the drag, so the
   // shield and the cursor never stick and a stale drag never decides the next opening.
@@ -175,9 +173,9 @@ export function Report({ page, wide }: { page: ReportPage; wide: boolean }) {
           name={named?.name ?? null}
           width={paneW}
           wide={wide}
-          full={full}
+          size={split ? at.mode : null}
           onClose={page.toggleChart}
-          onFull={onFull}
+          onSize={onSize}
         />
       )}
     </div>
