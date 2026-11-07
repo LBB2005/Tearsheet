@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
 import type { CompanyRow, SearchHit } from '../shared/protocol'
-import { REPORT_STEPS } from '../shared/steps'
 import type { LockdownState } from '../shared/protocol'
 import { freshHits, nextCompany, peerRule, safetyFailed, safetyUnfinished, shortDate, statusLine } from './nav'
 import { safetyStarted, type SafetyState } from './setup/steps'
@@ -18,16 +17,6 @@ const row = (ticker: string): CompanyRow => ({
 })
 
 const LIST = [row('NVDA'), row('AAPL'), row('JPM')]
-
-// The first `n` of the 14 report steps done, and the next one started.
-function stepsDone(n: number): Record<string, string> {
-  const states: Record<string, string> = {}
-  REPORT_STEPS.forEach((step, i) => {
-    if (i < n) states[step] = 'done'
-    else if (i === n) states[step] = 'started'
-  })
-  return states
-}
 
 describe('nextCompany', () => {
   it('moves to the next and the previous company', () => {
@@ -61,23 +50,17 @@ describe('nextCompany', () => {
   })
 })
 
+// A run 60% of the way, by time.
+const JPM = { ticker: 'JPM', progress: 0.6, left: 'about 2 min left' }
+
 describe('statusLine', () => {
   it('says the tool is ready when nothing is going on', () => {
     expect(statusLine({ tools: 'Claude Code', signedOut: false })).toEqual({ tone: 'ok', text: 'Claude Code ready' })
   })
 
-  it('follows a run, counting the step it is on', () => {
-    const line = statusLine({ run: { ticker: 'JPM', steps: stepsDone(8) }, tools: 'Claude Code', signedOut: false })
-    expect(line.tone).toBe('run')
-    expect(line.text).toBe('Writing JPM, step 9 of 14')
-    expect(line.progress).toBeCloseTo(8.5 / 14)
-  })
-
-  it('starts a run at step 1 and never counts past 14', () => {
-    expect(statusLine({ run: { ticker: 'JPM', steps: {} }, tools: 'Claude Code', signedOut: false }).text).toBe('Writing JPM, step 1 of 14')
-    const last = statusLine({ run: { ticker: 'JPM', steps: stepsDone(14) }, tools: 'Claude Code', signedOut: false })
-    expect(last.text).toBe('Writing JPM, step 14 of 14')
-    expect(last.progress).toBeLessThanOrEqual(1)
+  it('follows a run with its time left, and the bar paced by time', () => {
+    const line = statusLine({ run: JPM, tools: 'Claude Code', signedOut: false })
+    expect(line).toEqual({ tone: 'run', text: 'Writing JPM, about 2 min left', progress: 0.6 })
   })
 
   it('counts the safety check', () => {
@@ -89,7 +72,7 @@ describe('statusLine', () => {
     expect(statusLine({ tools: 'Claude Code', signedOut: false, keyRefused: true })).toEqual({ tone: 'stop', text: 'Massive key not accepted' })
     expect(statusLine({ tools: 'Claude Code', signedOut: true, keyRefused: true }).text).toBe('Claude Code signed out')
     expect(statusLine({ tools: 'Claude Code', signedOut: false, safetyFailed: true, keyRefused: true }).text).toBe('Safety check didn’t pass')
-    expect(statusLine({ run: { ticker: 'JPM', steps: {} }, tools: 'Claude Code', signedOut: false, keyRefused: true }).text).toBe('Massive key not accepted')
+    expect(statusLine({ run: JPM, tools: 'Claude Code', signedOut: false, keyRefused: true }).text).toBe('Massive key not accepted')
   })
 
   it('says when the tool is signed out', () => {
@@ -101,14 +84,14 @@ describe('statusLine', () => {
   })
 
   it('puts a run before the safety check, and the safety check before ready', () => {
-    const both = statusLine({ run: { ticker: 'JPM', steps: stepsDone(8) }, safety: { n: 7, total: 25 }, tools: 'Claude Code', signedOut: false })
-    expect(both.text).toBe('Writing JPM, step 9 of 14')
+    const both = statusLine({ run: JPM, safety: { n: 7, total: 25 }, tools: 'Claude Code', signedOut: false })
+    expect(both.text).toBe('Writing JPM, about 2 min left')
     expect(statusLine({ run: null, safety: { n: 7, total: 25 }, tools: 'Claude Code', signedOut: false }).text).toBe('Safety check, 7 of 25')
     expect(statusLine({ run: null, safety: null, tools: 'Claude Code', signedOut: false }).text).toBe('Claude Code ready')
   })
 
   it('puts a sign-out first, in red, as the setup prototype does', () => {
-    const line = statusLine({ run: { ticker: 'JPM', steps: stepsDone(8) }, safety: { n: 7, total: 25 }, tools: 'Claude Code', signedOut: true })
+    const line = statusLine({ run: JPM, safety: { n: 7, total: 25 }, tools: 'Claude Code', signedOut: true })
     expect(line).toEqual({ tone: 'stop', text: 'Claude Code signed out' })
   })
 
@@ -121,14 +104,14 @@ describe('statusLine', () => {
   })
 
   it('puts grading after a run and the safety check, and before ready', () => {
-    expect(statusLine({ run: { ticker: 'JPM', steps: stepsDone(8) }, tools: 'Claude Code', signedOut: false, grading: true }).text).toBe('Writing JPM, step 9 of 14')
+    expect(statusLine({ run: JPM, tools: 'Claude Code', signedOut: false, grading: true }).text).toBe('Writing JPM, about 2 min left')
     expect(statusLine({ safety: { n: 7, total: 25 }, tools: 'Claude Code', signedOut: false, grading: true }).text).toBe('Safety check, 7 of 25')
     expect(statusLine({ tools: 'Claude Code', signedOut: true, grading: true }).text).toBe('Claude Code signed out')
   })
 
   it('puts a failed safety check after a sign-out and before anything running', () => {
     expect(statusLine({ tools: 'Claude Code', signedOut: true, safetyFailed: true }).text).toBe('Claude Code signed out')
-    const line = statusLine({ run: { ticker: 'JPM', steps: stepsDone(8) }, safety: { n: 7, total: 25 }, tools: 'Claude Code', signedOut: false, safetyFailed: true })
+    const line = statusLine({ run: JPM, safety: { n: 7, total: 25 }, tools: 'Claude Code', signedOut: false, safetyFailed: true })
     expect(line.text).toBe('Safety check didn’t pass')
   })
 })

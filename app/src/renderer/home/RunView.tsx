@@ -1,70 +1,42 @@
-// The run view (the spec's "Pages → 2. New report"): it replaces the home page while a report is
-// written. The 14-segment ring with the Glass mark filling in its middle, the five stages, and
-// the step list. If the run stops (the plan's usage limit, a sign-out, the engine restarting), a
-// red box shows the engine's message and the reset time, with Resume (or, when the safety check
-// stopped it, the check). Cancel run sits in the toolbar (App.tsx), in the Chart button's place.
-// The logic is in run.ts. Ported from docs/designs/opening-and-setup.html
-// (S.run, segRing).
+// The run view: the home page's place while a report is written. Liam's pick of the ten
+// loading screens (7 Nov 2026), "Receipt": a card that writes down what each of the five
+// stages has done as it happens, with the calls under way and their bars, how long each stage
+// took, the time so far and about how long is left (paced by time, shared/pace.ts). When the
+// report is ready it waits on a Done card until Open the report. If the run stops (the plan's
+// usage limit, a sign-out, the engine restarting), a red box shows the engine's message and the
+// reset time, with Resume (or, when the safety check stopped it, the check). Cancel run sits in
+// the toolbar (App.tsx). Its only motion is the working stage's small spinner and the bars
+// sliding, none of it under Reduce motion (styles.css). The logic is in run.ts.
 
 import './home.css'
 
+import { useEffect, useRef, useState } from 'react'
+
+import { about, clock, leftText, pace, usualTimes } from '../../shared/pace'
 import { REPORT_STEPS } from '../../shared/steps'
-import { Mark } from '../mark/Mark'
 import { at } from '../setup/parts'
-import { markFill, runStep, stepStatus, TOTAL, type RunState } from './run'
+import { doneFacts, liveRows, runStep, stageLine, stageMark, stageTime, STAGES, TOTAL, type RunState } from './run'
 
 export type { RunFailure, RunState } from './run'
-
-// The engine's steps (shared/steps.ts) in the words the step list uses.
-const LABELS: Record<(typeof REPORT_STEPS)[number], string> = {
-  resolve: 'Find the company and its peers',
-  fetch: 'Download filings, facts and prices',
-  normalize: 'Standardize the financial statements',
-  text: 'Split filings into sections and paragraphs',
-  metrics: 'Compute the metrics',
-  score: 'Score against the peer group',
-  value: 'Value the company and each peer',
-  rate: 'Rate: Buy, Hold or Sell',
-  news: 'Find recent articles',
-  extract: 'Read the sources for evidence',
-  narrate: 'Write the sections',
-  render: 'Fill in the numbers',
-  verify: 'Check every claim',
-  save: 'Save the report'
-}
-
-// The five stages, each over a run of steps: [name, first step, step after the last].
-const STAGES: [string, number, number][] = [
-  ['Data', 0, 4],
-  ['Numbers', 4, 8],
-  ['Evidence', 8, 10],
-  ['Writing', 10, 12],
-  ['Checks', 12, 14]
-]
-
-// 14 arcs around a 200 px ring, with small gaps, one per step.
-function SegRing({ classes }: { classes: string[] }) {
-  const c = 100
-  const r = 88
-  const gap = 3.4
-  const point = (deg: number) => {
-    const a = ((deg - 90) * Math.PI) / 180
-    return `${(c + r * Math.cos(a)).toFixed(1)} ${(c + r * Math.sin(a)).toFixed(1)}`
-  }
-  return (
-    <svg className="seg" viewBox="0 0 200 200" aria-hidden="true">
-      {REPORT_STEPS.map((step, j) => {
-        const a0 = (j * 360) / TOTAL + gap / 2
-        const a1 = ((j + 1) * 360) / TOTAL - gap / 2
-        return <path key={step} className={classes[j]} d={`M${point(a0)} A${r} ${r} 0 0 1 ${point(a1)}`} />
-      })}
-    </svg>
-  )
-}
 
 function resetTime(iso: string): string {
   const when = new Date(iso)
   return Number.isNaN(when.getTime()) ? iso : when.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })
+}
+
+const timeOfDay = (ms: number) => new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+const pct = (f: number) => `${(Math.min(1, Math.max(0, f)) * 100).toFixed(1)}%`
+
+// The clock, once a second while the run goes.
+function useNow(on: boolean): number {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    if (!on) return
+    setNow(Date.now())
+    const timer = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(timer)
+  }, [on])
+  return on ? now : Date.now()
 }
 
 export interface RunViewProps {
@@ -75,12 +47,19 @@ export interface RunViewProps {
   safety: 'failed' | 'running' | 'ok'
   onResume: () => void
   onRecheck: () => void
+  onOpen: () => void
 }
 
-export function RunView({ run, ready, resuming, safety, onResume, onRecheck }: RunViewProps) {
-  const k = runStep(run, ready)
-  const statuses = REPORT_STEPS.map((_, j) => stepStatus(run, ready, j))
+export function RunView({ run, ready, resuming, safety, onResume, onRecheck, onOpen }: RunViewProps) {
+  const done = runStep(run, ready) === TOTAL
   const failure = run.failure
+  const now = useNow(!done && !failure)
+  const open = useRef<HTMLButtonElement>(null)
+  // The Done card's button takes the keyboard, so Return opens the report.
+  useEffect(() => {
+    if (done) open.current?.focus()
+  }, [done])
+
   const lockedOut = failure?.code === 'LOCKDOWN_FAILED'
   let fix = (
     <button className="btn2" disabled={resuming} onClick={onResume}>
@@ -100,56 +79,97 @@ export function RunView({ run, ready, resuming, safety, onResume, onRecheck }: R
       </button>
     )
   const title = failure?.code === 'USAGE_LIMIT' ? 'Your plan’s usage limit stopped the report' : lockedOut ? 'The safety check stopped the report' : 'The report stopped'
+
+  const { progress, left } = pace(run.steps, run.times, run.tally, now, run.seen)
+  const rows = liveRows(run, ready, now)
+  const companies = run.tally?.companies
+  const facts = doneFacts(run)
+  const usualTable = usualTimes(run.tally)
+  const usual = REPORT_STEPS.reduce((sum, step) => sum + usualTable[step], 0)
+  const rating = run.tally?.rating?.toLowerCase()
   return (
     <div className="runv">
-      <div className="segring mv" style={at(0)} role="img" aria-label={k === TOTAL ? 'All 14 steps done' : `Step ${k + 1} of ${TOTAL}`}>
-        <SegRing classes={statuses.map((s) => s.cls)} />
-        <div className="rc">
-          <Mark size={44} fill={markFill(run, ready)} />
-          <b>{Math.min(k + 1, TOTAL)}</b>
-          <small>of {TOTAL}</small>
-        </div>
-      </div>
-      <div className="runcol">
-        {failure && (
-          <div className="card alert mv" style={at(1)} role="alert">
-            <div>
-              <b>{title}</b>
-              <span>{failure.message}</span>
-              {failure.resetAt && <span>Your usage resets at {resetTime(failure.resetAt)}.</span>}
-              {failure.fix && (
-                <span>
-                  Sign in again in Terminal: <code>{failure.fix}</code>
-                </span>
-              )}
-              {lockedOut && safety !== 'ok' && <span>Resume comes back once the safety check passes.</span>}
-              {run.reportId && <span>The report so far is saved, and opens from the sidebar.</span>}
-            </div>
-            {fix}
+      {failure && (
+        <div className="card alert mv" style={at(0)} role="alert">
+          <div>
+            <b>{title}</b>
+            <span>{failure.message}</span>
+            {failure.resetAt && <span>Your usage resets at {resetTime(failure.resetAt)}.</span>}
+            {failure.fix && (
+              <span>
+                Sign in again in Terminal: <code>{failure.fix}</code>
+              </span>
+            )}
+            {lockedOut && safety !== 'ok' && <span>Resume comes back once the safety check passes.</span>}
+            {run.reportId && <span>The report so far is saved, and opens from the sidebar.</span>}
           </div>
-        )}
-        <div className="phases mv" style={at(failure ? 2 : 1)}>
-          {STAGES.map(([name, a, b]) => (
-            <span key={name} className={k >= b ? 'd' : k >= a ? 'now' : undefined}>
-              {name}
-            </span>
-          ))}
+          {fix}
         </div>
-        <ol className="steps mv" style={at(failure ? 3 : 2)}>
-          {REPORT_STEPS.map((step, j) => (
-            <li key={step} className={statuses[j].cls} aria-current={statuses[j].cls === 'now' ? 'step' : undefined}>
-              <span className="n2">{j + 1}</span>
-              {LABELS[step]}
-              <span className="s">{statuses[j].text}</span>
-            </li>
-          ))}
+      )}
+      <section className="rcpt mv" style={at(failure ? 1 : 0)} aria-label="Report progress">
+        <header className="rh">
+          <div>
+            <b>{run.name ?? run.ticker ?? 'New report'}</b>
+            <span>{[run.ticker, companies ? `${companies - 1} peers` : null].filter(Boolean).join(' · ')}</span>
+          </div>
+          <time>{done && run.readyAt ? `finished at ${timeOfDay(run.readyAt)}` : `started ${timeOfDay(run.startedAt)}`}</time>
+        </header>
+        <ol>
+          {STAGES.map((stage, k) => {
+            const mark = stageMark(run, ready, k)
+            return (
+              <li key={stage.name} className={mark} aria-current={mark === 'now' ? 'step' : undefined}>
+                <div className="ln">
+                  <i className="ck" aria-hidden="true" />
+                  <b>{stage.name}</b>
+                  <span className="lead" aria-hidden="true" />
+                  <span className="tm">{mark === 'x' ? 'Stopped' : stageTime(run, ready, k, now)}</span>
+                </div>
+                <p className="dt">{stageLine(run, ready, k)}</p>
+                {mark === 'now' && rows.length > 0 && (
+                  <ul className="live">
+                    {rows.map((row) => (
+                      <li key={row.name}>
+                        <span>{row.name}</span>
+                        {row.frac !== null && <i style={{ ['--w' as string]: pct(row.frac) }} />}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </li>
+            )
+          })}
         </ol>
-        {!failure && k < TOTAL && (
-          <p className="fine mv" style={at(3)}>
-            About 20 minutes the first time in a sector, mostly prices on the free plan. Keep using your Mac; Tearsheet tells you when it’s ready.
-          </p>
+        {done ? (
+          <div className="donec">
+            <div>
+              <b>Done in {facts.took}</b>
+              {facts.claims && <span>{facts.claims}</span>}
+            </div>
+            {facts.rating && <em className={rating ? `pill ${rating}` : 'pill'}>{facts.rating}</em>}
+            <button ref={open} className="btn2 primary2" onClick={onOpen}>
+              Open the report
+            </button>
+          </div>
+        ) : (
+          !failure && (
+            <footer className="ft">
+              <div className="bar" role="progressbar" aria-label="How far the report has got" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress * 100)}>
+                <i style={{ width: pct(progress) }} />
+              </div>
+              <div className="fr">
+                <span>{clock(now - run.startedAt)} elapsed</span>
+                <span>{leftText(left)}</span>
+              </div>
+            </footer>
+          )
         )}
-      </div>
+      </section>
+      {!failure && !done && (
+        <p className="fine mv" style={at(1)}>
+          Usually {about(usual)}. Keep using your Mac; Tearsheet tells you when it’s ready.
+        </p>
+      )}
     </div>
   )
 }

@@ -1,6 +1,7 @@
-// The report being written: starting it, following its notes, Resume, Cancel run, and the
-// "report ready" moment before the report opens. App's one notification listener hands each
-// note to `onNote`. The run is named by the company the engine resolved, not by the query typed.
+// The report being written: starting it, following its notes (progress and the live tally),
+// Resume, Cancel run, and the Done card the run view waits on until Open the report. App's one
+// notification listener hands each note to `onNote`. The run is named by the company the
+// engine resolved, not by the query typed.
 //
 // The run is kept in a ref as well as in state, and both change together (`track`), so a note
 // handled straight after another sees what the first one did: a stopped run's `run_failed`
@@ -10,15 +11,16 @@ import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 
 
 import type { EngineNotification } from '../../preload/api'
 import type { RunStarted } from '../../shared/protocol'
-import type { StepStates } from '../../shared/steps'
-import { pageLeaveMs, readyPauseMs } from '../motion'
+import { pageLeaveMs } from '../motion'
 import type { Page } from '../nav'
 import type { Notice } from '../overlays/Toast'
-import { refusal, type RunState } from './run'
+import { freshNotes, refusal, withNote, type RunNotes, type RunState } from './run'
 
 // A cancelled run stops at its next step, and the engine says nothing when it has, so for a
 // while afterwards "already running" most likely means the cancelled run is still stopping.
 const STOPPING_MS = 5 * 60_000
+// How often the toolbar's and the sidebar's time left are worked out again during a run.
+const TICK_MS = 5000
 
 export interface RunDeps {
   page: Page
@@ -35,13 +37,13 @@ export interface RunDeps {
 
 export function useRun({ page, target, go, notify, loadCompanies, loadTools, openReport, onLockdownFailed }: RunDeps) {
   const [run, setRun] = useState<RunState | null>(null)
-  // Holds the run view on screen for the "report ready" moment before the report opens.
+  // Holds the run view on screen with its Done card until Open the report (or another page).
   const [readyHold, setReadyHold] = useState(false)
   const [resuming, setResuming] = useState(false)
   const current = useRef<RunState | null>(null)
   // Notes for a run not tracked yet: run_report answers once step 1 is done, so the first notes
   // come before the run is known; and a resume replays from step 1 while its call is answered.
-  const early = useRef<{ runId: string; steps: StepStates } | null>(null)
+  const early = useRef<{ runId: string; notes: RunNotes } | null>(null)
   const resumingId = useRef<string | null>(null)
   const cancelled = useRef(new Set<string>())
   const cancelledAt = useRef(0)
@@ -60,9 +62,13 @@ export function useRun({ page, target, go, notify, loadCompanies, loadTools, ope
       const p = note.params as Record<string, never>
       const r = current.current
       const mine = r !== null && r.runId === p.run_id
-      if (note.method === 'progress') {
-        if (mine && resumingId.current !== r.runId) track({ ...r, steps: { ...r.steps, [p.step_name]: p.state } })
-        else early.current = { runId: p.run_id, steps: { ...(early.current?.runId === p.run_id ? early.current.steps : {}), [p.step_name]: p.state } }
+      if (note.method === 'progress' || note.method === 'run_tally') {
+        const at = Date.now()
+        if (mine && resumingId.current !== r.runId) track(withNote(r, note.method, p, at))
+        else {
+          const had = early.current?.runId === p.run_id ? early.current.notes : freshNotes(at)
+          early.current = { runId: p.run_id, notes: withNote(had, note.method, p, at) }
+        }
       } else if (note.method === 'report_ready') {
         loadCompanies()
         // A cancelled run that saved its report anyway: it shows in the sidebar, and nothing
@@ -70,18 +76,13 @@ export function useRun({ page, target, go, notify, loadCompanies, loadTools, ope
         if (cancelled.current.has(p.run_id)) return
         openReport(p.report_id)
         if (!mine) return go('report')
-        track({ ...r, reportId: p.report_id })
+        track({ ...r, reportId: p.report_id, readyAt: Date.now() })
         // A stopped run's report so far: the run view stays, with its red box and Resume.
         if (r.failure) return
         if (target.current !== 'home') return go('report')
-        // On the run view, hold the "report ready" moment before opening the report.
+        // On the run view, the Done card waits for Open the report. Going to the report, the
+        // hold ends once the page has changed (above), so the run view stays while it leaves.
         setReadyHold(true)
-        window.setTimeout(() => {
-          // Going to the report, the hold ends once the page has changed (above), so the run
-          // view stays while it leaves.
-          if (target.current === 'home' && !current.current?.failure) go('report')
-          else setReadyHold(false)
-        }, readyPauseMs())
       } else if (note.method === 'run_failed') {
         if (!mine) return
         track({ ...r, failure: { message: p.message, code: p.code, resetAt: p.reset_at, fix: p.fix_command, step: p.step } })
@@ -98,9 +99,9 @@ export function useRun({ page, target, go, notify, loadCompanies, loadTools, ope
   )
 
   const begin = (started: RunStarted) => {
-    const steps = early.current?.runId === started.run_id ? early.current.steps : {}
+    const notes = early.current?.runId === started.run_id ? early.current.notes : freshNotes(Date.now())
     early.current = null
-    track({ runId: started.run_id, ticker: started.ticker, name: started.name, steps, reportId: null, failure: null })
+    track({ runId: started.run_id, ticker: started.ticker, name: started.name, ...notes, reportId: null, readyAt: null, failure: null })
     setReadyHold(false)
     go('home')
   }
@@ -130,11 +131,11 @@ export function useRun({ page, target, go, notify, loadCompanies, loadTools, ope
     if (reply.ok && reply.result && now && now.runId === r.runId) {
       // The replay's notes that came in while the call was answered (read afresh: they
       // arrived during the await).
-      const buffered = early.current as { runId: string; steps: StepStates } | null
-      const steps = buffered?.runId === r.runId ? buffered.steps : {}
+      const buffered = early.current as { runId: string; notes: RunNotes } | null
+      const notes = buffered?.runId === r.runId ? buffered.notes : freshNotes(Date.now())
       early.current = null
       const { ticker, name } = reply.result
-      track({ ...now, ticker: ticker ?? now.ticker, name: name ?? now.name, steps, reportId: null, failure: null })
+      track({ ...now, ...notes, ticker: ticker ?? now.ticker, name: name ?? now.name, reportId: null, readyAt: null, failure: null })
       setReadyHold(false)
       go('home')
       return
@@ -158,12 +159,25 @@ export function useRun({ page, target, go, notify, loadCompanies, loadTools, ope
     notify(label ? `Cancelled the ${label} report` : 'Cancelled the report', 'No report was saved. Start it again any time.')
   }
 
-  // New report on the home page puts a stopped run away, so a new one can start.
+  // New report on the home page puts a stopped run away, so a new one can start, and closes a
+  // Done card.
   const putAway = () => {
     if (current.current?.failure) track(null)
+    setReadyHold(false)
   }
 
+  // The Done card's Open the report.
+  const openReady = () => go('report')
+
   const running = run !== null && !run.reportId && !run.failure
+  // While a run goes, a tick every few seconds keeps the time left in the toolbar and the
+  // sidebar current between the engine's notes.
+  const [, setTick] = useState(0)
+  useEffect(() => {
+    if (!running) return
+    const timer = window.setInterval(() => setTick((n) => n + 1), TICK_MS)
+    return () => window.clearInterval(timer)
+  }, [running])
   // The home page shows the run view while a run goes, while a stopped one waits for Resume,
   // and for the "report ready" moment.
   const showsRun = (run !== null && (!run.reportId || run.failure !== null)) || readyHold
@@ -193,5 +207,5 @@ export function useRun({ page, target, go, notify, loadCompanies, loadTools, ope
 
   const view = shownRun ? (run ?? last.current) : null
 
-  return { run, running, readyHold, view, swapping, resuming, onNote, start, resume, cancel, putAway }
+  return { run, running, readyHold, view, swapping, resuming, onNote, start, resume, cancel, putAway, openReady }
 }
