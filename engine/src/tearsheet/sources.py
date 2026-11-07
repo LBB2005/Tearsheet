@@ -375,22 +375,64 @@ class LiveData:
         return docs
 
     async def fill_prices(self, store: PriceStore, members: dict[int, str], *, end: date) -> None:
-        from tearsheet.data.prices import fetch_company, fetch_splits, needed_start
+        """Prices up to `end` for the members and SPY. A stock with no prices gets its own
+        window (two calls). Stocks that only need new sessions get them from the all-stocks
+        summary when that needs fewer calls (data/market.py), which also brings every other
+        stored S&P 500 company up to date; any the summary leaves out get their own calls."""
+        from tearsheet.data import market
+        from tearsheet.data.prices import (
+            fetch_company,
+            fetch_splits,
+            needed_start,
+            sessions_between,
+        )
 
         tickers = {ticker_for("massive", t): (cik, "") for cik, t in members.items()}
         tickers["SPY"] = (SPY_CIK, "")
-        earliest = end
+        starts: dict[str, date] = {}
         for massive_ticker, (cik, share_class) in tickers.items():
             months = SPY_FILL_YEARS * 12 if cik == SPY_CIK else FIRST_FILL_MONTHS
             start = needed_start(store, cik, share_class, end, months=months)
-            if start is None:
-                continue
-            earliest = min(earliest, start)
+            if start is not None:
+                starts[massive_ticker] = start
+        if not starts:
+            return
+        latest = store.latest_dates()
+        extend = {t: s for t, s in starts.items() if tickers[t] in latest}
+        days = sorted({d for s in extend.values() for d in sessions_between(s, end)})
+        if days and market.summary_is_cheaper(len(days), len(extend)):
+            wanted = {**self._stored_members(latest), **{t: tickers[t] for t in extend}}
+            through = await market.top_up(self.http, self.rawstore, store, wanted, days)
+            for t in extend:
+                reached = through.get(t)
+                if reached is not None and reached >= end:
+                    del starts[t]
+                elif reached is not None:
+                    starts[t] = reached + timedelta(days=1)
+        if not starts:
+            return
+        # Splits first, so a stored close always has its splits beside it. The span includes
+        # `end`: a split on the one new session must not be missed.
+        rest = {t: tickers[t] for t in starts}
+        await fetch_splits(self.http, store, rest, start=min(starts.values()), end=end)
+        for massive_ticker, start in starts.items():
+            cik, share_class = tickers[massive_ticker]
             await fetch_company(
                 self.http, store, cik, share_class, massive_ticker, start=start, end=end
             )
-        if earliest < end:
-            await fetch_splits(self.http, store, tickers, start=earliest, end=end)
+
+    def _stored_members(self, latest: dict[tuple[int, str], date]) -> dict[str, tuple[int, str]]:
+        """Every S&P 500 company (rated class) and SPY that already has stored prices."""
+        from tearsheet.data.membership import stored_or_bundled
+
+        out = {
+            ticker_for("massive", c.tickers[0]): (c.cik, "")
+            for c in stored_or_bundled(self.conn).companies()
+            if (c.cik, "") in latest
+        }
+        if (SPY_CIK, "") in latest:
+            out["SPY"] = (SPY_CIK, "")
+        return out
 
     async def risk_free(self, day: date) -> tuple[date, float] | None:
         from tearsheet.data.fred import fetch_series, value_on

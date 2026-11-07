@@ -145,6 +145,11 @@ MASSIVE_DAILY_BARS = "/v2/aggs/ticker/{ticker}/range/1/day/{start}/{end}"
 MASSIVE_DIVIDENDS = "/v3/reference/dividends"
 MASSIVE_SPLITS = "/v3/reference/splits"
 MASSIVE_DAILY_SUMMARY = "/v2/aggs/grouped/locale/us/market/stocks/{day}"
+# Massive's largest page for dividends and splits.
+MASSIVE_PAGE_LIMIT = 1000
+# Whole-market dividends a session, for planning: on 7 Nov 2026 the free key returned 3 pages
+# of 1,000 for 10-15 Aug 2026 with more to come (funds pay often), so about 500-600 a session.
+MARKET_DIVIDENDS_PER_DAY = 600
 
 
 # --- Settings ----------------------------------------------------------------

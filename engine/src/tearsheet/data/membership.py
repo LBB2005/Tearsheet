@@ -175,6 +175,12 @@ def load_bundled() -> Holdings:
     return Holdings(as_of=as_of, source="bundled", rows=rows)
 
 
+def stored_or_bundled(conn: sqlite3.Connection) -> Holdings:
+    """The last stored holdings file, or the bundled list, with no network (the price
+    backfill and whole-market top-ups use it to know every member's rated ticker)."""
+    return _latest_snapshot(conn) or load_bundled()
+
+
 def _latest_snapshot(conn: sqlite3.Connection) -> Holdings | None:
     row = conn.execute("SELECT MAX(as_of) FROM sp500_holdings").fetchone()
     if not row or row[0] is None:
