@@ -10,10 +10,9 @@
 //
 // Kept in localStorage:
 //   motion.level        'full', 'subtle' or 'off' (Subtle if none). The page carries it as
-//                       data-motion on <html>, for the CSS (styles.css).
+//                       data-motion on <html>, for the CSS (styles.css, settings.css).
 //   motion.seenReports  the reports whose entrance has played, newest last (at most 500).
-// The level has no control in Settings yet: whichever Settings change lands second adds one,
-// from MOTION_LEVELS and setMotionLevel.
+// Liam picks the level in Settings → General → Animations (settings/MotionChoice.tsx).
 
 export type MotionLevel = 'full' | 'subtle' | 'off'
 

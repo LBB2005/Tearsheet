@@ -19,6 +19,7 @@ import type { ToolStatus } from '../../preload/api'
 import type { LockdownState, SettingsResult } from '../../shared/protocol'
 import { ChartChoice } from '../settings/ChartChoice'
 import { FieldRow, Label, ToolChoice } from '../settings/General'
+import { MotionChoice } from '../settings/MotionChoice'
 import { KeysPanel } from '../settings/Keys'
 import { lockdownText } from '../settings/lockdown'
 import { healthTiles, maskEmail, storage, tildePath, toolPill, type HealthInput } from '../settings/settings'
@@ -243,6 +244,7 @@ function GeneralPage({ s, primary, found, onSaved, onTopic }: { s: SettingsResul
       <div className="sgrp">
         <ToolChoice primary={primary} onSaved={onSaved} />
         <ChartChoice />
+        <MotionChoice />
       </div>
       <div className="sgrp">
         <FieldRow k="sec_contact_email" label="SEC contact email" help="SEC asks every app that downloads its filings for one. Only SEC gets it." shown={email ? maskEmail(email) : null} initial={email ?? ''} onSaved={onSaved} />

@@ -2,8 +2,9 @@
    six topics with the app sidebar's own line icons and no boxes, one short page per topic, Mac
    pop-up menus and pill buttons. The shared pills, notices and spinner are styles.css's
    (.panels, on each page); the paste-and-check card is setup's KeyCard, styled under .keyform.
-   Motion: each page settles in part by part (A. Settle), the picked topic's icon draws itself,
-   and the storage bar grows. Under Reduce motion nothing moves (styles.css). Everything is
+   Motion: under Animations Full, each page settles in part by part (A. Settle), the picked
+   topic's icon draws itself, and the storage bar grows; under Subtle a page just fades in
+   (motion.ts). Under Reduce motion or Off nothing moves (styles.css). Everything is
    scoped under .setv. */
 
 /* The page fills the frame: the topic list stays put and the page beside it scrolls. */
@@ -34,6 +35,11 @@
 .setv .tpin > :nth-child(3) { animation-delay: 200ms; }
 .setv .tpin > :nth-child(4) { animation-delay: 270ms; }
 .setv .tpin > :nth-child(n+5) { animation-delay: 340ms; }
+/* Under Animations Subtle (motion.ts), a topic's page is a page like any other: it comes in with
+   one quick fade, with no build-up, icon drawing or growing bar. Full keeps those. */
+:root:not([data-motion="full"]) .setv .tpage { animation: fade .15s ease-out both; }
+:root:not([data-motion="full"]) .setv .tpin > *, :root:not([data-motion="full"]) .setv .topic.on svg *, :root:not([data-motion="full"]) .setv .stor i { animation: none; }
+:root:not([data-motion="full"]) .setv .keyform .card.mv { animation: fade .15s ease-out both; }
 .setv .sh2 { margin: 0; font: 600 20px/1.3 var(--ui); }
 .setv .slead { margin: 3px 0 0; color: var(--muted); font-size: 13px; }
 
