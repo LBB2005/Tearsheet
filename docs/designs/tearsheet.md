@@ -1707,6 +1707,7 @@ Phase 1 runs in three parts:
     *   **Section size:** a section larger than 60,000 tokens is split at sub-headings, with one paragraph of overlap. Tokens are estimated at 4 characters per token.
     *   **Saved evidence:** stored under `cache_key = accession or article ID + section + parser version + prompt version + extraction model ID`. `reread_filing` deletes that filing's entries.
     *   **Checks on the answer:** every cited paragraph ID must exist in that source, and each `QuotedValue` goes through the quote check (item 33). Items that fail are dropped and counted.
+    *   **Miscopied IDs:** when more than half of an answer's items and quotes cite a paragraph that isn't in the source, that part is asked for once more (a call on the budget), and a few of the bad IDs are logged. The AI sometimes miscopies the IDs all through one answer: on 7 Nov 2026 Meta's 10-K Item 7 kept 0 of 21 items, and the same read asked again was clean. If the second answer is just as bad, the one that kept more is used and nothing is saved, so the next run reads the section again. A saved answer like that is not reused either. The check itself doesn't change.
 
 #### 30. `engine/src/tearsheet/ai/prompts/extract.md`, `narrate.md`, `skeptic.md`, `news_search.md` (Create)
 

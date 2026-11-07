@@ -116,3 +116,88 @@ def test_saved_evidence_is_reused_and_reread_deletes_it(database):
         )
     )
     assert len(connector.requests) == 2
+
+
+# --- an answer whose citations mostly don't exist (seen live on 7 Nov 2026) -----------------
+
+
+def _miscopied(paras: list[Paragraph], n: int = 3) -> EvidenceList:
+    """An answer that cites real paragraphs under miscopied IDs, as one live read did for
+    every item: Meta's 10-K Item 7 kept 0 of 21."""
+    return EvidenceList(
+        items=[
+            EvidenceItem(statement=f"Point {i}.", type="driver", paragraph_ids=[p.id + "x"])
+            for i, p in enumerate(paras[:n], start=1)
+        ]
+    )
+
+
+def _good(paras: list[Paragraph]) -> EvidenceList:
+    return EvidenceList(
+        items=[EvidenceItem(statement="Sales grew.", type="driver", paragraph_ids=[paras[0].id])]
+    )
+
+
+def _read(database, ai, paras):
+    return asyncio.run(
+        extract_section(
+            ai, database.conn, source_id="acc-1", section="Item 1", paragraphs=paras, label="x"
+        )
+    )
+
+
+def test_an_answer_citing_mostly_unknown_paragraphs_is_asked_for_again(database):
+    paras = paragraphs(3)
+    connector = FakeConnector([answer(_miscopied(paras)), answer(_good(paras))])
+    result = _read(database, client(database, connector), paras)
+    assert len(connector.requests) == 2 and result.calls == 2
+    assert [i.statement for i in result.items] == ["Sales grew."]
+    assert result.dropped == {}  # the miscopied answer was set aside, not counted
+    # The good answer was saved, so the next read reuses it.
+    assert _read(database, client(database, connector), paras).cached
+
+
+def test_a_second_bad_answer_keeps_what_passes_and_is_not_saved(database):
+    paras = paragraphs(3)
+    half = EvidenceList(
+        items=[
+            *_good(paras).items,
+            *_miscopied(paras, n=2).items,
+        ]
+    )
+    connector = FakeConnector([answer(half), answer(_miscopied(paras))])
+    result = _read(database, client(database, connector), paras)
+    assert len(connector.requests) == 2
+    assert [i.statement for i in result.items] == ["Sales grew."]  # the better of the two
+    assert result.dropped == {"unknown paragraph": 2}
+    # Not saved, so the next run reads the section again instead of reusing a bad answer.
+    connector.script = [answer(_good(paras))]
+    again = _read(database, client(database, connector), paras)
+    assert not again.cached and len(connector.requests) == 3
+
+
+def test_one_unknown_citation_among_good_ones_is_not_asked_again(database):
+    paras = paragraphs(3)
+    answer_ = EvidenceList(
+        items=[*_good(paras).items, *_good(paras).items, *_miscopied(paras, n=1).items]
+    )
+    connector = FakeConnector([answer(answer_)])
+    result = _read(database, client(database, connector), paras)
+    assert len(connector.requests) == 1
+    assert result.dropped == {"unknown paragraph": 1}
+
+
+def test_a_saved_answer_that_lost_most_of_its_citations_is_read_again(database):
+    paras = paragraphs(3)
+    prompt = load_prompt("extract")
+    key = cache_key("acc-1", "Item 1", 1, prompt.version, "fake-small")
+    # What the 7 Nov run saved for Meta's 10-K Item 7: nothing kept, everything dropped.
+    with database.conn:
+        database.conn.execute(
+            "INSERT INTO evidence_cache (cache_key, items_json, created_at) VALUES (?, ?, ?)",
+            (key, '{"items": [], "quotes": [], "dropped": {"unknown paragraph": 21}}', "x"),
+        )
+    connector = FakeConnector([answer(_good(paras))])
+    result = _read(database, client(database, connector), paras)
+    assert not result.cached and len(connector.requests) == 1
+    assert [i.statement for i in result.items] == ["Sales grew."]

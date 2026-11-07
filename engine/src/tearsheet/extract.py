@@ -5,13 +5,23 @@ model. Every cited paragraph ID must exist in that source, and each quoted value
 the quote check; items that fail are dropped and counted. Answers are saved under
 `accession + section + parser version + prompt version + extraction model`, so each filing is
 read once; `reread_filing` deletes a filing's saved answers.
+
+An answer in which most citations name paragraphs that aren't in the source is asked for once
+more (`mostly_unknown`). The AI sometimes miscopies the long paragraph IDs all through one
+answer: on 7 Nov 2026, Meta's 10-K Item 7 kept 0 of 21 items that way, and one part of
+Robinhood's Item 1A lost its items too, while the same read asked again came back clean. The
+check itself is unchanged: an item still needs every cited paragraph to exist. An answer
+that is still mostly unknown is not saved, and a saved one is not reused, so the next run reads
+the section again.
 """
 
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
 from collections import Counter
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
@@ -21,9 +31,18 @@ from tearsheet.prompts import load_prompt
 from tearsheet.text.parse import PARSER_VERSION, Paragraph
 from tearsheet.verify.quotes import check_quote
 
+log = logging.getLogger(__name__)
+
 CHARS_PER_TOKEN = 4
 MAX_SECTION_TOKENS = 60_000
 MAX_SECTION_CHARS = MAX_SECTION_TOKENS * CHARS_PER_TOKEN
+UNKNOWN = "unknown paragraph"
+
+
+def mostly_unknown(kept: int, dropped: Mapping[str, int]) -> bool:
+    """Whether more than half of an answer's items and quotes cited a paragraph that isn't in
+    the source. `kept` counts the items and quotes that passed."""
+    return dropped.get(UNKNOWN, 0) * 2 > kept + sum(dropped.values())
 
 
 @dataclass
@@ -91,16 +110,23 @@ def _check(
         if all(pid in by_id for pid in item.paragraph_ids):
             items.append(item)
         else:
-            dropped["unknown paragraph"] += 1
+            dropped[UNKNOWN] += 1
     quotes = []
     for q in answer.quotes:
         if q.paragraph_id not in by_id:
-            dropped["unknown paragraph"] += 1
+            dropped[UNKNOWN] += 1
         elif check_quote(q.quote, q.value_text, by_id[q.paragraph_id].text).status != "verified":
             dropped["quote not verified"] += 1
         else:
             quotes.append(q)
     return items, quotes, dropped
+
+
+def _unknown_ids(answer: EvidenceList, by_id: dict[str, Paragraph]) -> list[str]:
+    """The cited IDs that aren't in the source, in the answer's order, each once."""
+    cited = [p for item in answer.items for p in item.paragraph_ids]
+    cited += [q.paragraph_id for q in answer.quotes]
+    return list(dict.fromkeys(p for p in cited if p not in by_id))
 
 
 async def extract_section(
@@ -115,7 +141,9 @@ async def extract_section(
     prompt = load_prompt("extract")
     key = cache_key(source_id, section, PARSER_VERSION, prompt.version, ai.model_for("extract"))
     saved = _load(conn, key)
-    if saved is not None:
+    if saved is not None and not mostly_unknown(
+        len(saved["items"]) + len(saved["quotes"]), saved.get("dropped", {})
+    ):
         return Extracted(
             source_id,
             section,
@@ -129,20 +157,43 @@ async def extract_section(
     quotes: list[QuotedValue] = []
     dropped: Counter = Counter()
     calls = 0
+    keep = True
     for part in chunk_paragraphs(paragraphs, MAX_SECTION_CHARS):
-        answer = await ai.structured(
-            task="extract",
-            instructions=f"{prompt.text}\n\nThe source is: {label}.",
-            sources=[Source(p.id, p.text) for p in part],
-            schema=EvidenceList,
-            prompt_version=prompt.version,
-        )
-        calls += 1
-        got, got_quotes, lost = _check(answer, by_id)
+        tries: list[tuple[list[EvidenceItem], list[QuotedValue], Counter]] = []
+        for _ in range(2):
+            answer = await ai.structured(
+                task="extract",
+                instructions=f"{prompt.text}\n\nThe source is: {label}.",
+                sources=[Source(p.id, p.text) for p in part],
+                schema=EvidenceList,
+                prompt_version=prompt.version,
+            )
+            calls += 1
+            tries.append(_check(answer, by_id))
+            got, got_quotes, lost = tries[-1]
+            if not mostly_unknown(len(got) + len(got_quotes), lost):
+                break
+            log.warning(
+                "extract %s %s: %d of %d citations name paragraphs that aren't in the source "
+                "(for example %s)%s",
+                source_id,
+                section,
+                lost[UNKNOWN],
+                len(answer.items) + len(answer.quotes),
+                ", ".join(_unknown_ids(answer, by_id)[:3]),
+                "; asking again" if len(tries) == 1 else "; kept what passed, not saved",
+            )
+        else:
+            # Both answers were mostly unknown: keep the one that kept more, and don't save it,
+            # so the next run reads this section again.
+            got, got_quotes, lost = max(reversed(tries), key=lambda t: len(t[0]) + len(t[1]))
+            keep = False
         items += got
         quotes += got_quotes
         dropped.update(lost)
     result = Extracted(source_id, section, items, quotes, dict(dropped), calls=calls)
+    if not keep:
+        return result
     _save(
         conn,
         key,
