@@ -162,8 +162,9 @@ export function stageLine(run: RunState, ready: boolean, k: number): string {
   }
   if (k === 2) {
     const parts: string[] = []
-    if (t?.articles != null) parts.push(plural(t.articles, 'recent article'))
     const reads = calls(t, 'extract')
+    // No articles yet is "Finding recent news" until the reading starts.
+    if (t?.articles != null && (t.articles > 0 || reads)) parts.push(plural(t.articles, 'recent article'))
     if (reads) parts.push(`${reads.done} of ${reads.total} AI reads done`)
     if (t?.evidence) parts.push(plural(t.evidence, 'piece of evidence', 'pieces of evidence'))
     return parts.length ? capital(parts.join(' · ')) : 'Finding recent news'

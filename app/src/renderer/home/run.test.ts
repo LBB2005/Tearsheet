@@ -185,6 +185,8 @@ describe('the five stages', () => {
 
   it('count the evidence, the writing and the checks', () => {
     expect(stageLine(notesAt(105), false, 2)).toBe('Finding recent news')
+    expect(stageLine(notesAt(105, { articles: 0 }), false, 2)).toBe('Finding recent news')
+    expect(stageLine(notesAt(115, { articles: 0, reads_total: 6, reads_done: 0 }), false, 2)).toBe('0 recent articles · 0 of 6 AI reads done')
     expect(stageLine(notesAt(150, { articles: 12, reads_total: 23, reads_done: 11, evidence: 52 }), false, 2)).toBe('12 recent articles · 11 of 23 AI reads done · 52 pieces of evidence')
     expect(stageLine(notesAt(240, { sections_total: 6, sections_done: 3 }), false, 3)).toBe('3 of 6 sections written by Claude Code')
     expect(stageLine(notesAt(232.5), false, 3)).toBe('Writing with Claude Code')

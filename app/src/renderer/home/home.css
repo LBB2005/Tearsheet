@@ -86,7 +86,12 @@
 /* ---------- the run view: "Receipt" (home/RunView.tsx) ----------
    One card that writes down each stage as it happens. Its only motion: the working stage's
    spinner and the bars sliding (none under Reduce motion or Animations Off, styles.css). */
-.runv { width: 620px; max-width: 100%; display: flex; flex-direction: column; gap: 12px; margin-top: -20px; }
+/* The card's top stays put and it grows downward as rows come and go, so nothing on it moves
+   while you read it; it never slides under the toolbar in a short window. Less padding below it
+   there, the footnote left out, and no scroll nudges. */
+.pagebody[data-page="home"]:has(> .runv) { justify-content: flex-start; padding-bottom: 20px; overflow-anchor: none; }
+.runv { width: 620px; max-width: 100%; display: flex; flex-direction: column; gap: 12px; margin-top: min(9vh, 72px); }
+@media (max-height: 700px) { .runv { margin-top: 8px; } .runv > .fine { display: none; } }
 .runv .alert { margin-bottom: 0; }
 .rcpt { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 16px 22px 18px; display: flex; flex-direction: column; text-align: left; }
 .rcpt .rh { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--line); margin-bottom: 4px; }
