@@ -1,5 +1,7 @@
 {#- The Full report view, and the claim block the Summary shares. Imported with context: it uses
-    `r`, `mode`, `anchor`, `safe_url` and `source_label`. All report and source text is escaped. -#}
+    `r`, `mode`, `anchor`, `safe_url`, `source_label`, `ro` and `open_link`. All report and source
+    text is escaped. -#}
+{%- from "report/_hot.html.j2" import hot with context -%}
 
 {#- One surviving claim: its text, the checker's note, a chip per source that folds out the
     quoted paragraph, then Read the section (in the Summary), and Flag (app) or the claim ID (file). -#}
@@ -36,6 +38,33 @@
 {%- endif -%}
 {%- endmacro -%}
 
+{#- A stored table. Each row is hot: its first cell holds the row's readout, shown in a strip kept
+    free under the table so it never covers the text, and in the app the row's link to the table
+    opened bigger. The other cells link there too, out of the tab order, so a click anywhere in
+    the row opens it. -#}
+{%- macro table(s) -%}
+{%- set view = "table-" ~ s.key %}
+{%- set opens = mode == "app" and open_link(view) %}
+{%- set head = s.table[0]|map("string")|list %}
+<div class="tw">
+<table class="t">
+<tr>{% for cell in s.table[0] %}<th>{{ cell }}</th>{% endfor %}</tr>
+{%- for row in s.table[1:] %}
+{%- set index = loop.index0 %}
+{%- set link = open_link(view, index) if opens else none %}
+<tr>{% for cell in row %}<td>
+{%- if loop.first %}{% call hot(view, index, ro.table_row(head, row|map("string")|list)) %}{{ cell }}{% endcall %}
+{%- elif link %}<a class="cell" href="{{ link }}" tabindex="-1">{{ cell }}</a>
+{%- else %}{{ cell }}{% endif -%}
+</td>{% endfor %}</tr>
+{%- endfor %}
+</table>
+{%- if s.table|length > 1 %}
+<p class="rhint">Point at a row to read it{% if opens %}; click it to open the table bigger{% endif %}.</p>
+{%- endif %}
+</div>
+{%- endmacro -%}
+
 {%- macro full_view() -%}
 <section id="full" class="view" aria-label="Full report">
 <article class="txt glass">
@@ -46,12 +75,7 @@
 {{ code_line(para) }}
 {%- endfor %}
 {%- if s.table %}
-<table class="t">
-{%- for row in s.table %}
-{%- set head = loop.first %}
-<tr>{% for cell in row %}{% if head %}<th>{{ cell }}</th>{% else %}<td>{{ cell }}</td>{% endif %}{% endfor %}</tr>
-{%- endfor %}
-</table>
+{{ table(s) }}
 {%- endif %}
 {%- if s.links %}
 <ul class="heads">

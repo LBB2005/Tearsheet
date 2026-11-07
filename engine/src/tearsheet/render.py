@@ -192,6 +192,10 @@ def render_html(
         raise ValueError(column)
     if side not in ("text", "numbers"):
         raise ValueError(side)
+    # readouts.py imports format_value from this module, so it is imported here, when a page is
+    # drawn, rather than at the top, where the two modules would import each other in a loop.
+    from tearsheet import readouts
+
     if mode == "file":
         view, column, side = "full", "both", "text"
     given = numbers or {}
@@ -214,4 +218,6 @@ def render_html(
         metric_text=_metric_text,
         source_label=_source_labels(report),
         red_flag_labels=RED_FLAG_LABELS,
+        ro=readouts,
+        open_link=open_link,
     )

@@ -1,0 +1,12 @@
+{#- A "hot" item: a chart, bar, ring, tile or row that shows its readout when pointed at or
+    keyboard-focused, and in the app opens its bigger view. Imported with context: it uses
+    `mode` and `open_link`. The readout is plain text from readouts.py, escaped like any other.
+
+    In the app the item is a tearsheet://open link. A file has no app to open anything, so the
+    item is focusable on its own (tabindex 0) and keeps its readout. A view the app doesn't know
+    gives no link, and the item is then focusable the same way. An empty readout (nothing stored
+    to say) leaves out the readout and the label, and the item is named by what it holds. -#}
+{%- macro hot(view, item, text, cls="") -%}
+{%- set link = open_link(view, item) if mode == "app" else none -%}
+<a class="hot{% if cls %} {{ cls }}{% endif %}"{% if link %} href="{{ link }}"{% else %} tabindex="0" role="group"{% endif %}{% if text %} aria-label="{{ text }}"{% endif %}>{{ caller() }}{% if text %}<span class="ro" aria-hidden="true">{{ text }}</span>{% endif %}</a>
+{%- endmacro -%}

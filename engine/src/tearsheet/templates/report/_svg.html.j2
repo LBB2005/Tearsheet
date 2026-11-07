@@ -1,12 +1,17 @@
 {#- The numbers column's charts: inline SVG drawn here from the numbers only. Labels are escaped
-    like any other text; the shapes are numbers this template computes. No outside context is
-    used, so every macro can be read on its own. -#}
+    like any other text; the shapes are numbers this template computes. Imported with context:
+    the charts' readouts come from `ro` (readouts.py), and their links from `mode` and
+    `open_link`. A chart sits in its readout box (.cw), so its readouts show on its top edge. -#}
+{%- from "report/_hot.html.j2" import hot with context -%}
 
 {%- set TAU = 6.2831853 -%}
 {#- Grid steps a chart may use: the first that splits its span into few enough parts wins. -#}
 {%- set STEPS = [0.1, 0.2, 0.25, 0.5, 1, 2, 2.5, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 2500, 5000, 10000, 20000, 25000, 50000, 100000] -%}
 
 {%- macro f1(x) -%}{{ "%.1f"|format(x) }}{%- endmacro -%}
+
+{#- A share of the chart's width, for the pointer targets laid over it. -#}
+{%- macro pct(x) -%}{{ "%.2f"|format(x * 100) }}%{%- endmacro -%}
 
 {%- macro money(x) -%}{{ "${:,.2f}".format(x) }}{%- endmacro -%}
 
@@ -19,7 +24,9 @@
 <svg class="ring-svg" width="{{ size }}" height="{{ size }}" viewBox="0 0 {{ size }} {{ size }}" aria-hidden="true"><g transform="rotate(-90 {{ m }} {{ m }})"><circle class="g-track" cx="{{ m }}" cy="{{ m }}" r="{{ f1(rad) }}" stroke-width="{{ stroke }}"/><circle class="g-fill" cx="{{ m }}" cy="{{ m }}" r="{{ f1(rad) }}" stroke-width="{{ stroke }}" stroke-dasharray="{{ f1(c * part) }} {{ f1(c) }}"/></g></svg>
 {%- endmacro -%}
 
-{#- A ring split into parts: `parts` is a list of [count, class name]. -#}
+{#- A ring split into parts: `parts` is a list of [count, key], drawn with the class dn-<key>. In
+    the app each slice opens the rings view on itself. The slice is left out of the tab order:
+    the legend beside the ring is the keyboard's way to the same links and readouts. -#}
 {%- macro donut(size, stroke, parts, label) -%}
 {%- set rad = (size - stroke) / 2 - 1 -%}
 {%- set c = TAU * rad -%}
@@ -28,9 +35,10 @@
 {%- for count, _ in parts -%}{%- set ns.total = ns.total + count -%}{%- endfor -%}
 <svg class="ring-svg" width="{{ size }}" height="{{ size }}" viewBox="0 0 {{ size }} {{ size }}" role="img" aria-label="{{ label }}"><g transform="rotate(-90 {{ m }} {{ m }})"><circle class="g-track" cx="{{ m }}" cy="{{ m }}" r="{{ f1(rad) }}" stroke-width="{{ stroke }}"/>
 {%- if ns.total > 0 -%}
-{%- for count, cls in parts if count > 0 -%}
+{%- for count, key in parts if count > 0 -%}
 {%- set share = c * count / ns.total -%}
-<circle class="dn-seg {{ cls }}" cx="{{ m }}" cy="{{ m }}" r="{{ f1(rad) }}" stroke-width="{{ stroke }}" stroke-dasharray="{{ f1([share - 2, 0.5]|max) }} {{ f1(c) }}" stroke-dashoffset="{{ f1(-ns.off) }}"/>
+{%- set link = open_link("rings", key) if mode == "app" else none -%}
+{% if link %}<a href="{{ link }}" tabindex="-1">{% endif %}<circle class="dn-seg dn-{{ key }}" cx="{{ m }}" cy="{{ m }}" r="{{ f1(rad) }}" stroke-width="{{ stroke }}" stroke-dasharray="{{ f1([share - 2, 0.5]|max) }} {{ f1(c) }}" stroke-dashoffset="{{ f1(-ns.off) }}"/>{% if link %}</a>{% endif %}
 {%- set ns.off = ns.off + share -%}
 {%- endfor -%}
 {%- endif -%}
@@ -54,7 +62,8 @@
 {%- for s in STEPS -%}{%- if ns.step is none and (hi - lo) / s <= 4.5 -%}{%- set ns.step = s -%}{%- endif -%}{%- endfor -%}
 {%- set step = ns.step or STEPS[-1] -%}
 {%- set ky = (bot - top) / (hi - lo) -%}
-<svg class="chart" viewBox="0 0 {{ w }} {{ h }}" role="img" aria-label="{{ label }}">
+{%- set whole = ro.past_year(closes[0] if closes else none, closes[-1] if closes else none, rng.bear if rng else none, rng.bull if rng else none) -%}
+<div class="cw">{% call hot("price", none, whole) %}<svg class="chart" viewBox="0 0 {{ w }} {{ h }}" role="img" aria-label="{{ label }}">
 {%- set first = (lo / step)|round(0, "ceil") * step -%}
 {%- for k in range(((hi - first) / step)|int + 1) -%}
 {%- set y = bot - (first + k * step - lo) * ky -%}
@@ -98,12 +107,25 @@
 {%- endif -%}
 <text class="ch-lab" x="{{ left }}" y="{{ h - 6 }}">{{ start }}</text><text class="ch-lab" x="{{ f1(mid) }}" y="{{ h - 6 }}" text-anchor="middle">{{ middle }}</text><text class="ch-lab" x="{{ right }}" y="{{ h - 6 }}" text-anchor="end">{{ end }}</text>
 </svg>
+{#- The pointer targets over the chart, inside its link, each with its readout: a column for
+    each week, spread evenly over the weekly line, and over the range's labels one cell per
+    case, split halfway between the labels. #}
+<div class="hits" aria-hidden="true">
+{%- if closes %}<span class="wk" style="margin-left:{{ pct(left / w) }};width:{{ pct((mid - left) / w) }}">
+{%- for wk in weekly %}<span class="hit"><span class="ro">{{ ro.week(wk.date, wk.close, today) }}</span></span>{% endfor -%}
+</span>{% endif -%}
+{%- if has_fan %}<span class="tgts" style="width:{{ pct((w - right) / w) }}">
+{%- set split_high, split_low = (y_bull + y_base) / 2, (y_base + y_bear) / 2 -%}
+{%- for case, span in (("bull", split_high), ("base", split_low - split_high), ("bear", h - split_low)) -%}
+<span class="hit" style="flex:{{ f1(span) }}"><span class="ro">{{ ro.target(case, rng[case], today) }}</span></span>
+{%- endfor -%}
+</span>{% endif -%}
+</div>{% endcall %}</div>
 {%- endmacro -%}
 
 {#- Value per share by each method, as dots on one scale, over the 12-month range as a band,
-    with a dashed line at today's price. -#}
-{%- macro methods_chart(methods, price, rng, label, w=494, lab=132) -%}
-{%- set names = {"DCF": "Discounted cash flow", "RESIDUAL_INCOME": "Residual income", "MULTIPLES": "Multiples"} -%}
+    with a dashed line at today's price. The chart's own readout is the estimate's. -#}
+{%- macro methods_chart(methods, price, rng, label, estimate=none, w=494, lab=132) -%}
 {%- set top, row = 22, 25 -%}
 {%- set rows = methods|length -%}
 {%- set h = top + row * rows + 20 -%}
@@ -116,7 +138,7 @@
 {%- for s in STEPS -%}{%- if ns.step is none and (hi - lo) / s <= 3.5 -%}{%- set ns.step = s -%}{%- endif -%}{%- endfor -%}
 {%- set step = ns.step or STEPS[-1] -%}
 {%- set kx = plot / (hi - lo) -%}
-<svg class="chart" viewBox="0 0 {{ w }} {{ h }}" role="img" aria-label="{{ label }}">
+<div class="cw">{% call hot("methods", none, ro.estimate(estimate, price) if estimate is number else "") %}<svg class="chart" viewBox="0 0 {{ w }} {{ h }}" role="img" aria-label="{{ label }}">
 {%- if rng -%}<rect class="ch-band" x="{{ f1(lab + (rng.bear - lo) * kx) }}" y="{{ top - 6 }}" width="{{ f1([(rng.bull - rng.bear) * kx, 1]|max) }}" height="{{ row * rows + 2 }}" rx="6"/>{%- endif -%}
 {%- set first = (lo / step)|round(0, "ceil") * step -%}
 {%- for k in range(((hi - first) / step)|int + 1) -%}
@@ -130,7 +152,21 @@
 {%- set cy = top + 9 + loop.index0 * row -%}
 {%- set x = lab + (m.value - lo) * kx -%}
 {%- set flip = x > lab + plot * 0.72 -%}
-<text class="ch-row" x="0" y="{{ cy + 4 }}">{{ names.get(m.method, m.method|replace("_", " ")|capitalize) }}</text><line class="ch-axis" x1="{{ lab }}" x2="{{ lab + plot }}" y1="{{ cy }}" y2="{{ cy }}"/><circle class="ch-dot" cx="{{ f1(x) }}" cy="{{ cy }}" r="5"/><text class="ch-val" x="{{ f1(x - 9 if flip else x + 9) }}" y="{{ cy + 4 }}" text-anchor="{{ 'end' if flip else 'start' }}">{{ money(m.value) }}</text>
+<text class="ch-row" x="0" y="{{ cy + 4 }}">{{ ro.method_label(m.method) }}</text><line class="ch-axis" x1="{{ lab }}" x2="{{ lab + plot }}" y1="{{ cy }}" y2="{{ cy }}"/><circle class="ch-dot" cx="{{ f1(x) }}" cy="{{ cy }}" r="5"/><text class="ch-val" x="{{ f1(x - 9 if flip else x + 9) }}" y="{{ cy + 4 }}" text-anchor="{{ 'end' if flip else 'start' }}">{{ money(m.value) }}</text>
 {%- endfor -%}
-</svg>
+</svg>{% endcall %}
+{#- One pointer target per method row, split halfway between the rows, each with its readout.
+    In the app each opens the methods view on its own method, so the targets sit beside the
+    chart's link rather than in it (a link can't hold another). They cover the whole chart, so
+    the pointer always reads a row; the chart's own readout is for keyboard focus. #}
+<div class="hits col" aria-hidden="true">
+{%- for m in methods -%}
+{%- set cy = top + 9 + loop.index0 * row -%}
+{%- set upper = 0 if loop.first else cy - row / 2 -%}
+{%- set lower = h if loop.last else cy + row / 2 -%}
+{%- set link = open_link("methods", m.method) if mode == "app" else none -%}
+{%- set tag = "a" if link else "span" -%}
+<{{ tag }} class="hit"{% if link %} href="{{ link }}" tabindex="-1"{% endif %} style="flex:{{ f1(lower - upper) }}"><span class="ro">{{ ro.method(m.method, m.value, price) }}</span></{{ tag }}>
+{%- endfor -%}
+</div></div>
 {%- endmacro -%}

@@ -1,7 +1,10 @@
 {#- The numbers column, in the spec's order. Every panel is drawn from `n` (the numbers dict);
     a piece that is None says "not stored for this report". Imported with context: it uses `r`,
-    `n`, `fmt`, `metric_text` and `red_flag_labels`. -#}
-{%- from "report/_svg.html.j2" import gauge, donut, price_path, methods_chart -%}
+    `n`, `fmt`, `metric_text`, `red_flag_labels` and `ro`, and `hot` uses `mode` and `open_link`.
+    Each chart, bar, ring, tile and figure is hot: it shows its readout from readouts.py when
+    pointed at or focused, and in the app opens its bigger view. -#}
+{%- from "report/_svg.html.j2" import gauge, donut, price_path, methods_chart with context -%}
+{%- from "report/_hot.html.j2" import hot with context -%}
 
 {%- set MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] -%}
 
@@ -30,18 +33,32 @@
 
 {%- macro not_stored() -%}<b class="miss">not stored</b>{%- endmacro -%}
 
+{#- A tile that is hot when it has a readout, and plain when there is nothing stored to read. -#}
+{%- macro hot_if(view, item, text) -%}
+{%- set body = caller() -%}
+{%- if text %}{% call hot(view, item, text) %}{{ body }}{% endcall %}{% else %}{{ body }}{% endif -%}
+{%- endmacro -%}
+
 {#- A narrow window's five key-number tiles, above the text (the spec's "Narrow windows"): the
     rating and score, price, estimated value, the 12-month range and the past year. -#}
 {%- macro key_strip() -%}
 {%- set today = n.price.value if n.price else (n.weekly[-1].close if n.weekly else none) -%}
 <div id="keys" class="keys" role="group" aria-label="Key numbers">
+{%- set score_pct = n.score.percentile if n.score else none %}
+{%- call hot_if("factors", none, ro.rating(n.rating.call, n.rating.capped, score_pct) if n.rating else (ro.score(score_pct) if n.score else "")) -%}
 <div class="kt"><span>Rating and score</span>
 {%- if n.rating or n.score -%}
 {% if n.rating %}<b class="{{ n.rating.call|lower }}">{{ n.rating.call }}</b>{% endif %}{% if n.score %} <b>{{ n.score.percentile }}</b>{% endif %}
 {%- else %}{{ not_stored() }}{% endif -%}
 </div>
+{%- endcall %}
+{%- call hot_if("price", none, ro.price(n.price.value, n.price.date) if n.price else "") -%}
 <div class="kt"><span>Price{% if n.price %}, {{ day_month(n.price.date) }}{% endif %}</span>{% if n.price %}<b>{{ fmt("price", n.price.value) }}</b>{% else %}{{ not_stored() }}{% endif %}</div>
+{%- endcall %}
+{%- call hot_if("methods", none, ro.estimate(n.estimate.value, today) if n.estimate else "") -%}
 <div class="kt"><span>Estimated value</span>{% if n.estimate %}<b>{{ fmt("price", n.estimate.value) }}</b>{% else %}{{ not_stored() }}{% endif %}</div>
+{%- endcall %}
+{%- call hot_if("price", none, ro.band(n.range.bear, n.range.bull) if n.range else "") -%}
 <div class="kt"><span>12-month range</span>
 {%- if n.range -%}
 {%- set lo0 = [n.range.bear, today if today is number else n.range.bear]|min -%}
@@ -53,7 +70,11 @@
 <div class="mini" aria-hidden="true"><i class="b" style="left:{{ at(n.range.bear) }};width:{{ "%.1f"|format((n.range.bull - n.range.bear) / span * 100) }}%"></i>{% if n.range.base is number %}<i class="m" style="left:{{ at(n.range.base) }}"></i>{% endif %}{% if today is number %}<i class="pm" style="left:{{ at(today) }}"></i>{% endif %}</div>
 {%- else %}{{ not_stored() }}{% endif -%}
 </div>
-<div class="kt"><span>Past year</span>{% if n.returns_12m and n.returns_12m.company is number %}<b class="{{ 'down' if n.returns_12m.company < 0 else 'up' }}">{{ signed(n.returns_12m.company) }}</b>{% else %}{{ not_stored() }}{% endif %}</div>
+{%- endcall %}
+{%- set year = n.returns_12m and n.returns_12m.company is number %}
+{%- call hot_if("returns", none, ro.total_return(r.ticker, n.returns_12m.company, 1) if year else "") -%}
+<div class="kt"><span>Past year</span>{% if year %}<b class="{{ 'down' if n.returns_12m.company < 0 else 'up' }}">{{ signed(n.returns_12m.company) }}</b>{% else %}{{ not_stored() }}{% endif %}</div>
+{%- endcall %}
 </div>
 {%- endmacro -%}
 
@@ -68,7 +89,7 @@
 {%- if n.rating or n.score %}
 <div class="callrow">
 {%- if n.score %}
-<div class="ring">{{ gauge(84, 7, n.score.percentile / 100) }}<div><b>{{ n.score.percentile }}</b><span>score</span></div></div>
+{% call hot("factors", none, ro.score(n.score.percentile)) %}<div class="ring">{{ gauge(84, 7, n.score.percentile / 100) }}<div><b>{{ n.score.percentile }}</b><span>score</span></div></div>{% endcall %}
 {%- endif %}
 <div>{% if n.rating %}<div class="call {{ n.rating.call|lower }}">{{ n.rating.call }}</div><span>next 12 months, against its peers</span>{% else %}{{ gap("The rating is") }}{% endif %}</div>
 </div>
@@ -80,16 +101,27 @@
 {%- elif n.red_flags %}
 <div class="note">Red flag: {{ flag_names(n.red_flags) }}. Any red flag caps the rating at Hold.</div>
 {%- endif %}
-<dl class="kvs">
-<div><dt>Price{% if n.price %}, {{ day_month(n.price.date) }}{% endif %}</dt>{% if n.price %}<dd>{{ fmt("price", n.price.value) }}</dd>{% else %}<dd class="miss">not stored</dd>{% endif %}</div>
-<div><dt>Estimated value</dt>{% if n.estimate %}<dd>{{ fmt("price", n.estimate.value) }}</dd>{% else %}<dd class="miss">not stored</dd>{% endif %}</div>
+{#- Each tile is its own one-term list, so a hot tile's link can hold it. #}
+<div class="kvs">
+{%- call hot_if("price", none, ro.price(n.price.value, n.price.date) if n.price else "") -%}
+<dl><dt>Price{% if n.price %}, {{ day_month(n.price.date) }}{% endif %}</dt>{% if n.price %}<dd>{{ fmt("price", n.price.value) }}</dd>{% else %}<dd class="miss">not stored</dd>{% endif %}</dl>
+{%- endcall %}
+{%- call hot_if("methods", none, ro.estimate(n.estimate.value, today) if n.estimate else "") -%}
+<dl><dt>Estimated value</dt>{% if n.estimate %}<dd>{{ fmt("price", n.estimate.value) }}</dd>{% else %}<dd class="miss">not stored</dd>{% endif %}</dl>
+{%- endcall %}
 {%- if n.triggers %}
-<div><dt>Buy trigger</dt>{% if n.triggers.buy is number %}<dd>{{ fmt("price", n.triggers.buy) }}</dd>{% else %}<dd class="words">{{ n.triggers.buy_text }}</dd>{% endif %}</div>
+{%- set buy = n.triggers.buy if n.triggers.buy is number else none %}
+{%- call hot_if("price", none, ro.trigger(buy, fmt("price", buy) if buy is not none else n.triggers.buy_text) if buy is not none or n.triggers.buy_text else "") -%}
+<dl><dt>Buy trigger</dt>{% if buy is not none %}<dd>{{ fmt("price", buy) }}</dd>{% else %}<dd class="words">{{ n.triggers.buy_text }}</dd>{% endif %}</dl>
+{%- endcall %}
 {%- else %}
-<div><dt>Triggers</dt><dd class="miss">not stored</dd></div>
+<dl><dt>Triggers</dt><dd class="miss">not stored</dd></dl>
 {%- endif %}
-<div><dt>Value gap percentile</dt>{% if n.estimate and n.estimate.gap_percentile is number %}<dd>{{ n.estimate.gap_percentile }}</dd>{% elif n.estimate %}<dd class="miss">not available</dd>{% else %}<dd class="miss">not stored</dd>{% endif %}</div>
-</dl>
+{%- set gap_pct = n.estimate.gap_percentile if n.estimate and n.estimate.gap_percentile is number else none %}
+{%- call hot_if("methods", none, ro.gap(gap_pct) if n.estimate else "") -%}
+<dl><dt>Value gap percentile</dt>{% if gap_pct is not none %}<dd>{{ gap_pct }}</dd>{% elif n.estimate %}<dd class="miss">not available</dd>{% else %}<dd class="miss">not stored</dd>{% endif %}</dl>
+{%- endcall %}
+</div>
 </section>
 
 {#- 2. The past year's weekly prices running into the 12-month range, drawn as a fan. #}
@@ -111,7 +143,7 @@
 <h4><span>Score by factor</span><em>percentile and weight; line at the peer median</em></h4>
 {%- for f in n.factors or [] %}
 {%- set weight = ("%.1f"|format(f.weight * 100)).rstrip("0").rstrip(".") %}
-<div class="bar fbar"><span>{{ f.name|capitalize }}</span><div class="tr"><i style="width:{{ [[f.percentile, 0]|max, 100]|min }}%"></i><span class="mid"></span></div><b>{{ f.percentile }}</b><small>{{ weight }}%</small></div>
+{% call hot("factors", loop.index0, ro.factor(f.name, f.percentile, f.weight), "bar fbar") %}<span>{{ f.name|capitalize }}</span><div class="tr"><i style="width:{{ [[f.percentile, 0]|max, 100]|min }}%"></i><span class="mid"></span></div><b>{{ f.percentile }}</b><small>{{ weight }}%</small>{% endcall %}
 {%- else %}
 {{ gap() }}
 {%- endfor %}
@@ -123,7 +155,8 @@
 {%- if n.metrics %}
 <div class="tiles">
 {%- for m in n.metrics %}
-<div class="tile"><span>{{ m.label }}</span><b>{{ metric_text(m.name, m.value) }}</b><small>{% if m.peer_median is number %}peers {{ metric_text(m.name, m.peer_median) }}{% else %}no peer median{% endif %}</small><div class="rk">{% if m.percentile is number %}<i style="left:{{ [[m.percentile, 0]|max, 100]|min }}%"></i>{% endif %}</div></div>
+{%- set median = metric_text(m.name, m.peer_median) if m.peer_median is number else none %}
+{% call hot("metrics", m.name, ro.metric(m.label, metric_text(m.name, m.value), median, m.percentile if m.percentile is number else none, r.ticker), "tile") %}<span>{{ m.label }}</span><b>{{ metric_text(m.name, m.value) }}</b><small>{% if median is not none %}peers {{ median }}{% else %}no peer median{% endif %}</small><div class="rk">{% if m.percentile is number %}<i style="left:{{ [[m.percentile, 0]|max, 100]|min }}%"></i>{% endif %}</div>{% endcall %}
 {%- endfor %}
 </div>
 {%- else %}
@@ -136,7 +169,7 @@
 <h4><span>Value per share by method</span>{% if n.estimate %}<em>estimate {{ fmt("price", n.estimate.value) }}</em>{% endif %}</h4>
 {%- if n.methods %}
 {%- set label = "Value per share: " ~ (n.methods|map(attribute="method")|join(", ")) ~ (("; price " ~ fmt("price", today)) if today is number else "") %}
-{{ methods_chart(n.methods, today, n.range, label) }}
+{{ methods_chart(n.methods, today, n.range, label, n.estimate.value if n.estimate else none) }}
 {%- else %}
 {{ gap() }}
 {%- endif %}
@@ -146,15 +179,15 @@
 <section class="p glass">
 <h4><span>Total return, past 12 months</span></h4>
 {%- if n.returns_12m %}
-{%- set rows = [(r.ticker, n.returns_12m.company, true), ("Peer group", n.returns_12m.peers, false), ("S&P 500", n.returns_12m.spy, false)] %}
+{%- set rows = [(r.ticker, n.returns_12m.company, "company"), ("Peer group", n.returns_12m.peers, "peers"), ("S&P 500", n.returns_12m.spy, "spy")] %}
 {%- set lo0 = [0, n.returns_12m.company, n.returns_12m.peers, n.returns_12m.spy]|min %}
 {%- set hi0 = [0, n.returns_12m.company, n.returns_12m.peers, n.returns_12m.spy]|max %}
 {%- set pad = [(hi0 - lo0) * 0.1, 1]|max %}
 {%- set lo, span = lo0 - pad, hi0 - lo0 + 2 * pad %}
 {%- set zero = (0 - lo) / span * 100 %}
-{%- for name, v, own in rows %}
+{%- for name, v, key in rows %}
 {%- set at = (v - lo) / span * 100 %}
-<div class="bar rbar"><span>{{ name }}</span><div class="tr"><i class="{{ 'neg' if v < 0 else ('self' if own else '') }}" style="left:{{ '%.1f'|format([zero, at]|min) }}%;width:{{ '%.1f'|format((at - zero)|abs) }}%"></i><span class="zero" style="left:{{ '%.1f'|format(zero) }}%"></span></div><b>{{ signed(v) }}</b></div>
+{% call hot("returns", key, ro.total_return(name, v, 1, group=key == "peers"), "bar rbar") %}<span>{{ name }}</span><div class="tr"><i class="{{ 'neg' if v < 0 else ('self' if key == 'company' else '') }}" style="left:{{ '%.1f'|format([zero, at]|min) }}%;width:{{ '%.1f'|format((at - zero)|abs) }}%"></i><span class="zero" style="left:{{ '%.1f'|format(zero) }}%"></span></div><b>{{ signed(v) }}</b>{% endcall %}
 {%- endfor %}
 {%- else %}
 {{ gap() }}
@@ -166,12 +199,14 @@
 <h4><span>Red flags</span><em>any one caps the rating</em></h4>
 {%- if n.red_flags is not none %}
 {%- set others = n.red_flags|reject("in", red_flag_labels)|list %}
-<div class="flags" role="img" aria-label="{{ n.red_flags|length }} of {{ red_flag_labels|length + others|length }} red flags found">{% for code in red_flag_labels %}<i class="{{ 'on' if code in n.red_flags else '' }}"></i>{% endfor %}{% for code in others %}<i class="on"></i>{% endfor %}</div>
+{%- set found, checks = n.red_flags|length, red_flag_labels|length + others|length %}
+{% call hot("flags", none, ro.red_flags(found, checks)) %}<div class="flags" role="img" aria-label="{{ found }} of {{ checks }} red flags found">{% for code in red_flag_labels %}<i class="{{ 'on' if code in n.red_flags else '' }}"></i>{% endfor %}{% for code in others %}<i class="on"></i>{% endfor %}</div>{% endcall %}
 {%- for code, label in red_flag_labels.items() %}
-<div class="kv"><span>{{ label }}</span>{% if code in n.red_flags %}<b class="found">found</b>{% else %}<b class="clear">clear</b>{% endif %}</div>
+{% call hot("flags", code, ro.red_flag(label, code in n.red_flags), "kv") %}<span>{{ label }}</span>{% if code in n.red_flags %}<b class="found">found</b>{% else %}<b class="clear">clear</b>{% endif %}{% endcall %}
 {%- endfor %}
 {%- for code in others %}
-<div class="kv"><span>{{ code|replace("_", " ")|capitalize }}</span><b class="found">found</b></div>
+{%- set label = code|replace("_", " ")|capitalize %}
+{% call hot("flags", code, ro.red_flag(label, true), "kv") %}<span>{{ label }}</span><b class="found">found</b>{% endcall %}
 {%- endfor %}
 {%- else %}
 {{ gap() }}
@@ -184,7 +219,7 @@
 {%- if n.economy %}
 <div class="macro">
 {%- for e in n.economy %}
-<div><b>{{ e.value }}</b><span>{{ e.label }}</span><small>{{ e.date }}</small></div>
+{% call hot("economy", e.series, ro.economy(e.label, e.value, e.date)) %}<div><b>{{ e.value }}</b><span>{{ e.label }}</span><small>{{ e.date }}</small></div>{% endcall %}
 {%- endfor %}
 </div>
 {%- else %}
@@ -198,15 +233,24 @@
 <div class="donutrow">
 {%- if n.peer_ratings %}
 {%- set pr = n.peer_ratings %}
-<div class="donut">{{ donut(80, 10, [[pr.Buy, "dn-buy"], [pr.Hold, "dn-hold"], [pr.Sell, "dn-sell"]], "Peer ratings: " ~ pr.Buy ~ " Buy, " ~ pr.Hold ~ " Hold, " ~ pr.Sell ~ " Sell") }}<b>{{ pr.Buy + pr.Hold + pr.Sell }}</b></div>
-<div class="legend"><span><i class="buy"></i>{{ pr.Buy }} Buy</span><span><i class="hold"></i>{{ pr.Hold }} Hold</span><span><i class="sell"></i>{{ pr.Sell }} Sell</span></div>
+{%- set rated = pr.Buy + pr.Hold + pr.Sell %}
+{%- set slices = [("buy", "Buy", pr.Buy), ("hold", "Hold", pr.Hold), ("sell", "Sell", pr.Sell)] %}
+<div class="donut"><div class="dn">{{ donut(80, 10, [[pr.Buy, "buy"], [pr.Hold, "hold"], [pr.Sell, "sell"]], "Peer ratings: " ~ pr.Buy ~ " Buy, " ~ pr.Hold ~ " Hold, " ~ pr.Sell ~ " Sell") }}<b>{{ rated }}</b></div>
+{%- for key, call, count in slices if count > 0 %}<span class="ro ro-{{ key }}" aria-hidden="true">{{ ro.peer_rating(call, count, rated) }}</span>{% endfor -%}
+</div>
+<div class="legend">
+{%- for key, call, count in slices %}{% call hot("rings", key, ro.peer_rating(call, count, rated)) %}<i class="{{ key }}"></i>{{ count }} {{ call }}{% endcall %}{% endfor -%}
+</div>
 {%- else %}
 <div class="half">{{ gap("Peer ratings") }}</div>
 {%- endif %}
 {%- if n.claims %}
 {%- set cl = n.claims %}
-<div class="donut">{{ donut(80, 10, [[cl.kept, "dn-kept"], [cl.removed, "dn-removed"]], cl.kept ~ " claims kept, " ~ cl.removed ~ " removed") }}<b>{{ cl.kept + cl.removed }}</b></div>
-<div class="legend"><span><i class="kept"></i>{{ cl.kept }} claims kept</span><span><i class="sell"></i>{{ cl.removed }} removed</span>{% if r.direction_split %}<span class="sub">{% for k, v in r.direction_split.items() %}{{ v }} {{ k }}{% if not loop.last %}, {% endif %}{% endfor %}</span>{% endif %}</div>
+{%- set claimed = cl.kept + cl.removed %}
+<div class="donut"><div class="dn">{{ donut(80, 10, [[cl.kept, "kept"], [cl.removed, "removed"]], cl.kept ~ " claims kept, " ~ cl.removed ~ " removed") }}<b>{{ claimed }}</b></div>
+{%- for key, count in (("kept", cl.kept), ("removed", cl.removed)) if count > 0 %}<span class="ro ro-{{ key }}" aria-hidden="true">{{ ro.claims(key, count, claimed) }}</span>{% endfor -%}
+</div>
+<div class="legend">{% call hot("rings", "kept", ro.claims("kept", cl.kept, claimed)) %}<i class="kept"></i>{{ cl.kept }} claims kept{% endcall %}{% call hot("rings", "removed", ro.claims("removed", cl.removed, claimed)) %}<i class="sell"></i>{{ cl.removed }} removed{% endcall %}{% if r.direction_split %}<span class="sub">{% for k, v in r.direction_split.items() %}{{ v }} {{ k }}{% if not loop.last %}, {% endif %}{% endfor %}</span>{% endif %}</div>
 {%- else %}
 <div class="half">{{ gap("Claim counts") }}</div>
 {%- endif %}

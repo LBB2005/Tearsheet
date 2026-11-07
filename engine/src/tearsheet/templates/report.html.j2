@@ -29,6 +29,22 @@ body { margin: 0; color: var(--text); font: 13px/1.45 var(--ui); font-variant-nu
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
 a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+
+/* Readouts. Each chart, bar, ring, tile and row is a hot element (report/_hot.html.j2): in the
+   app a link that opens it bigger, in a file an element that takes keyboard focus. Its readout
+   (.ro) shows while it is pointed at or has keyboard focus. :focus-visible, not :focus, so the
+   focus a click leaves never keeps a readout up once the pointer goes. A readout is shown and
+   hidden by display alone, never by visibility: a child made visible that way is drawn even
+   inside the column the one-column layout hides. Nothing here has a transition: a readout
+   appears and goes at once. These come before the panels' own rules, so a hot bar or
+   red-flag row keeps its own display. */
+.hot { color: inherit; text-decoration: none; display: block; }
+.hot:hover { text-decoration: none; background: var(--panel); }
+.ro { display: none; position: absolute; pointer-events: none; padding: 6px 9px; border-radius: 9px; background: #0E1422; border: 1px solid var(--line); color: var(--text); font: 12px/1.4 var(--ui); z-index: 5; }
+.hot:hover > .ro, .hot:focus-visible > .ro, .hit:hover > .ro, tr:hover > td > .hot > .ro, tr:has(:focus-visible) .ro { display: block; }
+/* Over a chart, the week, case or method pointed at has its own readout, which stands in for
+   the chart's. */
+.hot:has(.hit:hover) > .ro, .hot:has(~ .hits .hit:hover) > .ro { display: none; }
 .defs { position: absolute; width: 0; height: 0; }
 .glass { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); box-shadow: inset 0 1px 0 rgba(255,255,255,.05); }
 
@@ -67,7 +83,13 @@ a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outli
 /* Numbers column */
 .span2 { grid-column: span 2; }
 @media (max-width: 560px) { .span2 { grid-column: 1 / -1; } .col-numbers .nums, .col-auto.side-numbers .nums { grid-template-columns: minmax(0, 1fr); } }
-.p { padding: 12px 14px; min-width: 0; }
+/* Each numbers panel is a readout box: a readout covers the panel's heading line and grows
+   upward over the gap. Later panels paint over earlier ones, so it is never hidden. */
+.p { position: relative; padding: 12px 14px; min-width: 0; }
+.p .ro { left: 10px; right: 10px; bottom: calc(100% - 30px); }
+/* Nothing sits above the first panel, and the column's top edge would cut a readout off there,
+   so its readouts grow downward over its own top lines instead. */
+.nums > .p:first-child .ro { top: 4px; bottom: auto; }
 .p h4 { margin: 0 0 8px; display: flex; justify-content: space-between; gap: 8px; font: 500 12px var(--ui); color: var(--muted); }
 .p h4 em { font-style: normal; text-align: right; }
 .gap { margin: 4px 0 2px; color: var(--muted); font-size: 12.5px; }
@@ -75,6 +97,7 @@ a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outli
 .tkr small { display: block; font: 12.5px var(--ui); color: var(--muted); letter-spacing: 0; margin-top: 1px; }
 .callrow { display: flex; align-items: center; gap: 14px; margin: 10px 0 8px; }
 .callrow > div > span { color: var(--muted); font-size: 12px; line-height: 1.35; }
+.callrow > .hot, .callrow > .hot:focus-visible { flex: none; border-radius: 50%; }
 .ring { position: relative; width: 84px; height: 84px; flex: none; }
 .ring > div { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
 .ring b { font: 600 22px/1.1 var(--num); }
@@ -84,15 +107,27 @@ a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outli
 .buy { color: var(--up); } .hold { color: var(--hold); } .sell { color: var(--down); }
 .note { font-size: 12.5px; color: var(--hold); line-height: 1.4; background: rgba(255,197,107,.07); border: 1px solid rgba(255,197,107,.2); border-radius: 10px; padding: 6px 9px; }
 .kvs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px 14px; margin: 10px 0 0; }
+.kvs dl { margin: 0; }
 .kvs dt { color: var(--muted); font-size: 12px; line-height: 1.3; }
 .kvs dd { margin: 2px 0 0; font: 600 15px var(--num); }
 .kvs dd.miss, .kvs dd.words { font: 12px/1.3 var(--ui); color: var(--muted); }
 .kvs dd.words { color: var(--text); }
 .chart { display: block; width: 100%; height: auto; overflow: visible; }
+/* A chart is a readout box: its readouts show on its top edge. Pointer targets laid over it
+   (.hits) have a readout each: a column per week over the price line and a cell per case over
+   the range's labels, or a row per method. The targets aren't positioned, so their readouts
+   sit against .hits, which covers the chart. */
+.cw { position: relative; }
+.cw .ro { left: 0; right: 0; bottom: 100%; }
+.hits { position: absolute; inset: 0; display: flex; }
+.hits.col { flex-direction: column; }
+.wk { flex: none; display: flex; }
+.wk > .hit { flex: 1; }
+.tgts { flex: none; margin-left: auto; display: flex; flex-direction: column; }
 .bar { display: grid; grid-template-columns: 116px 1fr 28px 38px; align-items: center; gap: 8px; height: 23px; font-size: 12.5px; }
 .bar.fbar { grid-template-columns: 130px 1fr 28px 40px; }
 .bar.rbar { grid-template-columns: 74px 1fr 50px; }
-.bar > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bar > span:not(.ro) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bar .tr { height: 7px; background: var(--track); position: relative; border-radius: 4px; }
 .bar .tr i { position: absolute; top: 0; bottom: 0; left: 0; border-radius: 4px; background: linear-gradient(90deg, #4C8DFF, #7FE3F7); transform-origin: left; }
 .bar .tr i.neg { background: var(--down); } .bar .tr i.self { background: var(--hold); }
@@ -105,7 +140,8 @@ a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outli
 .kv b.clear { color: var(--muted); font-weight: 500; } .kv b.found { color: var(--hold); }
 .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(108px, 1fr)); gap: 8px; }
 .tile { padding: 9px 10px; border-radius: 12px; background: rgba(255,255,255,.035); border: 1px solid var(--line); min-width: 0; }
-.tile span { display: block; color: var(--muted); font-size: 11.5px; line-height: 1.25; min-height: 29px; }
+.hot.tile:focus-visible { border-radius: 12px; }
+.tile span:not(.ro) { display: block; color: var(--muted); font-size: 11.5px; line-height: 1.25; min-height: 29px; }
 .tile b { font: 600 18px var(--num); display: block; margin: 1px 0; }
 .tile small { color: var(--muted); font-size: 11.5px; }
 .tile .rk { height: 4px; background: var(--track); border-radius: 2px; position: relative; margin-top: 6px; }
@@ -117,11 +153,15 @@ a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outli
 .macro { display: grid; grid-template-columns: repeat(auto-fit, minmax(80px, 1fr)); gap: 6px; }
 .macro div { text-align: center; }
 .macro b { display: block; font: 600 15px var(--num); }
-.macro span { font-size: 11px; color: var(--muted); line-height: 1.25; display: block; }
+.macro span:not(.ro) { font-size: 11px; color: var(--muted); line-height: 1.25; display: block; }
 .macro small { font-size: 10.5px; color: var(--muted); opacity: .8; }
 .donutrow { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-.donut { position: relative; }
-.donut b { position: absolute; inset: 0; display: grid; place-content: center; font: 600 15px var(--num); }
+/* A ring's slices show their readouts in the panel's readout place, as the legend's do; the
+   count in the middle sits in its own box (.dn). The legend is the keyboard's way in. */
+.dn { position: relative; }
+.dn b { position: absolute; inset: 0; display: grid; place-content: center; font: 600 15px var(--num); }
+.donut:has(.dn-buy:hover) > .ro-buy, .donut:has(.dn-hold:hover) > .ro-hold, .donut:has(.dn-sell:hover) > .ro-sell,
+.donut:has(.dn-kept:hover) > .ro-kept, .donut:has(.dn-removed:hover) > .ro-removed { display: block; }
 .legend { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); margin-right: 8px; }
 .legend i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; }
 .legend i.buy { background: var(--up); } .legend i.hold { background: var(--hold); } .legend i.sell { background: var(--down); } .legend i.kept { background: var(--accent); }
@@ -141,7 +181,10 @@ a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outli
 .dn-seg { fill: none; } .dn-buy { stroke: var(--up); } .dn-hold { stroke: var(--hold); } .dn-sell, .dn-removed { stroke: var(--down); } .dn-kept { stroke: var(--accent); }
 
 /* A narrow window: five key-number tiles above the text. */
-.keys { flex: none; display: grid; grid-template-columns: 1.2fr 1fr 1fr 1.6fr 1fr; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.keys { position: relative; flex: none; display: grid; grid-template-columns: 1.2fr 1fr 1fr 1.6fr 1fr; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+/* The key strip is a readout box: a tile's readout shows just below the strip. */
+.keys .ro { top: 100%; left: 14px; right: 14px; }
+.keys .hot, .keys .hot:focus-visible { border-radius: 12px; }
 .kt { padding: 8px 11px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); min-width: 0; }
 .kt span { display: block; color: var(--muted); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .kt b { font: 600 16px var(--num); white-space: nowrap; }
@@ -213,10 +256,23 @@ details.src > summary::-webkit-details-marker { display: none; }
 table.t { width: 100%; border-collapse: collapse; font-size: 13.5px; margin: 0 0 14px; }
 table.t th { text-align: left; font: 500 12px var(--ui); color: var(--muted); padding: 7px 10px; border-bottom: 1px solid var(--line); }
 table.t td { padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+/* A table sits in a readout box with a strip kept free below it, where a row's readout shows,
+   over a hint while no row is pointed at. A row's links fill its cells, so a click anywhere
+   in the row opens the table bigger. */
+.tw { position: relative; padding-bottom: 28px; }
+.tw .ro { left: 0; right: 0; bottom: 0; }
+.rhint { position: absolute; left: 0; bottom: 6px; margin: 0; color: var(--muted); font-size: 12px; }
+table.t .hot, .cell { display: block; margin: -7px -10px; padding: 7px 10px; }
+.cell, .cell:hover { color: inherit; text-decoration: none; }
+table.t tr:has(.hot):hover > td { background: var(--panel); }
+table.t .hot:hover { background: none; }
 .removed, .filings { list-style: none; padding: 0; margin: 0 0 14px; }
 .removed li, .filings li { padding: 8px 0; border-top: 1px solid var(--line); font-size: 14px; }
 .filings li { font-size: 13px; color: var(--muted); }
 .filings .read { margin-left: 8px; }
+
+/* Printing shows the report as it reads, with no readouts. */
+@media print { .ro, .rhint { display: none !important; } .tw { padding-bottom: 0; } }
 
 /* Motion: panels rise in turn, bars grow, rings draw, the price line traces and the fan fades
    in. Each plays once, and none plays under the Mac's Reduce motion setting, or in a frame

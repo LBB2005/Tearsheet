@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import re
 from datetime import date, timedelta
+from html import unescape
 
 import pytest
 
 from tearsheet.render import PlaceholderValue, fill, format_value, open_link, render_html
+from tests.test_report_numbers import TABLES
 
 
 @pytest.mark.parametrize(
@@ -268,6 +270,10 @@ def test_numbers_are_drawn_not_injected():
     assert "<script" not in html
     assert "&lt;script&gt;" in html
     assert html.count("<svg") >= 5  # the charts are still drawn
+    # A readout names the factor, so its label carries the evil name too, escaped.
+    labels = re.findall(r'aria-label="([^"]*)"', html)
+    assert any("&lt;script&gt;" in label for label in labels)
+    assert not [label for label in labels if "<" in label]
     tiles = key_tiles(
         render_html(report("Plain sentence."), mode="app", column="text", narrow=True, numbers=n)
     )
@@ -365,3 +371,185 @@ def test_open_link():
     assert open_link("flags") == "tearsheet://open/flags"
     assert open_link("nope") is None
     assert open_link("table-Bad Key") is None
+
+
+# --- Readouts and links to the bigger views ---------------------------------------------------
+
+OPEN_LINK = re.compile(
+    r"^tearsheet://open/(price|factors|metrics|methods|returns|flags|economy|rings"
+    r"|table-[a-z_]{1,32})(/[A-Za-z0-9_.-]{1,64})?$"
+)
+WORDING = (
+    "Profitability: 93rd percentile. Better than 93 of 100 peers. Counts for 30% of the score.",
+    "Operating margin: 65.2%. The peer median is 28.3%. 95% of peers are below EXM.",
+    "Bull case: $419.62 in 12 months, 110% above today’s $200.13. The top of the range, its 90th"
+    " percentile.",
+    "Close on 14 Nov 2025: $180.00, 10% below today’s $200.13.",
+    "Score: 74th percentile. Better than 74 of 100 peers on the weighted factors.",
+    "1 of 4 checks found a red flag. Any one caps the rating at Hold.",
+    "Buy: 8 of 41 companies in the group, rated before red-flag caps.",
+)
+TABLE_ROW_WORDING = "Profitability: percentile 93, weight used 30.0%."
+
+
+def with_score_table(r: dict) -> dict:
+    """The report with a Full-report section that holds the stored score table."""
+    r["sections"].append(
+        {
+            "key": "score",
+            "number": 2,
+            "title": "Score",
+            "paragraphs": [],
+            "table": TABLES["score"],
+            "sentences": [],
+        }
+    )
+    return r
+
+
+def style_of(html: str) -> str:
+    css = html[html.index("<style>") + len("<style>") : html.index("</style>")]
+    return re.sub(r"/\*.*?\*/", "", css, flags=re.S)
+
+
+def css_rules(css: str) -> list[tuple[str, str]]:
+    """Each innermost rule as (selector, declarations), inside an @media block or not."""
+    return [(m.group(1).strip(), m.group(2)) for m in re.finditer(r"([^{}]+)\{([^{}]*)\}", css)]
+
+
+def media_block(css: str, query: str) -> str:
+    """The inside of the @media block for `query`, however deeply its rules nest."""
+    start = css.index("{", css.index(f"@media {query}")) + 1
+    depth = 1
+    for at in range(start, len(css)):
+        depth += {"{": 1, "}": -1}.get(css[at], 0)
+        if depth == 0:
+            return css[start:at]
+    raise AssertionError(query)
+
+
+def names_readout(selector: str) -> bool:
+    return bool(re.search(r"\.ro\b", selector))
+
+
+def test_every_item_links_to_its_bigger_view():
+    html = render_html(with_score_table(report("Plain sentence.")), mode="app", numbers=numbers())
+    links = [h for h in hrefs(html) if h.startswith("tearsheet://open/")]
+    for link in links:
+        assert OPEN_LINK.match(link), link
+    opened = {link.removeprefix("tearsheet://open/") for link in links}
+    expected = {
+        "factors/0",
+        "factors/1",
+        "factors/2",
+        "metrics/operating_margin",
+        "metrics/interest_coverage",
+        "methods/DCF",
+        "methods/RESIDUAL_INCOME",
+        "methods/MULTIPLES",
+        "returns/company",
+        "returns/peers",
+        "returns/spy",
+        "flags/restatement",
+        "flags/material_weakness",
+        "flags/going_concern",
+        "flags/risk_factor_change",
+        "economy/UNRATE",
+        "economy/DGS10",
+        "rings/buy",
+        "rings/hold",
+        "rings/sell",
+        "rings/kept",
+        "rings/removed",
+        "price",
+        "factors",  # the score ring
+        "table-score/0",
+        "table-score/1",
+    }
+    assert not expected - opened, expected - opened
+
+
+def test_readouts_use_the_fixed_wording():
+    page = unescape(
+        render_html(with_score_table(report("Plain sentence.")), mode="app", numbers=numbers())
+    )
+    for text in (*WORDING, TABLE_ROW_WORDING):
+        assert text in page, text
+    assert "Point at a row to read it; click it to open the table bigger." in page
+
+
+def test_the_past_year_has_a_readout_for_each_week_and_each_case():
+    page = unescape(render_html(report("Plain sentence."), mode="app", numbers=numbers()))
+    assert page.count("Close on ") == 52
+    for case in ("Bull case:", "Base case:", "Bear case:"):
+        assert page.count(case) == 1, case
+
+
+def test_a_file_keeps_readouts_by_focus_without_app_links():
+    html = render_html(with_score_table(report("Plain sentence.")), mode="file", numbers=numbers())
+    assert "tearsheet://" not in html
+    hot = re.findall(r'<[a-z]+ class="hot[^>]*>', html)
+    assert hot
+    for tag in hot:
+        assert 'tabindex="0"' in tag and "href=" not in tag, tag
+    page = unescape(html)
+    for text in (*WORDING, TABLE_ROW_WORDING):
+        assert text in page, text
+    assert "Point at a row to read it." in page and "click it" not in page
+
+
+def test_printing_hides_the_readouts():
+    css = style_of(render_html(with_score_table(report("Plain sentence.")), mode="app"))
+    printing = css_rules(media_block(css, "print"))
+    assert [
+        body
+        for selector, body in printing
+        if ".ro" in [s.strip() for s in selector.split(",")] and re.search(r"display:\s*none", body)
+    ]
+
+
+def test_readouts_show_on_hover_and_keyboard_focus_only():
+    css = style_of(render_html(report("Plain sentence."), mode="app", numbers=numbers()))
+    shown = [
+        part.strip()
+        for selector, body in css_rules(css)
+        if re.search(r"display:\s*block", body)
+        for part in selector.split(",")
+        if names_readout(part)
+    ]
+    assert [s for s in shown if ":hover" in s]
+    assert [s for s in shown if ":focus-visible" in s]
+    # A click focuses the link; plain :focus would leave the readout up after the pointer goes.
+    for selector, _ in css_rules(css):
+        if names_readout(selector):
+            assert not re.search(r":focus(?!-visible)", selector), selector
+
+
+def test_readouts_never_animate():
+    css = style_of(render_html(report("Plain sentence."), mode="app", numbers=numbers()))
+    for selector, body in css_rules(css):
+        if re.search(r"\.(ro|hot)\b", selector):
+            assert not re.search(r"transition|animation", body), selector
+    motion = media_block(css, "(prefers-reduced-motion: no-preference)")
+    assert not re.search(r"\.(ro|hot)\b", motion)
+
+
+def test_readouts_never_draw_through_a_hidden_column():
+    """Review Focus 1: the frame narrows to one column while a numbers link has keyboard focus.
+    The hidden column is visibility: hidden, which its readouts inherit; a child set to
+    visibility: visible would still be drawn, so the readouts are shown and hidden by display."""
+    html = render_html(
+        with_score_table(report("Plain sentence.")),
+        mode="app",
+        column="auto",
+        narrow=True,
+        numbers=numbers(),
+    )
+    css = style_of(html)
+    assert re.search(r"visibility:\s*hidden", css)  # the column put away
+    for selector, body in css_rules(css):
+        assert not re.search(r"visibility:\s*visible", body), selector
+        if names_readout(selector):
+            assert not re.search(r"visibility|opacity", body), selector
+    base = [body for selector, body in css_rules(css) if selector == ".ro"]
+    assert base and re.search(r"display:\s*none", base[0])
