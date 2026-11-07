@@ -1,6 +1,6 @@
 # Continuous integration (design item 52): the engine's lint, offline tests with the coverage
-# bar, and replay of the stored test runs; the app's typecheck, tests and generated protocol
-# types.
+# bar, and replay of the stored test runs; the app's typecheck, tests with their coverage floor,
+# and generated protocol types.
 name: CI
 
 on:
@@ -43,9 +43,9 @@ jobs:
       - name: Typecheck
         working-directory: app
         run: npm run typecheck
-      - name: Tests
+      - name: Tests, with the coverage floor (app/vitest.config.ts)
         working-directory: app
-        run: npm test
+        run: npm run coverage
       - name: Generated protocol types are up to date (item 46)
         run: |
           (cd engine && uv sync --locked)
