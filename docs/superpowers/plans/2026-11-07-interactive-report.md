@@ -627,7 +627,7 @@ the switches the spec lists, without the report ever reloading.
 - Create:
   - `app/src/renderer/views/pick.ts`
   - `app/src/renderer/views/factors.ts`
-  - `app/src/renderer/views/Factors.tsx`
+  - `app/src/renderer/views/FactorsPane.tsx`
   - `app/src/renderer/views/views.css`
 - Modify:
   - `app/src/renderer/panel/ViewPane.tsx`, to list `factors`;
@@ -690,7 +690,7 @@ the switches the spec lists, without the report ever reloading.
 - Create:
   - `app/src/renderer/views/scale.ts`
   - `app/src/renderer/views/metrics.ts`
-  - `app/src/renderer/views/Metrics.tsx`
+  - `app/src/renderer/views/MetricsPane.tsx`
 - Modify:
   - `app/src/renderer/panel/ViewPane.tsx`
   - `app/src/renderer/views/views.css`
@@ -751,7 +751,7 @@ the switches the spec lists, without the report ever reloading.
 **Files:**
 - Create:
   - `app/src/renderer/views/methods.ts`
-  - `app/src/renderer/views/Methods.tsx`
+  - `app/src/renderer/views/MethodsPane.tsx`
 - Modify:
   - `app/src/renderer/panel/ViewPane.tsx`
   - `app/src/renderer/views/views.css`
@@ -795,7 +795,7 @@ the switches the spec lists, without the report ever reloading.
 **Files:**
 - Create:
   - `app/src/renderer/views/returns.ts`
-  - `app/src/renderer/views/Returns.tsx`
+  - `app/src/renderer/views/ReturnsPane.tsx`
 - Modify:
   - `app/src/renderer/panel/ViewPane.tsx`
   - `app/src/renderer/views/views.css`
@@ -849,7 +849,7 @@ the switches the spec lists, without the report ever reloading.
 **Files:**
 - Create:
   - `app/src/renderer/views/table.ts`
-  - `app/src/renderer/views/Table.tsx`
+  - `app/src/renderer/views/TablePane.tsx`
 - Modify:
   - `app/src/renderer/panel/ViewPane.tsx`, which lists `table` for every `table-<key>` view;
   - `app/src/renderer/views/views.css`
@@ -917,7 +917,7 @@ the switches the spec lists, without the report ever reloading.
 **Files:**
 - Create:
   - `app/src/renderer/views/figures.ts`
-  - `app/src/renderer/views/Figures.tsx`, which exports `RedFlags`, `Economy` and `Rings`
+  - `app/src/renderer/views/FiguresPane.tsx`, which exports `RedFlags`, `Economy` and `Rings`
 - Modify:
   - `app/src/renderer/panel/ViewPane.tsx`
   - `app/src/renderer/views/views.css`
