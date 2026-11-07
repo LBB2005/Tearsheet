@@ -13,6 +13,7 @@ import type { ReportSummary } from '../../shared/protocol'
 import { ChartPane } from '../chart/ChartPane'
 import { Divider } from '../chart/Divider'
 import { DIV, presetSplit, snapWidth, splitWidth, TEXT_MIN, type Preset, type Snap } from '../chart/split'
+import { useTextFrames } from '../report/frames'
 import type { ReportPage } from '../report/useReport'
 import { oneColumn, reportChoice, shownSide } from '../report/view'
 
@@ -116,6 +117,8 @@ export function Report({ page, wide }: { page: ReportPage; wide: boolean }) {
   const cls = ['rpage', chartOpen && 'chartopen', chartClosing && 'closing', full && !chartClosing && 'full', dragging && 'dragging', snapped && 'snapped'].filter(Boolean).join(' ')
   const reportId = page.reportId
   const named = report ?? page.listed
+  const text = report ? { key: page.textKey, html: report.html } : null
+  const texts = useTextFrames(text, error !== null)
 
   return (
     <div ref={box} className={cls}>
@@ -130,12 +133,29 @@ export function Report({ page, wide }: { page: ReportPage; wide: boolean }) {
             </button>
           </div>
         )}
-        {report && (
+        {texts.frames.length > 0 && (
           <div className="rframe">
             {/* An empty sandbox: no scripts, forms, pop-ups or top-level navigation (Technical Plan §12).
-                The two frames are the same report, with Text or Numbers as its one column beside
-                the chart; the one not on show stays loaded, at the same size, so it keeps its place. */}
-            <iframe key={page.textKey} className={showing === 'text' ? 'report-frame on' : 'report-frame'} aria-hidden={showing !== 'text'} title="Report" sandbox="" srcDoc={report.html} />
+                The text and numbers frames are the same report, with Text or Numbers as its one
+                column beside the chart; the one not on show stays loaded, at the same size, so it
+                keeps its place. While another text frame loads, the one on show stays under it
+                (report/frames.ts). */}
+            {texts.frames.map((f) => {
+              const asked = f.key === text?.key
+              const on = showing === 'text' ? ' on' : ''
+              const phase = !asked || texts.shown === f.key ? '' : texts.ready === f.key ? ' fadein' : ' wait'
+              return (
+                <iframe
+                  key={f.key}
+                  className={`report-frame${on}${phase}`}
+                  aria-hidden={showing !== 'text' || !asked}
+                  title="Report"
+                  sandbox=""
+                  srcDoc={f.html}
+                  onLoad={asked ? () => texts.loaded(f.key) : undefined}
+                />
+              )
+            })}
             {page.numbers && (
               <iframe
                 key={`numbers:${page.textKey}`}

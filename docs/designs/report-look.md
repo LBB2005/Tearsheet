@@ -112,11 +112,21 @@ Over six rounds of mockups, Liam settled on:
 
     Until real predictions are graded, it shows an empty state. There is no stripe pattern
     anywhere, and the app never shows the prototype's example rows.
-4.  **Settings and connections.** It shows:
-    *   a new **Chart** section (below);
-    *   four health tiles;
-    *   the AI tools, with lock-down status;
-    *   data keys, the storage bar, the general settings, and "What leaves your Mac".
+4.  **Settings.** Liam picked this layout on Nov 6, from two rounds of mockups: "Sidebar list",
+    in the "Outline" style.
+    *   A list of six topics on the left, each with the app sidebar's own line icons. There is
+        one short page per topic, and the toolbar names the topic.
+    *   **General:** the main AI tool and "The chart opens on" (below), as Mac pop-up menus, and the
+        SEC email. A note at the top, with a button, for each thing that needs you.
+    *   **AI tools:** each tool's job and version, its safety check, and "Look for AI tools
+        again". The paths and the lock-down details are behind "Show details".
+    *   **Data keys:** Massive, FRED and Alpha Vantage.
+    *   **Storage and backup:** the downloads bar, the storage limit, and the backup folder.
+    *   **Privacy:** "What leaves your Mac".
+    *   **Advanced:** the Goal 1 round, and how the 5Y and All ranges download.
+    *   A topic that needs you gets a dot, red or amber. Together with General's notes, the dots
+        replace the four health tiles.
+    *   Motion: each page settles in part by part, and the picked topic's icon draws itself.
 
 **Overlays:**
 

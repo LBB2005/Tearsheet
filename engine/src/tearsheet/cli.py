@@ -672,7 +672,7 @@ def cmd_prices(args: argparse.Namespace) -> int:
             if not market.backfill_needed(settings, wanted):
                 print("The one-time download has finished; reports keep prices current.")
             else:
-                status = settings.get("prices_backfill_status")
+                status = settings.get(market.STATUS_SETTING)
                 print(f"The one-time download hasn't finished{f' ({status})' if status else ''}.")
             return 0
         key = config.get_key("massive")

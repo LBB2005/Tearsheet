@@ -8,7 +8,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 import type { ReportResult, ReportSummary } from '../../shared/protocol'
 import type { Split } from '../chart/split'
-import { splitOutMs } from '../motion'
+import { markReportSeen, reportEntrance, splitOutMs } from '../motion'
 import type { Notice } from '../overlays/Toast'
 import { flagClaimId, otherReports, renderOptions, type Side, type View } from './view'
 
@@ -128,10 +128,13 @@ export function useReport({ reportId, wide, active, notify, refresh }: Options):
         shownKey.current = key
         setLoaded(result)
         setTextKey(key)
+        markReportSeen(result.report_id)
       }
       setError(problem)
     }
-    window.tearsheet.getReport(reportId, opts).then(
+    // The report's own entrance plays the first time it is ever opened (motion.ts), not each time
+    // it loads again (another view, a narrower window, coming back to it).
+    window.tearsheet.getReport(reportId, { ...opts, motion: reportEntrance(reportId) }).then(
       (r) => (r.ok && r.result ? done(r.result, null) : done(null, r.error?.message || 'Tearsheet’s engine didn’t answer.')),
       (e: unknown) => done(null, e instanceof Error ? e.message : 'Tearsheet’s engine didn’t answer.')
     )

@@ -11,7 +11,7 @@ import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 
 import type { EngineNotification } from '../../preload/api'
 import type { RunStarted } from '../../shared/protocol'
 import type { StepStates } from '../../shared/steps'
-import { leaveMs, readyPauseMs } from '../motion'
+import { pageLeaveMs, readyPauseMs } from '../motion'
 import type { Page } from '../nav'
 import type { Notice } from '../overlays/Toast'
 import { refusal, type RunState } from './run'
@@ -168,15 +168,17 @@ export function useRun({ page, target, go, notify, loadCompanies, loadTools, ope
   // and for the "report ready" moment.
   const showsRun = (run !== null && (!run.reportId || run.failure !== null)) || readyHold
 
-  // Between the home page and the run view, the one on screen fades and lifts away before the
-  // other settles in (A. Settle). Away from home, the choice just follows.
+  // Between the home page and the run view, the other one takes its place at once, as pages do
+  // (motion.ts); under Animations Full, the one on screen first fades and lifts away. Away from
+  // home, the choice just follows.
   const [shownRun, setShownRun] = useState(showsRun)
   const [swapping, setSwapping] = useState(false)
   // The run the view shows, kept while it leaves after Cancel run.
   const last = useRef(run)
   if (run) last.current = run
   useEffect(() => {
-    if (showsRun === shownRun || page !== 'home') {
+    const away = pageLeaveMs()
+    if (showsRun === shownRun || page !== 'home' || away === 0) {
       setShownRun(showsRun)
       setSwapping(false)
       return
@@ -185,7 +187,7 @@ export function useRun({ page, target, go, notify, loadCompanies, loadTools, ope
     const timer = window.setTimeout(() => {
       setShownRun(showsRun)
       setSwapping(false)
-    }, leaveMs())
+    }, away)
     return () => window.clearTimeout(timer)
   }, [showsRun, shownRun, page])
 

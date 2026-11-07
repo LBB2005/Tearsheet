@@ -120,6 +120,13 @@ export type Passed = boolean;
 export type Form1 = string | null;
 export type CheckedAt = string | null;
 export type BlockedReason = string | null;
+export type DownloadState = "no_key" | "downloading" | "paused" | "stopped" | "off" | "waiting" | "done";
+export type DaysDone = number | null;
+export type DaysTotal = number | null;
+export type PausedFor = ("report" | "grading" | "history" | "safety") | null;
+export type StoppedBecause = string | null;
+export type CompaniesReady = number;
+export type Companies = number;
 export type RejectedKeys = string[];
 export type RawBytes = number;
 export type RawCap = number;
@@ -504,6 +511,32 @@ export interface LockdownState {
   blocked_reason: BlockedReason;
 }
 /**
+ * The one-time background download of 14 months of prices for every S&P 500 company
+ * (server._prices_job), as Settings shows it.
+ *
+ * - no_key: it starts once a Massive key is saved.
+ * - downloading: under way; `days_done` of `days_total` trading days so far, when known.
+ * - paused: it waits while `paused_for` runs (a report, grading, a full price history
+ *   download, or a safety check), then goes on.
+ * - stopped: it stopped (`stopped_because`, in plain words) and starts again the next time
+ *   the app opens.
+ * - off: switched off with `set-setting prices_backfill off`.
+ * - waiting: not running now; it starts the next time the app opens.
+ * - done: finished; `companies_ready` of `companies` have the whole 14 months.
+ *
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "PriceDownload".
+ */
+export interface PriceDownload {
+  state: DownloadState;
+  days_done?: DaysDone;
+  days_total?: DaysTotal;
+  paused_for?: PausedFor;
+  stopped_because?: StoppedBecause;
+  companies_ready: CompaniesReady;
+  companies: Companies;
+}
+/**
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
  * via the `definition` "SettingsResult".
  */
@@ -520,6 +553,7 @@ export interface SettingsResult {
   setup_done: SetupDone;
   fred_skipped: FredSkipped;
   services: Services;
+  price_download: PriceDownload;
   lockdown?: Lockdown;
 }
 export interface Keys {
