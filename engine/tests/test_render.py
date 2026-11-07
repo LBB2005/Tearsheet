@@ -7,7 +7,7 @@ from datetime import date, timedelta
 
 import pytest
 
-from tearsheet.render import PlaceholderValue, fill, format_value, render_html
+from tearsheet.render import PlaceholderValue, fill, format_value, open_link, render_html
 
 
 @pytest.mark.parametrize(
@@ -356,3 +356,12 @@ def test_the_12_month_range_is_three_straight_labelled_lines():
     assert fill and len(fill.group(1).split()) == 3  # a triangle: today, the bull and the bear
     for text in ("Bull", "$419.62", "+110%", "Base", "$233.70", "+17%", "Bear", "$130.16", "−35%"):
         assert text in svg, text
+
+
+def test_open_link():
+    assert open_link("metrics", "operating_margin") == "tearsheet://open/metrics/operating_margin"
+    assert open_link("table-valuation", 2) == "tearsheet://open/table-valuation/2"
+    assert open_link("flags", "<x>") == "tearsheet://open/flags"
+    assert open_link("flags") == "tearsheet://open/flags"
+    assert open_link("nope") is None
+    assert open_link("table-Bad Key") is None

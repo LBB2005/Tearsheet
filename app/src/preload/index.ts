@@ -42,5 +42,6 @@ contextBridge.exposeInMainWorld('tearsheet', {
   gradeDue: () => call('gradeDue', {}),
   onNotification: listen('tearsheet:notification'),
   onFlagRequested: listen('tearsheet:flag-requested'),
+  onOpenView: listen('tearsheet:open-view'),
   onMenu: listen('tearsheet:menu')
 })

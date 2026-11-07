@@ -17,6 +17,20 @@ describe('navigationAction (design item 47)', () => {
     })
   })
 
+  it('turns an open link into a view and an optional item', () => {
+    expect(navigationAction('tearsheet://open/factors')).toEqual({ kind: 'open', view: 'factors', item: null })
+    expect(navigationAction('tearsheet://open/metrics/operating_margin')).toEqual({
+      kind: 'open',
+      view: 'metrics',
+      item: 'operating_margin'
+    })
+    expect(navigationAction('tearsheet://open/table-valuation/2')).toEqual({
+      kind: 'open',
+      view: 'table-valuation',
+      item: '2'
+    })
+  })
+
   it('opens https links in the normal browser', () => {
     expect(navigationAction('https://www.sec.gov/Archives/edgar/data/320193/x-index.htm')).toEqual({
       kind: 'external',
@@ -32,6 +46,15 @@ describe('navigationAction (design item 47)', () => {
     'tearsheet://flag/<script>',
     'tearsheet://reread/not-an-accession',
     'tearsheet://delete/everything',
+    'tearsheet://open/',
+    'tearsheet://open/settings',
+    'tearsheet://open/factors/a/b',
+    'tearsheet://open/table-',
+    'tearsheet://open/table-Valuation',
+    'tearsheet://open/factors/<script>',
+    'tearsheet://open/factors?x=1',
+    'tearsheet://open/factors#x',
+    `tearsheet://open/factors/${'x'.repeat(65)}`,
     'not a url'
   ])('blocks %s', (address) => {
     expect(navigationAction(address).kind).toBe('blocked')

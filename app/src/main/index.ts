@@ -122,6 +122,7 @@ async function createWindow(): Promise<void> {
     event.preventDefault()
     const action = navigationAction(event.url)
     if (action.kind === 'flag') window.webContents.send('tearsheet:flag-requested', { claimId: action.claimId })
+    else if (action.kind === 'open') window.webContents.send('tearsheet:open-view', { view: action.view, item: action.item })
     else if (action.kind === 'reread') {
       engine
         ?.request('reread_filing', { accession: action.accession })

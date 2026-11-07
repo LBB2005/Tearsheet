@@ -53,6 +53,7 @@ export interface TearsheetApi {
   gradeDue(): Promise<CallResult<import('../shared/protocol').GradeResult>>
   onNotification(fn: (note: EngineNotification) => void): () => void
   onFlagRequested(fn: (payload: { claimId: string }) => void): () => void
+  onOpenView(fn: (payload: { view: import('../main/navigation').ViewId; item: string | null }) => void): () => void
 }
 
 declare global {

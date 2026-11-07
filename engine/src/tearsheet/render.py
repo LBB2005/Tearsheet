@@ -110,6 +110,28 @@ def _anchor(mode: str, frag: str) -> str:
     return f"about:srcdoc#{frag}" if mode == "app" else f"#{frag}"
 
 
+# The views the app can open bigger. app/src/main/views.test.ts checks this against VIEWS in
+# navigation.ts, so the two lists can't drift apart.
+OPEN_VIEWS = ("price", "factors", "metrics", "methods", "returns", "flags", "economy", "rings")
+_TABLE_VIEW = re.compile(r"table-[a-z_]{1,32}")
+_OPEN_ITEM = re.compile(r"[A-Za-z0-9_.\-]{1,64}")
+
+
+def open_link(view: str, item: object = None) -> str | None:
+    """A tearsheet://open link that asks the app to show a chart or table bigger. A view the app
+    doesn't know gives None, so a template slip shows up as a missing link rather than a dead
+    one. An item that doesn't look like a stored code is dropped, and the view still opens."""
+    try:
+        if view not in OPEN_VIEWS and not _TABLE_VIEW.fullmatch(view):
+            return None
+        link = f"tearsheet://open/{view}"
+        if item is not None and _OPEN_ITEM.fullmatch(str(item)):
+            link += f"/{item}"
+        return link
+    except Exception:
+        return None
+
+
 def _metric_text(name: str, value: float | None) -> str:
     return format_value(METRIC_KINDS.get(name, "percent"), value)
 
