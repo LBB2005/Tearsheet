@@ -96,6 +96,15 @@ STEPS = (
     "save",
 )
 STOPPING = (AIUsageLimit, AIAuthError, AILockdownFailed)
+
+
+async def _settled(value: Any) -> Any:
+    """A finished read's answer, or its error raised again (for `Run._ai_call` in step 10)."""
+    if isinstance(value, BaseException):
+        raise value
+    return value
+
+
 # Which `_parallel` job is running, so the notes it adds can be put back in the jobs' order.
 _JOB: contextvars.ContextVar[int | None] = contextvars.ContextVar("tearsheet_job", default=None)
 # The order the score table lists factors in (weights.yaml's order).
@@ -348,6 +357,19 @@ class Run:
         self.dropped: list[str] = []
         # Step 9's link search, started right after step 1 (`_start_link_search`).
         self._link_search: asyncio.Task | None = None
+        # Step 10's reads, started as each document arrives (`_read_early`), by
+        # (document role, section key); their answers are taken in order in step 10.
+        self._reads: dict[tuple[str, str], asyncio.Task] = {}
+        self._read_slots: asyncio.Semaphore | None = None
+        # The first usage limit or budget end an early read met: the reads queued behind it
+        # never send anything, and step 10 reports it, as if the reads had run there.
+        self._reads_stop: AIError | None = None
+        # Each filing read's planned calls, counted when it started (the budget's projection).
+        self._planned: dict[tuple[str, str], int] = {}
+        # Documents parsed before step 4 (role → accession, paragraphs, "not available" notes).
+        self._parsed: dict[str, tuple[str, dict[tuple[str, str], list[Paragraph]], list[str]]] = {}
+        self._early_paragraphs: dict[tuple[str, str], list[Paragraph]] = {}
+        self.docs_by_role: dict[str, Doc] = {}
         # A `_parallel` batch's notes and dropped lines, by position, tagged with their job.
         self._note_jobs: dict[int, int] = {}
         self._drop_jobs: dict[int, int] = {}
@@ -652,6 +674,7 @@ class Run:
             raise
         finally:
             self._stop_link_search()
+            self._stop_reads()
 
     # --- steps 1-2 --------------------------------------------------------------------------
 
@@ -700,6 +723,27 @@ class Run:
 
     async def fetch(self, resolved: Resolved, group: PeerGroup) -> list[Doc]:
         members = {cik: self.holdings.tickers_of(cik)[0] for cik in group.members}
+        # The company's own filings come first, so step 10 can start reading them while the
+        # prices, the peers' facts and filings, FRED and the Form 4s download.
+        older = self.predecessors.get(self.cik, ())
+        all_docs = await self.data.filing_documents(
+            self.cik, today=self.today, **({"predecessors": older} if older else {})
+        )
+        docs = all_docs
+        if self.mode == "slice":
+            docs = [d for d in docs if d.role in ("10-K", "10-Q", "10-K prior")]
+        if self.mode == "full":
+            for doc in docs:
+                if doc.role.startswith("press "):
+                    self.press_sources.append(
+                        (
+                            doc.role,
+                            "Exhibit 99.1",
+                            f"a company press release ({doc.filed:%-d %b %Y})",
+                            (SectionKey.NEWS,),
+                        )
+                    )
+        self._read_early(docs)
         # Top up to the latest session whose close is out, not the UTC date: in New York's
         # evening the UTC date is already tomorrow, and Massive refuses a day that hasn't closed.
         self.price_date = last_completed_session(self.now)
@@ -745,24 +789,8 @@ class Run:
                 member.financial_class = financial_class(sic, cik, self.method.peers)
             self.members[cik] = member
         self.group = group
-        older = self.predecessors.get(self.cik, ())
-        docs = await self.data.filing_documents(
-            self.cik, today=self.today, **({"predecessors": older} if older else {})
-        )
-        self._successor_note(docs)
-        if self.mode == "slice":
-            docs = [d for d in docs if d.role in ("10-K", "10-Q", "10-K prior")]
+        self._successor_note(all_docs)  # here, so the notes keep their order
         if self.mode == "full":
-            for doc in docs:
-                if doc.role.startswith("press "):
-                    self.press_sources.append(
-                        (
-                            doc.role,
-                            "Exhibit 99.1",
-                            f"a company press release ({doc.filed:%-d %b %Y})",
-                            (SectionKey.NEWS,),
-                        )
-                    )
             peer_documents = getattr(self.data, "peer_documents", None)
             if peer_documents is not None and group.trend_peers:
                 linked = {
@@ -784,6 +812,7 @@ class Run:
                             (SectionKey.TRENDS,),
                         )
                     )
+                self._read_early(self.peer_docs)
             if not self.peer_docs:
                 self.empty_sections.add(SectionKey.TRENDS)
                 self.notes.append("The trends section has no peer filings with these inputs.")
@@ -899,20 +928,34 @@ class Run:
 
     # --- step 4 -----------------------------------------------------------------------------
 
-    def text_layer(self, docs: list[Doc]) -> dict[tuple[str, str], list[Paragraph]]:
+    def _parse(self, doc: Doc) -> tuple[dict[tuple[str, str], list[Paragraph]], list[str]]:
+        """One document's sections as paragraphs, and its "not available" notes; no writes.
+        A document parsed early for step 10 (`_read_early`) is parsed once."""
+        early = self._parsed.get(doc.role)
+        if early is not None and early[0] == doc.accession:
+            return early[1], early[2]
         phrases = self.method.instruction_phrases.get("patterns", [])
+        out: dict[tuple[str, str], list[Paragraph]] = {}
+        notes: list[str] = []
+        sections = filing_sections(doc.body, doc.form, exhibit_13=doc.exhibit_13)
+        for key, section in sections.items():
+            if doc.role.startswith("peer ") and key != "Item 7":
+                continue
+            if not section.available:
+                notes.append(f"{doc.form} {key} is not available in the filing.")
+                continue
+            out[(doc.role, key)] = split_paragraphs(doc.accession, key, section.text, phrases)
+        self._parsed[doc.role] = (doc.accession, out, notes)
+        return out, notes
+
+    def text_layer(self, docs: list[Doc]) -> dict[tuple[str, str], list[Paragraph]]:
         out: dict[tuple[str, str], list[Paragraph]] = {}
         self.docs_by_role = {d.role: d for d in docs}
         for doc in docs:
-            sections = filing_sections(doc.body, doc.form, exhibit_13=doc.exhibit_13)
-            for key, section in sections.items():
-                if doc.role.startswith("peer ") and key != "Item 7":
-                    continue
-                if not section.available:
-                    self.notes.append(f"{doc.form} {key} is not available in the filing.")
-                    continue
-                paras = split_paragraphs(doc.accession, key, section.text, phrases)
-                out[(doc.role, key)] = paras
+            parsed, notes = self._parse(doc)
+            self.notes += notes
+            for (role, key), paras in parsed.items():
+                out[(role, key)] = paras
                 with self.conn:
                     self.conn.executemany(
                         "INSERT OR IGNORE INTO paragraphs (id, source_id, section, ordinal, text, parser_version, marked) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -1470,28 +1513,19 @@ class Run:
     async def extract(
         self, paragraphs: dict[tuple[str, str], list[Paragraph]]
     ) -> dict[SectionKey, list[EvidenceItem]]:
+        """Step 10. One read per source, 5 at a time; the filings' reads mostly started while
+        the rest downloaded (`_read_early`), and the articles' start here. Their answers, and
+        any error, are taken in the sources' order, so the evidence, the dropped sources and
+        the notes read the same whatever finished first, and a usage limit an early read met
+        is reported here, at step 10."""
         evidence: dict[SectionKey, list[EvidenceItem]] = {s: [] for s in self.sections}
         if self.ai is None:
             self.notes.append("No AI tool was used, so the narrative sections are empty.")
             return evidence
-        # One call per source, 5 at a time (`_parallel`); the evidence is added in the sources'
-        # order, so it reads the same whatever finished first.
-        jobs = []
+        reads: list[tuple[str, asyncio.Task]] = []
         uses: list[tuple[str, tuple[SectionKey, ...]]] = []
         for role, key, label, feeds, doc, paras in self._filing_reads(paragraphs):
-            jobs.append(
-                self._job(
-                    label,
-                    lambda doc=doc, key=key, paras=paras, label=label: extract_section(
-                        self.ai,
-                        self.conn,
-                        source_id=doc.accession,
-                        section=key,
-                        paragraphs=paras,
-                        label=label,
-                    ),
-                )
-            )
+            reads.append((label, self._filing_read(role, key, label, doc, paras)))
             uses.append((role, feeds))
         # Articles: one call each, and their evidence reaches section 7 only.
         for article, link in self.articles:
@@ -1499,23 +1533,28 @@ class Run:
             paras = paragraphs.get(("article", source_id), [])
             if not paras:
                 continue
-            jobs.append(
-                self._job(
+            label = f"an article, {link.title!r} ({link.publisher}, {article.published:%-d %b %Y})"
+            reads.append(
+                (
                     f"article {article.url}",
-                    lambda source_id=source_id, paras=paras, article=article, link=link: (
-                        extract_section(
+                    self._read(
+                        ("article", source_id),
+                        lambda source_id=source_id, paras=paras, label=label: extract_section(
                             self.ai,
                             self.conn,
                             source_id=source_id,
                             section="article",
                             paragraphs=paras,
-                            label=f"an article, {link.title!r} ({link.publisher}, {article.published:%-d %b %Y})",
-                        )
+                            label=label,
+                        ),
                     ),
                 )
             )
             uses.append(("article", (SectionKey.NEWS,)))
-        results: list[Extracted | None] = await self._parallel(jobs)
+        settled = await asyncio.gather(*(task for _, task in reads), return_exceptions=True)
+        results: list[Extracted | None] = []
+        for (label, _), value in zip(reads, settled, strict=True):
+            results.append(await self._ai_call(label, _settled(value)))
         for (role, feeds), result in zip(uses, results, strict=True):
             if result is None:
                 continue
@@ -1527,6 +1566,75 @@ class Run:
                     items = [i for i in items if i.type == "trend"]
                 evidence[feed] += items
         return evidence
+
+    def _read_early(self, docs: list[Doc]) -> None:
+        """Parse these documents now and start step 10's reads of their sections, so the
+        reads run while the rest of step 2 downloads. Their answers are taken in step 10."""
+        if self.ai is None or not docs:
+            return
+        for doc in docs:
+            self.docs_by_role[doc.role] = doc
+            self._early_paragraphs.update(self._parse(doc)[0])
+        for role, key, label, _, doc, paras in self._filing_reads(self._early_paragraphs):
+            self._filing_read(role, key, label, doc, paras)
+
+    def _filing_read(self, role: str, key: str, label: str, doc: Doc, paras) -> asyncio.Task:
+        """The read of one filing section, started now unless it already was."""
+        if (role, key) not in self._reads:
+            # Counted before it starts, when any answer it saves isn't there yet.
+            self._planned[(role, key)] = planned_calls(
+                self.ai, self.conn, source_id=doc.accession, section=key, paragraphs=paras
+            )
+        return self._read(
+            (role, key),
+            lambda: extract_section(
+                self.ai,
+                self.conn,
+                source_id=doc.accession,
+                section=key,
+                paragraphs=paras,
+                label=label,
+            ),
+        )
+
+    def _read(self, key: tuple[str, str], make: Callable[[], Any]) -> asyncio.Task:
+        """One of step 10's reads, as a task that waits for one of its 5 slots. The read is
+        made only when a slot is free, so a cancel, or a usage limit or the end of the budget
+        met by an earlier read, stops it before it sends anything."""
+        task = self._reads.get(key)
+        if task is not None:
+            return task
+        if self._read_slots is None:
+            self._read_slots = asyncio.Semaphore(config.AI_CALLS_IN_PARALLEL)
+        slots = self._read_slots
+
+        async def one():
+            async with slots:
+                if self.cancel_requested:
+                    raise RunCancelled("extract")
+                if self._reads_stop is not None:
+                    raise self._reads_stop
+                if self.ai is None or self.ai_stopped:
+                    return None  # step 10 makes nothing of it: the AI steps had stopped
+                try:
+                    return await make()
+                except (*STOPPING, AIBudgetExhausted) as exc:
+                    if self._reads_stop is None:
+                        self._reads_stop = exc
+                    raise
+
+        task = asyncio.create_task(one())
+        self._reads[key] = task
+        return task
+
+    def _stop_reads(self) -> None:
+        """A run that ends before step 10 takes its reads' answers stops the unfinished ones."""
+        reads, self._reads = self._reads, {}
+        for task in reads.values():
+            if not task.done():
+                task.cancel()
+            elif not task.cancelled():
+                task.exception()  # read, so asyncio doesn't warn that nobody did
 
     def _filing_reads(self, paragraphs: dict[tuple[str, str], list[Paragraph]]):
         """The filing sections step 10 reads, in order: (role, key, label, feeds, doc, paras)."""
@@ -1542,10 +1650,12 @@ class Run:
         if self.ai is None:
             return 0
         return sum(
-            planned_calls(
+            self._planned[(role, key)]
+            if (role, key) in self._planned
+            else planned_calls(
                 self.ai, self.conn, source_id=doc.accession, section=key, paragraphs=paras
             )
-            for _, key, _, _, doc, paras in self._filing_reads(paragraphs)
+            for role, key, _, _, doc, paras in self._filing_reads(paragraphs)
         )
 
     def _search_links(self, resolved: Resolved, allowlist: Allowlist):

@@ -1789,6 +1789,7 @@ Phase 1 runs in three parts:
 *   **Proposed Changes:**
     *   **Steps:** runs the 14 steps in the Technical Plan §3 order and sends a `progress` notification as each step starts and ends.
     *   **Saved steps:** each step's output is saved in `step_outputs`, so `resume` continues from the last saved step.
+    *   **Overlap (7 Nov 2026):** step 9's link search starts right after step 1. Step 2 downloads the company's own filings first, and step 10's reads of them start at once, while the prices, the peers' facts, FRED and the Form 4s download; each peer's filing is read as soon as it arrives. The reads wait for one of the 5 slots, and a read is sent only when its slot is free, so a cancel or a usage limit stops the queued ones before they send anything. Step 10 takes their answers, and any error, in the sources' order, so the evidence, the dropped sources and the notes are the same as when every read ran in step 10, and a usage limit an early read met is reported at step 10. A run that ends before step 10 stops its unfinished reads.
     *   **AI call plan** (models from `config.py`; "larger" is Sonnet on Claude Code, "smaller" is Haiku):
 
         | Step | First report | Repeat report | Input | Model |

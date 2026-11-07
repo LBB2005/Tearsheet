@@ -208,3 +208,97 @@ def test_dropped_sources_keep_the_sources_order(database, tmp_path, monkeypatch)
         run = make_run(database, tmp_path, Jittery(default=fake, seed=seed), name=f"t{seed}")
         asyncio.run(run.run("T0"))
         assert run.dropped == one.dropped and run.notes == one.notes
+
+
+# --- step 10's reads start while step 2 downloads ----------------------------------------------
+
+
+class SlowDownloads(NewsAndTrends):
+    """Prices and peers' filings that take a while, recording which reads were asked first."""
+
+    def __init__(self, connector):
+        super().__init__()
+        self.connector = connector
+        self.read_before_prices: bool | None = None
+        self.read_before_peers: bool | None = None
+
+    def _reads(self) -> list:
+        return [r for r in self.connector.requests if r.task == "extract"]
+
+    async def fill_prices(self, store, members, *, end):
+        await asyncio.sleep(0.05)
+        self.read_before_prices = bool(self._reads())
+        await super().fill_prices(store, members, end=end)
+
+    async def peer_documents(self, ciks, *, today):
+        await asyncio.sleep(0.05)
+        self.read_before_peers = bool(self._reads())
+        return await super().peer_documents(ciks, today=today)
+
+
+def test_filing_reads_start_while_prices_and_peers_download(database, tmp_path):
+    connector = FakeConnector(default=news_ai)
+    data = SlowDownloads(connector)
+    result = asyncio.run(make_run(database, tmp_path, connector, data=data).run("T0"))
+    assert result.status == "done"
+    assert data.read_before_prices is True and data.read_before_peers is True
+    # Every source is still read once: the company's, the peers' and the articles.
+    reads = [r for r in connector.requests if r.task == "extract"]
+    sources = [frozenset(s.id for s in r.sources) for r in reads]
+    assert len(sources) == len(set(sources))
+    assert any(s.id.startswith("art-") for r in reads for s in r.sources)
+
+
+def test_early_reads_give_the_same_report_as_reads_in_step_10(database, tmp_path, monkeypatch):
+    """The answers are taken in the sources' order in step 10, so starting the reads early
+    changes nothing in the report: the same claims, dropped sources and notes."""
+    first = make_run(database, tmp_path, Jittery(default=news_ai), name="late")
+    monkeypatch.setattr(Run, "_read_early", lambda self, docs: None)  # every read in step 10
+    late = report(database, first, asyncio.run(first.run("T0")))
+    monkeypatch.undo()
+    for seed in (7, 8):
+        run = make_run(
+            database, tmp_path, Jittery(default=news_ai, seed=seed), data=None, name=f"e{seed}"
+        )
+        assert report(database, run, asyncio.run(run.run("T0"))) == late
+
+
+def test_a_usage_limit_in_an_early_read_is_reported_at_step_10(database, tmp_path):
+    def fake(request):
+        if request.task == "extract":
+            return AIUsageLimit("You've hit your usage limit.")
+        return news_ai(request)
+
+    connector = FakeConnector(default=fake)
+    data = SlowDownloads(connector)
+    run = make_run(database, tmp_path, connector, data=data)
+    at_extract: list = []
+
+    def progress(step, state):
+        if (step, state) == ("extract", "started"):
+            at_extract.append(run.stop_error)
+
+    run.progress = progress
+    result = asyncio.run(run.run("T0"))
+    assert data.read_before_prices is True  # the read was early
+    assert at_extract == [None]  # but the stop belongs to step 10, as before
+    assert isinstance(run.stop_error, AIUsageLimit) and result.status == "stopped"
+    assert sum("The AI steps stopped" in n for n in result.notes) == 1
+    tasks = [r.task for r in connector.requests]
+    # The first slots' reads met the limit; nothing queued behind them was sent.
+    assert tasks.count("extract") <= config.AI_CALLS_IN_PARALLEL and "narrate" not in tasks
+
+
+def test_a_failed_run_stops_its_early_reads(database, tmp_path):
+    connector = FakeConnector(default=news_ai, delay_s=5)  # reads still going
+
+    async def go():
+        run = make_run(database, tmp_path, connector, data=NoFacts())
+        with pytest.raises(RunFailed):
+            await asyncio.wait_for(run.run("T0"), 2)  # it doesn't wait 5 s for the reads
+        await asyncio.sleep(0)  # let the cancelled reads unwind
+        return run
+
+    run = asyncio.run(go())
+    assert run._reads == {}
+    assert connector.active == 0
