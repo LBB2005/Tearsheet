@@ -338,6 +338,8 @@ class Run:
         self.stop_error: AIError | None = None
         self.cancel_requested = False
         self.dropped: list[str] = []
+        # Step 9's link search, started right after step 1 (`_start_link_search`).
+        self._link_search: asyncio.Task | None = None
 
     # --- bookkeeping ------------------------------------------------------------------------
 
@@ -451,6 +453,7 @@ class Run:
                     "holdings_as_of": self.holdings.as_of,
                 },
             )
+            self._start_link_search(resolved)
             step = "fetch"
             self._step(step)
             docs = await self.fetch(resolved, group)
@@ -596,6 +599,8 @@ class Run:
         except Exception:
             self._finish("failed", step)
             raise
+        finally:
+            self._stop_link_search()
 
     # --- steps 1-2 --------------------------------------------------------------------------
 
@@ -1343,16 +1348,56 @@ class Run:
         try:
             return await coro
         except STOPPING as exc:
-            self.ai_stopped = str(exc)
-            self.stop_error = exc
-            self.notes.append(f"The AI steps stopped: {exc}")
+            # With calls in parallel, two can meet the same limit: the run says so once.
+            if self.ai_stopped is None:
+                self.ai_stopped = str(exc)
+                self.stop_error = exc
+                self.notes.append(f"The AI steps stopped: {exc}")
         except AIBudgetExhausted as exc:
-            self.ai_stopped = str(exc)
-            self.stop_error = exc
-            self.notes.append(f"The call budget ran out, so the narrative is incomplete: {exc}")
+            if self.ai_stopped is None:
+                self.ai_stopped = str(exc)
+                self.stop_error = exc
+                self.notes.append(f"The call budget ran out, so the narrative is incomplete: {exc}")
         except AIError as exc:
             self.dropped.append(f"{label}: {exc}")
         return None
+
+    def _job(self, label: str, make: Callable[[], Any]) -> tuple[tuple[str, ...], Callable]:
+        """One AI call for `_parallel`: its coroutine is made only when a slot is free."""
+        return (label,), lambda: self._ai_call(label, make())
+
+    async def _parallel(self, jobs: list[tuple[tuple[str, ...], Callable[[], Any]]]) -> list[Any]:
+        """Run AI jobs at most `config.AI_CALLS_IN_PARALLEL` at a time (Technical Plan §3) and
+        return their results in the jobs' order.
+
+        A job starts only when a slot is free, so a cancel or a usage limit stops the queued
+        ones before they send anything. The batch's dropped-source lines are put in the jobs'
+        order (matched by each job's label prefixes), so a report lists them the same way
+        whatever finished first. A cancel, or an unexpected error, is raised once every job
+        has settled."""
+        slots = asyncio.Semaphore(config.AI_CALLS_IN_PARALLEL)
+        before = len(self.dropped)
+
+        async def one(make: Callable[[], Any]) -> Any:
+            async with slots:
+                return await make()
+
+        results = await asyncio.gather(*(one(make) for _, make in jobs), return_exceptions=True)
+
+        def rank(line: str) -> int:
+            for i, (prefixes, _) in enumerate(jobs):
+                if any(line.startswith(f"{p}: ") for p in prefixes):
+                    return i
+            return len(jobs)
+
+        self.dropped[before:] = sorted(self.dropped[before:], key=rank)
+        for result in results:
+            if isinstance(result, RunCancelled):
+                raise result
+        for result in results:
+            if isinstance(result, BaseException):
+                raise result
+        return list(results)
 
     async def extract(
         self, paragraphs: dict[tuple[str, str], list[Paragraph]]
@@ -1361,22 +1406,53 @@ class Run:
         if self.ai is None:
             self.notes.append("No AI tool was used, so the narrative sections are empty.")
             return evidence
+        # One call per source, 3 at a time (`_parallel`); the evidence is added in the sources'
+        # order, so it reads the same whatever finished first.
+        jobs = []
+        uses: list[tuple[str, tuple[SectionKey, ...]]] = []
         for role, key, label, feeds in [*self.sources, *self.trend_sources, *self.press_sources]:
             paras = paragraphs.get((role, key))
             doc = self.docs_by_role.get(role)
             if not paras or doc is None:
                 continue
-            result: Extracted | None = await self._ai_call(
-                label,
-                extract_section(
-                    self.ai,
-                    self.conn,
-                    source_id=doc.accession,
-                    section=key,
-                    paragraphs=paras,
-                    label=label,
-                ),
+            jobs.append(
+                self._job(
+                    label,
+                    lambda doc=doc, key=key, paras=paras, label=label: extract_section(
+                        self.ai,
+                        self.conn,
+                        source_id=doc.accession,
+                        section=key,
+                        paragraphs=paras,
+                        label=label,
+                    ),
+                )
             )
+            uses.append((role, feeds))
+        # Articles: one call each, and their evidence reaches section 7 only.
+        for article, link in self.articles:
+            source_id = article.paragraphs[0].id.rsplit("-p", 1)[0]
+            paras = paragraphs.get(("article", source_id), [])
+            if not paras:
+                continue
+            jobs.append(
+                self._job(
+                    f"article {article.url}",
+                    lambda source_id=source_id, paras=paras, article=article, link=link: (
+                        extract_section(
+                            self.ai,
+                            self.conn,
+                            source_id=source_id,
+                            section="article",
+                            paragraphs=paras,
+                            label=f"an article, {link.title!r} ({link.publisher}, {article.published:%-d %b %Y})",
+                        )
+                    ),
+                )
+            )
+            uses.append(("article", (SectionKey.NEWS,)))
+        results: list[Extracted | None] = await self._parallel(jobs)
+        for (role, feeds), result in zip(uses, results, strict=True):
             if result is None:
                 continue
             for feed in feeds:
@@ -1386,26 +1462,45 @@ class Run:
                 if feed == SectionKey.TRENDS and role == "10-K":
                     items = [i for i in items if i.type == "trend"]
                 evidence[feed] += items
-        # Articles: one call each, and their evidence reaches section 7 only.
-        for article, link in self.articles:
-            source_id = article.paragraphs[0].id.rsplit("-p", 1)[0]
-            paras = paragraphs.get(("article", source_id), [])
-            if not paras:
-                continue
-            result = await self._ai_call(
-                f"article {article.url}",
-                extract_section(
-                    self.ai,
-                    self.conn,
-                    source_id=source_id,
-                    section="article",
-                    paragraphs=paras,
-                    label=f"an article, {link.title!r} ({link.publisher}, {article.published:%-d %b %Y})",
-                ),
-            )
-            if result is not None:
-                evidence[SectionKey.NEWS] += result.items
         return evidence
+
+    def _search_links(self, resolved: Resolved, allowlist: Allowlist):
+        prompt = load_prompt("news_search")
+        return self._ai_call(
+            "link search",
+            search_links(
+                self.ai,
+                company=self.company_name,
+                ticker=resolved.rated_ticker,
+                allowlist=allowlist,
+                instructions=prompt.text,
+                today=self.today,
+                prompt_version=prompt.version,
+            ),
+        )
+
+    def _start_link_search(self, resolved: Resolved) -> None:
+        """Step 9's link search needs only the company's name and ticker, so it starts as soon
+        as step 1 is done and runs while the data downloads. Its links feed section 7 only;
+        no number waits for it, and step 9 waits for its answer."""
+        if (
+            self.mode != "full"
+            or self.ai is None
+            or getattr(self.data, "fetch_article", None) is None
+        ):
+            return
+        allowlist = Allowlist(self.method.allowlist_sites())
+        self._link_search = asyncio.create_task(self._search_links(resolved, allowlist))
+
+    def _stop_link_search(self) -> None:
+        """A run that ends before step 9 stops its early link search."""
+        task, self._link_search = self._link_search, None
+        if task is None:
+            return
+        if not task.done():
+            task.cancel()
+        elif not task.cancelled():
+            task.exception()  # read, so asyncio doesn't warn that nobody did
 
     async def news(self, resolved: Resolved) -> dict[tuple[str, str], list[Paragraph]]:
         """Step 9: the AI suggests links from allowlisted sites (web search only); code
@@ -1419,19 +1514,8 @@ class Run:
             self.notes.append("These inputs can't fetch articles, so section 7 has no news.")
             return out
         allowlist = Allowlist(self.method.allowlist_sites())
-        prompt = load_prompt("news_search")
-        found = await self._ai_call(
-            "link search",
-            search_links(
-                self.ai,
-                company=self.company_name,
-                ticker=resolved.rated_ticker,
-                allowlist=allowlist,
-                instructions=prompt.text,
-                today=self.today,
-                prompt_version=prompt.version,
-            ),
-        )
+        task, self._link_search = self._link_search, None
+        found = await task if task is not None else await self._search_links(resolved, allowlist)
         if found is None:
             self.empty_sections.add(SectionKey.NEWS)
             return out
@@ -1550,6 +1634,7 @@ class Run:
         drafts: dict[SectionKey, Draft] = {}
         if self.ai is None:
             return drafts
+        jobs, keys = [], []
         for section in self.sections:
             if section in self.empty_sections:
                 continue
@@ -1559,17 +1644,23 @@ class Run:
                     f"Section '{section.value}' had no evidence from its sources, so it wasn't written."
                 )
                 continue
-            draft = await self._ai_call(
-                f"section {section.value}",
-                narrate_section(
-                    self.ai,
-                    section=section,
-                    company=self.company_name,
-                    evidence=evidence[section],
-                    paragraphs=by_id,
-                    placeholders=self._section_placeholders(section, placeholders),
-                ),
+            jobs.append(
+                self._job(
+                    f"section {section.value}",
+                    lambda section=section: narrate_section(
+                        self.ai,
+                        section=section,
+                        company=self.company_name,
+                        evidence=evidence[section],
+                        paragraphs=by_id,
+                        placeholders=self._section_placeholders(section, placeholders),
+                    ),
+                )
             )
+            keys.append(section)
+        # Each section is written from its own sources, so they go 3 at a time; the drafts
+        # keep the sections' order.
+        for section, draft in zip(keys, await self._parallel(jobs), strict=True):
             if draft is not None:
                 drafts[section] = draft
         return drafts
@@ -1622,21 +1713,24 @@ class Run:
                 try:
                     marks = await check(self.checker)
                 except AIBudgetExhausted as exc:
-                    self.ai_stopped = str(exc)
-                    self.stop_error = exc
-                    self.notes.append(
-                        f"The call budget ran out, so the narrative is incomplete: {exc}"
-                    )
+                    if self.ai_stopped is None:
+                        self.ai_stopped = str(exc)
+                        self.stop_error = exc
+                        self.notes.append(
+                            f"The call budget ran out, so the narrative is incomplete: {exc}"
+                        )
                     return {}
                 except AIError as exc:
                     # Any failure on the other tool, even a usage limit there, falls back to
-                    # the same tool for the rest of the run; it doesn't stop the run.
-                    name = self.checker.connector.display_name
-                    self.checker_failed = f"{name}: {exc}"
-                    self.notes.append(
-                        f"The skeptic call on {name} failed ({exc}), so the rest of the draft "
-                        "was self-checked."
-                    )
+                    # the same tool for the rest of the run; it doesn't stop the run. With
+                    # sections checked in parallel, the run says so once.
+                    if self.checker_failed is None:
+                        name = self.checker.connector.display_name
+                        self.checker_failed = f"{name}: {exc}"
+                        self.notes.append(
+                            f"The skeptic call on {name} failed ({exc}), so the rest of the "
+                            "draft was self-checked."
+                        )
                 else:
                     self.checked_by[section.value] = "other"
                     return marks
@@ -1673,44 +1767,73 @@ class Run:
         removed: list[Claim] = []
         split: dict[str, int] = {}
         full = self.mode == "full" and self.ai is not None
-        for section, draft in list(drafts.items()):
-            claims = self._code_checks(draft, guard, by_id)
-            if not full:
-                result = decide(claims, skeptic={}, rewrites_allowed=False)
-            else:
-                marks = await self._skeptic(section, claims, by_id)
-                result = decide(claims, skeptic=marks, rewrites_allowed=self.ai_stopped is None)
-                if result.needs_rewrite:
-                    notes = [f"{c.text} (removed: {'; '.join(c.reasons)})" for c in result.removed]
-                    notes += [f"{c.text} (tone: {c.note})" for c in result.kept if c.note]
-                    redraft = await self._ai_call(
-                        f"rewrite {section.value}",
-                        narrate_section(
-                            self.ai,
-                            section=section,
-                            company=self.company_name,
-                            evidence=self.evidence.get(section, []),
-                            paragraphs=by_id,
-                            placeholders=draft.placeholders,
-                            rewrite_notes=notes,
-                        ),
-                    )
-                    if redraft is not None:
-                        drafts[section] = redraft
-                        removed += result.removed
-                        claims = self._code_checks(redraft, guard, by_id)
-                        marks = await self._skeptic(section, claims, by_id)
-                        result = decide(
-                            claims,
-                            skeptic=marks,
-                            rewrites_allowed=False,
-                            removed_before=result.removed,
-                        )
-            kept[section] = result.kept
-            removed += result.removed
-            for k, v in result.direction_split.items():
+        order = list(drafts.items())
+        # Each section's checks, skeptic and rewrite form one chain; the chains go 3 at a time
+        # and are put together in the sections' order.
+        jobs = [
+            (
+                (f"skeptic {section.value}", f"rewrite {section.value}"),
+                lambda section=section, draft=draft: self._verify_section(
+                    section, draft, drafts, guard, by_id, full=full
+                ),
+            )
+            for section, draft in order
+        ]
+        for (section, _), (section_kept, section_removed, section_split) in zip(
+            order, await self._parallel(jobs), strict=True
+        ):
+            kept[section] = section_kept
+            removed += section_removed
+            for k, v in section_split.items():
                 split[k] = split.get(k, 0) + v
         return kept, removed, split
+
+    async def _verify_section(
+        self,
+        section: SectionKey,
+        draft: Draft,
+        drafts: dict[SectionKey, Draft],
+        guard: NumericGuard,
+        by_id: dict[str, Paragraph],
+        *,
+        full: bool,
+    ) -> tuple[list[Claim], list[Claim], dict[str, int]]:
+        """One section's code checks, then (in the full method) the skeptic and at most one
+        rewrite. Returns the kept claims, the removed ones and the direction split."""
+        removed: list[Claim] = []
+        claims = self._code_checks(draft, guard, by_id)
+        if not full:
+            result = decide(claims, skeptic={}, rewrites_allowed=False)
+            return result.kept, result.removed, result.direction_split
+        marks = await self._skeptic(section, claims, by_id)
+        result = decide(claims, skeptic=marks, rewrites_allowed=self.ai_stopped is None)
+        if result.needs_rewrite:
+            notes = [f"{c.text} (removed: {'; '.join(c.reasons)})" for c in result.removed]
+            notes += [f"{c.text} (tone: {c.note})" for c in result.kept if c.note]
+            redraft = await self._ai_call(
+                f"rewrite {section.value}",
+                narrate_section(
+                    self.ai,
+                    section=section,
+                    company=self.company_name,
+                    evidence=self.evidence.get(section, []),
+                    paragraphs=by_id,
+                    placeholders=draft.placeholders,
+                    rewrite_notes=notes,
+                ),
+            )
+            if redraft is not None:
+                drafts[section] = redraft
+                removed += result.removed
+                claims = self._code_checks(redraft, guard, by_id)
+                marks = await self._skeptic(section, claims, by_id)
+                result = decide(
+                    claims,
+                    skeptic=marks,
+                    rewrites_allowed=False,
+                    removed_before=result.removed,
+                )
+        return result.kept, removed + result.removed, result.direction_split
 
     # --- step 14 ----------------------------------------------------------------------------
 

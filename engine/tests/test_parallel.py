@@ -1,0 +1,168 @@
+"""AI calls 3 at a time (Technical Plan §3), and the link search that starts while the data
+downloads."""
+
+from __future__ import annotations
+
+import asyncio
+import random
+
+import pytest
+
+from tearsheet import config
+from tearsheet.ai.client import AIClient, AIUsageLimit, ToolState
+from tearsheet.methodology import load
+from tearsheet.pipeline import Run, RunCancelled, RunFailed
+from tests.fakes.ai import FakeConnector
+from tests.test_pipeline import NOW, NewsAndTrends, WithNews, clean_ai, news_ai
+
+
+class Jittery(FakeConnector):
+    """Answers after a random short wait, so calls finish in a different order each time."""
+
+    def __init__(self, *args, seed: int = 0, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.random = random.Random(seed)
+
+    async def call(self, request):
+        await asyncio.sleep(self.random.uniform(0.001, 0.01))
+        return await super().call(request)
+
+
+def make_run(database, tmp_path, connector, *, data=None, name="r"):
+    state = ToolState(database.conn, "claude")
+    state.record_check(version="1.0", model_ids=["fake-small"], form="full", passed=True)
+    return Run(
+        database.conn,
+        data or NewsAndTrends(),
+        AIClient(connector, state, retry_wait_s=0),
+        load(),
+        mode="full",
+        now=NOW,
+        out_dir=tmp_path / name,
+    )
+
+
+def test_ai_calls_run_three_at_a_time(database, tmp_path):
+    connector = FakeConnector(default=news_ai, delay_s=0.01)
+    result = asyncio.run(make_run(database, tmp_path, connector).run("T0"))
+    assert result.status == "done"
+    assert connector.max_active == config.AI_CALLS_IN_PARALLEL == 3
+
+
+def report(database, run, result) -> list[tuple]:
+    rows = database.conn.execute(
+        "SELECT section, sentence_id, stance, citations_json, check_results_json, removed"
+        " FROM claims WHERE report_id = ? ORDER BY rowid",
+        (result.report_id,),
+    ).fetchall()
+    return [tuple(r) for r in rows] + [tuple(run.dropped), tuple(run.notes)]
+
+
+def test_parallel_reports_match_sequential_ones(database, tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "AI_CALLS_IN_PARALLEL", 1)
+    first = make_run(database, tmp_path, Jittery(default=news_ai), name="one")
+    one = report(database, first, asyncio.run(first.run("T0")))
+    monkeypatch.setattr(config, "AI_CALLS_IN_PARALLEL", 3)
+    for seed in (1, 2, 3):
+        run = make_run(database, tmp_path, Jittery(default=news_ai, seed=seed), name=f"three{seed}")
+        assert report(database, run, asyncio.run(run.run("T0"))) == one
+
+
+def test_a_usage_limit_mid_batch_stops_once_and_starts_nothing_more(database, tmp_path):
+    first_extract = []
+
+    def fake(request):
+        if request.task == "extract" and not first_extract:
+            first_extract.append(request)
+            return AIUsageLimit("You've hit your usage limit.")
+        return news_ai(request)
+
+    connector = FakeConnector(default=fake, delay_s=0.01)
+    run = make_run(database, tmp_path, connector)
+    result = asyncio.run(run.run("T0"))
+    assert result.status == "stopped"
+    assert sum("The AI steps stopped" in n for n in result.notes) == 1
+    tasks = [r.task for r in connector.requests]
+    # The link search, then the first 3 reads; the queued reads never started.
+    assert tasks.count("extract") == 3 and "narrate" not in tasks
+
+
+def test_a_cancel_mid_batch_starts_no_more_calls(database, tmp_path):
+    run = None
+
+    def fake(request):
+        if request.task == "extract":
+            run.cancel()
+        return news_ai(request)
+
+    connector = FakeConnector(default=fake, delay_s=0.01)
+    run = make_run(database, tmp_path, connector)
+    with pytest.raises(RunCancelled):
+        asyncio.run(run.run("T0"))
+    assert [r.task for r in connector.requests].count("extract") == 3
+    status = database.conn.execute(
+        "SELECT status FROM runs WHERE run_id = ?", (run.run_id,)
+    ).fetchone()[0]
+    assert status == "cancelled"
+
+
+class SlowPrices(WithNews):
+    """Prices that take a while, recording whether the link search was asked first."""
+
+    def __init__(self, connector):
+        super().__init__()
+        self.connector = connector
+        self.asked_before_prices_done: bool | None = None
+
+    async def fill_prices(self, store, members, *, end):
+        await asyncio.sleep(0.05)
+        self.asked_before_prices_done = any(
+            r.task == "link_search" for r in self.connector.requests
+        )
+        await super().fill_prices(store, members, end=end)
+
+
+def test_the_link_search_starts_while_prices_download(database, tmp_path):
+    connector = FakeConnector(default=news_ai)
+    data = SlowPrices(connector)
+    result = asyncio.run(make_run(database, tmp_path, connector, data=data).run("T0"))
+    assert data.asked_before_prices_done is True
+    assert [r.task for r in connector.requests].count("link_search") == 1
+    assert "https://www.reuters.com/one" in result.html_path.read_text()
+
+
+class NoFacts(WithNews):
+    async def company_facts(self, cik):
+        await asyncio.sleep(0.02)
+        raise LookupError("no facts")
+
+
+def test_a_failed_run_stops_its_early_link_search(database, tmp_path):
+    connector = FakeConnector(default=news_ai, delay_s=5)  # a link search still going
+
+    async def go():
+        run = make_run(database, tmp_path, connector, data=NoFacts())
+        with pytest.raises(RunFailed):
+            await asyncio.wait_for(run.run("T0"), 2)  # it doesn't wait 5 s for the search
+        await asyncio.sleep(0)  # let the cancelled search unwind
+        return run
+
+    run = asyncio.run(go())
+    assert run._link_search is None
+    assert connector.active == 0
+
+
+def test_the_thin_slice_and_no_ai_runs_start_no_link_search(database, tmp_path):
+    connector = FakeConnector(default=clean_ai)
+    state = ToolState(database.conn, "claude")
+    state.record_check(version="1.0", model_ids=["fake-small"], form="full", passed=True)
+    run = Run(
+        database.conn,
+        WithNews(),
+        AIClient(connector, state, retry_wait_s=0),
+        load(),
+        now=NOW,
+        out_dir=tmp_path / "s",
+    )
+    asyncio.run(run.run("T0"))
+    assert "link_search" not in [r.task for r in connector.requests]
