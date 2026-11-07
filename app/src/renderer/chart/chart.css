@@ -75,6 +75,11 @@
 /* ---------- the chart ---------- */
 .chartwrap { flex: 1; min-height: 0; position: relative; cursor: crosshair; user-select: none; -webkit-user-select: none; touch-action: none; }
 .chartwrap svg { display: block; }
+/* The line between the price chart and the volume bars: it drags to share the height. */
+.hsplit { position: absolute; height: 12px; z-index: 2; cursor: row-resize; touch-action: none; outline: none; display: grid; place-items: center; }
+.hsplit i { display: block; width: 40px; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, .22); transition: background .15s, width .15s; }
+.hsplit:hover i, .hsplit:focus-visible i, .hsplit.hot i { background: var(--accent); width: 64px; }
+.hsplit:focus-visible { box-shadow: inset 0 0 0 1px var(--chipline); border-radius: 6px; }
 .cmsg { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 10px; text-align: center; color: var(--muted); font-size: 13px; cursor: default; padding: 0 24px; }
 .cmsg p { margin: 0; max-width: 46ch; }
 .skel { position: absolute; inset: 18px 14px 30px 50px; border-radius: 10px; background: linear-gradient(100deg, rgba(255, 255, 255, .02) 20%, rgba(255, 255, 255, .06) 40%, rgba(255, 255, 255, .02) 60%); background-size: 200% 100%; animation: skel 1.4s linear infinite; }

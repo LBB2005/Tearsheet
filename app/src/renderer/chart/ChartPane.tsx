@@ -13,13 +13,15 @@
 // get_chart. Motion: the line traces and the volume rises as the chart opens and on each range
 // or toggle change (chart.css); nothing moves under Reduce motion.
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent, type ReactElement } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactElement } from 'react'
 
 import type { CallResult } from '../../preload/api'
 import type { ChartSeries } from '../../shared/protocol'
 import { shortDate } from '../nav'
 import { money } from '../shell/Sidebar'
 import { covers, measure, namedFilings, needsHistory, niceTicks, RANGE_ORDER, rebase, slice, volumeText, yearsServed, type Range } from './series'
+import { SHARE_DEFAULT, shareFor, volumeHeight } from './height'
+import { setVolumeOn, setVolumeShare, volumeOn, volumeShare } from './prefs'
 import { PRESETS, type Preset, type SnapMode } from './split'
 
 import './chart.css'
@@ -45,6 +47,8 @@ interface Toggles {
   fan: boolean
   peers: boolean
   spy: boolean
+  // The volume bars, on unless turned off; kept (prefs.ts).
+  volume: boolean
 }
 
 type History = { ok: true } | { ok: false; line: string }
@@ -114,7 +118,6 @@ const ICON = {
 const PAD_L = 50
 const PAD_R = 14
 const AXIS_H = 22
-const VOL_H = 44
 const TOP = 18
 // Half the width of the fan's "Next 12 months" heading, at its 11 px.
 const FAN_HEAD_HALF = 40
@@ -127,6 +130,8 @@ interface Geo {
   x1: number
   plotB: number
   volB: number
+  // The volume bars' height: their share of the plot (height.ts), or 0 with Volume off.
+  volH: number
   lo: number
   hi: number
   indexed: boolean
@@ -143,14 +148,17 @@ interface Geo {
   bw: number
 }
 
-function geometry(sl: ChartSeries, t: Toggles, W: number, H: number): Geo {
+// The price chart and the volume bars together, as height.ts shares them.
+const plotHeight = (H: number) => H - TOP - AXIS_H - 12
+
+function geometry(sl: ChartSeries, t: Toggles, W: number, H: number, volH: number): Geo {
   const n = sl.dates.length
   const indexed = t.peers || t.spy
   const fan = t.fan && sl.range !== null
   const fanW = fan ? Math.round((W - PAD_L) * 0.24) : 0
   const x0 = PAD_L
   const x1 = W - PAD_R - fanW - (fan ? 10 : 0)
-  const plotB = H - AXIS_H - VOL_H - 12
+  const plotB = H - AXIS_H - volH - 12
   const volB = H - AXIS_H
   const total = indexed && sl.total?.length === n ? rebase(sl.total) : null
   const main =
@@ -178,7 +186,7 @@ function geometry(sl: ChartSeries, t: Toggles, W: number, H: number): Geo {
   // Bars fill their day, with a hairline between them; a few days' bars stay slim.
   const gap = (x1 - x0) / Math.max(1, n)
   const bw = Math.max(1, Math.min(n > 100 ? gap - 0.4 : gap - 1.5, 18))
-  return { W, H, n, x0, x1, plotB, volB, lo, hi, indexed, fan, main, peers, spy, scale, X, Y, vmax, bw }
+  return { W, H, n, x0, x1, plotB, volB, volH, lo, hi, indexed, fan, main, peers, spy, scale, X, Y, vmax, bw }
 }
 
 // Labels under the chart: each day for a week, every fifth day for a month, month starts up to
@@ -233,10 +241,10 @@ function drawChart(sl: ChartSeries, g: Geo, ticker: string): ReactElement {
   const priceTick = (v: number) => `$${v.toLocaleString('en-US', { minimumFractionDigits: digits ? 2 : 0, maximumFractionDigits: digits ? 2 : 0 })}`
 
   const volume =
-    g.vmax > 0
+    g.vmax > 0 && g.volH > 0
       ? sl.volume
           .map((v, j) => {
-            const h = (v / g.vmax) * VOL_H
+            const h = (v / g.vmax) * g.volH
             // Kept inside the chart at both ends.
             const left = Math.max(x0, X(j) - g.bw / 2)
             const w = Math.min(x1, X(j) + g.bw / 2) - left
@@ -393,11 +401,11 @@ function drawHover(sl: ChartSeries, g: Geo, j: number, ticker: string): ReactEle
   const tw = Math.max(150, Math.max(...lines.map((l) => l.length)) * 6.6 + 24)
   const tx = Math.max(0, x + 12 + tw > g.x1 ? x - 12 - tw : x + 12)
   const ty = Math.max(TOP, Math.min(y - 30, g.plotB - 66))
-  const h = g.vmax > 0 ? (sl.volume[j] / g.vmax) * VOL_H : 0
+  const h = g.vmax > 0 ? (sl.volume[j] / g.vmax) * g.volH : 0
   return (
     <g className="c-hovg" aria-hidden="true">
-      <rect className="c-volhi" x={Math.max(g.x0, x - g.bw / 2)} y={g.volB - h} width={Math.min(g.x1, x + g.bw / 2) - Math.max(g.x0, x - g.bw / 2)} height={h} />
-      <line className="c-hov" x1={x} x2={x} y1={TOP} y2={g.volB} />
+      {h > 0 && <rect className="c-volhi" x={Math.max(g.x0, x - g.bw / 2)} y={g.volB - h} width={Math.min(g.x1, x + g.bw / 2) - Math.max(g.x0, x - g.bw / 2)} height={h} />}
+      <line className="c-hov" x1={x} x2={x} y1={TOP} y2={g.volH > 0 ? g.volB : g.plotB} />
       <circle className="c-hdot" cx={x} cy={y} r={5} />
       <rect className="c-tip" x={tx} y={ty} width={tw} height={62} rx={9} />
       <text className="c-tips" x={tx + 11} y={ty + 18}>
@@ -453,7 +461,10 @@ export function ChartPane({ reportId, cik, ticker, name, width, wide, size, onCl
   const [problem, setProblem] = useState<string | null>(null)
   const [attempt, setAttempt] = useState(0)
   const [range, setRange] = useState<Range>('1Y')
-  const [toggles, setToggles] = useState<Toggles>({ fan: false, peers: false, spy: false })
+  const [toggles, setToggles] = useState<Toggles>(() => ({ fan: false, peers: false, spy: false, volume: volumeOn() }))
+  // The volume bars' share of the height, live while the line above them is dragged.
+  const [share, setShare] = useState(volumeShare)
+  const [sizing, setSizing] = useState(false)
   const [downloading, setDownloading] = useState(false)
   const [historyLine, setHistoryLine] = useState<string | null>(null)
   // Changes on each range or toggle change, so the line traces and the volume rises again.
@@ -516,7 +527,8 @@ export function ChartPane({ reportId, cik, ticker, name, width, wide, size, onCl
   const short = series !== null && readAfter && needsHistory(series, '5Y')
   const shown: Range = range === '5Y' && short ? 'All' : range
   const sl = useMemo(() => (series ? slice(series, shown) : null), [series, shown])
-  const g = useMemo(() => (sl && sl.dates.length > 0 && box.W > 120 && box.H > 140 ? geometry(sl, toggles, box.W, box.H) : null), [sl, toggles, box])
+  const volH = volumeHeight(share, plotHeight(box.H), toggles.volume)
+  const g = useMemo(() => (sl && sl.dates.length > 0 && box.W > 120 && box.H > 140 ? geometry(sl, toggles, box.W, box.H, volH) : null), [sl, toggles, box, volH])
   const body = useMemo(() => (sl && g ? drawChart(sl, g, label) : null), [sl, g, label])
 
   const restart = () => {
@@ -590,8 +602,50 @@ export function ChartPane({ reportId, cik, ticker, name, width, wide, size, onCl
   }, [company])
 
   const flip = (k: keyof Toggles) => {
-    setToggles((t) => ({ ...t, [k]: !t[k] }))
+    setToggles((t) => {
+      if (k === 'volume') setVolumeOn(!t.volume)
+      return { ...t, [k]: !t[k] }
+    })
     restart()
+  }
+
+  // The line between the price chart and the volume bars: dragged, or moved with the arrow keys,
+  // it shares the height between them; a double-click puts the share back.
+  const shareAt = (clientY: number): number => {
+    const el = wrap.current
+    if (!el) return share
+    const top = clientY - el.getBoundingClientRect().top
+    const plotH = plotHeight(box.H)
+    return shareFor(volumeHeight(shareFor(box.H - AXIS_H - (top + 6), plotH), plotH, true), plotH)
+  }
+  const keepShare = (next: number) => {
+    const plotH = plotHeight(box.H)
+    const fitted = shareFor(volumeHeight(next, plotH, true), plotH)
+    setShare(fitted)
+    setVolumeShare(fitted)
+  }
+  const onSizeDown = (e: PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return
+    e.preventDefault()
+    e.stopPropagation()
+    e.currentTarget.setPointerCapture(e.pointerId)
+    setSizing(true)
+    setHover(null)
+  }
+  const onSizeMove = (e: PointerEvent<HTMLDivElement>) => {
+    e.stopPropagation()
+    if (sizing) setShare(shareAt(e.clientY))
+  }
+  const onSizeUp = (e: PointerEvent<HTMLDivElement>) => {
+    e.stopPropagation()
+    if (!sizing) return
+    setSizing(false)
+    keepShare(shareAt(e.clientY))
+  }
+  const onSizeKey = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return
+    e.preventDefault()
+    keepShare(share + (e.key === 'ArrowUp' ? 0.02 : -0.02))
   }
 
   // The day under the pointer; while measuring, the nearest day inside the chart.
@@ -730,6 +784,7 @@ export function ChartPane({ reportId, cik, ticker, name, width, wide, size, onCl
             {toggle('fan', '12-month range', '#8FA2FF', !series?.range, 'This report has no 12-month range.')}
             {toggle('peers', 'Peers', '#8FA2FF', noPeers, 'No peer prices are stored for this report.')}
             {toggle('spy', 'S&P 500', '#D8DCE6', noSpy, 'No S&P 500 prices are stored.')}
+            {toggle('volume', 'Volume', 'rgba(127, 227, 247, .45)', false, '')}
             {wide && (
               <div className="segc cwid" role="group" aria-label="Chart width">
                 {PRESETS.map((p) => (
@@ -748,6 +803,26 @@ export function ChartPane({ reportId, cik, ticker, name, width, wide, size, onCl
         {shown === 'All' && short && <p className="cnote5">{served}</p>}
         <div ref={wrap} className="chartwrap" onPointerMove={onMove} onPointerDown={onDown} onPointerUp={onUp} onPointerCancel={onUp} onLostPointerCapture={onUp} onPointerLeave={onLeave}>
           {inside}
+          {g && sl && !loading && g.volH > 0 && (
+            <div
+              className={sizing ? 'hsplit hot' : 'hsplit'}
+              style={{ left: g.x0, width: g.x1 - g.x0, top: g.plotB }}
+              role="separator"
+              aria-orientation="horizontal"
+              aria-label="Price and volume heights"
+              aria-valuenow={Math.round(share * 100)}
+              tabIndex={0}
+              title="Drag to give the price or the volume more room. Double-click to reset."
+              onPointerDown={onSizeDown}
+              onPointerMove={onSizeMove}
+              onPointerUp={onSizeUp}
+              onPointerCancel={onSizeUp}
+              onDoubleClick={() => keepShare(SHARE_DEFAULT)}
+              onKeyDown={onSizeKey}
+            >
+              <i />
+            </div>
+          )}
         </div>
         <div className="cfoot">
           <span>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { forgetOldChartPrefs, setSidebarHidden, sidebarHidden } from './prefs'
+import { forgetOldChartPrefs, setSidebarHidden, setVolumeOn, setVolumeShare, sidebarHidden, volumeOn, volumeShare } from './prefs'
 
 const fake = () => {
   const m = new Map<string, string>()
@@ -15,6 +15,29 @@ describe('prefs', () => {
     s.m.set('sidebar.hidden', '1')
     forgetOldChartPrefs(s)
     expect([...s.m.keys()]).toEqual(['sidebar.hidden'])
+  })
+
+  it('keeps the volume’s share of the chart’s height, and falls back on a bad one', () => {
+    const s = fake()
+    expect(volumeShare(s)).toBe(0.1)
+    setVolumeShare(0.234, s)
+    expect(volumeShare(s)).toBe(0.234)
+    for (const bad of ['2', 'x', '0', '-0.1']) {
+      s.m.set('chart.volumeShare', bad)
+      expect(volumeShare(s)).toBe(0.1)
+    }
+  })
+
+  it('keeps whether the volume is shown, on unless it was turned off', () => {
+    const s = fake()
+    expect(volumeOn(s)).toBe(true)
+    setVolumeOn(false, s)
+    expect(s.m.get('chart.volume')).toBe('0')
+    expect(volumeOn(s)).toBe(false)
+    setVolumeOn(true, s)
+    expect(volumeOn(s)).toBe(true)
+    s.m.set('chart.volume', 'maybe')
+    expect(volumeOn(s)).toBe(true)
   })
 
   it('keeps whether the sidebar is hidden', () => {
