@@ -69,10 +69,10 @@ export function glideTrack(from: Track | null, to: Track, t: number): Track {
 }
 
 // What the chart does as its drawing changes: `start` a glide to a range or toggle change (from
-// the lines as they are now, even mid-glide), `drop` any glide and just draw (a change with
-// nothing drawn before it, Reduce motion, or a resize under a glide, so the lines match the new
-// size), or `keep` going as it is.
-export function nextGlide(o: { changed: boolean; running: boolean; drawn: boolean; reduced: boolean }): 'start' | 'drop' | 'keep' {
+// the lines as they are now, even mid-glide); `drop` any glide and just draw (a change with
+// nothing drawn before it, or Reduce motion); `retarget` a glide the chart was resized under, so
+// it carries on from where the lines are to where they are at the new size; or `keep` going.
+export function nextGlide(o: { changed: boolean; running: boolean; drawn: boolean; reduced: boolean }): 'start' | 'drop' | 'retarget' | 'keep' {
   if (o.changed) return o.drawn && !o.reduced ? 'start' : 'drop'
-  return o.running ? 'drop' : 'keep'
+  return o.running ? 'retarget' : 'keep'
 }

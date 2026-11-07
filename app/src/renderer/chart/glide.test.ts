@@ -84,8 +84,10 @@ describe('nextGlide', () => {
     expect(at({ changed: true, reduced: true })).toBe('drop')
   })
 
-  it('stops a glide when the chart is resized under it, so the lines match the new size', () => {
-    expect(at({ running: true })).toBe('drop')
+  it('carries a glide on to the new size when the chart is resized under it', () => {
+    // Turning Peers on adds a legend line, which resizes the chart at once: the glide, and the
+    // new line's fade, carry on, landing on the lines at the new size.
+    expect(at({ running: true })).toBe('retarget')
     expect(at({})).toBe('keep')
   })
 })

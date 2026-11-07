@@ -618,6 +618,11 @@ export function ChartPane({ reportId, cik, ticker, name, width, wide, size, onCl
     const to = tracksOf(g)
     const step = nextGlide({ changed, running: glideRef.current !== null, drawn: prev !== null && to.main !== null, reduced: reducedMotion() })
     if (step === 'drop' && glideRef.current) setGlide(null)
+    const running = glideRef.current
+    if (step === 'retarget' && running && to.main) {
+      setGlide({ from: glideNow(running), to, t: 0, enter: running.enter })
+      return
+    }
     if (step !== 'start' || !prev) return
     const now = glideRef.current
     setGlide({
