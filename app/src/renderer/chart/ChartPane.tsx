@@ -18,6 +18,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEve
 
 import type { CallResult } from '../../preload/api'
 import type { ChartSeries } from '../../shared/protocol'
+import { reduced } from '../motion'
 import { shortDate } from '../nav'
 import { money } from '../shell/Sidebar'
 import { covers, measure, namedFilings, needsHistory, niceTicks, RANGE_ORDER, rebase, slice, volumeText, yearsServed, type Range } from './series'
@@ -286,7 +287,8 @@ const trackPath = (t: Track) =>
     .map((x, i) => `${i ? 'L' : 'M'}${f1(x)} ${f1(t.ys[i])}`)
     .join('')
 
-const reducedMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
+// Reduce motion on the Mac, or Animations set to Off (motion.ts).
+const reducedMotion = () => reduced()
 
 // ---------- drawing ----------
 

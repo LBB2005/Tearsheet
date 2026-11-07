@@ -16,7 +16,7 @@ import { runTitle } from './home/run'
 import { RunView } from './home/RunView'
 import { useRun } from './home/useRun'
 import { Mark } from './mark/Mark'
-import { leaveMs } from './motion'
+import { leaveMs, pageEntrance, pageLeaveMs } from './motion'
 import { nextCompany, safetyFailed, safetyUnfinished, shortDate, statusLine, type Page } from './nav'
 import { FlagSheet } from './overlays/FlagSheet'
 import { LookUp } from './overlays/LookUp'
@@ -78,17 +78,28 @@ export function App() {
   // The home page's field, for ⌘K.
   const homeField = useRef<HTMLInputElement>(null)
 
-  // Change pages: the content fades and lifts away, then the new page settles in.
+  // Change pages: the new page takes the old one's place at once and comes in with a quick fade.
+  // Under Animations Full, the content first fades and lifts away (motion.ts).
   const go = useCallback((next: Page) => {
     if (next === target.current) return
     target.current = next
     window.clearTimeout(switchTimer.current)
+    const away = pageLeaveMs()
+    if (away === 0) {
+      setLeaving(false)
+      setPage(next)
+      return
+    }
     setLeaving(true)
     switchTimer.current = window.setTimeout(() => {
       setPage(next)
       setLeaving(false)
-    }, leaveMs())
+    }, away)
   }, [])
+  // How the page frame comes in, asked once each time it does (its key changes): built up part
+  // by part (`enter`), or with one quick fade (`quiet`).
+  const frameKey = useRef<string | null>(null)
+  const builds = useRef(false)
 
   const notify = useCallback((title: string, text?: string, tone?: Notice['tone']) => {
     noticeId.current += 1
@@ -436,6 +447,13 @@ export function App() {
     )
   }
 
+  const shownKey = runView ? 'home-run' : page
+  if (page !== 'setup' && frameKey.current !== shownKey) {
+    frameKey.current = shownKey
+    builds.current = pageEntrance(shownKey)
+  }
+  const frameClass = leaving || report.swapping ? 'pagebody leave' : builds.current ? 'pagebody enter' : 'pagebody quiet'
+
   const fatalNotice = fatal && (
     <p className="notice error fatal" role="alert">
       {fatal}
@@ -486,7 +504,7 @@ export function App() {
               {page === 'report' && <ReportTools page={reportPage} wide={wide} />}
             </Toolbar>
             {fatalNotice}
-            <main key={runView ? 'home-run' : page} className={leaving || report.swapping ? 'pagebody leave' : 'pagebody enter'} data-page={page}>
+            <main key={shownKey} className={frameClass} data-page={page}>
               {content}
             </main>
           </>

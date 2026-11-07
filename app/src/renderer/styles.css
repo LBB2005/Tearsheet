@@ -128,10 +128,12 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .pagebody[data-page="report"] { padding: 0; overflow: hidden; }
 .fatal { margin: 12px 20px 0; flex: none; }
 
-/* ---------- motion: A. Settle ----------
-   Entering: each part fades up from 10 px below, 70 ms apart and half a second each. A part can
-   set its own place in the order with --i (class mv). Leaving: the content fades and lifts 8 px in
-   about a quarter of a second. Each plays once; nothing moves under Reduce motion (below). */
+/* ---------- motion: A. Settle, calmed (motion.ts decides which plays) ----------
+   Building up (`enter`): each part fades up from 10 px below, 70 ms apart and half a second each.
+   A part can set its own place in the order with --i (class mv). Under Animations Subtle, only
+   the home page does this, once when the app opens; every other page comes in with one quick
+   fade (`quiet`). Leaving (`leave`, Animations Full only): the content fades and lifts 8 px in
+   about a quarter of a second. Nothing moves under Reduce motion or Animations Off (below). */
 @keyframes settle-in { from { opacity: 0; transform: translateY(10px); } }
 @keyframes settle-out { to { opacity: 0; transform: translateY(-8px); } }
 @keyframes fade { from { opacity: 0; } }
@@ -151,6 +153,12 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .enter > :nth-child(7), .enter > section > :nth-child(7) { --i: 6; }
 .enter > :nth-child(n+8), .enter > section > :nth-child(n+8) { --i: 7; }
 .leave { animation: settle-out .24s ease-in forwards; }
+.pagebody.quiet { animation: fade .15s ease-out both; }
+/* A loading line or placeholder shows only when loading takes a while, so a quick load never
+   blinks one on and off (the chart's .skel does the same, chart.css). It is not motion, so it
+   stays under Reduce motion and Off (below). */
+@keyframes wait-show { from { visibility: hidden; } }
+.panels .loading { animation: wait-show 1ms .4s backwards; }
 
 /* ---------- overlays: the look-up box and small notices ---------- */
 .scrim { position: absolute; inset: 0; z-index: 20; background: rgba(4, 6, 12, .38); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); -webkit-app-region: no-drag; animation: fade .18s ease-out both; }
@@ -244,7 +252,10 @@ button.plain + button.plain { margin-left: 6px; }
 .panels .chg { animation: settle-in .4s var(--settle) backwards; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* ---------- Reduce motion: nothing moves ---------- */
+/* ---------- Reduce motion, or Animations Off: nothing moves ---------- */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
+  :root .panels .loading, :root .skel { animation: wait-show 1ms .4s backwards !important; }
 }
+:root[data-motion="off"] *, :root[data-motion="off"] *::before, :root[data-motion="off"] *::after { animation: none !important; transition: none !important; }
+:root[data-motion="off"] .panels .loading, :root[data-motion="off"] .skel { animation: wait-show 1ms .4s backwards !important; }

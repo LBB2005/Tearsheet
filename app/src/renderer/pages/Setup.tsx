@@ -13,7 +13,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 
 import type { CallResult, ToolStatus } from '../../preload/api'
 import type { SettingsResult } from '../../shared/protocol'
-import { leaveMs } from '../motion'
+import { leaveMs, reduced } from '../motion'
 import { Email, KeyStep, Ready } from '../setup/details'
 import { HowItWorks, Welcome } from '../setup/intro'
 import { CheckIcon } from '../setup/parts'
@@ -45,7 +45,6 @@ const DOCK_AFTER_MS = 2000
 // The email's "Saved" shows this long before the next screen.
 const SAVED_MS = 500
 
-const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
 const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms))
 
 export interface SetupProps {

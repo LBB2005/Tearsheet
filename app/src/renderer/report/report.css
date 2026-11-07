@@ -12,6 +12,12 @@
    loaded (pages/Report.tsx), so switching never reloads either. */
 iframe.report-frame { position: absolute; inset: 0; display: block; width: 100%; height: 100%; border: 0; background: #070B14; visibility: hidden; }
 iframe.report-frame.on { visibility: visible; }
+/* Another report, or the same one loaded again: the new text frame waits, unseen, over the one
+   on show until it has loaded, then fades in over it in 150 ms (report/frames.ts, motion.ts).
+   It has no background of its own meanwhile: a frame says it has loaded a little before it draws
+   its first picture, and until then the report under it shows through, not an empty box. */
+iframe.report-frame.wait { opacity: 0; pointer-events: none; background: transparent; }
+iframe.report-frame.fadein { animation: fade .15s ease-out both; background: transparent; }
 .rerror { display: flex; align-items: center; gap: 14px; margin: 14px 16px 0; }
 .rerror span { flex: 1; min-width: 0; }
 .rerror b { color: #FFC2C8; font-weight: 600; }
