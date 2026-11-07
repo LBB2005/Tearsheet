@@ -546,10 +546,36 @@ def test_readouts_never_draw_through_a_hidden_column():
         numbers=numbers(),
     )
     css = style_of(html)
-    assert re.search(r"visibility:\s*hidden", css)  # the column put away
+    # Every visibility the page declares, in its stylesheet or in an element's style, hides: the
+    # column put away. Anything else (visible, initial, unset…) could draw a readout through it.
+    inline = ";".join(re.findall(r'style="([^"]*)"', html[html.index("</style>") :]))
+    declared = re.findall(r"(?<![-\w])visibility\s*:\s*([^;}]+)", f"{css};{inline}")
+    assert declared and {value.strip() for value in declared} == {"hidden"}, declared
     for selector, body in css_rules(css):
-        assert not re.search(r"visibility:\s*visible", body), selector
         if names_readout(selector):
             assert not re.search(r"visibility|opacity", body), selector
     base = [body for selector, body in css_rules(css) if selector == ".ro"]
     assert base and re.search(r"display:\s*none", base[0])
+
+
+def test_key_tile_readouts_span_the_strip_once_the_tiles_have_risen():
+    """The tiles rise in with a transform. Kept after the animation ends (fill forwards or both),
+    it would make each tile the containing block of its readout, squeezed under that tile for
+    good, instead of across the strip."""
+    css = style_of(render_html(report("Plain sentence."), mode="app", column="auto", narrow=True))
+    motion = media_block(css, "(prefers-reduced-motion: no-preference)")
+    rising = [body for selector, body in css_rules(motion) if selector == ".keys > *"]
+    assert rising and re.search(r"animation:.*\brise\b", rising[0])
+    assert not re.search(r"\b(forwards|both)\b", rising[0]), rising[0]
+
+
+def test_the_key_strip_can_narrow_with_the_frame():
+    """A hot key tile is a link around the tile; as a grid item it would keep its content's width
+    and push the strip wider than a narrow frame."""
+    css = style_of(render_html(report("Plain sentence."), mode="app", column="auto", narrow=True))
+    assert [
+        body
+        for selector, body in css_rules(css)
+        if ".keys > .hot" in [s.strip() for s in selector.split(",")]
+        and re.search(r"min-width:\s*0", body)
+    ]

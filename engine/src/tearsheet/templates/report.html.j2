@@ -185,6 +185,8 @@ a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outli
 /* The key strip is a readout box: a tile's readout shows just below the strip. */
 .keys .ro { top: 100%; left: 14px; right: 14px; }
 .keys .hot, .keys .hot:focus-visible { border-radius: 12px; }
+/* A hot tile's link is the grid item, so it narrows with the frame as the tile does. */
+.keys > .hot { min-width: 0; }
 .kt { padding: 8px 11px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); min-width: 0; }
 .kt span { display: block; color: var(--muted); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .kt b { font: 600 16px var(--num); white-space: nowrap; }
@@ -289,7 +291,9 @@ table.t .hot:hover { background: none; }
   .nums > :nth-child(4) { animation-delay: .21s; } .nums > :nth-child(5) { animation-delay: .28s; }
   .nums > :nth-child(6) { animation-delay: .35s; } .nums > :nth-child(7) { animation-delay: .42s; }
   .nums > :nth-child(8) { animation-delay: .49s; } .nums > :nth-child(9) { animation-delay: .56s; }
-  .keys > * { animation: rise .5s cubic-bezier(.2,.7,.2,1) both; }
+  /* Filled backwards only: a transform kept after the rise would hold each key tile as its
+     readout's containing block, squeezing the readout under the tile instead of the strip. */
+  .keys > * { animation: rise .5s cubic-bezier(.2,.7,.2,1) backwards; }
   .keys > :nth-child(2) { animation-delay: .07s; } .keys > :nth-child(3) { animation-delay: .14s; }
   .keys > :nth-child(4) { animation-delay: .21s; } .keys > :nth-child(5) { animation-delay: .28s; }
   .bar .tr i, .flags i { animation: grow .9s .25s cubic-bezier(.2,.7,.2,1) both; }
