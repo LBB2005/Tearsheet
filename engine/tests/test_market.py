@@ -8,8 +8,10 @@ import re
 from datetime import date, datetime, timedelta
 
 import httpx
+import pytest
 import respx
 
+from tearsheet import config
 from tearsheet.data import market
 from tearsheet.data.prices import EASTERN, SPY_CIK, PriceStore, sessions_between
 from tearsheet.http import HttpClient
@@ -24,6 +26,12 @@ BARS = re.compile(
 )
 DIVIDENDS = re.compile(r"https://api\.massive\.com/v3/reference/dividends.*")
 SPLITS = re.compile(r"https://api\.massive\.com/v3/reference/splits.*")
+
+
+@pytest.fixture(autouse=True)
+def small_summaries(monkeypatch):
+    # These tests' summaries have a handful of rows; a real one has about 12,600.
+    monkeypatch.setattr(config, "MARKET_SUMMARY_MIN_ROWS", 1)
 
 
 def ms(day: date, hour: int) -> int:
@@ -243,7 +251,7 @@ class EveryDay(dict):
         return [summary_row(t, day, 10.0 + i) for i, t in enumerate(self.tickers)]
 
 
-def backfill(database, rawstore, wanted, *, end, months=1, gate=None):
+def backfill(database, rawstore, wanted, *, end, months=14, gate=None):
     store = PriceStore(database.conn)
 
     async def go():
@@ -268,7 +276,7 @@ def test_backfill_fills_new_stocks_from_the_window_start(database, rawstore):
     end = date(2026, 11, 6)
     wanted = {"AAPL": (AAPL, ""), "MSFT": (MSFT, ""), "NVDA": (NVDA, ""), "SPY": (SPY_CIK, "")}
     store, massive, result = backfill(database, rawstore, wanted, end=end)
-    sessions = sessions_between(market.window_start(end, 1), end)
+    sessions = sessions_between(market.window_start(end), end)
     assert [d for d, _ in store.closes(AAPL)] == sessions
     assert store.dividends(MSFT) == {end: 0.9}
     assert store.closes(NVDA) == []  # not in the summaries: left for its own calls
@@ -283,7 +291,7 @@ def test_backfill_resumes_from_stored_pages(database, rawstore):
     end = date(2026, 11, 6)
     wanted = {"AAPL": (AAPL, ""), "MSFT": (MSFT, "")}
     backfill(database, rawstore, wanted, end=end)
-    database.conn.execute("DELETE FROM prices_daily WHERE date > '2026-10-20'")  # cut short
+    database.conn.execute("DELETE FROM prices_daily WHERE date > '2026-03-20'")  # cut short
     database.conn.commit()
     store, massive, result = backfill(database, rawstore, wanted, end=end)
     assert massive.calls == [] and result.calls == 0  # nothing asked of Massive again
@@ -337,8 +345,6 @@ def test_catch_up_ignores_a_long_halted_stock(database):
 
 
 def test_a_stored_answer_whose_file_is_gone_is_asked_for_again(database, rawstore):
-    store = PriceStore(database.conn)
-
     async def go():
         with respx.mock(assert_all_called=False) as mock:
             massive = Massive(mock, {NEW_DAY: [summary_row("AAPL", NEW_DAY, 1.0)]})
@@ -350,3 +356,80 @@ def test_a_stored_answer_whose_file_is_gone_is_asked_for_again(database, rawstor
 
     massive, rows = asyncio.run(go())
     assert massive.calls == [f"summary {NEW_DAY}"] * 2 and rows[0]["T"] == "AAPL"
+
+
+def test_a_shorter_backfill_never_starts_a_stock(database, rawstore):
+    # A short history would look complete to needed_start and never be filled.
+    end = date(2026, 11, 6)
+    store, _, result = backfill(database, rawstore, {"AAPL": (AAPL, "")}, end=end, months=3)
+    assert store.closes(AAPL) == [] and result.ready == 0
+
+
+def test_a_partial_summary_is_neither_used_nor_reused(database, rawstore, monkeypatch):
+    monkeypatch.setattr(config, "MARKET_SUMMARY_MIN_ROWS", 3)
+    store = PriceStore(database.conn)
+    store_closes(store, AAPL, [DAY_BEFORE])
+    early = [summary_row("AAPL", NEW_DAY, 1.0)]  # asked for before Massive had built it
+    full = [summary_row(t, NEW_DAY, 2.0) for t in ("AAPL", "MSFT", "NVDA")]
+    answers = [early, full]
+
+    async def go():
+        with respx.mock(assert_all_called=False) as mock:
+            massive = Massive(mock, {})
+            massive.summary = lambda request, **_: httpx.Response(
+                200, json={"status": "OK", "results": answers.pop(0)}
+            )
+            mock.get(url__regex=SUMMARY.pattern).mock(side_effect=massive.summary)
+            async with client(rawstore) as http:
+                for _ in range(2):
+                    await market.top_up(http, rawstore, store, {"AAPL": (AAPL, "")}, [NEW_DAY])
+                    seen.append(store.latest_close(AAPL))
+
+    seen: list = []
+    asyncio.run(go())
+    assert seen == [(DAY_BEFORE, 100.0), (NEW_DAY, 2.0)]  # asked again, then used
+
+
+def test_a_weekend_dividend_is_kept(database, rawstore):
+    store = seeded(database)
+    monday = date(2026, 11, 9)
+    friday = date(2026, 11, 6)
+    store_closes(store, AAPL, [NEW_DAY, friday])
+    asked = []
+
+    async def go():
+        with respx.mock(assert_all_called=False) as mock:
+            Massive(
+                mock,
+                {monday: [summary_row("AAPL", monday, 5.0)]},
+                dividends=[
+                    {"ticker": "AAPL", "ex_dividend_date": "2026-11-07", "cash_amount": 0.3}
+                ],
+            )
+            original = market.store_actions
+
+            async def spy(http, rawstore, store, tickers, start, end, **kw):
+                asked.append((start, end))
+                return await original(http, rawstore, store, tickers, start, end, **kw)
+
+            market.store_actions = spy
+            try:
+                async with client(rawstore) as http:
+                    await market.top_up(http, rawstore, store, {"AAPL": (AAPL, "")}, [monday])
+            finally:
+                market.store_actions = original
+
+    asyncio.run(go())
+    assert asked == [(date(2026, 11, 7), monday)]  # from the Saturday after Friday's close
+    assert store.dividends(AAPL) == {date(2026, 11, 7): 0.3}
+
+
+def test_one_ticker_per_company_in_a_top_up(database, rawstore):
+    store = seeded(database)
+    alphabet = 1652044
+    store_closes(store, alphabet, sessions_between(date(2026, 10, 26), DAY_BEFORE))
+    rows = [summary_row("GOOG", NEW_DAY, 300.0), summary_row("GOOGL", NEW_DAY, 299.0)]
+    rows += [summary_row(t, NEW_DAY, 1.0) for t in ("AAPL", "SPY")]
+    # Grading may ask for GOOG while the stored list rates GOOGL: GOOG's close is the one kept.
+    fill(database, rawstore, {AAPL: "AAPL", alphabet: "GOOG"}, {NEW_DAY: rows})
+    assert store.latest_close(alphabet) == (NEW_DAY, 300.0)

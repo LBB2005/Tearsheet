@@ -703,6 +703,11 @@ def cmd_prices(args: argparse.Namespace) -> int:
             f"Downloading {args.months} months of prices for {len(wanted)} at Massive's pace. "
             "It can be stopped and started again; it picks up where it stopped."
         )
+        if args.months < FIRST_FILL_MONTHS:
+            print(
+                f"  Under {FIRST_FILL_MONTHS} months it only adds to companies that already "
+                "have prices: a shorter history would look complete and never be filled."
+            )
         result = asyncio.run(go())
         if args.months == FIRST_FILL_MONTHS:
             market.record_backfill(settings, wanted, end)

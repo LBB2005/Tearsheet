@@ -166,3 +166,45 @@ def test_the_thin_slice_and_no_ai_runs_start_no_link_search(database, tmp_path):
     )
     asyncio.run(run.run("T0"))
     assert "link_search" not in [r.task for r in connector.requests]
+
+
+def test_a_usage_limit_in_the_early_link_search_is_reported_at_step_9(database, tmp_path):
+    def fake(request):
+        if request.task == "link_search":
+            return AIUsageLimit("You've hit your usage limit.")
+        return news_ai(request)
+
+    connector = FakeConnector(default=fake)
+    data = SlowPrices(connector)
+    run = make_run(database, tmp_path, connector, data=data)
+    at_news: list = []
+
+    def progress(step, state):
+        if (step, state) == ("news", "started"):
+            at_news.append(run.stop_error)
+
+    run.progress = progress
+    result = asyncio.run(run.run("T0"))
+    assert data.asked_before_prices_done is True  # it still started early
+    assert at_news == [None]  # but the stop belongs to step 9, as before
+    assert isinstance(run.stop_error, AIUsageLimit) and result.status == "stopped"
+    assert sum("The AI steps stopped" in n for n in result.notes) == 1
+
+
+def test_dropped_sources_keep_the_sources_order(database, tmp_path, monkeypatch):
+    from tearsheet.ai.client import AIUnavailable
+
+    def fake(request):
+        if request.task == "extract":
+            return AIUnavailable("overloaded")  # every source is dropped, after one retry
+        return news_ai(request)
+
+    monkeypatch.setattr(config, "AI_CALLS_IN_PARALLEL", 1)
+    one = make_run(database, tmp_path, Jittery(default=fake), name="one")
+    asyncio.run(one.run("T0"))
+    assert len(one.dropped) >= 4
+    monkeypatch.setattr(config, "AI_CALLS_IN_PARALLEL", 3)
+    for seed in (4, 5):
+        run = make_run(database, tmp_path, Jittery(default=fake, seed=seed), name=f"t{seed}")
+        asyncio.run(run.run("T0"))
+        assert run.dropped == one.dropped and run.notes == one.notes

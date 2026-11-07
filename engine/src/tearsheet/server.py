@@ -333,7 +333,7 @@ class Server:
             return
         if not config.get_key("massive"):
             return
-        if (config.Settings(self.db.conn).get(market.SWITCH_SETTING) or "").lower() == "off":
+        if market.switched_off(config.Settings(self.db.conn)):
             return
         self.backfill_job = asyncio.create_task(self._prices_job())
 
@@ -344,7 +344,7 @@ class Server:
         result = None
         while True:
             settings = config.Settings(self.db.conn)
-            if (settings.get(market.SWITCH_SETTING) or "").lower() == "off":
+            if market.switched_off(settings):
                 return result
             wanted = market.wanted_members(stored_or_bundled(self.db.conn))
             if market.backfill_needed(settings, wanted):
@@ -377,6 +377,8 @@ class Server:
                 )
         except asyncio.CancelledError:
             raise
+        except market.SwitchedOff:
+            return
         except Exception as exc:  # noqa: BLE001 - the next check, or the next report, tries again
             log.warning("price top-up stopped: %s", exc)
 
@@ -384,11 +386,17 @@ class Server:
         return self._busy() or self._grading() or self._downloading() or self._safety_running()
 
     async def _backfill_gate(self) -> bool:
-        """Wait while anything else is under way; True when it had to wait."""
+        """Wait while anything else is under way; True when it had to wait. Raises
+        market.SwitchedOff when `prices_backfill` was set to off meanwhile (even from the
+        terminal, which writes the same settings table)."""
+        from tearsheet.data import market
+
         waited = False
         while self._others_running():
             waited = True
             await asyncio.sleep(BACKFILL_POLL_S)
+        if market.switched_off(config.Settings(self.db.conn)):
+            raise market.SwitchedOff()
         return waited
 
     async def _backfill(self, wanted: dict[str, tuple[int, str]]) -> dict[str, Any] | None:
@@ -430,6 +438,9 @@ class Server:
             return {"ready": result.ready, "wanted": result.wanted, "calls": result.calls}
         except asyncio.CancelledError:
             raise
+        except market.SwitchedOff:
+            settings.set_internal("prices_backfill_status", "switched off")
+            return None
         except Exception as exc:  # noqa: BLE001 - it tries again next time the app opens
             log.warning("price backfill stopped: %s", exc)
             settings.set_internal("prices_backfill_status", f"stopped: {exc}")
@@ -1039,6 +1050,9 @@ class Server:
                 http.keys_worked.clear()
         config.set_key(p.service, p.key)  # only after the check passes; never echoed or logged
         config.forget_key_refusal(config.Settings(self.db.conn), p.service)
+        if p.service == "massive":
+            # Setup and Settings save the key here: a new install's price download starts now.
+            self._start_backfill()
         return {"proof": proof}
 
     async def m_run_safety_check(self, p) -> dict[str, Any]:

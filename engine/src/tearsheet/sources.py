@@ -401,7 +401,11 @@ class LiveData:
         extend = {t: s for t, s in starts.items() if tickers[t] in latest}
         days = sorted({d for s in extend.values() for d in sessions_between(s, end)})
         if days and market.summary_is_cheaper(len(days), len(extend)):
-            wanted = {**self._stored_members(latest), **{t: tickers[t] for t in extend}}
+            # One ticker per company: the one this run asked for wins over the stored list's
+            # (a company with two share classes, such as Alphabet, never gets both).
+            asked = {tickers[t] for t in extend}
+            stored = {t: k for t, k in self._stored_members(latest).items() if k not in asked}
+            wanted = {**stored, **{t: tickers[t] for t in extend}}
             through = await market.top_up(self.http, self.rawstore, store, wanted, days)
             for t in extend:
                 reached = through.get(t)

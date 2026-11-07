@@ -150,6 +150,9 @@ MASSIVE_PAGE_LIMIT = 1000
 # Whole-market dividends a session, for planning: on 7 Nov 2026 the free key returned 3 pages
 # of 1,000 for 10-15 Aug 2026 with more to come (funds pay often), so about 500-600 a session.
 MARKET_DIVIDENDS_PER_DAY = 600
+# A whole-market summary smaller than this was asked for before Massive had built it (4-6 Nov
+# 2026 had 12,561-12,593 rows): it is neither used nor reused.
+MARKET_SUMMARY_MIN_ROWS = 5000
 
 
 # --- Settings ----------------------------------------------------------------

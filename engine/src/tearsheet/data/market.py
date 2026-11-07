@@ -15,6 +15,7 @@ dividends and splits beside it.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import math
 from collections.abc import AsyncIterator, Awaitable, Callable
@@ -114,6 +115,7 @@ async def paged(
         else:
             data = stored[0]
             tally.reused += 1
+            await asyncio.sleep(0)  # let requests be answered between stored pages
         yield data
         next_url, next_params = data.get("next_url"), None
 
@@ -121,16 +123,24 @@ async def paged(
 async def fetch_day(
     http: HttpClient, rawstore, day: date, *, tally: Tally, reuse: bool = True
 ) -> tuple[list[dict[str, Any]], str]:
-    """One session's all-stocks summary: (its rows, the raw hash they are stored under)."""
+    """One session's all-stocks summary: (its rows, the raw hash they are stored under).
+
+    A summary with fewer than `config.MARKET_SUMMARY_MIN_ROWS` rows (asked for before Massive
+    has built it) gives no rows, so no stock moves past that session on it, and it is asked for
+    again next time rather than reused."""
     url = _url(config.MASSIVE_DAILY_SUMMARY, day=day.isoformat())
     params = {"adjusted": "false"}
     stored = _stored(rawstore, _full_url(url, params)) if reuse else None
     if stored is not None:
-        tally.reused += 1
-        return stored[0].get("results") or [], stored[1]
+        rows = stored[0].get("results") or []
+        if len(rows) >= config.MARKET_SUMMARY_MIN_ROWS:
+            tally.reused += 1
+            await asyncio.sleep(0)  # let requests be answered between stored days
+            return rows, stored[1]
     await tally.before_call()
     fetched = await http.fetch("massive", url, kind="daily_summary", params=params)
-    return fetched.json().get("results") or [], fetched.raw_hash
+    rows = fetched.json().get("results") or []
+    return (rows if len(rows) >= config.MARKET_SUMMARY_MIN_ROWS else []), fetched.raw_hash
 
 
 async def store_actions(
@@ -228,9 +238,12 @@ async def top_up(
     tally: Tally | None = None,
 ) -> dict[str, date | None]:
     """A run's top-up for stocks that already have prices: the span's dividends and splits,
-    then each session's summary. Returns each stock's latest stored close afterwards."""
+    then each session's summary. Returns each stock's latest stored close afterwards. The
+    dividends and splits start the calendar day after the last session before `days`, as the
+    per-stock path's do, so one dated on a weekend or holiday isn't missed."""
     tally = tally or Tally()
-    await store_actions(http, rawstore, store, wanted, days[0], days[-1], tally=tally)
+    since = previous_session(days[0]) + timedelta(days=1)
+    await store_actions(http, rawstore, store, wanted, since, days[-1], tally=tally)
     extender = Extender(store, wanted)
     for day in days:
         results, raw_hash = await fetch_day(http, rawstore, day, tally=tally)
@@ -307,8 +320,16 @@ COMPLETED_SETTING = "prices_backfill_completed"
 SWITCH_SETTING = "prices_backfill"
 
 
+class SwitchedOff(Exception):
+    """`prices_backfill` was set to off while the background price job was going."""
+
+
+def switched_off(settings) -> bool:
+    return (settings.get(SWITCH_SETTING) or "").lower() == "off"
+
+
 def backfill_needed(settings, wanted: dict[str, tuple[int, str]]) -> bool:
-    if (settings.get(SWITCH_SETTING) or "").lower() == "off":
+    if switched_off(settings):
         return False
     done = json.loads(settings.get(COMPLETED_SETTING) or "{}")
     return not set(wanted) <= set(done.get("tickers", []))
@@ -327,6 +348,13 @@ class BackfillResult:
     reused: int
     ready: int
     wanted: int
+
+
+def _month_span(month: list[date], *, start: date, end: date) -> tuple[date, date]:
+    """The calendar span of a month's dividends and splits, within the window."""
+    first = month[0].replace(day=1)
+    following = (first + timedelta(days=32)).replace(day=1)
+    return max(first, start), min(following - timedelta(days=1), end)
 
 
 def _months(sessions: list[date]) -> list[list[date]]:
@@ -355,12 +383,17 @@ async def backfill(
     closes. Answers already in the raw store are reused, so a fill cut short resumes where it
     stopped without asking Massive again."""
     tally = Tally(gate)
-    sessions = sessions_between(window_start(end, months), end)
+    start = window_start(end, months)
+    sessions = sessions_between(start, end)
     no_start = frozenset(t for t, key in wanted.items() if key[0] == SPY_CIK)
-    extender = Extender(store, wanted, first_session=sessions[0], no_start=no_start)
+    # A stock with no prices may start only when the window is the whole one peers need:
+    # a shorter history would look complete to `needed_start` and never be filled.
+    first = sessions[0] if months >= FIRST_FILL_MONTHS else None
+    extender = Extender(store, wanted, first_session=first, no_start=no_start)
     done = 0
     for month in _months(sessions):
-        await store_actions(http, rawstore, store, wanted, month[0], month[-1], tally=tally)
+        since, until = _month_span(month, start=start, end=end)
+        await store_actions(http, rawstore, store, wanted, since, until, tally=tally)
         for day in month:
             results, raw_hash = await fetch_day(http, rawstore, day, tally=tally)
             if tally.paused:

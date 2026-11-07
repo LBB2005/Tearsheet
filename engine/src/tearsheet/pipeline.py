@@ -10,6 +10,7 @@ predictions; its runs are stored with mode = "slice".
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import hashlib
 import json
 import math
@@ -95,6 +96,8 @@ STEPS = (
     "save",
 )
 STOPPING = (AIUsageLimit, AIAuthError, AILockdownFailed)
+# Which `_parallel` job is running, so the notes it adds can be put back in the jobs' order.
+_JOB: contextvars.ContextVar[int | None] = contextvars.ContextVar("tearsheet_job", default=None)
 # The order the score table lists factors in (weights.yaml's order).
 FACTOR_ORDER = (
     "profitability",
@@ -343,6 +346,9 @@ class Run:
         self.dropped: list[str] = []
         # Step 9's link search, started right after step 1 (`_start_link_search`).
         self._link_search: asyncio.Task | None = None
+        # A `_parallel` batch's notes and dropped lines, by position, tagged with their job.
+        self._note_jobs: dict[int, int] = {}
+        self._drop_jobs: dict[int, int] = {}
         # Wall-clock seconds per step (item 34's timings), from `_step` and `_mark`.
         self._step_seconds: dict[str, float] = {}
         self._current: tuple[str, float] | None = None
@@ -1394,45 +1400,62 @@ class Run:
             if self.ai_stopped is None:
                 self.ai_stopped = str(exc)
                 self.stop_error = exc
-                self.notes.append(f"The AI steps stopped: {exc}")
+                self._note(f"The AI steps stopped: {exc}")
         except AIBudgetExhausted as exc:
             if self.ai_stopped is None:
                 self.ai_stopped = str(exc)
                 self.stop_error = exc
-                self.notes.append(f"The call budget ran out, so the narrative is incomplete: {exc}")
+                self._note(f"The call budget ran out, so the narrative is incomplete: {exc}")
         except AIError as exc:
-            self.dropped.append(f"{label}: {exc}")
+            self._drop(f"{label}: {exc}")
         return None
 
-    def _job(self, label: str, make: Callable[[], Any]) -> tuple[tuple[str, ...], Callable]:
-        """One AI call for `_parallel`: its coroutine is made only when a slot is free."""
-        return (label,), lambda: self._ai_call(label, make())
+    def _note(self, text: str) -> None:
+        """A note from an AI job; `_parallel` puts a batch's notes in its jobs' order."""
+        self.notes.append(text)
+        job = _JOB.get()
+        if job is not None:
+            self._note_jobs[len(self.notes) - 1] = job
 
-    async def _parallel(self, jobs: list[tuple[tuple[str, ...], Callable[[], Any]]]) -> list[Any]:
+    def _drop(self, text: str) -> None:
+        self.dropped.append(text)
+        job = _JOB.get()
+        if job is not None:
+            self._drop_jobs[len(self.dropped) - 1] = job
+
+    def _job(self, label: str, make: Callable[[], Any]) -> Callable[[], Any]:
+        """One AI call for `_parallel`: its coroutine is made only when a slot is free."""
+        return lambda: self._ai_call(label, make())
+
+    async def _parallel(self, jobs: list[Callable[[], Any]]) -> list[Any]:
         """Run AI jobs at most `config.AI_CALLS_IN_PARALLEL` at a time (Technical Plan §3) and
         return their results in the jobs' order.
 
         A job starts only when a slot is free, so a cancel or a usage limit stops the queued
-        ones before they send anything. The batch's dropped-source lines are put in the jobs'
-        order (matched by each job's label prefixes), so a report lists them the same way
-        whatever finished first. A cancel, or an unexpected error, is raised once every job
-        has settled."""
+        ones before they send anything. The notes and dropped-source lines the jobs add are
+        put in the jobs' order, so a report reads the same whatever finished first. (Which
+        calls got in before a usage limit or the end of the budget still depends on timing,
+        as it must.) A cancel, or an unexpected error, is raised once every job has settled."""
         slots = asyncio.Semaphore(config.AI_CALLS_IN_PARALLEL)
-        before = len(self.dropped)
+        notes_before, dropped_before = len(self.notes), len(self.dropped)
 
-        async def one(make: Callable[[], Any]) -> Any:
+        async def one(index: int, make: Callable[[], Any]) -> Any:
+            _JOB.set(index)  # this task's own context: the notes it adds are tagged with it
             async with slots:
                 return await make()
 
-        results = await asyncio.gather(*(one(make) for _, make in jobs), return_exceptions=True)
+        results = await asyncio.gather(
+            *(one(i, make) for i, make in enumerate(jobs)), return_exceptions=True
+        )
 
-        def rank(line: str) -> int:
-            for i, (prefixes, _) in enumerate(jobs):
-                if any(line.startswith(f"{p}: ") for p in prefixes):
-                    return i
-            return len(jobs)
+        def in_job_order(items: list[str], before: int, tags: dict[int, int]) -> list[str]:
+            positions = sorted(range(before, len(items)), key=lambda i: tags.get(i, len(jobs)))
+            return [items[i] for i in positions]
 
-        self.dropped[before:] = sorted(self.dropped[before:], key=rank)
+        self.notes[notes_before:] = in_job_order(self.notes, notes_before, self._note_jobs)
+        self.dropped[dropped_before:] = in_job_order(self.dropped, dropped_before, self._drop_jobs)
+        self._note_jobs.clear()
+        self._drop_jobs.clear()
         for result in results:
             if isinstance(result, RunCancelled):
                 raise result
@@ -1508,18 +1531,19 @@ class Run:
 
     def _search_links(self, resolved: Resolved, allowlist: Allowlist):
         prompt = load_prompt("news_search")
-        return self._ai_call(
-            "link search",
-            search_links(
-                self.ai,
-                company=self.company_name,
-                ticker=resolved.rated_ticker,
-                allowlist=allowlist,
-                instructions=prompt.text,
-                today=self.today,
-                prompt_version=prompt.version,
-            ),
+        return search_links(
+            self.ai,
+            company=self.company_name,
+            ticker=resolved.rated_ticker,
+            allowlist=allowlist,
+            instructions=prompt.text,
+            today=self.today,
+            prompt_version=prompt.version,
         )
+
+    @staticmethod
+    async def _answer_of(task: asyncio.Task):
+        return await task  # its AI error, if any, is raised here, inside step 9's _ai_call
 
     def _start_link_search(self, resolved: Resolved) -> None:
         """Step 9's link search needs only the company's name and ticker, so it starts as soon
@@ -1532,6 +1556,8 @@ class Run:
         ):
             return
         allowlist = Allowlist(self.method.allowlist_sites())
+        # The bare call: a usage limit it meets is handled in step 9 (`news`), as before, so
+        # the stop is reported at step 9 and its note lands where it always did.
         self._link_search = asyncio.create_task(self._search_links(resolved, allowlist))
 
     def _stop_link_search(self) -> None:
@@ -1556,8 +1582,11 @@ class Run:
             self.notes.append("These inputs can't fetch articles, so section 7 has no news.")
             return out
         allowlist = Allowlist(self.method.allowlist_sites())
-        task, self._link_search = self._link_search, None
-        found = await task if task is not None else await self._search_links(resolved, allowlist)
+        task = self._link_search  # `_stop_link_search` (at the end of the run) tidies it up
+        found = await self._ai_call(
+            "link search",
+            self._answer_of(task) if task is not None else self._search_links(resolved, allowlist),
+        )
         if found is None:
             self.empty_sections.add(SectionKey.NEWS)
             return out
@@ -1758,7 +1787,7 @@ class Run:
                     if self.ai_stopped is None:
                         self.ai_stopped = str(exc)
                         self.stop_error = exc
-                        self.notes.append(
+                        self._note(
                             f"The call budget ran out, so the narrative is incomplete: {exc}"
                         )
                     return {}
@@ -1769,7 +1798,7 @@ class Run:
                     if self.checker_failed is None:
                         name = self.checker.connector.display_name
                         self.checker_failed = f"{name}: {exc}"
-                        self.notes.append(
+                        self._note(
                             f"The skeptic call on {name} failed ({exc}), so the rest of the "
                             "draft was self-checked."
                         )
@@ -1813,11 +1842,8 @@ class Run:
         # Each section's checks, skeptic and rewrite form one chain; the chains go 3 at a time
         # and are put together in the sections' order.
         jobs = [
-            (
-                (f"skeptic {section.value}", f"rewrite {section.value}"),
-                lambda section=section, draft=draft: self._verify_section(
-                    section, draft, drafts, guard, by_id, full=full
-                ),
+            lambda section=section, draft=draft: self._verify_section(
+                section, draft, drafts, guard, by_id, full=full
             )
             for section, draft in order
         ]
