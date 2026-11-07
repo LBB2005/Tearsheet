@@ -2,7 +2,6 @@
 // sidebar's status line.
 
 import type { CompanyRow, LockdownState, SearchHit } from '../shared/protocol'
-import { REPORT_STEPS, stepsBehind, type StepStates } from '../shared/steps'
 import type { SafetyState, ToolKind } from './setup/steps'
 
 export type Page = 'setup' | 'home' | 'report' | 'log' | 'settings'
@@ -32,7 +31,8 @@ export function shortDate(iso: string, now: Date = new Date()): string {
 
 export interface StatusInput {
   // A report being written: the company's ticker and its step states so far.
-  run?: { ticker: string; steps: StepStates } | null
+  // A report being written: its ticker, how far it has got (0–1) and "about 3 min left".
+  run?: { ticker: string; progress: number; left: string } | null
   // The safety check (the lock-down check) while it runs: calls made out of the total.
   safety?: { n: number; total: number } | null
   // The AI tool's name, like "Claude Code".
@@ -57,14 +57,10 @@ export interface StatusLine {
 // key that stopped working, all in red, because new reports can't be written or rated until
 // they're fixed; then a run, the safety check and grading, then "ready".
 export function statusLine(input: StatusInput): StatusLine {
-  const total = REPORT_STEPS.length
   if (input.signedOut) return { tone: 'stop', text: `${input.tools} signed out` }
   if (input.safetyFailed) return { tone: 'stop', text: 'Safety check didn’t pass' }
   if (input.keyRefused) return { tone: 'stop', text: 'Massive key not accepted' }
-  if (input.run) {
-    const behind = Math.min(stepsBehind(input.run.steps), total - 1)
-    return { tone: 'run', text: `Writing ${input.run.ticker}, step ${behind + 1} of ${total}`, progress: (behind + 0.5) / total }
-  }
+  if (input.run) return { tone: 'run', text: `Writing ${input.run.ticker}, ${input.run.left}`, progress: input.run.progress }
   if (input.safety) {
     const { n, total: calls } = input.safety
     return { tone: 'run', text: `Safety check, ${n} of ${calls}`, progress: calls > 0 ? Math.min(1, n / calls) : 0 }

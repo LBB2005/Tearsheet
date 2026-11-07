@@ -157,9 +157,36 @@ export type RunId4 = string;
 export type Step = number;
 export type StepName = string;
 export type State = "started" | "done" | "skipped" | "retrying" | "failed";
+export type Typical = {
+  [k: string]: number;
+} | null;
+export type Writer = string | null;
+export type Checker = string | null;
+export type Parallel = number | null;
+export type Companies1 = number | null;
+export type Fetching = ("prices" | "facts" | "filings" | "peer filings" | "rates" | "insider trades") | null;
+export type Prices = boolean | null;
+export type Facts = number | null;
+export type Filings1 = number | null;
+export type Rates = boolean | null;
+export type Insider = number | null;
+export type Score = number | null;
+export type Rating3 = string | null;
+export type Articles = number | null;
+export type ReadsDone = number | null;
+export type ReadsTotal = number | null;
+export type Evidence = number | null;
+export type SectionsDone = number | null;
+export type SectionsTotal = number | null;
+export type ChecksDone = number | null;
+export type ChecksTotal = number | null;
+export type ClaimsKept = number | null;
+export type ClaimsRemoved = number | null;
+export type Now = string[] | null;
 export type RunId5 = string;
-export type ReportId7 = string;
 export type RunId6 = string;
+export type ReportId7 = string;
+export type RunId7 = string;
 export type Step1 = string | null;
 export type Message = string;
 export type Code =
@@ -618,11 +645,52 @@ export interface Progress {
   state: State;
 }
 /**
+ * A run's live counts, for the app's progress screen while a report is written. A field
+ * stays empty until the run gets to it; each note carries the whole tally so far.
+ *
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "Tally".
+ */
+export interface Tally {
+  typical?: Typical;
+  writer?: Writer;
+  checker?: Checker;
+  parallel?: Parallel;
+  companies?: Companies1;
+  fetching?: Fetching;
+  prices?: Prices;
+  facts?: Facts;
+  filings?: Filings1;
+  rates?: Rates;
+  insider?: Insider;
+  score?: Score;
+  rating?: Rating3;
+  articles?: Articles;
+  reads_done?: ReadsDone;
+  reads_total?: ReadsTotal;
+  evidence?: Evidence;
+  sections_done?: SectionsDone;
+  sections_total?: SectionsTotal;
+  checks_done?: ChecksDone;
+  checks_total?: ChecksTotal;
+  claims_kept?: ClaimsKept;
+  claims_removed?: ClaimsRemoved;
+  now?: Now;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "RunTally".
+ */
+export interface RunTally {
+  run_id: RunId5;
+  tally: Tally;
+}
+/**
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
  * via the `definition` "ReportReady".
  */
 export interface ReportReady {
-  run_id: RunId5;
+  run_id: RunId6;
   report_id: ReportId7;
 }
 /**
@@ -630,7 +698,7 @@ export interface ReportReady {
  * via the `definition` "RunFailedNote".
  */
 export interface RunFailedNote {
-  run_id: RunId6;
+  run_id: RunId7;
   step: Step1;
   message: Message;
   code: Code;

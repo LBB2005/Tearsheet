@@ -128,11 +128,6 @@ export function markReportSeen(reportId: string, store: Store | null = local()):
 
 // ---------- timings for A. Settle that scripts need ----------
 
-// How long the run view holds the "report ready" moment before the report opens.
-export function readyPauseMs(): number {
-  return reduced() ? 0 : 1600
-}
-
 // How long an overlay takes to leave (the CSS class `leave`: it fades and lifts 8 px).
 export function leaveMs(): number {
   return reduced() ? 0 : 240

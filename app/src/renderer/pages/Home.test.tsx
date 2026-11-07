@@ -49,8 +49,8 @@ describe('the look-up field', () => {
     expect(hits().getByRole('option', { name: /NFLX/ })).toHaveAttribute('aria-selected', 'true')
     await user.keyboard('{Enter}')
     expect(bridge.runReport).toHaveBeenCalledWith('NFLX')
-    expect(await screen.findByRole('img', { name: 'Step 1 of 14' })).toBeInTheDocument()
-    expect(toolbarTitle()).toBe('NFLXWriting the report, step 1 of 14')
+    expect(await screen.findByRole('region', { name: 'Report progress' })).toBeInTheDocument()
+    expect(toolbarTitle()).toBe('NFLXWriting the report, about 5 min left')
   })
 
   test('a report that doesn’t start says why in the field’s place', async () => {
@@ -153,31 +153,79 @@ describe('a report being written', () => {
     const app = await renderApp()
     await app.user.type(field(), 'nv')
     await app.user.click(await hits().findByRole('option', { name: /NVDA/ }))
-    await screen.findByRole('img', { name: 'Step 1 of 14' })
+    await screen.findByRole('region', { name: 'Report progress' })
     return app
   }
+  const receipt = () => within(screen.getByRole('region', { name: 'Report progress' }))
+  const stage = (name: string) => receipt().getByText(name, { selector: 'b' }).closest('li') as HTMLElement
+  const tally = (t: Record<string, unknown>) => emit('run_tally', { run_id: 'run-new', tally: { writer: 'Claude Code', checker: 'Codex', ...t } })
 
-  test('follows the engine’s steps in the ring, the list, the toolbar and the sidebar', async () => {
+  test('writes down each stage on the receipt, with the time left in the toolbar and the sidebar', async () => {
     await startNvda()
     const sidebar = within(screen.getByRole('complementary', { name: 'Sidebar' }))
     expect(sidebar.getByRole('button', { name: /NVDA\s*writing…/ })).toHaveAttribute('aria-current', 'page')
-    for (const step of ['resolve', 'fetch', 'normalize']) emit('progress', { run_id: 'run-new', step_name: step, state: 'done' })
-    emit('progress', { run_id: 'run-new', step_name: 'text', state: 'running' })
-    expect(screen.getByRole('img', { name: 'Step 4 of 14' })).toBeInTheDocument()
-    expect(screen.getByText('Split filings into sections and paragraphs').closest('li')).toHaveAttribute('aria-current', 'step')
-    expect(screen.getByText('Writing NVDA, step 4 of 14')).toBeInTheDocument()
-    expect(toolbarTitle()).toBe('NVIDIA CorpWriting the report, step 4 of 14')
+    expect(stage('Data')).toHaveAttribute('aria-current', 'step')
+    expect(within(stage('Data')).getByText('Finding the company and its peers', { selector: 'p' })).toBeInTheDocument()
+    emit('progress', { run_id: 'run-new', step_name: 'resolve', state: 'done' })
+    emit('progress', { run_id: 'run-new', step_name: 'fetch', state: 'started' })
+    tally({ companies: 9, prices: true, facts: 9, filings: 13, fetching: 'rates' })
+    expect(within(stage('Data')).getByText('Prices for 9 companies · SEC figures for 9 of 9 · 13 filings')).toBeInTheDocument()
+    expect(within(stage('Data')).getByText('Treasury yields from FRED')).toBeInTheDocument()
+    expect(receipt().getByText('NVDA · 8 peers')).toBeInTheDocument()
+    expect(within(stage('Evidence')).getByText('Usually about 2 min')).toBeInTheDocument()
+    expect(toolbarTitle()).toMatch(/^NVIDIA CorpWriting the report, about \d+ min left$/)
+    expect(sidebar.getByText(/^Writing NVDA, about \d+ min left$/)).toBeInTheDocument()
+    expect(receipt().getByRole('progressbar', { name: 'How far the report has got' })).toBeInTheDocument()
     // Notes for some other run change nothing.
-    emit('progress', { run_id: 'other', step_name: 'metrics', state: 'done' })
-    expect(screen.getByRole('img', { name: 'Step 4 of 14' })).toBeInTheDocument()
+    emit('run_tally', { run_id: 'other', tally: { companies: 2, filings: 1 } })
+    expect(within(stage('Data')).getByText('Prices for 9 companies · SEC figures for 9 of 9 · 13 filings')).toBeInTheDocument()
   })
 
-  test('opens the report once it is ready', async () => {
+  test('lists the AI reads under way, and counts them as they finish', async () => {
     await startNvda()
+    for (const step of ['resolve', 'fetch', 'normalize', 'text', 'metrics', 'score', 'value', 'rate', 'news']) emit('progress', { run_id: 'run-new', step_name: step, state: 'done' })
+    emit('progress', { run_id: 'run-new', step_name: 'extract', state: 'started' })
+    tally({ articles: 12, reads_total: 23, reads_done: 4, evidence: 18, now: ['10-K Item 1A (Risk factors)', 'Reuters: NVIDIA ships Rubin'] })
+    expect(stage('Evidence')).toHaveAttribute('aria-current', 'step')
+    expect(within(stage('Evidence')).getByText('12 recent articles · 4 of 23 AI reads done · 18 pieces of evidence')).toBeInTheDocument()
+    expect(within(stage('Evidence')).getByText('10-K Item 1A (Risk factors)')).toBeInTheDocument()
+    expect(within(stage('Evidence')).getByText('Reuters: NVIDIA ships Rubin')).toBeInTheDocument()
+    expect(within(stage('Data')).getByText(/^\d+ s$|^\d+:\d\d$/)).toBeInTheDocument()
+    tally({ articles: 12, reads_total: 23, reads_done: 23, evidence: 80, now: [] })
+    expect(within(stage('Evidence')).queryByText('10-K Item 1A (Risk factors)')).toBeNull()
+  })
+
+  test('waits on a Done card with the time taken, the claims and the rating, until Open the report', async () => {
+    const { user } = await startNvda()
+    tally({ claims_kept: 41, claims_removed: 3, score: 58, rating: 'Hold' })
     emit('report_ready', { run_id: 'run-new', report_id: 'r-msft-1' })
+    expect(await receipt().findByText(/^Done in \d+:\d\d$/)).toBeInTheDocument()
+    expect(receipt().getByText('41 claims kept · 3 removed by Codex')).toBeInTheDocument()
+    expect(receipt().getByText('Rated Hold')).toHaveClass('pill', 'hold')
+    expect(toolbarTitle()).toBe('NVIDIA CorpThe report is ready')
+    expect(screen.queryByRole('button', { name: 'Cancel run' })).toBeNull()
+    const open = receipt().getByRole('button', { name: 'Open the report' })
+    expect(open).toHaveFocus()
+    expect(win()).toHaveClass('on-home')
+    await user.click(open)
     await waitFor(() => expect(win()).toHaveClass('on-report'))
     expect(bridge.getReport).toHaveBeenCalledWith('r-msft-1', expect.anything())
     expect(bridge.listCompanies).toHaveBeenCalledTimes(3)
+  })
+
+  test('New report from the Done card goes back to the home page', async () => {
+    const { user } = await startNvda()
+    emit('report_ready', { run_id: 'run-new', report_id: 'r-msft-1' })
+    await receipt().findByRole('button', { name: 'Open the report' })
+    await user.click(screen.getByRole('button', { name: /New report/ }))
+    expect(field()).toBeInTheDocument()
+  })
+
+  test('a report that is ready while you are on another page opens', async () => {
+    await startNvda()
+    menu('settings')
+    emit('report_ready', { run_id: 'run-new', report_id: 'r-msft-1' })
+    await waitFor(() => expect(win()).toHaveClass('on-report'))
   })
 
   test('Cancel run stops it, says so, and leaves the home page for a new one', async () => {
@@ -209,14 +257,30 @@ describe('a report being written', () => {
     expect(win()).toHaveClass('on-home')
     expect(screen.getByRole('alert')).toHaveTextContent('Your plan’s usage limit stopped the report')
     expect(screen.getByText('You hit your usage limit.')).toBeInTheDocument()
-    expect(toolbarTitle()).toBe('NVIDIA CorpStopped at step 2 of 14')
+    expect(toolbarTitle()).toBe('NVIDIA CorpStopped while downloading the data')
+    expect(within(stage('Data')).getByText('Stopped')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Cancel run' })).toBeNull()
+    expect(screen.queryByRole('progressbar')).toBeNull()
 
     bridge.resume.mockResolvedValue(ok({ run_id: 'run-new', ticker: 'NVDA', name: 'NVIDIA Corp' }))
     await user.click(screen.getByRole('button', { name: 'Resume' }))
     expect(bridge.resume).toHaveBeenCalledWith('run-new')
     await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
     expect(screen.getByRole('button', { name: 'Cancel run' })).toBeInTheDocument()
+  })
+
+  test('a resumed run takes the notes that came in while Resume was answered', async () => {
+    const { user } = await startNvda()
+    emit('run_failed', { run_id: 'run-new', message: 'Network down.', code: 'ENGINE_ERROR', step: 'fetch' })
+    let answer: (v: unknown) => void = () => undefined
+    bridge.resume.mockReturnValue(new Promise((r) => (answer = r)) as never)
+    await user.click(screen.getByRole('button', { name: 'Resume' }))
+    emit('progress', { run_id: 'run-new', step_name: 'resolve', state: 'done' })
+    emit('progress', { run_id: 'run-new', step_name: 'fetch', state: 'started' })
+    tally({ companies: 4, prices: true })
+    await act(async () => answer(ok({ run_id: 'run-new', ticker: null, name: null })))
+    expect(await within(stage('Data')).findByText('Prices for 4 companies')).toBeInTheDocument()
+    expect(receipt().getByText('NVDA · 3 peers')).toBeInTheDocument()
   })
 
   test('a run the safety check stopped offers the check, not Resume', async () => {

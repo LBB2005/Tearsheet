@@ -9,6 +9,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 import type { MenuCommand } from '../main/menu'
 import type { CallResult, EngineNotification, ToolStatus } from '../preload/api'
+import { leftText, pace } from '../shared/pace'
 import type { CompanyRow, GradeResult, SearchHit, SettingsResult } from '../shared/protocol'
 import { bootView, GIVE_UP_AFTER_MS, STARTING_AFTER_MS } from './boot'
 import { forgetOldChartPrefs, setSidebarHidden, sidebarHidden } from './chart/prefs'
@@ -195,10 +196,11 @@ export function App() {
   // The one listener for the engine's notes. The run's notes go to useRun.
   useEffect(() => {
     return window.tearsheet.onNotification((note: EngineNotification) => {
-      if (note.method === 'progress' || note.method === 'report_ready' || note.method === 'run_failed') {
+      if (note.method === 'progress' || note.method === 'run_tally') onNote(note)
+      else if (note.method === 'report_ready' || note.method === 'run_failed') {
         onNote(note)
         // A run may have found a key that stopped working, or one that works again.
-        if (note.method !== 'progress') void window.tearsheet.getSettings().then((r) => r.ok && r.result && setBootSettings(r.result))
+        void window.tearsheet.getSettings().then((r) => r.ok && r.result && setBootSettings(r.result))
       } else if (note.method === 'safety_progress' || note.method === 'safety_done') {
         setSafety((s) => applySafetyNote(s, note.method, note.params))
       } else if (note.method === 'engine_restarted') {
@@ -344,8 +346,10 @@ export function App() {
   const checkFailed = safetyFailed(safety, toolKind, bootSettings?.lockdown?.[toolKind])
   const checkUnfinished = safetyUnfinished(safety, toolKind)
   const runLabel = run ? (run.ticker ?? run.name ?? 'New report') : ''
+  // How far the run has got, paced by time (shared/pace.ts), for the sidebar and the toolbar.
+  const paced = run ? pace(run.steps, run.times, run.tally, Date.now(), run.seen) : null
   const status = statusLine({
-    run: report.running && run ? { ticker: runLabel, steps: run.steps } : null,
+    run: report.running && run && paced ? { ticker: runLabel, progress: paced.progress, left: leftText(paced.left) } : null,
     safety: safety && !safety.done ? { n: safety.n, total: safety.total } : null,
     tools: toolName,
     signedOut,
@@ -395,7 +399,7 @@ export function App() {
         : page === 'settings'
           ? { title: 'Settings', subtitle: topicName(settingsTopic) }
           : runView
-            ? runTitle(runView, report.readyHold)
+            ? runTitle(runView, report.readyHold, leftText(paced?.left ?? 0))
             : {}
 
   let content = null
@@ -408,6 +412,7 @@ export function App() {
         safety={checkFailed ? 'failed' : safety && !safety.done ? 'running' : 'ok'}
         onResume={() => void report.resume()}
         onRecheck={() => void recheck().then((problem) => problem && notify('The safety check didn’t start', problem, 'stop'))}
+        onOpen={report.openReady}
       />
     ) : (
       <Home
