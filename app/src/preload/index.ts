@@ -19,7 +19,7 @@ contextBridge.exposeInMainWorld('tearsheet', {
   runReport: (query: string, tool?: string) => call('runReport', tool ? { query, tool } : { query }),
   cancel: (runId: string) => call('cancel', { run_id: runId }),
   resume: (runId: string) => call('resume', { run_id: runId }),
-  getReport: (reportId: string, opts: { view?: string; column?: string; narrow?: boolean } = {}) => call('getReport', { report_id: reportId, ...opts }),
+  getReport: (reportId: string, opts: { view?: string; column?: string; narrow?: boolean; side?: string; motion?: boolean } = {}) => call('getReport', { report_id: reportId, ...opts }),
   listCompanies: () => call('listCompanies', {}),
   searchCompanies: (query: string, limit?: number) => call('searchCompanies', limit === undefined ? { query } : { query, limit }),
   getChart: (reportId: string) => call('getChart', { report_id: reportId }),

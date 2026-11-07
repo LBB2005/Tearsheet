@@ -27,7 +27,7 @@ export interface TearsheetApi {
   cancel(runId: string): Promise<CallResult<{ ok: boolean }>>
   resume(runId: string): Promise<CallResult<import('../shared/protocol').RunStarted>>
   // `narrow`: a window under 1,100 px, with the text alone; the engine adds the key-number tiles.
-  getReport(reportId: string, opts?: { view?: 'summary' | 'full'; column?: 'both' | 'numbers' | 'text'; narrow?: boolean }): Promise<CallResult<import('../shared/protocol').ReportResult>>
+  getReport(reportId: string, opts?: { view?: 'summary' | 'full'; column?: 'both' | 'numbers' | 'text' | 'auto'; narrow?: boolean; side?: 'text' | 'numbers'; motion?: boolean }): Promise<CallResult<import('../shared/protocol').ReportResult>>
   listCompanies(): Promise<CallResult<import('../shared/protocol').CompanyRow[]>>
   searchCompanies(query: string, limit?: number): Promise<CallResult<import('../shared/protocol').SearchHit[]>>
   getChart(reportId: string): Promise<CallResult<import('../shared/protocol').ChartSeries>>
