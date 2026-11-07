@@ -28,6 +28,12 @@ describe('cellNumber', () => {
 describe('numericColumn', () => {
   const rows = [['Method', 'Value'], ['DCF', '$1.2 billion'], ['Comps', '$90']]
   it('is true when every data cell is a number', () => expect(numericColumn(rows, 1)).toBe(true))
+  it('ignores empty and whitespace-only cells', () => {
+    expect(numericColumn([['M', 'V'], ['a', '$5'], ['b', ''], ['c', '  ']], 1)).toBe(true)
+  })
+  it('is false when every data cell is empty', () => {
+    expect(numericColumn([['M', 'V'], ['a', ''], ['b', ' ']], 1)).toBe(false)
+  })
   it('is false for words, and for a table with no data rows', () => {
     expect(numericColumn(rows, 0)).toBe(false)
     expect(numericColumn([['Method', 'Value']], 1)).toBe(false)
@@ -42,6 +48,14 @@ describe('tableRows', () => {
     expect(asc.map((r) => r.cells[1])).toEqual(['$90', '$340.3 million', '$1.2 billion'])
     const desc = tableRows(money, { sort: { col: 1, dir: 'desc' }, filter: '' })
     expect(desc.map((r) => r.cells[1])).toEqual(['$1.2 billion', '$340.3 million', '$90'])
+  })
+
+  it('a numeric column with an empty cell sorts by value, with the empty rows last both ways', () => {
+    const rows = [['Item', 'Value'], ['a', '$5'], ['b', ''], ['c', '$1'], ['d', ' '], ['e', '$3']]
+    const asc = tableRows(rows, { sort: { col: 1, dir: 'asc' }, filter: '' })
+    expect(asc.map((r) => r.cells[0])).toEqual(['c', 'e', 'a', 'b', 'd'])
+    const desc = tableRows(rows, { sort: { col: 1, dir: 'desc' }, filter: '' })
+    expect(desc.map((r) => r.cells[0])).toEqual(['a', 'e', 'c', 'b', 'd'])
   })
 
   it('keeps the file order and each row’s place with no sort', () => {

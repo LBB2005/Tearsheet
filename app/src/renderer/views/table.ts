@@ -16,10 +16,13 @@ export function cellNumber(text: string): number | null {
 }
 
 // A column sorts as numbers only when every cell below the header reads as one, so a single
-// "not meaningful" among dollar values makes the whole column sort as text.
+// "not meaningful" among dollar values makes the whole column sort as text. A blank cell says
+// nothing either way, so it is ignored, but there must be at least one cell that isn't blank.
+const blank = (c: string | undefined) => (c ?? '').trim() === ''
+
 export function numericColumn(rows: string[][], col: number): boolean {
-  const data = rows.slice(1)
-  return data.length > 0 && data.every((r) => cellNumber(r[col] ?? '') !== null)
+  const filled = rows.slice(1).filter((r) => !blank(r[col]))
+  return filled.length > 0 && filled.every((r) => cellNumber(r[col]) !== null)
 }
 
 export type Sort = { col: number; dir: 'asc' | 'desc' } | null
@@ -50,8 +53,16 @@ export function tableRows(rows: string[][], s: TableState): Row[] {
     const cmp = numbers
       ? (a: Row, b: Row) => (cellNumber(a.cells[col] ?? '') as number) - (cellNumber(b.cells[col] ?? '') as number)
       : (a: Row, b: Row) => (a.cells[col] ?? '').localeCompare(b.cells[col] ?? '', undefined, { numeric: true, sensitivity: 'base' })
-    // Array.sort is stable, so equal cells keep their order in either direction.
-    out = [...out].sort((a, b) => sign * cmp(a, b))
+    // Array.sort is stable, so equal cells keep their order in either direction. In a numeric
+    // column the blank cells go last whichever way it runs, outside the direction's sign.
+    out = [...out].sort((a, b) => {
+      if (numbers) {
+        const ba = blank(a.cells[col])
+        const bb = blank(b.cells[col])
+        if (ba || bb) return ba === bb ? 0 : ba ? 1 : -1
+      }
+      return sign * cmp(a, b)
+    })
   }
   return out
 }
