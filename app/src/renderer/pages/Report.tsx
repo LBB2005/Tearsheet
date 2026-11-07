@@ -15,7 +15,7 @@ import { Divider } from '../chart/Divider'
 import { chartOpens, lastWidth } from '../chart/prefs'
 import { DIV, openSplit, snapWidth, splitWidth, TEXT_MIN, type Snap } from '../chart/split'
 import type { ReportPage } from '../report/useReport'
-import { reportChoice } from '../report/view'
+import { oneColumn, reportChoice, shownSide } from '../report/view'
 
 import '../report/report.css'
 
@@ -48,7 +48,7 @@ function useWidth(ref: RefObject<HTMLElement>): number {
 }
 
 export function Report({ page, wide }: { page: ReportPage; wide: boolean }) {
-  const { report, frame, error, chartOpen, chartClosing } = page
+  const { report, error, chartOpen, chartClosing } = page
   const box = useRef<HTMLDivElement>(null)
   // Everything right of the sidebar: the report page's own width.
   const avail = useWidth(box)
@@ -69,6 +69,14 @@ export function Report({ page, wide }: { page: ReportPage; wide: boolean }) {
   const chartW = !chartOpen ? 0 : !wide ? avail : at ? splitWidth(at, avail) : 0
   // In Full the divider stays at the left, so the report can be dragged back.
   const paneW = full ? Math.max(0, avail - DIV) : chartW
+  // The report's width. Hidden behind a Full chart, or a narrow window's, it keeps the whole
+  // width (report.css), so it never squeezes to nothing and keeps its place.
+  const reportW = split && !full ? Math.max(0, avail - chartW - DIV) : avail
+  const one = oneColumn(reportW)
+  useLayoutEffect(() => {
+    if (page.oneColumn !== one) page.setOneColumn(one)
+  })
+  const showing = shownSide(page.side, one, page.numbers !== null && page.numbersReady)
   const half = () => ({ mode: 'half' as const, width: splitWidth({ mode: 'half', width: 0 }, avail) })
 
   const onStart = () => {
@@ -125,9 +133,22 @@ export function Report({ page, wide }: { page: ReportPage; wide: boolean }) {
           </div>
         )}
         {report && (
-          <div key={frame} className="rframe">
-            {/* An empty sandbox: no scripts, forms, pop-ups or top-level navigation (Technical Plan §12). */}
-            <iframe className="report-frame" title="Report" sandbox="" srcDoc={report.html} />
+          <div className="rframe">
+            {/* An empty sandbox: no scripts, forms, pop-ups or top-level navigation (Technical Plan §12).
+                The two frames are the same report, with Text or Numbers as its one column beside
+                the chart; the one not on show stays loaded, at the same size, so it keeps its place. */}
+            <iframe key={page.textKey} className={showing === 'text' ? 'report-frame on' : 'report-frame'} aria-hidden={showing !== 'text'} title="Report" sandbox="" srcDoc={report.html} />
+            {page.numbers && (
+              <iframe
+                key={`numbers:${page.textKey}`}
+                className={showing === 'numbers' ? 'report-frame on' : 'report-frame'}
+                aria-hidden={showing !== 'numbers'}
+                title="Report, numbers"
+                sandbox=""
+                srcDoc={page.numbers.html}
+                onLoad={() => page.setNumbersReady(true)}
+              />
+            )}
           </div>
         )}
       </div>
@@ -169,7 +190,7 @@ export function ReportTools({ page, wide }: { page: ReportPage; wide: boolean })
   const pick = (side: 'numbers' | 'text') => () => page.setSide(side)
   return (
     <>
-      {page.chartOpen && wide && page.split?.mode !== 'full' && (
+      {page.chartOpen && wide && page.split?.mode !== 'full' && page.oneColumn && (
         <span className="sidesw" role="group" aria-label="Beside the chart">
           Beside the chart
           <span className="segc">

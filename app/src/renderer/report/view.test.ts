@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { ReportSummary } from '../../shared/protocol'
-import { flagClaimId, nextView, otherReports, renderOptions, reportChoice, reportSubtitle } from './view'
+import { flagClaimId, nextView, oneColumn, otherReports, renderOptions, reportChoice, reportSubtitle, shownSide, TWO_COLUMNS_MIN } from './view'
 
 const NOW = new Date(2026, 10, 6, 12)
 
@@ -60,18 +60,32 @@ describe('reportChoice', () => {
 })
 
 describe('renderOptions', () => {
-  it('shows both columns in a wide window without the chart', () => {
-    expect(renderOptions({ view: 'summary', side: 'numbers', chartOpen: false, wide: true })).toEqual({ view: 'summary', column: 'both', narrow: false })
+  it('asks for the layout that follows the frame, so the chart never reloads the report', () => {
+    expect(renderOptions({ view: 'summary', side: 'text', wide: true, motion: true })).toEqual({ view: 'summary', column: 'auto', side: 'text', narrow: false, motion: true })
+    expect(renderOptions({ view: 'full', side: 'numbers', wide: true, motion: false })).toEqual({ view: 'full', column: 'auto', side: 'numbers', narrow: false, motion: false })
   })
 
-  it('keeps the column the switch picks while the chart is open', () => {
-    expect(renderOptions({ view: 'full', side: 'text', chartOpen: true, wide: true })).toEqual({ view: 'full', column: 'text', narrow: false })
-    expect(renderOptions({ view: 'summary', side: 'numbers', chartOpen: true, wide: true })).toEqual({ view: 'summary', column: 'numbers', narrow: false })
+  it('asks for the key tiles in a narrow window', () => {
+    expect(renderOptions({ view: 'summary', side: 'text', wide: false, motion: true })).toEqual({ view: 'summary', column: 'auto', side: 'text', narrow: true, motion: true })
   })
+})
 
-  it('shows the text with the key tiles in a narrow window', () => {
-    expect(renderOptions({ view: 'summary', side: 'numbers', chartOpen: false, wide: false })).toEqual({ view: 'summary', column: 'text', narrow: true })
-    expect(renderOptions({ view: 'full', side: 'numbers', chartOpen: true, wide: false })).toEqual({ view: 'full', column: 'text', narrow: true })
+describe('oneColumn', () => {
+  it('drops to one column under 860 px', () => {
+    expect(TWO_COLUMNS_MIN).toBe(860)
+    expect(oneColumn(859)).toBe(true)
+    expect(oneColumn(860)).toBe(false)
+  })
+})
+
+describe('shownSide', () => {
+  it('shows the numbers frame only in one column, with Numbers picked, once it has loaded', () => {
+    expect(shownSide('numbers', true, true)).toBe('numbers')
+    // Picked before its frame has loaded: the text stays on show, never a blank frame.
+    expect(shownSide('numbers', true, false)).toBe('text')
+    // Two columns: the text frame shows both, so it stays.
+    expect(shownSide('numbers', false, true)).toBe('text')
+    expect(shownSide('text', true, true)).toBe('text')
   })
 })
 

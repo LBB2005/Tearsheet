@@ -26,10 +26,23 @@ export interface FlagRequest {
 export interface ReportPage {
   // The report asked for, which may still be loading.
   reportId: string | null
-  // The report the frame shows, once it has loaded; null while another one loads.
+  // The report the frame shows, once it has loaded; null while another one loads. It is laid
+  // out by the frame's own width (view.ts), so the chart opening, closing or resizing never
+  // loads it again, and the reader keeps their place.
   report: ReportResult | null
-  // Changes with every load, so the frame reloads and its scroll position resets.
-  frame: number
+  // Names the text frame's load: a new one (another report or view, ⌘1 / ⌘2, or the window
+  // crossing narrow) replaces the frame.
+  textKey: string
+  // The same report with Numbers as its one column, loaded the first time the switch picks it
+  // (without the entrance motion), so switching never reloads either frame and each keeps its
+  // own place. Null until then, and again once the text frame's load changes.
+  numbers: ReportResult | null
+  // The numbers frame has drawn, so it can be shown without a blank moment.
+  numbersReady: boolean
+  setNumbersReady: (ready: boolean) => void
+  // The report is down to one column beside the chart (view.ts oneColumn); the page measures it.
+  oneColumn: boolean
+  setOneColumn: (one: boolean) => void
   error: string | null
   // The open report's row in list_reports, for the toolbar while the report itself loads.
   listed: ReportSummary | null
@@ -80,7 +93,10 @@ function claimText(html: string | undefined, claimId: string): string | null {
 
 export function useReport({ reportId, wide, active, notify, refresh }: Options): ReportPage {
   const [loaded, setLoaded] = useState<ReportResult | null>(null)
-  const [frame, setFrame] = useState(0)
+  const [textKey, setTextKey] = useState('')
+  const [numbersDoc, setNumbersDoc] = useState<{ key: string; doc: ReportResult } | null>(null)
+  const [numbersReady, setNumbersReady] = useState(false)
+  const [oneColumn, setOneColumn] = useState(false)
   const [error, setError] = useState<string | null>(null)
   // Each report opens on its Summary; the view chosen applies to that report only.
   const [chosen, setChosen] = useState<{ reportId: string | null; view: View }>({ reportId: null, view: 'summary' })
@@ -94,14 +110,14 @@ export function useReport({ reportId, wide, active, notify, refresh }: Options):
 
   const chartOpen = chart !== 'closed'
   const view: View = chosen.reportId === reportId ? chosen.view : 'summary'
-  const opts = renderOptions({ view, side, chartOpen, wide })
+  const opts = renderOptions({ view, side: 'text', wide, motion: true })
   const report = loaded && loaded.report_id === reportId ? loaded : null
 
   // The last load asked for, and the last one shown: only the newest answer counts, and coming
   // back to the page doesn't reload a report already showing as asked.
   const latest = useRef(0)
   const shownKey = useRef('')
-  const key = JSON.stringify([reportId, opts.view, opts.column, opts.narrow, asked])
+  const key = JSON.stringify([reportId, opts.view, opts.narrow, asked])
 
   useEffect(() => {
     if (!active || !reportId || key === shownKey.current) return
@@ -112,15 +128,37 @@ export function useReport({ reportId, wide, active, notify, refresh }: Options):
       if (result) {
         shownKey.current = key
         setLoaded(result)
-        setFrame((n) => n + 1)
+        setTextKey(key)
       }
       setError(problem)
     }
-    window.tearsheet.getReport(reportId, { view: opts.view, column: opts.column, narrow: opts.narrow }).then(
+    window.tearsheet.getReport(reportId, opts).then(
       (r) => (r.ok && r.result ? done(r.result, null) : done(null, r.error?.message || 'Tearsheet’s engine didn’t answer.')),
       (e: unknown) => done(null, e instanceof Error ? e.message : 'Tearsheet’s engine didn’t answer.')
     )
-  }, [active, reportId, key, opts.view, opts.column, opts.narrow])
+  }, [active, reportId, key, opts.view, opts.narrow])
+
+  // The numbers frame, the first time the switch picks Numbers for the text frame on show. A
+  // failed load leaves the text on show; picking Numbers again tries again.
+  const numbers = numbersDoc && numbersDoc.key === textKey && report ? numbersDoc.doc : null
+  const numbersAsk = useRef('')
+  useEffect(() => {
+    if (!active || !reportId || side !== 'numbers' || !report || textKey !== key) return
+    if (numbersDoc?.key === key || numbersAsk.current === key) return
+    numbersAsk.current = key
+    const ask = key
+    window.tearsheet.getReport(reportId, renderOptions({ view, side: 'numbers', wide, motion: false })).then(
+      (r) => {
+        if (r.ok && r.result) {
+          setNumbersReady(false)
+          setNumbersDoc({ key: ask, doc: r.result })
+        } else numbersAsk.current = ''
+      },
+      () => {
+        numbersAsk.current = ''
+      }
+    )
+  }, [active, reportId, side, report, textKey, key, numbersDoc, view, wide])
 
   // The company's reports, for the subtitle's menu of its other reports.
   useEffect(() => {
@@ -197,7 +235,12 @@ export function useReport({ reportId, wide, active, notify, refresh }: Options):
   return {
     reportId,
     report,
-    frame,
+    textKey,
+    numbers,
+    numbersReady,
+    setNumbersReady,
+    oneColumn,
+    setOneColumn,
     error,
     listed: list.find((r) => r.report_id === reportId) ?? null,
     view,

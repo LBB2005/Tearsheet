@@ -32,7 +32,9 @@
 .dragging, .dragging * { cursor: col-resize !important; user-select: none; -webkit-user-select: none; }
 .dragshield { position: absolute; inset: 0; z-index: 2; }
 /* In Full the report is hidden; dragging the divider brings it back. */
-.rpage.full .rmain { visibility: hidden; }
+/* Behind a Full chart the report keeps the whole width, never squeezed to nothing, so it keeps
+   its place (pages/Report.tsx). */
+.rpage.full .rmain { position: absolute; inset: 0; visibility: hidden; }
 
 /* A narrow window: the chart takes the whole window, sliding over from the right. */
 .narrow .cpane { animation-name: cp-in; animation-duration: .42s; }

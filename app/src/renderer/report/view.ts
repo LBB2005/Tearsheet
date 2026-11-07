@@ -11,9 +11,18 @@ export type Side = 'numbers' | 'text'
 
 export interface RenderOptions {
   view: View
-  column: 'both' | 'numbers' | 'text'
+  column: 'both' | 'numbers' | 'text' | 'auto'
   narrow: boolean
+  side: Side
+  motion: boolean
 }
+
+// Where the report drops from two columns to one, the column the Numbers / Text switch picks. It
+// is the report's own CSS that does it (the engine's render.TWO_COLUMNS_MIN, checked against
+// this one in columns.test.ts); the toolbar only needs to know when to show the switch.
+export const TWO_COLUMNS_MIN = 860
+
+export const oneColumn = (reportWidth: number): boolean => reportWidth < TWO_COLUMNS_MIN
 
 // "Report of Nov 5, 41 claims kept". A report saved before claim counts were stored gives the
 // date alone.
@@ -37,12 +46,18 @@ export function reportChoice(report: ReportSummary, now: Date = new Date()): { l
   return { label: `Report of ${shortDate(report.created_at, now)}`, note: report.rating ?? 'No rating' }
 }
 
-// What the frame asks the engine for. A wide window shows both columns, or, while the chart is
-// open, the one the Numbers / Text switch picks. A narrow window shows the text with its row of
-// key-number tiles (the chart, when open, takes the whole window there).
-export function renderOptions(o: { view: View; side: Side; chartOpen: boolean; wide: boolean }): RenderOptions {
-  if (!o.wide) return { view: o.view, column: 'text', narrow: true }
-  return { view: o.view, column: o.chartOpen ? o.side : 'both', narrow: false }
+// What a frame asks the engine for: the layout that follows the frame's width (column "auto"),
+// so opening, closing or resizing the chart never loads the report again. The text frame plays
+// the report's entrance; a numbers frame, loaded when the switch first picks Numbers, doesn't.
+// A narrow window adds the row of key-number tiles above the text.
+export function renderOptions(o: { view: View; side: Side; wide: boolean; motion: boolean }): RenderOptions {
+  return { view: o.view, column: 'auto', side: o.side, narrow: !o.wide, motion: o.motion }
+}
+
+// Which frame is on show: the numbers one only while the report is down to one column with
+// Numbers picked, and only once it has loaded, so a switch never shows a blank frame.
+export function shownSide(side: Side, one: boolean, numbersReady: boolean): Side {
+  return one && side === 'numbers' && numbersReady ? 'numbers' : 'text'
 }
 
 // ⌘1 and ⌘2.
