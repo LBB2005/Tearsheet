@@ -90,6 +90,9 @@ ICLOUD_FOLDERS = ("Documents", "Desktop", "Library/Mobile Documents")
 # price history fetch at Massive's calls-per-minute pace, and a Massive key check waits its turn
 # in the same queue.
 OFF_LOOP = frozenset({"grade_due", "fetch_history", "check_key"})
+# How often the price backfill looks again while a report, grading, a history download or the
+# safety check is under way (it never makes them wait).
+BACKFILL_POLL_S = 2.0
 
 
 class EngineError(Exception):
@@ -164,6 +167,7 @@ class Server:
         safety_connector_factory=None,
         log_predictions: bool | None = None,
         now: Callable[[], datetime] | None = None,
+        backfill: bool | None = None,
     ):
         from tearsheet.methodology import load
         from tearsheet.pipeline import mark_interrupted
@@ -192,6 +196,10 @@ class Server:
         self.background: set[asyncio.Task] = set()
         self._massive_limiter = None
         self.active = None  # the Run in progress
+        # The one-time price backfill (Technical Plan §5): on for the live engine; tests with
+        # injected data ask for it.
+        self.backfill_enabled = data_factory is None if backfill is None else backfill
+        self.backfill_job: asyncio.Task | None = None
         mark_interrupted(self.db.conn)
 
     # --- the defaults: live data and the user's AI tool -----------------------------------------
@@ -304,6 +312,79 @@ class Server:
                 method_code_version=METHOD_CODE_VERSION,
             ),
         )
+        self._start_backfill()
+
+    # --- the price backfill -----------------------------------------------------------------
+
+    def _start_backfill(self) -> None:
+        """Start the one-time price backfill when it is on, a Massive key is saved, and the
+        index has a company it hasn't covered yet."""
+        from tearsheet.data import market
+        from tearsheet.data.membership import stored_or_bundled
+
+        if not self.backfill_enabled or self.backfill_job is not None:
+            return
+        if not config.get_key("massive"):
+            return
+        wanted = market.wanted_members(stored_or_bundled(self.db.conn))
+        if not market.backfill_needed(config.Settings(self.db.conn), wanted):
+            return
+        self.backfill_job = asyncio.create_task(self._backfill(wanted))
+
+    def _others_running(self) -> bool:
+        return self._busy() or self._grading() or self._downloading() or self._safety_running()
+
+    async def _backfill_gate(self) -> bool:
+        """Wait while anything else is under way; True when it had to wait."""
+        waited = False
+        while self._others_running():
+            waited = True
+            await asyncio.sleep(BACKFILL_POLL_S)
+        return waited
+
+    async def _backfill(self, wanted: dict[str, tuple[int, str]]) -> dict[str, Any] | None:
+        from tearsheet.data import market
+        from tearsheet.data.prices import PriceStore, last_completed_session
+
+        settings = config.Settings(self.db.conn)
+        try:
+            await self._backfill_gate()  # grading usually runs first when the app opens
+            end = last_completed_session(self.now())
+
+            def progress(done: int, total: int, tally: market.Tally) -> None:
+                if done % 10 == 0 or done == total:
+                    settings.set_internal(
+                        "prices_backfill_status",
+                        f"{done} of {total} sessions, {tally.made} calls",
+                    )
+
+            async with self.http_factory(
+                f"backfill-{self.now():%Y%m%dT%H%M%SZ}", self.db.conn, self.rawstore
+            ) as http:
+                result = await market.backfill(
+                    http,
+                    self.rawstore,
+                    PriceStore(self.db.conn),
+                    wanted,
+                    end=end,
+                    gate=self._backfill_gate,
+                    progress=progress,
+                )
+            market.record_backfill(settings, wanted, end)
+            log.info(
+                "price backfill done: %d of %d companies have 14 months (%d calls, %d reused)",
+                result.ready,
+                result.wanted,
+                result.calls,
+                result.reused,
+            )
+            return {"ready": result.ready, "wanted": result.wanted, "calls": result.calls}
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - it tries again next time the app opens
+            log.warning("price backfill stopped: %s", exc)
+            settings.set_internal("prices_backfill_status", f"stopped: {exc}")
+            return None
 
     async def handle(self, line: str) -> None:
         try:
@@ -1043,12 +1124,14 @@ async def serve(paths: config.Paths) -> int:
                 await server.job
             except Exception:  # noqa: BLE001
                 pass
-        # Grading and history downloads stop with the engine; grading runs again next time the
-        # app opens, and a cut-short download is asked for again.
+        # Grading, history downloads and the price backfill stop with the engine; grading and
+        # the backfill run again next time the app opens (the backfill reuses what it stored),
+        # and a cut-short download is asked for again.
         jobs = [
             *server.background,
             *([server.grading_job] if server.grading_job else []),
             *server.history_jobs.values(),
+            *([server.backfill_job] if server.backfill_job else []),
         ]
         for task in jobs:
             task.cancel()

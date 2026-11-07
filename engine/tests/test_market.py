@@ -227,3 +227,90 @@ def test_paged_answers_are_reused(database, rawstore):
     massive, second = asyncio.run(go())
     assert massive.calls == ["dividends", "splits"]  # the second pass read the stored pages
     assert (second.made, second.reused) == (0, 2)
+
+
+# --- the backfill ---------------------------------------------------------------------------
+
+
+class EveryDay(dict):
+    """Summaries for any session: a close for each of `tickers`."""
+
+    def __init__(self, tickers: list[str]):
+        super().__init__()
+        self.tickers = tickers
+
+    def get(self, day, default=None):
+        return [summary_row(t, day, 10.0 + i) for i, t in enumerate(self.tickers)]
+
+
+def backfill(database, rawstore, wanted, *, end, months=1, gate=None):
+    store = PriceStore(database.conn)
+
+    async def go():
+        with respx.mock(assert_all_called=False) as mock:
+            massive = Massive(
+                mock,
+                EveryDay(["AAPL", "MSFT", "SPY"]),
+                dividends=[
+                    {"ticker": "MSFT", "ex_dividend_date": end.isoformat(), "cash_amount": 0.9}
+                ],
+            )
+            async with client(rawstore) as http:
+                result = await market.backfill(
+                    http, rawstore, store, wanted, end=end, months=months, gate=gate
+                )
+            return massive, result
+
+    return store, *asyncio.run(go())
+
+
+def test_backfill_fills_new_stocks_from_the_window_start(database, rawstore):
+    end = date(2026, 11, 6)
+    wanted = {"AAPL": (AAPL, ""), "MSFT": (MSFT, ""), "NVDA": (NVDA, ""), "SPY": (SPY_CIK, "")}
+    store, massive, result = backfill(database, rawstore, wanted, end=end)
+    sessions = sessions_between(market.window_start(end, 1), end)
+    assert [d for d, _ in store.closes(AAPL)] == sessions
+    assert store.dividends(MSFT) == {end: 0.9}
+    assert store.closes(NVDA) == []  # not in the summaries: left for its own calls
+    assert store.closes(SPY_CIK) == []  # SPY needs two years, so it never starts here
+    # Each month: its dividends and its splits, then a summary per session.
+    months = len({(d.year, d.month) for d in sessions})
+    assert result.calls == len(sessions) + 2 * months == len(massive.calls)
+    assert (result.ready, result.wanted) == (2, 4)
+
+
+def test_backfill_resumes_from_stored_pages(database, rawstore):
+    end = date(2026, 11, 6)
+    wanted = {"AAPL": (AAPL, ""), "MSFT": (MSFT, "")}
+    backfill(database, rawstore, wanted, end=end)
+    database.conn.execute("DELETE FROM prices_daily WHERE date > '2026-10-20'")  # cut short
+    database.conn.commit()
+    store, massive, result = backfill(database, rawstore, wanted, end=end)
+    assert massive.calls == [] and result.calls == 0  # nothing asked of Massive again
+    assert store.latest_close(AAPL)[0] == end
+
+
+def test_backfill_waits_at_the_gate_and_rereads_after_a_pause(database, rawstore):
+    end = date(2026, 11, 6)
+    wanted = {"AAPL": (AAPL, "")}
+    waits = []
+
+    async def gate():
+        waits.append(1)
+        return len(waits) == 3  # one pause, as if a report had run
+
+    _, massive, result = backfill(database, rawstore, wanted, end=end, gate=gate)
+    assert len(waits) == result.calls == len(massive.calls)
+
+
+def test_backfill_is_needed_until_it_covers_every_member(database):
+    from tearsheet import config
+
+    settings = config.Settings(database.conn)
+    wanted = {"AAPL": (AAPL, ""), "SPY": (SPY_CIK, "")}
+    assert market.backfill_needed(settings, wanted)
+    market.record_backfill(settings, wanted, date(2026, 11, 6))
+    assert not market.backfill_needed(settings, wanted)
+    assert market.backfill_needed(settings, {**wanted, "MSFT": (MSFT, "")})  # a new member
+    settings.set("prices_backfill", "off")
+    assert not market.backfill_needed(settings, {**wanted, "MSFT": (MSFT, "")})

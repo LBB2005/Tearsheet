@@ -236,9 +236,15 @@ def window_start(end: date, months: int = FIRST_FILL_MONTHS) -> date:
     return end - timedelta(days=round(months * 30.44))
 
 
-def ready(store: PriceStore, wanted: dict[str, tuple[int, str]], *, end: date) -> int:
+def ready(
+    store: PriceStore,
+    wanted: dict[str, tuple[int, str]],
+    *,
+    end: date,
+    months: int = FIRST_FILL_MONTHS,
+) -> int:
     """How many of the wanted stocks have the whole window, up to `end`."""
-    first = sessions_between(window_start(end), end)[0]
+    first = sessions_between(window_start(end, months), end)[0]
     spans = {
         (int(r[0]), r[1]): (date.fromisoformat(r[2]), date.fromisoformat(r[3]))
         for r in store.conn.execute(
@@ -251,6 +257,36 @@ def ready(store: PriceStore, wanted: dict[str, tuple[int, str]], *, end: date) -
         if span and span[0] <= first + timedelta(days=HISTORY_SLACK_DAYS) and span[1] >= end:
             count += 1
     return count
+
+
+def wanted_members(holdings) -> dict[str, tuple[int, str]]:
+    """Every S&P 500 company's rated class, in Massive's spelling, and SPY."""
+    from tearsheet.resolve import ticker_for
+
+    out = {ticker_for("massive", c.tickers[0]): (c.cik, "") for c in holdings.companies()}
+    out["SPY"] = (SPY_CIK, "")
+    return out
+
+
+# The settings key that records a finished backfill: the session it reached and the tickers it
+# covered. A later start fills again only when the index gains a company it didn't cover; reports
+# keep every stored company current with whole-market top-ups.
+COMPLETED_SETTING = "prices_backfill_completed"
+# "off" stops the background backfill.
+SWITCH_SETTING = "prices_backfill"
+
+
+def backfill_needed(settings, wanted: dict[str, tuple[int, str]]) -> bool:
+    if (settings.get(SWITCH_SETTING) or "").lower() == "off":
+        return False
+    done = json.loads(settings.get(COMPLETED_SETTING) or "{}")
+    return not set(wanted) <= set(done.get("tickers", []))
+
+
+def record_backfill(settings, wanted: dict[str, tuple[int, str]], end: date) -> None:
+    settings.set_internal(
+        COMPLETED_SETTING, json.dumps({"end": end.isoformat(), "tickers": sorted(wanted)})
+    )
 
 
 @dataclass
@@ -308,6 +344,6 @@ async def backfill(
         sessions=len(sessions),
         calls=tally.made,
         reused=tally.reused,
-        ready=ready(store, wanted, end=end),
+        ready=ready(store, wanted, end=end, months=months),
         wanted=len(wanted),
     )

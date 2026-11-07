@@ -233,6 +233,11 @@ SETTINGS: dict[str, SettingSpec] = {
     "fred_skipped": SettingSpec(
         "1 if the FRED key step was skipped during setup, otherwise 0.", _choice("0", "1")
     ),
+    "prices_backfill": SettingSpec(
+        "on (the default) or off: the app's one-time background download of 14 months of prices "
+        "for every S&P 500 company, which pauses while a report or grading runs.",
+        _choice("on", "off"),
+    ),
     "goal1_round": SettingSpec(
         "The Goal 1 round new full reports count toward (default 1). Raise it to restart the test after a fix.",
         _positive_number,

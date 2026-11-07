@@ -115,3 +115,19 @@ def test_run_offline_with_no_ai(monkeypatch, tmp_path, capsys):
 def test_news_sites_with_nothing_read_yet(tmp_path, capsys):
     assert cli.main(["--data-dir", str(tmp_path), "news-sites"]) == 0
     assert "No articles have been read or skipped yet." in capsys.readouterr().out
+
+
+def test_prices_status_says_how_many_have_the_window(tmp_path, capsys):
+    from tearsheet.cli import main
+
+    assert main(["--data-dir", str(tmp_path / "d"), "prices", "status"]) == 0
+    out = capsys.readouterr().out
+    assert "of " in out and "have 14 months of prices" in out
+    assert "hasn't finished" in out
+
+
+def test_prices_backfill_needs_a_massive_key(tmp_path, capsys):
+    from tearsheet.cli import main
+
+    assert main(["--data-dir", str(tmp_path / "d"), "prices", "backfill"]) == 1
+    assert "No Massive key" in capsys.readouterr().out

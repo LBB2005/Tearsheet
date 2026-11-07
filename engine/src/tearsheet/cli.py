@@ -631,6 +631,74 @@ def cmd_eval(args: argparse.Namespace) -> int:
     return 1 if problems else 0
 
 
+def cmd_prices(args: argparse.Namespace) -> int:
+    """`prices status`, or `prices backfill`: the one-time download the app also runs in the
+    background (14 months for every S&P 500 company, at Massive's pace). Run it while the app
+    is closed, so the two don't share Massive's calls per minute."""
+    from tearsheet.data import market
+    from tearsheet.data.membership import stored_or_bundled
+    from tearsheet.data.prices import FIRST_FILL_MONTHS, PriceStore, last_completed_session
+    from tearsheet.http import HttpClient
+    from tearsheet.rawstore import RawStore
+
+    paths, database = _open(args, "prices")
+    try:
+        settings = config.Settings(database.conn)
+        store = PriceStore(database.conn)
+        wanted = market.wanted_members(stored_or_bundled(database.conn))
+        end = last_completed_session(datetime.now(UTC))
+        if args.action == "status":
+            have = market.ready(store, wanted, end=end, months=args.months)
+            print(
+                f"{have} of {len(wanted)} (the S&P 500 and SPY) have {args.months} months of "
+                f"prices up to {end:%-d %b %Y}."
+            )
+            if not market.backfill_needed(settings, wanted):
+                print("The one-time download has finished; reports keep prices current.")
+            else:
+                status = settings.get("prices_backfill_status")
+                print(f"The one-time download hasn't finished{f' ({status})' if status else ''}.")
+            return 0
+        key = config.get_key("massive")
+        if not key:
+            print("No Massive key is saved. Save one with: tearsheet-engine set-key massive")
+            return 1
+
+        def progress(done: int, total: int, tally: market.Tally) -> None:
+            if done % 10 == 0 or done == total:
+                print(
+                    f"  {done} of {total} sessions ({tally.made} calls, {tally.reused} reused)",
+                    flush=True,
+                )
+
+        async def go():
+            rawstore = RawStore(paths.raw, database.conn)
+            async with HttpClient(
+                rawstore,
+                f"backfill-{datetime.now(UTC):%Y%m%dT%H%M%SZ}",
+                settings=settings,
+                massive_key=key,
+            ) as http:
+                return await market.backfill(
+                    http, rawstore, store, wanted, end=end, months=args.months, progress=progress
+                )
+
+        print(
+            f"Downloading {args.months} months of prices for {len(wanted)} at Massive's pace. "
+            "It can be stopped and started again; it picks up where it stopped."
+        )
+        result = asyncio.run(go())
+        if args.months == FIRST_FILL_MONTHS:
+            market.record_backfill(settings, wanted, end)
+        print(
+            f"Done: {result.ready} of {result.wanted} have the whole window "
+            f"({result.calls} calls, {result.reused} stored answers reused)."
+        )
+        return 0
+    finally:
+        database.close()
+
+
 def cmd_serve(args: argparse.Namespace) -> int:
     from tearsheet.server import serve
 
@@ -721,6 +789,17 @@ def build_parser() -> argparse.ArgumentParser:
         "grade", parents=[common], help="grade the logged predictions that are due"
     )
     grade.set_defaults(handler=cmd_grade)
+
+    prices = commands.add_parser(
+        "prices",
+        parents=[common],
+        help="price store status, or the one-time download of 14 months for the S&P 500",
+    )
+    prices.add_argument("action", choices=["status", "backfill"])
+    prices.add_argument(
+        "--months", type=int, default=14, help="months of history (default 14, what peers need)"
+    )
+    prices.set_defaults(handler=cmd_prices)
 
     serve = commands.add_parser(
         "serve",

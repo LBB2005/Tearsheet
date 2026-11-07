@@ -423,16 +423,11 @@ class LiveData:
 
     def _stored_members(self, latest: dict[tuple[int, str], date]) -> dict[str, tuple[int, str]]:
         """Every S&P 500 company (rated class) and SPY that already has stored prices."""
+        from tearsheet.data.market import wanted_members
         from tearsheet.data.membership import stored_or_bundled
 
-        out = {
-            ticker_for("massive", c.tickers[0]): (c.cik, "")
-            for c in stored_or_bundled(self.conn).companies()
-            if (c.cik, "") in latest
-        }
-        if (SPY_CIK, "") in latest:
-            out["SPY"] = (SPY_CIK, "")
-        return out
+        everyone = wanted_members(stored_or_bundled(self.conn))
+        return {t: key for t, key in everyone.items() if key in latest}
 
     async def risk_free(self, day: date) -> tuple[date, float] | None:
         from tearsheet.data.fred import fetch_series, value_on

@@ -302,3 +302,61 @@ def test_a_stopped_run_names_the_step_it_stopped_at(tmp_path):
     started = [p["step_name"] for p in h.notes("progress") if p["state"] == "started"]
     assert started[-1] == "save"  # the steps after the stop still ran
     h.server.close()
+
+
+def _backfill_harness(tmp_path, monkeypatch, *, delay_s=0.0):
+    import tearsheet.data.market as market
+    import tearsheet.server as server_module
+
+    monkeypatch.setattr(server_module, "BACKFILL_POLL_S", 0.005)
+    config.set_key("massive", "test-key")
+    h = Harness(tmp_path, delay_s=delay_s)
+    h.server.backfill_enabled = True
+    seen: list[str] = []
+
+    async def fake_backfill(http, rawstore, store, wanted, *, end, gate, progress, **_):
+        seen.append("busy" if h.server._others_running() else "free")
+        return market.BackfillResult(
+            sessions=1, calls=1, reused=0, ready=len(wanted), wanted=len(wanted)
+        )
+
+    monkeypatch.setattr(market, "backfill", fake_backfill)
+    return h, seen
+
+
+def test_the_backfill_waits_for_a_report_and_never_blocks_it(tmp_path, monkeypatch):
+    h, seen = _backfill_harness(tmp_path, monkeypatch, delay_s=0.02)
+
+    async def go():
+        await h.server.start()
+        reply = await h.call("run_report", {"query": "T0"})
+        await h.finish()
+        result = await asyncio.wait_for(h.server.backfill_job, 5)
+        return reply, result
+
+    reply, result = run(go())
+    assert reply["result"]["ticker"] == "T0"  # the report started at once
+    assert seen == ["free"]  # the backfill went only after it
+    assert result["ready"] == result["wanted"]
+    assert config.Settings(h.server.db.conn).get("prices_backfill_completed")
+    h.server.close()
+    # Once it has covered every member, the next start doesn't run it again.
+    again = Harness(tmp_path)
+    again.server.backfill_enabled = True
+    run(again.server.start())
+    assert again.server.backfill_job is None
+    again.server.close()
+
+
+def test_the_backfill_stays_off_when_switched_off_or_with_no_key(tmp_path, monkeypatch):
+    h, seen = _backfill_harness(tmp_path, monkeypatch)
+    config.Settings(h.server.db.conn).set("prices_backfill", "off")
+    run(h.server.start())
+    assert h.server.backfill_job is None
+    h.server.close()
+    config.set_key("massive", "")
+    other = Harness(tmp_path / "other")
+    other.server.backfill_enabled = True
+    run(other.server.start())
+    assert other.server.backfill_job is None and seen == []
+    other.server.close()
