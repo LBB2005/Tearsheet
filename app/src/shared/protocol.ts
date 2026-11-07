@@ -33,6 +33,17 @@ export type RunId1 = string;
 export type Ticker1 = string | null;
 export type Name1 = string | null;
 export type Ok1 = boolean;
+export type Bear = number;
+export type Base = number;
+export type Bull = number;
+export type Close = number | null;
+export type CloseDate = string | null;
+export type PreviousClose = number | null;
+export type Rating = ("Buy" | "Hold" | "Sell") | null;
+export type Capped = boolean;
+export type RedFlags = string[];
+export type Percentile = number | null;
+export type Peers = number | null;
 export type ReportId3 = string;
 export type RunId2 = string;
 export type Ticker2 = string;
@@ -59,14 +70,11 @@ export type ReportDate1 = string | null;
 export type PeerRule = string | null;
 export type Date = string;
 export type Form = string;
-export type Bear = number;
-export type Base = number;
-export type Bull = number;
 export type Dates = string[];
-export type Close = number[];
+export type Close1 = number[];
 export type Volume = number[];
 export type Total = (number | null)[];
-export type Peers = (number | null)[];
+export type Peers1 = (number | null)[];
 export type Spy = (number | null)[];
 export type Filings = FilingMark[];
 export type Trigger = number | null;
@@ -79,7 +87,7 @@ export type Cik4 = number | null;
 export type Ticker5 = string | null;
 export type Name5 = string | null;
 export type CreatedAt1 = string;
-export type Rating = string | null;
+export type Rating1 = string | null;
 export type NarrativeComplete1 = boolean;
 export type HorizonMonths = number;
 export type GradedAt = string;
@@ -94,7 +102,7 @@ export type PredictionId = string;
 export type Cik5 = number;
 export type Ticker6 = string;
 export type RunAt = string;
-export type Rating1 = string;
+export type Rating2 = string;
 export type Bear1 = number | null;
 export type Base1 = number | null;
 export type Bull1 = number | null;
@@ -303,6 +311,34 @@ export interface Ok {
 }
 /**
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "PriceRange".
+ */
+export interface PriceRange {
+  bear: Bear;
+  base: Base;
+  bull: Bull;
+}
+/**
+ * The report page's top bar: the last close Tearsheet has, with the close before it, and the
+ * report's call. Every price is in the last close's shares (a split since the report divides
+ * the report's range, as on the chart). A part that can't be read is None.
+ *
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "ReportBar".
+ */
+export interface ReportBar {
+  close: Close;
+  close_date: CloseDate;
+  previous_close: PreviousClose;
+  rating: Rating;
+  capped: Capped;
+  red_flags: RedFlags;
+  range: PriceRange | null;
+  percentile: Percentile;
+  peers: Peers;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
  * via the `definition` "ReportResult".
  */
 export interface ReportResult {
@@ -314,6 +350,7 @@ export interface ReportResult {
   created_at: CreatedAt;
   narrative_complete: NarrativeComplete;
   kept: Kept;
+  bar: ReportBar | null;
   html: Html;
 }
 /**
@@ -353,23 +390,14 @@ export interface FilingMark {
 }
 /**
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
- * via the `definition` "PriceRange".
- */
-export interface PriceRange {
-  bear: Bear;
-  base: Base;
-  bull: Bull;
-}
-/**
- * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
  * via the `definition` "ChartSeries".
  */
 export interface ChartSeries {
   dates: Dates;
-  close: Close;
+  close: Close1;
   volume: Volume;
   total: Total;
-  peers: Peers;
+  peers: Peers1;
   spy: Spy;
   filings: Filings;
   trigger: Trigger;
@@ -395,7 +423,7 @@ export interface ReportSummary {
   ticker: Ticker5;
   name: Name5;
   created_at: CreatedAt1;
-  rating: Rating;
+  rating: Rating1;
   narrative_complete: NarrativeComplete1;
 }
 /**
@@ -424,7 +452,7 @@ export interface PredictionSummary {
   cik: Cik5;
   ticker: Ticker6;
   run_at: RunAt;
-  rating: Rating1;
+  rating: Rating2;
   bear: Bear1;
   base: Base1;
   bull: Bull1;

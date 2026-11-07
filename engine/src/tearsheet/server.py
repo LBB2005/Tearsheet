@@ -777,12 +777,14 @@ class Server:
         ).fetchone()
         cik = run_row[0] if run_row else None
         numbers = None
+        bar = None
         if cik is not None:
             # Saved reports always open, whatever is broken: without its numbers if need be.
             try:
                 numbers = report_numbers.numbers_for(
                     self.db.conn, report, row["run_id"], cik, report_id=row["report_id"]
                 )
+                bar = report_numbers.bar_numbers(self.db.conn, numbers, row["run_id"], cik)
             except Exception:  # noqa: BLE001 - logged; the report opens from its text alone
                 log.exception("reading the numbers of report %s", p.report_id)
         claims = (numbers or {}).get("claims")
@@ -795,6 +797,7 @@ class Server:
             "created_at": row["created_at"],
             "narrative_complete": bool(row["narrative_complete"]),
             "kept": claims.get("kept") if isinstance(claims, dict) else None,
+            "bar": bar,
             "html": render_html(
                 report,
                 mode="app",

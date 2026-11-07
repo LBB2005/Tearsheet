@@ -161,6 +161,32 @@ class Ok(Strict):
     ok: bool
 
 
+class PriceRange(Strict):
+    bear: float
+    base: float
+    bull: float
+
+
+class ReportBar(Strict):
+    """The report page's top bar: the last close Tearsheet has, with the close before it, and the
+    report's call. Every price is in the last close's shares (a split since the report divides
+    the report's range, as on the chart). A part that can't be read is None."""
+
+    close: float | None
+    # ISO date of that close.
+    close_date: str | None
+    # The previous session's close, for the day's change; None when it isn't stored.
+    previous_close: float | None
+    rating: Literal["Buy", "Hold", "Sell"] | None
+    # Held at Hold by a red flag; `red_flags` names them ("Risk-factor change").
+    capped: bool
+    red_flags: list[str]
+    range: PriceRange | None
+    # The score's percentile in the peer group, and how many peers that group has.
+    percentile: int | None
+    peers: int | None
+
+
 class ReportResult(Strict):
     report_id: str
     run_id: str
@@ -172,6 +198,8 @@ class ReportResult(Strict):
     narrative_complete: bool
     # Claims that passed the checks, for the toolbar's subtitle; None when not stored.
     kept: int | None
+    # The top bar's numbers; None when the report's numbers can't be read.
+    bar: ReportBar | None
     html: str
 
 
@@ -201,12 +229,6 @@ class SearchHit(Strict):
 class FilingMark(Strict):
     date: str
     form: str
-
-
-class PriceRange(Strict):
-    bear: float
-    base: float
-    bull: float
 
 
 class ChartSeries(Strict):
@@ -386,6 +408,7 @@ ALL_MODELS: tuple[type[BaseModel], ...] = (
     Candidate,
     RunStarted,
     Ok,
+    ReportBar,
     ReportResult,
     CompanyRow,
     SearchHit,

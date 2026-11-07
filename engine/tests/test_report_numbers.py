@@ -309,3 +309,83 @@ def test_claims_are_counted_for_the_report_asked_for(database):
         "removed": 0,
     }
     assert numbers_for(database.conn, {}, "r1", 1)["claims"] == {"kept": 4, "removed": 0}
+
+
+# --- The top bar ---------------------------------------------------------------------------
+
+
+def _bar_run(conn, closes: dict[str, float], splits: list[tuple[str, int, int]] = ()) -> dict:
+    """A run priced at 4 Nov 2026's close, with three peers, a red flag and these closes."""
+    from tearsheet.data.prices import PriceStore
+    from tearsheet.report_numbers import bar_numbers
+
+    conn.execute(
+        "INSERT INTO runs (run_id, cik, mode, started_at, status, engine_version,"
+        " method_code_version, methodology_hash, reference_version)"
+        " VALUES ('r1', 1, 'full', '2026-11-04T20:00:00-05:00', 'done', 'x', 1, 'h', 'v')"
+    )
+    for peer in (1, 2, 3, 4):  # the company's own row doesn't count as a peer
+        conn.execute("INSERT INTO peer_groups VALUES ('r1', 1, ?, 0.25)", (peer,))
+    conn.execute(
+        "INSERT INTO step_outputs VALUES ('r1', 'text', ?)",
+        (json.dumps({"red_flags": ["risk_factor_change"]}),),
+    )
+    for day, close in closes.items():
+        conn.execute(
+            "INSERT INTO prices_daily VALUES (1, '', ?, ?, 1000, 'massive', 'h')", (day, close)
+        )
+    if splits:
+        PriceStore(conn).store_splits(
+            {
+                "results": [
+                    {"ticker": "X", "execution_date": d, "split_from": a, "split_to": b}
+                    for d, a, b in splits
+                ]
+            },
+            {"X": (1, "")},
+        )
+    conn.commit()
+    numbers = numbers_for(conn, make_report(), "r1", 1)
+    return bar_numbers(conn, numbers, "r1", 1)
+
+
+def test_the_bar_has_the_last_close_the_close_before_and_the_call(database):
+    bar = _bar_run(
+        database.conn, {"2026-11-04": 200.13, "2026-11-05": 183.23, "2026-11-06": 186.64}
+    )
+    assert bar == {
+        "close": 186.64,
+        "close_date": "2026-11-06",
+        "previous_close": 183.23,
+        "rating": "Hold",
+        "capped": True,
+        "red_flags": ["Risk-factor change"],
+        "range": {"bear": 130.16, "base": 233.70, "bull": 419.62},
+        "percentile": 74,
+        "peers": 3,
+    }
+
+
+def test_the_bar_puts_the_range_in_the_last_closes_shares_after_a_split(database):
+    """A 2-for-1 split on 6 Nov, after the report was priced: the range is halved, and the close
+    before the split is halved too, so the day's change isn't a fake 50% drop."""
+    bar = _bar_run(
+        database.conn,
+        {"2026-11-04": 400.0, "2026-11-05": 380.0, "2026-11-06": 186.64},
+        splits=[("2026-11-06", 1, 2)],
+    )
+    assert bar["close"] == 186.64
+    assert bar["previous_close"] == 190.0
+    assert bar["range"] == {"bear": 65.08, "base": 116.85, "bull": 209.81}
+
+
+def test_the_bar_leaves_out_a_close_that_isnt_the_session_before(database):
+    """With days missing between the two newest closes, there is no day's change to show."""
+    bar = _bar_run(database.conn, {"2026-11-02": 190.0, "2026-11-06": 186.64})
+    assert bar["close"] == 186.64 and bar["previous_close"] is None
+
+
+def test_the_bar_without_prices_still_has_the_call(database):
+    bar = _bar_run(database.conn, {})
+    assert bar["close"] is None and bar["close_date"] is None and bar["previous_close"] is None
+    assert bar["rating"] == "Hold" and bar["range"]["base"] == 233.70

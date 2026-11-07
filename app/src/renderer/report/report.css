@@ -34,6 +34,48 @@ iframe.report-frame.on { visibility: visible; }
 .segc button.on { background: rgba(255, 255, 255, .14); color: var(--text); box-shadow: 0 1px 2px rgba(0, 0, 0, .3); }
 .segc button:focus-visible { outline: 2px solid var(--accent); }
 
+/* ---------- the top bar (report/ReportBar.tsx): the ticker, the last close and the day's move,
+   then the report's call in one box. It fills the room left of the toolbar's buttons; the hidden
+   ruler holds one copy per level, so the bar can pick the fullest one that fits. ---------- */
+.rbar { flex: 1 1 0; min-width: 0; align-self: stretch; position: relative; display: flex; align-items: center; overflow: hidden; }
+.rbar-line { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; white-space: nowrap; }
+.rbar-ruler { position: absolute; left: 0; top: 0; display: grid; justify-items: start; visibility: hidden; pointer-events: none; }
+.rbar-ruler .rbar-line { flex: none; width: max-content; }
+.rbar-tk { margin: 0; font: 600 15px/1 var(--ui); letter-spacing: .5px; color: var(--text); }
+.rbar-px { font: 600 21px/1 var(--ui); letter-spacing: -.2px; color: var(--text); }
+.rbar-mv { font: 500 14px var(--ui); }
+.rbar-when { font-size: 13px; color: var(--muted); }
+.rbar .up { color: var(--up); }
+.rbar .down { color: var(--down); }
+.rbar .flat { color: #BAC7D4; }
+.rbar-box { margin-left: auto; flex: none; display: flex; align-items: center; height: 34px; border-radius: 10px; background: rgba(255, 255, 255, .045); border: 1px solid var(--line); }
+.rbar-box > span { display: inline-flex; align-items: center; gap: 7px; height: 100%; padding: 0 12px; font-size: 13.5px; border-left: 1px solid var(--line); }
+.rbar-box > span:first-child { border-left: 0; }
+.rbar-box small { font: 13px var(--ui); color: var(--muted); }
+.rbar-box b { font-weight: 600; color: var(--text); }
+.rbar-rate { --rc: var(--hold); }
+.rbar-rate.buy { --rc: var(--up); }
+.rbar-rate.sell { --rc: var(--down); }
+.rbar-rate::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--rc); box-shadow: 0 0 8px color-mix(in srgb, var(--rc) 60%, transparent); }
+.rbar-box .rbar-rate b { color: var(--rc); }
+.rbar-rng svg { display: block; }
+.rbar-rng .track { fill: rgba(255, 255, 255, .12); }
+.rbar-rng .gap.up { fill: rgba(99, 223, 165, .45); }
+.rbar-rng .gap.down { fill: rgba(255, 127, 138, .45); }
+.rbar-rng .tick { stroke: rgba(234, 241, 247, .7); stroke-width: 1.5; }
+.rbar-rng .now { fill: var(--accent); stroke: #0A0D14; stroke-width: 2; }
+/* Pointing at a part says what it means, so the parts on show take the pointer; the space
+   between them still drags the window. The ruler's hidden copies stay out of it. */
+.top .rbar > .rbar-line > *, .top .rbar > .rbar-line .rbar-box > span { -webkit-app-region: no-drag; }
+
+/* The report's date beside the bar: the menu of the company's other reports when it has some. */
+.top .rdate { all: unset; flex: none; display: inline-flex; align-items: center; gap: 3px; padding: 4px 6px; margin: 0 -2px; border-radius: 6px; color: #BAC7D4; font-size: 13px; white-space: nowrap; -webkit-app-region: no-drag; transition: background .15s, color .15s; }
+.top button.rdate { cursor: pointer; }
+.top button.rdate:hover, .top button.rdate[aria-expanded="true"] { background: rgba(255, 255, 255, .06); color: var(--text); }
+.top .rdate:focus-visible { outline: 2px solid var(--accent); }
+.top .rdate svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; }
+.top .rdate svg.doc { width: 15px; height: 15px; stroke-width: 1.6; margin-right: 3px; }
+
 /* ---------- the subtitle: a small menu of the company's other reports ---------- */
 .top .ttl .subbtn { all: unset; display: inline-flex; align-items: center; gap: 3px; cursor: pointer; border-radius: 5px; -webkit-app-region: no-drag; transition: color .15s; }
 .top .ttl .subbtn:hover, .top .ttl .subbtn[aria-expanded="true"] { color: var(--text); }

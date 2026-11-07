@@ -121,6 +121,16 @@ def test_get_report_gives_the_toolbar_facts_and_the_narrow_tiles(tmp_path):
     ).fetchone()[0]
     assert got["cik"] == cik
     assert got["name"]
+    # The top bar's numbers: the last close and the report's call, in the protocol's shape.
+    from tearsheet.protocol import ReportBar
+
+    bar = ReportBar.model_validate(got["bar"])
+    last = h.server.db.conn.execute(
+        "SELECT date, close_unadjusted FROM prices_daily WHERE cik = ? ORDER BY date DESC LIMIT 1",
+        (cik,),
+    ).fetchone()
+    assert (bar.close_date, bar.close) == (last[0], last[1])
+    assert bar.rating in {"Buy", "Hold", "Sell"} and bar.range is not None
     assert bad["error"]["code"] == -32602
     h.server.close()
 
@@ -501,6 +511,7 @@ def test_get_report_opens_even_when_its_numbers_cannot_be_read(tmp_path, monkeyp
 
     got = run(go())
     assert "<html" in got["result"]["html"] and got["result"]["kept"] is None
+    assert got["result"]["bar"] is None
     h.server.close()
 
 

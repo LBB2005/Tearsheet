@@ -45,6 +45,15 @@ Over six rounds of mockups, Liam settled on:
 *   **Toolbar** (52 px). It holds the page title with a one-line subtitle, the Numbers / Text
     switch while the chart is open, and the Chart button (⌘3). While a report runs, Cancel run
     takes the Chart button's place. You drag the window by any empty part of the toolbar.
+    *   On a report, the title is the report's top bar (picked on 2026-11-07 from round 2 of
+        the top-bar designs: A's left side with C's box). On the left: the ticker, the last
+        close to the cent and the day's move ("NVDA $186.64 +$3.41 (+1.9%)"). On the right,
+        in one rounded box: the rating (with "capped" and a coloured dot), the base case
+        against the last close, the 12-month range as a small line, and the peer score. Then
+        the report's date, which opens the company's other reports, and the toolbar's buttons.
+    *   When room runs short, parts drop out in this order: the close's date, the peer score,
+        the range, the move in dollars, "capped", the base case, the rating, the move in %.
+        The ticker and the price always stay. Pointing at a part says what it means.
 *   **Main area:** painted dark glass.
     *   Panels: see-through, with a 14 px radius and a hairline border.
     *   Font: Avenir Next, a Mac system font, with tabular figures.

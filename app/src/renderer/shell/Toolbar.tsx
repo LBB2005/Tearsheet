@@ -1,6 +1,7 @@
 // The 52 px toolbar. It drags the window from any empty part (-webkit-app-region: drag); its
-// buttons and fields are no-drag. It holds the page title with a one-line subtitle, the page's own
-// buttons on the right, and the find field (⌘F).
+// buttons and fields are no-drag. It holds the page title with a one-line subtitle (or, on the
+// report page, the report's top bar in its place), the page's own buttons on the right, and the
+// find field (⌘F).
 
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 
@@ -10,6 +11,8 @@ export interface ToolbarProps {
   title?: string
   // A line of text, or the report page's menu of the company's other reports.
   subtitle?: ReactNode
+  // In place of the title: the report page's top bar (report/ReportBar.tsx), which fills the room.
+  lead?: ReactNode
   // No hairline under it: the home page's toolbar is empty apart from the window buttons.
   bare?: boolean
   // The find field is open; `findFocus` changes each time ⌘F is pressed, to put the cursor back.
@@ -19,17 +22,17 @@ export interface ToolbarProps {
   children?: ReactNode
 }
 
-export function Toolbar({ title, subtitle, bare, finding, findFocus, onFindClose, children }: ToolbarProps) {
+export function Toolbar({ title, subtitle, lead, bare, finding, findFocus, onFindClose, children }: ToolbarProps) {
   return (
     <header className={bare ? 'top bare' : 'top'}>
-      {title ? (
+      {lead ?? (title ? (
         <h1 className="ttl">
           {title}
           {subtitle && <small>{subtitle}</small>}
         </h1>
       ) : (
         <span className="ttl" />
-      )}
+      ))}
       {children}
       {finding && <FindField focus={findFocus} onClose={onFindClose} />}
     </header>
