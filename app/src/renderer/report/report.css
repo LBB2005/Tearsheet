@@ -9,9 +9,12 @@
 .rmain { flex: 1 1 0; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 .rframe { flex: 1; min-height: 0; position: relative; }
 /* The frame on show, and behind it, at the same size, the other column's frame once it has
-   loaded (pages/Report.tsx), so switching never reloads either. */
+   loaded (pages/Report.tsx), so switching never reloads either. The frame on show takes its
+   visibility from the report around it (inherit, never visible): behind a Full chart, or a narrow
+   window's chart, .rmain is hidden, and a frame set to visible would still be drawn there, showing
+   the report through the chart's see-through background. */
 iframe.report-frame { position: absolute; inset: 0; display: block; width: 100%; height: 100%; border: 0; background: #070B14; visibility: hidden; }
-iframe.report-frame.on { visibility: visible; }
+iframe.report-frame.on { visibility: inherit; }
 /* Another report, or the same one loaded again: the new text frame waits, unseen, over the one
    on show until it has loaded, then fades in over it in 150 ms (report/frames.ts, motion.ts).
    It has no background of its own meanwhile: a frame says it has loaded a little before it draws
