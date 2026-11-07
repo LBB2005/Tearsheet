@@ -43,3 +43,23 @@
 .mpeer { all: unset; box-sizing: border-box; cursor: pointer; position: absolute; transform: translateX(-50%); top: 3px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent2); }
 .mpeer:hover { outline: 2px solid var(--accent2); }
 .mpeer:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* Value per share by method: a strip of marks on top (the range, today's price and the estimate,
+   which carry the readouts), one row for each method below it, and the band and lines drawn over
+   the rows. The overlay lines up with the tracks, which sit 11px in (a row's padding and border). */
+.vplot { position: relative; padding: 4px 0 12px; }
+.vhead { position: relative; height: 22px; margin: 0 11px 4px; }
+.vrows { display: flex; flex-direction: column; gap: 4px; }
+.vover { position: absolute; left: 11px; right: 11px; top: 26px; bottom: 12px; pointer-events: none; }
+.vband { position: absolute; top: 0; bottom: 0; background: var(--accent2); opacity: .16; }
+.vline { position: absolute; top: 0; bottom: 0; width: 0; }
+.vline.price { border-left: 2px dashed var(--hold); }
+.vline.est { border-left: 2px solid var(--accent); }
+/* The marks in the strip are the targets for hover and focus; the band and lines below are only drawn. */
+.vmark { all: unset; box-sizing: border-box; cursor: pointer; position: absolute; top: 2px; height: 18px; }
+.vmark.range { border-radius: 4px; background: var(--accent2); opacity: .5; min-width: 6px; }
+.vmark.tick { transform: translateX(-50%); width: 14px; }
+.vmark.tick::after { content: ''; position: absolute; left: 6px; top: 2px; bottom: 2px; width: 0; }
+.vmark.tick.price::after { border-left: 2px dashed var(--hold); }
+.vmark.tick.est::after { border-left: 2px solid var(--accent); }
+.vmark:hover, .vmark:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
