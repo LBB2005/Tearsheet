@@ -18,6 +18,8 @@ import { METHODS_START } from '../views/methods'
 import { Methods } from '../views/MethodsPane'
 import { RETURNS_START } from '../views/returns'
 import { Returns } from '../views/ReturnsPane'
+import { TABLE_START } from '../views/table'
+import { Table } from '../views/TablePane'
 import { ViewFrame, type PanelChrome, type ViewProps } from './ViewFrame'
 
 export interface ViewSpec {
@@ -32,7 +34,8 @@ export const VIEW_PANES: Partial<Record<ViewKind | 'table', ViewSpec>> = {
   factors: { start: FACTORS_START, Pane: Factors },
   metrics: { start: METRICS_START, Pane: Metrics },
   methods: { start: METHODS_START, Pane: Methods },
-  returns: { start: RETURNS_START, Pane: Returns }
+  returns: { start: RETURNS_START, Pane: Returns },
+  table: { start: TABLE_START, Pane: Table }
 }
 
 const kindOf = (view: ViewId): ViewKind | 'table' => (view.startsWith('table-') ? 'table' : (view as ViewKind))
@@ -82,7 +85,7 @@ export function ViewPane({ view, item, numbers, problem, retry, ticker, memory, 
         <div className="skel" aria-label="Loading this view" />
       </ViewFrame>
     )
-  else inside = <spec.Pane chrome={chrome} numbers={numbers} ticker={ticker} item={item} state={state} setState={setState} />
+  else inside = <spec.Pane chrome={chrome} view={view} numbers={numbers} ticker={ticker} item={item} state={state} setState={setState} />
 
   const cls = ['cpane', 'vpane', swapped && 'swap', width < 760 && 'narrowp'].filter(Boolean).join(' ')
   // The content keeps the pane's width while the pane slides in or out (panel.css).

@@ -71,3 +71,21 @@
 .rtrack::before { display: none; }
 .rzero { position: absolute; top: 0; height: 14px; width: 0; border-left: 1px dashed var(--muted); }
 .rbar { position: absolute; top: 3px; height: 8px; border-radius: 2px; min-width: 2px; }
+
+/* A Full-report table: the filter and its count above, then the table, whose header cells sort. */
+.tctl { display: flex; align-items: center; gap: 12px; padding: 4px 0 10px; }
+.tfilter { flex: 1; min-width: 0; box-sizing: border-box; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--text); font: inherit; font-size: 13px; }
+.tfilter:focus-visible { outline: 2px solid var(--accent); }
+.tcount { flex: none; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.tscroll { overflow-x: auto; padding-bottom: 12px; }
+.ttable { width: 100%; border-collapse: collapse; font-size: 13px; }
+.ttable th, .ttable td { padding: 7px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.ttable td.num, .ttable th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.ttable th { padding: 0; font-weight: 600; }
+.tsort { all: unset; box-sizing: border-box; display: flex; width: 100%; gap: 6px; padding: 7px 10px; cursor: pointer; color: var(--muted); }
+.num .tsort { justify-content: flex-end; }
+.tsort:hover { color: var(--text); }
+.tsort:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+th[aria-sort='ascending'] .tsort, th[aria-sort='descending'] .tsort { color: var(--accent); }
+.ttable tbody tr.picked { background: rgba(127, 227, 247, .08); outline: 1px solid var(--accent); outline-offset: -1px; }
+.tnone { color: var(--muted); padding: 12px 10px; }

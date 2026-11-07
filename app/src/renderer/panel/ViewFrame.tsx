@@ -4,6 +4,7 @@
 
 import type { ReactElement, ReactNode } from 'react'
 
+import type { ViewId } from '../../main/navigation'
 import type { ReportNumbers } from '../../shared/protocol'
 
 import './panel.css'
@@ -18,6 +19,8 @@ export interface PanelChrome {
 // was left when the view opens again while the report is open.
 export interface ViewProps<S> {
   chrome: PanelChrome
+  // Which view this is, for the one pane that serves many: every Full-report table.
+  view: ViewId
   numbers: ReportNumbers
   ticker: string
   item: string | null
