@@ -524,7 +524,7 @@ function readout(sl: ChartSeries, range: Range, filled: boolean, hover: number |
 
 // ---------- the pane ----------
 
-export function ChartPane({ reportId, cik, ticker, name, width, wide, size, onClose, onSize, switcher, away = false, swap = false, onHistory }: ChartPaneProps) {
+export function ChartPane({ reportId, cik, ticker, name, width, wide, size, onClose, onSize, switcher, away = false, swap = false, rangeAsk = 0, onHistory }: ChartPaneProps) {
   const company = cik === null ? `report:${reportId}` : `cik:${cik}`
   // As it was when the pane mounted: a class that came or went later would start, or cut short,
   // the pane's own animation.
@@ -576,6 +576,12 @@ export function ChartPane({ reportId, cik, ticker, name, width, wide, size, onCl
     }
   }, [])
 
+  // A link to the price chart wants its 12-month range on. The range can only show once the
+  // series is in, so the wish is kept until then, and it is spent when it is met, so a reader who
+  // turns the range off is not put back.
+  const wantsFan = useRef(rangeAsk > 0)
+  const lastAsk = useRef(rangeAsk)
+
   // The stored series.
   useEffect(() => {
     let on = true
@@ -587,6 +593,11 @@ export function ChartPane({ reportId, cik, ticker, name, width, wide, size, onCl
         if (r.ok && r.result) {
           setSeries(r.result)
           setReadAfter(after)
+          // As the chart opens from the link, so it opens with the range already on.
+          if (wantsFan.current && r.result.range) {
+            wantsFan.current = false
+            setToggles((t) => ({ ...t, fan: true }))
+          }
         } else setProblem(r.error?.message || 'Tearsheet’s engine didn’t answer.')
       },
       (e: unknown) => {
@@ -738,6 +749,14 @@ export function ChartPane({ reportId, cik, ticker, name, width, wide, size, onCl
     if (pending && !downloaded.has(company)) follow(pending)
     // Once, as the pane opens.
   }, [company])
+
+  // A later link to the chart, while it is already open, turns the range on the way a click does.
+  useEffect(() => {
+    if (rangeAsk <= lastAsk.current) return
+    lastAsk.current = rangeAsk
+    if (!series) wantsFan.current = true
+    else if (series.range && !toggles.fan) flip('fan')
+  }, [rangeAsk])
 
   const flip = (k: keyof Toggles) => {
     setToggles((t) => {

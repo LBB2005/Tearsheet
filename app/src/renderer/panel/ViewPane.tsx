@@ -10,6 +10,8 @@ import type { ViewId, ViewKind } from '../../main/navigation'
 import type { ReportNumbers } from '../../shared/protocol'
 import type { ViewMemory } from './memory'
 import { viewTitle } from './titles'
+import { FACTORS_START } from '../views/factors'
+import { Factors } from '../views/FactorsPane'
 import { ViewFrame, type PanelChrome, type ViewProps } from './ViewFrame'
 
 export interface ViewSpec {
@@ -20,7 +22,9 @@ export interface ViewSpec {
 }
 
 // Each view's pane. Every `table-<key>` view shares the one table pane.
-export const VIEW_PANES: Partial<Record<ViewKind | 'table', ViewSpec>> = {}
+export const VIEW_PANES: Partial<Record<ViewKind | 'table', ViewSpec>> = {
+  factors: { start: FACTORS_START, Pane: Factors }
+}
 
 const kindOf = (view: ViewId): ViewKind | 'table' => (view.startsWith('table-') ? 'table' : (view as ViewKind))
 
