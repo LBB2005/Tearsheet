@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 import sys
 import uuid
 from collections.abc import Callable
@@ -154,6 +155,34 @@ def history_failure_line(exc: BaseException) -> str:
     if status >= 500:
         return "Massive is having trouble right now. Try again later."
     return "Massive sent an unreadable answer. Try again later."
+
+
+def backfill_stop_reason(exc: BaseException) -> str:
+    """Why the background price download stopped, in plain words, for Settings and `prices
+    status`. It starts again the next time the app opens; the failure's own text goes to the
+    engine's log."""
+    from tearsheet.http import DailyLimitReached, HTTPFailure
+
+    if isinstance(exc, DailyLimitReached):
+        return "the day’s Massive allowance ran out"
+    if not isinstance(exc, HTTPFailure):
+        return "something went wrong (the engine’s log has the details)"
+    status = exc.status
+    if status is None:
+        return "no answer came from Massive"
+    if status == 401:
+        return "Massive turned down the key"
+    if status == 403:
+        return "the Massive plan doesn’t include these prices"
+    if status == 429:
+        return "Massive was limiting how often Tearsheet could ask"
+    if status >= 500:
+        return "Massive was having trouble"
+    return "Massive sent an unreadable answer"
+
+
+# The background price job's progress line, as _backfill writes it.
+_BACKFILL_PROGRESS = re.compile(r"^(\d+) of (\d+) sessions")
 
 
 class Server:
@@ -404,16 +433,17 @@ class Server:
         from tearsheet.data.prices import PriceStore, last_completed_session
 
         settings = config.Settings(self.db.conn)
+        # A new pass counts from its first session; an earlier pass's count or stop is gone.
+        settings.set_internal(market.STATUS_SETTING, "")
         try:
             await self._backfill_gate()  # grading usually runs first when the app opens
             end = last_completed_session(self.now())
 
             def progress(done: int, total: int, tally: market.Tally) -> None:
-                if done % 10 == 0 or done == total:
-                    settings.set_internal(
-                        "prices_backfill_status",
-                        f"{done} of {total} sessions, {tally.made} calls",
-                    )
+                # Every session, so Settings' count moves (a session is a call, 12 s apart).
+                settings.set_internal(
+                    market.STATUS_SETTING, f"{done} of {total} sessions, {tally.made} calls"
+                )
 
             async with self.http_factory(
                 f"backfill-{self.now():%Y%m%dT%H%M%SZ}", self.db.conn, self.rawstore
@@ -439,12 +469,64 @@ class Server:
         except asyncio.CancelledError:
             raise
         except market.SwitchedOff:
-            settings.set_internal("prices_backfill_status", "switched off")
+            settings.set_internal(market.STATUS_SETTING, "switched off")
             return None
         except Exception as exc:  # noqa: BLE001 - it tries again next time the app opens
             log.warning("price backfill stopped: %s", exc)
-            settings.set_internal("prices_backfill_status", f"stopped: {exc}")
+            settings.set_internal(market.STATUS_SETTING, f"stopped: {backfill_stop_reason(exc)}")
             return None
+
+    def _price_download(self, settings: config.Settings, *, have_key: bool) -> dict[str, Any]:
+        """How the one-time price download stands, for Settings (protocol.PriceDownload).
+        Cheap enough for every get_settings: the holdings, and market.ready's one GROUP BY."""
+        from tearsheet.data import market
+        from tearsheet.data.membership import stored_or_bundled
+        from tearsheet.data.prices import SPY_CIK, PriceStore, last_completed_session
+
+        conn = self.db.conn
+        wanted = market.wanted_members(stored_or_bundled(conn))
+        companies = {t: key for t, key in wanted.items() if key[0] != SPY_CIK}
+        # Counted up to the newest stored session (SPY gets every top-up), so prices a few
+        # sessions behind while the app catches up don't read as missing.
+        newest = conn.execute(
+            "SELECT MAX(date) FROM prices_daily WHERE cik = ? AND share_class = ''", (SPY_CIK,)
+        ).fetchone()[0]
+        end = last_completed_session(self.now())
+        if newest is not None:
+            end = min(end, datetime.fromisoformat(newest).date())
+        out: dict[str, Any] = {
+            "companies_ready": market.ready(PriceStore(conn), companies, end=end),
+            "companies": len(companies),
+        }
+        status = settings.get(market.STATUS_SETTING) or ""
+        running = self.backfill_job is not None and not self.backfill_job.done()
+        if market.backfill_done(settings, wanted):
+            return {**out, "state": "done"}
+        if market.switched_off(settings):
+            return {**out, "state": "off"}
+        if running:
+            counted = _BACKFILL_PROGRESS.match(status)
+            if counted:
+                out["days_done"], out["days_total"] = int(counted[1]), int(counted[2])
+            paused_for = (
+                "report"
+                if self._busy()
+                else "grading"
+                if self._grading()
+                else "history"
+                if self._downloading()
+                else "safety"
+                if self._safety_running()
+                else None
+            )
+            if paused_for:
+                return {**out, "state": "paused", "paused_for": paused_for}
+            return {**out, "state": "downloading"}
+        if not have_key:
+            return {**out, "state": "no_key"}
+        if status.startswith("stopped: "):
+            return {**out, "state": "stopped", "stopped_because": status.removeprefix("stopped: ")}
+        return {**out, "state": "waiting"}
 
     async def handle(self, line: str) -> None:
         try:
@@ -1145,6 +1227,7 @@ class Server:
             "setup_done": setup_done == "1",
             "fred_skipped": settings.get("fred_skipped") == "1",
             "services": SERVICES,
+            "price_download": self._price_download(settings, have_key=keys["massive"] == "set"),
             "lockdown": {
                 r["tool"]: {
                     "version": r["version"],

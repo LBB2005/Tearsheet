@@ -318,6 +318,9 @@ def wanted_members(holdings) -> dict[str, tuple[int, str]]:
 COMPLETED_SETTING = "prices_backfill_completed"
 # "off" stops the background backfill.
 SWITCH_SETTING = "prices_backfill"
+# How the app's backfill stands: "<done> of <total> sessions, <calls> calls" as it goes,
+# "switched off", or "stopped: <why, in plain words>" (server._backfill).
+STATUS_SETTING = "prices_backfill_status"
 
 
 class SwitchedOff(Exception):
@@ -328,11 +331,14 @@ def switched_off(settings) -> bool:
     return (settings.get(SWITCH_SETTING) or "").lower() == "off"
 
 
-def backfill_needed(settings, wanted: dict[str, tuple[int, str]]) -> bool:
-    if switched_off(settings):
-        return False
+def backfill_done(settings, wanted: dict[str, tuple[int, str]]) -> bool:
+    """The one-time fill has covered every wanted stock (whether or not it is switched off)."""
     done = json.loads(settings.get(COMPLETED_SETTING) or "{}")
-    return not set(wanted) <= set(done.get("tickers", []))
+    return set(wanted) <= set(done.get("tickers", []))
+
+
+def backfill_needed(settings, wanted: dict[str, tuple[int, str]]) -> bool:
+    return not switched_off(settings) and not backfill_done(settings, wanted)
 
 
 def record_backfill(settings, wanted: dict[str, tuple[int, str]], end: date) -> None:

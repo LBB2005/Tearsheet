@@ -7,20 +7,22 @@
 // motion nothing moves (styles.css).
 //
 // The rows are in settings/General.tsx (labels, pop-up menus, typed settings, the main AI tool),
-// settings/ChartChoice.tsx and settings/Keys.tsx; the AI tools, storage, privacy and advanced
-// pages are below. Keys are never shown: a pasted key goes to the engine, which saves it to the
-// Keychain, and the window lets go of it.
+// settings/ChartChoice.tsx and settings/Keys.tsx, with the price download line under the keys
+// (settings/prices.ts); the AI tools, storage, privacy and advanced pages are below. Keys are
+// never shown: a pasted key goes to the engine, which saves it to the Keychain, and the window
+// lets go of it.
 
 import '../settings/settings.css'
 
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactElement, type ReactNode } from 'react'
 
 import type { ToolStatus } from '../../preload/api'
-import type { LockdownState, SettingsResult } from '../../shared/protocol'
+import type { LockdownState, PriceDownload, SettingsResult } from '../../shared/protocol'
 import { ChartChoice } from '../settings/ChartChoice'
 import { FieldRow, Label, ToolChoice } from '../settings/General'
 import { KeysPanel } from '../settings/Keys'
 import { lockdownText } from '../settings/lockdown'
+import { PRICE_POLL_MS, priceLine } from '../settings/prices'
 import { healthTiles, maskEmail, storage, tildePath, toolPill, type HealthInput } from '../settings/settings'
 import { moveTopic, needsYou, problems, toolRole, TOPICS, type Problem, type Topic } from '../settings/topics'
 import { Changes, Spinner } from '../setup/parts'
@@ -77,6 +79,14 @@ export function Settings({ tools, onTools, safety, onSafetyStarted, onSettings, 
     seen.current = finished
   }, [finished, load])
 
+  // While the price download goes, Data keys reads the settings again so its count moves.
+  const pricesGoing = s ? priceLine(s.price_download).going : false
+  useEffect(() => {
+    if (topic !== 'keys' || !pricesGoing) return
+    const timer = window.setInterval(() => void load(), PRICE_POLL_MS)
+    return () => window.clearInterval(timer)
+  }, [topic, pricesGoing, load])
+
   if (!s) {
     return (
       <div className="setv">
@@ -108,6 +118,7 @@ export function Settings({ tools, onTools, safety, onSafetyStarted, onSettings, 
       <>
         <Head title="Data keys" lead="Kept in your Mac’s Keychain. Tearsheet never shows a key." />
         <KeysPanel keys={s.keys} rejected={s.rejected_keys} onSaved={load} />
+        <PriceRow p={s.price_download} />
       </>
     )
   else if (topic === 'storage') page = <StoragePage s={s} onSaved={load} />
@@ -386,6 +397,28 @@ function SafetyRow({ tool, stored, safety, anyChecking, onSafetyStarted }: { too
           {stored || mine ? 'Run again' : 'Run the check'}
         </button>
       )}
+    </div>
+  )
+}
+
+// ---------- Data keys ----------
+
+// The one-time price download, under the Massive key that starts it (settings/prices.ts). The
+// count changes in place; a new state fades up.
+function PriceRow({ p }: { p: PriceDownload }) {
+  const line = priceLine(p)
+  const tone = line.tone === 'ok' ? 'st ok' : line.tone === 'hold' ? 'st hold' : 'st'
+  return (
+    <div className="sgrp">
+      <div className="sline">
+        <div className="slab">
+          <b>Price download</b>
+          <Changes k={p.state} className={tone}>
+            {line.tone === 'run' && <Spinner />}
+            {line.text}
+          </Changes>
+        </div>
+      </div>
     </div>
   )
 }
