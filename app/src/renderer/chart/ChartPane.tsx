@@ -19,7 +19,7 @@ import type { CallResult } from '../../preload/api'
 import type { ChartSeries } from '../../shared/protocol'
 import { shortDate } from '../nav'
 import { money } from '../shell/Sidebar'
-import { covers, measure, needsHistory, niceTicks, RANGE_ORDER, rebase, slice, volumeText, yearsServed, type Range } from './series'
+import { covers, measure, namedFilings, needsHistory, niceTicks, RANGE_ORDER, rebase, slice, volumeText, yearsServed, type Range } from './series'
 
 import './chart.css'
 
@@ -122,6 +122,8 @@ const PAD_R = 14
 const AXIS_H = 22
 const VOL_H = 44
 const TOP = 18
+// Half the width of the fan's "Next 12 months" heading, at its 11 px.
+const FAN_HEAD_HALF = 40
 
 interface Geo {
   W: number
@@ -249,21 +251,27 @@ function drawChart(sl: ChartSeries, g: Geo, ticker: string): ReactElement {
           .join('')
       : ''
 
+  // The fan, when it is on, runs from fx0 to fx1, with its heading centred above.
+  const fx0 = x1 + 10
+  const fx1 = W - PAD_R - 42
+  const headStart = g.fan && sl.range ? (fx0 + fx1) / 2 - FAN_HEAD_HALF - 4 : Infinity
+
   // Each filing's line and dot; the 10-K and 10-Q forms are named above, thinned so the names
-  // never touch on the longer ranges.
-  let named = -Infinity
-  const filings = sl.filings.map((f, k) => {
+  // never touch on the longer ranges or run into the fan's heading.
+  const marks = sl.filings.map((f) => {
     const j = sl.dates.findIndex((d) => d >= f.date)
-    if (j < 0) return null
-    const major = f.form !== '8-K' && X(j) - named >= 36
-    if (major) named = X(j)
+    return { x: j < 0 ? null : X(j), form: f.form }
+  })
+  const shown = namedFilings(marks, headStart)
+  const filings = marks.map(({ x, form }, k) => {
+    if (x === null) return null
     return (
       <g key={`f${k}`}>
-        <line className="c-mkline" x1={X(j)} x2={X(j)} y1={TOP} y2={plotB} />
-        <circle className="c-mk" cx={X(j)} cy={plotB + 6} r={f.form === '8-K' ? 2.5 : 4} />
-        {major && (
-          <text className="c-mkl" x={X(j)} y={TOP - 5} textAnchor="middle">
-            {f.form}
+        <line className="c-mkline" x1={x} x2={x} y1={TOP} y2={plotB} />
+        <circle className="c-mk" cx={x} cy={plotB + 6} r={form === '8-K' ? 2.5 : 4} />
+        {shown[k] && (
+          <text className="c-mkl" x={x} y={TOP - 5} textAnchor="middle">
+            {form}
           </text>
         )}
       </g>
@@ -298,8 +306,6 @@ function drawChart(sl: ChartSeries, g: Geo, ticker: string): ReactElement {
   // The 12-month range, ahead of today, on its own time scale.
   let fan: ReactElement | null = null
   if (g.fan && sl.range) {
-    const fx0 = x1 + 10
-    const fx1 = W - PAD_R - 42
     const py = Y(end)
     const curve = (target: number) => {
       const out: string[] = []

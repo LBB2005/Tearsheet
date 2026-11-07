@@ -118,3 +118,18 @@ export function volumeText(v: number): string {
   }
   return Math.round(v).toLocaleString('en-US')
 }
+
+// A filing's form, named above its line, is about 28 px wide.
+const NAME_HALF = 14
+
+// Which filings have their form named above the chart: the 10-Ks and 10-Qs, thinned so the
+// names sit at least 36 px apart on the longer ranges, and none running into the fan's
+// "Next 12 months" heading, which starts at `stop`. A filing off the chart (x null) has none.
+export function namedFilings(marks: { x: number | null; form: string }[], stop = Infinity): boolean[] {
+  let last = -Infinity
+  return marks.map(({ x, form }) => {
+    if (x === null || form === '8-K' || x - last < 36 || x + NAME_HALF > stop) return false
+    last = x
+    return true
+  })
+}

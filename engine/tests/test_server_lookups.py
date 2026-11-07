@@ -5,7 +5,11 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from datetime import date
 
+import pytest
+
+from tearsheet import config
 from tearsheet.data.prices import PriceStore, fetch_history_bars
+from tearsheet.http import DailyLimitReached, HTTPFailure, InvalidResponse
 from tests.test_charts import DAYS, seed
 from tests.test_protocol import Harness, run
 
@@ -173,10 +177,14 @@ class FakeHttp:
         self.calls: list[tuple[str, dict | None]] = []
         # Kinds of call that fail once, as Massive being down mid-download would.
         self.fail: set[str] = set()
+        # A failure every call raises, as the real client would.
+        self.raises: Exception | None = None
 
     async def fetch(self, service, url, *, kind, expect="json", params=None):
         self.urls.append(url)
         self.calls.append((kind, params))
+        if self.raises is not None:
+            raise self.raises
         if kind in self.fail:
             self.fail.discard(kind)
             raise RuntimeError("Massive didn't answer.")
@@ -223,11 +231,13 @@ def test_fetch_history_bars_stores_rows(database):
     )
 
 
-def _history_harness(tmp_path, http):
+def _history_harness(tmp_path, http, *, key: str | None = "test-massive-key"):
     @asynccontextmanager
     async def http_factory(run_id, conn, rawstore):
         yield http
 
+    if key:
+        config.set_key("massive", key)
     h = Harness(tmp_path)
     h.server.http_factory = http_factory
     seed(h.server.db.conn)
@@ -280,6 +290,73 @@ def test_fetch_history_method_downloads_company_and_spy(tmp_path):
     http.calls.clear()
     run(h.call("fetch_history", {"report_id": "rep-1"}, id_=2))
     assert [k for k, _ in http.calls] == ["splits", "dividends", "dividends", "daily_bars"]
+    h.server.close()
+
+
+def test_fetch_history_without_a_massive_key_asks_for_one(tmp_path):
+    http = FakeHttp()
+    h = _history_harness(tmp_path, http, key=None)
+
+    reply = run(h.call("fetch_history", {"report_id": "rep-1"}))
+    assert reply["error"]["data"]["code"] == "ENGINE_ERROR"
+    assert reply["error"]["message"] == (
+        "It needs a Massive key. Add yours in Settings, then try again."
+    )
+    assert http.calls == []  # nothing was asked of Massive
+    h.server.close()
+
+
+BARS_URL = "https://api.massive.com/v2/aggs/ticker/ABC/range/1/day/2000-01-01/2026-11-06"
+
+
+@pytest.mark.parametrize(
+    ("failure", "line"),
+    [
+        (
+            HTTPFailure("massive", BARS_URL, "HTTP 401", 401),
+            "Massive turned down your key. Check it in Settings, then try again.",
+        ),
+        (
+            HTTPFailure("massive", BARS_URL, "HTTP 403", 403),
+            "This much history is beyond your Massive plan.",
+        ),
+        (
+            HTTPFailure("massive", BARS_URL, "HTTP 429 after 4 tries", 429),
+            "Massive is limiting how often Tearsheet can ask. Try again in a minute.",
+        ),
+        (
+            HTTPFailure("massive", BARS_URL, "HTTP 503 after 4 tries", 503),
+            "Massive is having trouble right now. Try again later.",
+        ),
+        (
+            HTTPFailure("massive", BARS_URL, "no response after 4 tries (ConnectError)"),
+            "No answer came from Massive. Check your internet connection, then try again.",
+        ),
+        (
+            DailyLimitReached("massive", "", "the free plan allows 5 calls a day"),
+            "The daily Massive allowance is used up. It resets at midnight US Eastern time.",
+        ),
+        (
+            InvalidResponse("massive", BARS_URL, "not JSON", 200),
+            "Massive sent an unreadable answer. Try again later.",
+        ),
+        (
+            HTTPFailure("massive", BARS_URL, "HTTP 404", 404),
+            "Massive sent an unreadable answer. Try again later.",
+        ),
+    ],
+)
+def test_a_failed_history_download_says_why_in_plain_words(tmp_path, caplog, failure, line):
+    http = FakeHttp()
+    http.raises = failure
+    h = _history_harness(tmp_path, http)
+
+    reply = run(h.call("fetch_history", {"report_id": "rep-1"}))
+    assert reply["error"]["data"]["code"] == "ENGINE_ERROR"
+    assert reply["error"]["message"] == line
+    # One line in the engine's log, with no traceback.
+    assert not [r for r in caplog.records if r.exc_info]
+    assert any("history" in r.getMessage() for r in caplog.records)
     h.server.close()
 
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { ChartSeries } from '../../shared/protocol'
-import { covers, measure, needsHistory, niceTicks, RANGES, rebase, slice, volumeText, yearsServed } from './series'
+import { covers, measure, namedFilings, needsHistory, niceTicks, RANGES, rebase, slice, volumeText, yearsServed } from './series'
 
 // Weekday closes from `start` to `end`, skipping New Year's Day as the market does.
 function series(start: string, end: string): ChartSeries {
@@ -125,5 +125,24 @@ describe('covers, yearsServed and volumeText', () => {
     expect(volumeText(182_345_000)).toBe('182 million')
     expect(volumeText(12_340_000)).toBe('12.3 million')
     expect(volumeText(845_000)).toBe('845,000')
+  })
+})
+
+describe('namedFilings', () => {
+  it('names the 10-Ks and 10-Qs, never an 8-K, at least 36 px apart', () => {
+    const marks = [
+      { x: 100, form: '10-Q' },
+      { x: 120, form: '10-K' },
+      { x: 140, form: '8-K' },
+      { x: 150, form: '10-K' },
+      { x: null, form: '10-K' }
+    ]
+    expect(namedFilings(marks)).toEqual([true, false, false, true, false])
+  })
+
+  it('keeps every name clear of the fan’s heading', () => {
+    // A name is about 28 px wide, centred on its line; the heading starts at `stop`.
+    expect(namedFilings([{ x: 300, form: '10-Q' }, { x: 380, form: '10-K' }], 390)).toEqual([true, false])
+    expect(namedFilings([{ x: 380, form: '10-K' }], 394)).toEqual([true])
   })
 })

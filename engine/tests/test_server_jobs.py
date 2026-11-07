@@ -6,6 +6,7 @@ from __future__ import annotations
 import asyncio
 import json
 
+from tearsheet import config
 from tearsheet.ai.client import AIUsageLimit
 from tests.test_pipeline import clean_ai
 from tests.test_protocol import Harness, run
@@ -169,6 +170,7 @@ def _history_harness(tmp_path):
     async def http_factory(run_id, conn, rawstore):
         yield http
 
+    config.set_key("massive", "test-massive-key")
     h = Harness(tmp_path)
     h.server.http_factory = http_factory
     seed(h.server.db.conn)

@@ -130,6 +130,27 @@ def error_code(exc: BaseException) -> tuple[str, dict[str, Any]]:
     return "ENGINE_ERROR", {}
 
 
+def history_failure_line(exc: BaseException) -> str:
+    """What the chart says when the full price history fails to download: why, in plain words,
+    and what to do. The failure's own text, with its address, goes to the engine's log."""
+    from tearsheet.http import DailyLimitReached, HTTPFailure
+
+    if isinstance(exc, DailyLimitReached):
+        return "The daily Massive allowance is used up. It resets at midnight US Eastern time."
+    status = exc.status if isinstance(exc, HTTPFailure) else None
+    if status is None:
+        return "No answer came from Massive. Check your internet connection, then try again."
+    if status == 401:
+        return "Massive turned down your key. Check it in Settings, then try again."
+    if status == 403:
+        return "This much history is beyond your Massive plan."
+    if status == 429:
+        return "Massive is limiting how often Tearsheet can ask. Try again in a minute."
+    if status >= 500:
+        return "Massive is having trouble right now. Try again later."
+    return "Massive sent an unreadable answer. Try again later."
+
+
 class Server:
     def __init__(
         self,
@@ -696,6 +717,10 @@ class Server:
         _, cik, ticker = self._report_target(p.report_id)
         if not ticker:
             raise EngineError("ENGINE_ERROR", "This report's company has no ticker to look up.")
+        if not config.get_key("massive"):
+            raise EngineError(
+                "ENGINE_ERROR", "It needs a Massive key. Add yours in Settings, then try again."
+            )
         job = asyncio.create_task(self._history(cik, ticker))
         self.history_jobs[cik] = job
 
@@ -720,7 +745,7 @@ class Server:
             history_stored,
             long_history_start,
         )
-        from tearsheet.http import EASTERN
+        from tearsheet.http import EASTERN, HTTPFailure
         from tearsheet.resolve import ticker_for
 
         me = asyncio.current_task()
@@ -728,16 +753,22 @@ class Server:
         if before:
             await asyncio.wait(before)
         store = PriceStore(self.db.conn)
-        async with self.http_factory(
-            f"history-{uuid.uuid4().hex[:8]}", self.db.conn, self.rawstore
-        ) as http:
-            massive = ticker_for("massive", ticker)
-            await fetch_history_actions(http, store, cik, "", massive)
-            today = datetime.now(EASTERN).date()
-            if not history_stored(store, SPY_CIK, long_history_start(today)):
-                await fetch_history_actions(http, store, SPY_CIK, "", "SPY")
-                await fetch_history_bars(http, store, SPY_CIK, "", "SPY")
-            await fetch_history_bars(http, store, cik, "", massive)
+        try:
+            async with self.http_factory(
+                f"history-{uuid.uuid4().hex[:8]}", self.db.conn, self.rawstore
+            ) as http:
+                massive = ticker_for("massive", ticker)
+                await fetch_history_actions(http, store, cik, "", massive)
+                today = datetime.now(EASTERN).date()
+                if not history_stored(store, SPY_CIK, long_history_start(today)):
+                    await fetch_history_actions(http, store, SPY_CIK, "", "SPY")
+                    await fetch_history_bars(http, store, SPY_CIK, "", "SPY")
+                await fetch_history_bars(http, store, cik, "", massive)
+        except HTTPFailure as exc:
+            # Massive refusing or not answering is expected now and then: one line in the log,
+            # and a plain sentence for the chart.
+            log.warning("the price history download for %s failed: %s", ticker, exc)
+            raise EngineError("ENGINE_ERROR", history_failure_line(exc)) from None
         first, days = self.db.conn.execute(
             "SELECT MIN(date), COUNT(*) FROM prices_daily WHERE cik = ? AND share_class = ''",
             (cik,),
