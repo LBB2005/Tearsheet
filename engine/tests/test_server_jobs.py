@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from datetime import date
 
 from tearsheet import config
 from tearsheet.ai.client import AIUsageLimit
@@ -301,4 +302,176 @@ def test_a_stopped_run_names_the_step_it_stopped_at(tmp_path):
     assert failed[0]["step"] == "extract"
     started = [p["step_name"] for p in h.notes("progress") if p["state"] == "started"]
     assert started[-1] == "save"  # the steps after the stop still ran
+    h.server.close()
+
+
+def _backfill_harness(tmp_path, monkeypatch, *, delay_s=0.0):
+    import tearsheet.data.market as market
+    import tearsheet.server as server_module
+
+    monkeypatch.setattr(server_module, "BACKFILL_POLL_S", 0.005)
+    config.set_key("massive", "test-key")
+    h = Harness(tmp_path, delay_s=delay_s)
+    h.server.backfill_enabled = True
+    h.server.keep_current_every_s = None  # one pass, not the open app's half-hourly checks
+    seen: list[str] = []
+
+    async def fake_backfill(http, rawstore, store, wanted, *, end, gate, progress, **_):
+        seen.append("busy" if h.server._others_running() else "free")
+        return market.BackfillResult(
+            sessions=1, calls=1, reused=0, ready=len(wanted), wanted=len(wanted)
+        )
+
+    monkeypatch.setattr(market, "backfill", fake_backfill)
+    return h, seen
+
+
+def test_the_backfill_waits_for_a_report_and_never_blocks_it(tmp_path, monkeypatch):
+    h, seen = _backfill_harness(tmp_path, monkeypatch, delay_s=0.02)
+
+    async def go():
+        await h.server.start()
+        reply = await h.call("run_report", {"query": "T0"})
+        await h.finish()
+        result = await asyncio.wait_for(h.server.backfill_job, 5)
+        return reply, result
+
+    reply, result = run(go())
+    assert reply["result"]["ticker"] == "T0"  # the report started at once
+    assert seen == ["free"]  # the backfill went only after it
+    assert result["ready"] == result["wanted"]
+    assert config.Settings(h.server.db.conn).get("prices_backfill_completed")
+    h.server.close()
+    # Once it has covered every member, the next start only keeps prices current.
+    again = Harness(tmp_path)
+    again.server.backfill_enabled = True
+    again.server.keep_current_every_s = None
+
+    async def restart():
+        await again.server.start()
+        return await asyncio.wait_for(again.server.backfill_job, 5)
+
+    assert run(restart()) is None and seen == ["free"]  # no second backfill
+    again.server.close()
+
+
+def test_the_backfill_stays_off_when_switched_off_or_with_no_key(tmp_path, monkeypatch):
+    h, seen = _backfill_harness(tmp_path, monkeypatch)
+    config.Settings(h.server.db.conn).set("prices_backfill", "off")
+    run(h.server.start())
+    assert h.server.backfill_job is None
+    h.server.close()
+    config.set_key("massive", "")
+    other = Harness(tmp_path / "other")
+    other.server.backfill_enabled = True
+    run(other.server.start())
+    assert other.server.backfill_job is None and seen == []
+    other.server.close()
+
+
+def test_saving_the_massive_key_starts_the_price_download_at_once(tmp_path, monkeypatch):
+    h, seen = _backfill_harness(tmp_path, monkeypatch)
+    config.set_key("massive", "")
+
+    async def go():
+        await h.server.start()
+        before = h.server.backfill_job
+        reply = await h.call("set_key", {"service": "massive", "key": "new-key"})
+        result = await asyncio.wait_for(h.server.backfill_job, 5)
+        return before, reply, result
+
+    before, reply, result = run(go())
+    assert before is None  # no key yet when the app opened
+    assert reply["result"] == {"ok": True}
+    assert seen == ["free"] and result["ready"] == result["wanted"]
+    h.server.close()
+
+
+def test_the_open_app_adds_newly_closed_sessions(tmp_path, monkeypatch):
+    import tearsheet.data.market as market
+    from tearsheet.data.membership import stored_or_bundled
+    from tearsheet.data.prices import PriceStore, last_completed_session, previous_session
+    from tests.test_pipeline import NOW
+
+    h, _ = _backfill_harness(tmp_path, monkeypatch)
+    conn = h.server.db.conn
+    wanted = market.wanted_members(stored_or_bundled(conn))
+    market.record_backfill(config.Settings(conn), wanted, date(2026, 11, 2))  # done earlier
+    end = last_completed_session(NOW)
+    behind = previous_session(end)
+    store = PriceStore(conn)
+    for cik in (320193, 789019):
+        store.store_bars(cik, "", {"results": [{"t": _ms(behind), "c": 1.0}]}, raw_hash="x")
+    asked = []
+
+    async def fake_top_up(http, rawstore, store, have, days, *, tally=None):
+        asked.append((sorted(have), days))
+        return {}
+
+    monkeypatch.setattr(market, "top_up", fake_top_up)
+
+    async def go():
+        await h.server.start()
+        await asyncio.wait_for(h.server.backfill_job, 5)
+
+    run(go())
+    assert asked == [(["AAPL", "MSFT"], [end])]
+    h.server.close()
+
+
+def _ms(day) -> int:
+    from datetime import datetime
+
+    from tearsheet.http import EASTERN
+
+    return int(datetime(day.year, day.month, day.day, tzinfo=EASTERN).timestamp() * 1000)
+
+
+def test_a_passed_key_check_starts_the_price_download(tmp_path, monkeypatch):
+    # Setup and Settings save the Massive key through check_key.
+    import tearsheet.setup_checks as checks
+
+    h, seen = _backfill_harness(tmp_path, monkeypatch)
+    config.set_key("massive", "")
+
+    async def passes(http, service, key):
+        return "ok"
+
+    monkeypatch.setattr(checks, "check_key", passes)
+
+    async def go():
+        await h.server.start()
+        before = h.server.backfill_job
+        reply = await h.call("check_key", {"service": "massive", "key": "new-key"})
+        result = await asyncio.wait_for(h.server.backfill_job, 5)
+        return before, reply, result
+
+    before, reply, result = run(go())
+    assert before is None and "result" in reply
+    assert seen == ["free"] and result["ready"] == result["wanted"]
+    h.server.close()
+
+
+def test_switching_the_backfill_off_stops_it_at_its_next_call(tmp_path, monkeypatch):
+    import tearsheet.data.market as market
+
+    h, _ = _backfill_harness(tmp_path, monkeypatch)
+    calls = []
+
+    async def stops(http, rawstore, store, wanted, *, end, gate, progress, **_):
+        calls.append("first")
+        await gate()
+        config.Settings(h.server.db.conn).set("prices_backfill", "off")  # from the terminal
+        await gate()
+        calls.append("never")
+
+    monkeypatch.setattr(market, "backfill", stops)
+
+    async def go():
+        await h.server.start()
+        return await asyncio.wait_for(h.server.backfill_job, 5)
+
+    assert run(go()) is None
+    assert calls == ["first"]
+    assert config.Settings(h.server.db.conn).get("prices_backfill_status") == "switched off"
     h.server.close()

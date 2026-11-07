@@ -145,6 +145,14 @@ MASSIVE_DAILY_BARS = "/v2/aggs/ticker/{ticker}/range/1/day/{start}/{end}"
 MASSIVE_DIVIDENDS = "/v3/reference/dividends"
 MASSIVE_SPLITS = "/v3/reference/splits"
 MASSIVE_DAILY_SUMMARY = "/v2/aggs/grouped/locale/us/market/stocks/{day}"
+# Massive's largest page for dividends and splits.
+MASSIVE_PAGE_LIMIT = 1000
+# Whole-market dividends a session, for planning: on 7 Nov 2026 the free key returned 3 pages
+# of 1,000 for 10-15 Aug 2026 with more to come (funds pay often), so about 500-600 a session.
+MARKET_DIVIDENDS_PER_DAY = 600
+# A whole-market summary smaller than this was asked for before Massive had built it (4-6 Nov
+# 2026 had 12,561-12,593 rows): it is neither used nor reused.
+MARKET_SUMMARY_MIN_ROWS = 5000
 
 
 # --- Settings ----------------------------------------------------------------
@@ -227,6 +235,11 @@ SETTINGS: dict[str, SettingSpec] = {
     ),
     "fred_skipped": SettingSpec(
         "1 if the FRED key step was skipped during setup, otherwise 0.", _choice("0", "1")
+    ),
+    "prices_backfill": SettingSpec(
+        "on (the default) or off: the app's one-time background download of 14 months of prices "
+        "for every S&P 500 company, which pauses while a report or grading runs.",
+        _choice("on", "off"),
     ),
     "goal1_round": SettingSpec(
         "The Goal 1 round new full reports count toward (default 1). Raise it to restart the test after a fix.",
