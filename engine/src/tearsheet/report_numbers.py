@@ -94,10 +94,19 @@ def _table_rows(report: dict, key: str) -> list[list[str]]:
 
 def _guard(parse: Any) -> Any:
     """Saved reports always open: an odd stored row, or a table an older database lacks,
-    leaves its key None."""
+    leaves its key None. A stored close of 0, which a return can't be divided by, counts as an
+    odd row."""
     try:
         return parse()
-    except (ValueError, TypeError, IndexError, KeyError, AttributeError, sqlite3.Error):
+    except (
+        ValueError,
+        TypeError,
+        IndexError,
+        KeyError,
+        AttributeError,
+        ArithmeticError,
+        sqlite3.Error,
+    ):
         return None
 
 

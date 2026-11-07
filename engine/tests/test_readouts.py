@@ -157,7 +157,10 @@ CASES = [
         r.economy("10-year Treasury yield", "4.9%", "4 Nov 2026"),
         "10-year Treasury yield: 4.9% on 4 Nov 2026, from FRED.",
     ),
-    (r.peer_rating("Buy", 8, 41), "Buy: 8 of 41 peers, rated before red-flag caps."),
+    (
+        r.peer_rating("Buy", 8, 41),
+        "Buy: 8 of 41 companies in the group, rated before red-flag caps.",
+    ),
     (r.claims("kept", 41, 53), "Kept: 41 of 53 claims passed every check."),
     (
         r.claims("removed", 12, 53),
@@ -170,6 +173,14 @@ CASES = [
         "Revenue rose 12%. Removed: number not in source; no citation.",
     ),
     (r.removed_item("Revenue rose 12%.", []), "Revenue rose 12%. Removed."),
+    # The checker's stored reasons often end with a full stop of their own.
+    (
+        r.removed_item(
+            "Costs are steady.",
+            ["unsupported: the paragraph says nothing of costs.", "no citation. "],
+        ),
+        "Costs are steady. Removed: unsupported: the paragraph says nothing of costs; no citation.",
+    ),
     (
         r.table_row(["Factor", "Percentile", "Weight used"], ["profitability", "93", "30.0%"]),
         "Profitability: percentile 93, weight used 30.0%.",

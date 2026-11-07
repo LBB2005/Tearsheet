@@ -211,7 +211,8 @@ def economy(label: str, value: str, day_text: str) -> str:
 
 
 def peer_rating(call: str, count: int, total: int) -> str:
-    return f"{call}: {count} of {total} peers, rated before red-flag caps."
+    # The total counts every rated member of the group, usually the company itself too.
+    return f"{call}: {count} of {total} companies in the group, rated before red-flag caps."
 
 
 def claims(kind: Literal["kept", "removed"], count: int, total: int) -> str:
@@ -228,7 +229,9 @@ def kept_item(title: str, count: int) -> str:
 def removed_item(text: str, reasons: list[str]) -> str:
     if not reasons:
         return f"{text} Removed."
-    return f"{text} Removed: {'; '.join(reasons)}."
+    # The checker's reasons often end with a full stop; the sentence supplies its own.
+    trimmed = [reason.rstrip().rstrip(".") for reason in reasons]
+    return f"{text} Removed: {'; '.join(trimmed)}."
 
 
 def table_row(header: list[str], row: list[str]) -> str:

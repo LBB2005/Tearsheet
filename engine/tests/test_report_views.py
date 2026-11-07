@@ -340,6 +340,19 @@ def test_red_flags_are_the_four_checks_then_any_other(database):
     assert v["red_flags_readout"] == readouts.red_flags(2, 5)
 
 
+def test_a_zero_close_leaves_the_returns_out_and_never_raises(database):
+    """A stored close of 0 can't be divided by: the returns are left out, and the rest stays."""
+    seed(database.conn)
+    with database.conn:
+        database.conn.execute(
+            "UPDATE prices_daily SET close_unadjusted = 0 WHERE cik = 2 AND date = ?",
+            ((STARTED - timedelta(days=10)).isoformat(),),
+        )
+    v = views(database.conn, without_returns_line())
+    assert v["returns"] is None
+    assert v["factors"] is not None and v["metrics"] is not None
+
+
 def test_an_old_report_gives_none_never_an_error(database):
     seed(database.conn)
     got = views_for(database.conn, {"sections": []}, "nope", 1, report_id="nope", ticker="NVDA")
