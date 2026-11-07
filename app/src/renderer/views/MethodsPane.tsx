@@ -5,6 +5,7 @@
 import { useEffect, useRef, useState, type ReactElement } from 'react'
 
 import type { MethodItem } from '../../shared/protocol'
+import { money } from '../report/bar'
 import { ViewFrame, type ViewProps } from '../panel/ViewFrame'
 import { viewTitle } from '../panel/titles'
 import { canShow, methodsScale, type MethodsState } from './methods'
@@ -101,7 +102,7 @@ export function Methods({ chrome, numbers, ticker, item, state, setState }: View
               {...hover({ kind: 'method', method: m.method })}
             >
               <span className="mname">{m.label}</span>
-              <span className="mval">{m.value.toFixed(2)}</span>
+              <span className="mval">{money.format(m.value)}</span>
               <span className="mtrack">
                 <i className="mdot" style={{ left: `${at(m.value, scale)}%` }} />
               </span>

@@ -46,11 +46,13 @@
 
 /* Value per share by method: a strip of marks on top (the range, today's price and the estimate,
    which carry the readouts), one row for each method below it, and the band and lines drawn over
-   the rows. The overlay lines up with the tracks, which sit 11px in (a row's padding and border). */
-.vplot { position: relative; padding: 4px 0 12px; }
-.vhead { position: relative; height: 22px; margin: 0 11px 4px; }
+   the rows. The overlay lines up with the tracks, which sit --vpad in from the rows' edges: keep it
+   equal to .mrow's horizontal padding plus its border (10px + 1px). The rows start at 30px: the
+   plot's 4px padding, the 22px strip and its 4px gap. */
+.vplot { --vpad: 11px; position: relative; padding: 4px 0 12px; }
+.vhead { position: relative; height: 22px; margin: 0 var(--vpad) 4px; }
 .vrows { display: flex; flex-direction: column; gap: 4px; }
-.vover { position: absolute; left: 11px; right: 11px; top: 26px; bottom: 12px; pointer-events: none; }
+.vover { position: absolute; left: var(--vpad); right: var(--vpad); top: 30px; bottom: 12px; pointer-events: none; }
 .vband { position: absolute; top: 0; bottom: 0; background: var(--accent2); opacity: .16; }
 .vline { position: absolute; top: 0; bottom: 0; width: 0; }
 .vline.price { border-left: 2px dashed var(--hold); }
