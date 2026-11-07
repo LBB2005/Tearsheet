@@ -283,7 +283,7 @@ The engine can also run from the terminal (`tearsheet-engine run GOOGL`) and wri
 *   **First report on a company:** about 30–45 calls.
 *   **Repeat report:** about 20–35 calls, because saved evidence skips filing extraction.
 *   **In parallel:** 5 calls at a time (3 until 7 Nov 2026: the same calls, finishing about a minute sooner per report).
-*   **Call budget:** 50 calls per run (drafter default). When a run would go over it, the engine cuts in this order: fewer articles (down to 5), then no section rewrites. The report says what was cut.
+*   **Call budget:** 60 calls per run (50 until 7 Nov 2026; the first 5 reports used 35 to 44, and the most a run can need is about 56). When a run would go over it, the engine cuts in this order: fewer articles (down to 5), then no section rewrites. The report says what was cut.
 
 **When something fails:**
 
@@ -1135,7 +1135,7 @@ Goal: test the five assumptions in the Technical Plan roadmap before building th
     *   **Keys:** reads and writes keys in the Keychain (`massive`, `fred`, `alphavantage`). Keys are never logged or sent to the window.
     *   **SEC contact string:** `Tearsheet/<version> <email>`, where the email is the `sec_contact_email` setting that each user enters once. No email is built in.
     *   **AI tools:** the program paths and PATH passed in by the app (`TEARSHEET_CLAUDE_BIN`, `TEARSHEET_CODEX_BIN`, `TEARSHEET_PATH`; item 37). In terminal mode, the programs are looked up on PATH. The `primary_tool` setting (item 8).
-    *   **Run limits:** the call budget (50), calls in parallel (5), the per-call time limit (5 minutes) and the model for each step: on Claude Code, Haiku for extraction and Sonnet for narration and the skeptic; Codex's models come from the Phase 0 results.
+    *   **Run limits:** the call budget (60), calls in parallel (5), the per-call time limit (5 minutes) and the model for each step: on Claude Code, Haiku for extraction and Sonnet for narration and the skeptic; Codex's models come from the Phase 0 results.
     *   **Other settings:** the raw-data cap (5 GB), `goal1_round` (item 36), and the values recorded in `docs/phase0-results.md` (item 12).
 
 #### 4. `engine/src/tearsheet/http.py` (Create)
@@ -1232,7 +1232,7 @@ Goal: test the five assumptions in the Technical Plan roadmap before building th
     *   **Interface:** `structured(task, instructions, sources, schema, allow_web_search=False) -> validated object`. `sources` is the list of paragraphs (ID and text) the call may cite.
     *   **Which AI tool:** chosen at the start of the run: the `--tool` flag or the `run_report` field, otherwise the `primary_tool` setting, otherwise Claude Code if it is connected, otherwise Codex. "Connected" means the program was found and passed the lock-down check for its current version. The tool is stored on the run, and Resume uses the same tool. There is no automatic switch when a tool hits its usage limit.
     *   **Run limits:** at most 5 calls at a time, and the time limit on each.
-    *   **Call budget:** every call sent counts against the run's 50, including retries and each part of a split section. The automatic lock-down check is logged but not counted. A call that would be the 51st raises `AIBudgetExhausted` instead of being sent (item 34).
+    *   **Call budget:** every call sent counts against the run's 60, including retries and each part of a split section. The automatic lock-down check is logged but not counted. A call that would be the 61st raises `AIBudgetExhausted` instead of being sent (item 34).
     *   **Retries:** a temporary error or a time-out is retried once after 30 seconds. An answer that doesn't match the schema is retried once, straight away. Usage-limit, sign-in and tool-use errors are never retried.
     *   **What every call records:** tool, program version, model ID, prompt version, token counts if reported, and duration.
     *   **Treated as failures:** any attempt at tool use (except web search on a call with `allow_web_search=True`), and output that doesn't match the schema after one retry.
@@ -1405,7 +1405,7 @@ Goal: test the five assumptions in the Technical Plan roadmap before building th
         *   edgartools reads only from stored documents and makes no requests of its own;
         *   the re-download rule: a second run on the same day makes no requests for company facts or stored filing documents.
     *   **`test_ai_client.py`,** with the fake connector:
-        *   the call budget, counting retries, and `AIBudgetExhausted` before a 51st call;
+        *   the call budget, counting retries, and `AIBudgetExhausted` before a 61st call;
         *   no more than 5 calls at a time, and the time limit;
         *   the schema retry, and no retry for usage-limit and sign-in errors;
         *   the lock-down gate: a changed version or a tool-use attempt holds new calls until the short check passes, and a failed check blocks the tool;
@@ -1801,7 +1801,7 @@ Phase 1 runs in three parts:
         | 13. Skeptic | 6 | 6 | one section's claims, paragraphs and evidence, and the rating | Larger |
         | 13. Rewrite and re-check | 0–12 | 0–12 | one section plus its removals | Larger |
 
-    *   **Call budget:** after the link search, the engine projects the run's calls: 1 + the uncached filing, press-release and peer sections (counting each part of a split section) + the articles to read + 12 (narration and the skeptic) + 4 (room for two rewrites). If the projection is over 50, it reads fewer articles, down to 5. If it is still over, the run allows no rewrites. The cuts are recorded. If a call would still be the 51st, `AIBudgetExhausted` stops the AI steps, and the report is saved as "narrative incomplete," listing what is missing.
+    *   **Call budget:** after the link search, the engine projects the run's calls: 1 + the uncached filing, press-release and peer sections (counting each part of a split section) + the articles to read + 12 (narration and the skeptic) + 12 (room for a rewrite and its re-check in every section; runs needed up to 5). If the projection is over 60, it reads fewer articles, down to 5. If it is still over, the run allows no rewrites. The cuts are recorded in the report and in `runs.cuts_json`. If a call would still be the 61st, `AIBudgetExhausted` stops the AI steps, and the report is saved as "narrative incomplete," listing what is missing.
     *   **Failures:** handled as in the §3 failure table.
         *   The official prediction is saved when step 8 finishes. If a later step fails, the report is marked "narrative incomplete."
         *   In a step with many calls, a call that still fails after its retry drops only its source or section, which the report lists. The step goes on.

@@ -39,7 +39,7 @@ from tearsheet.data import sec as sec_data
 from tearsheet.data.analyst import consensus
 from tearsheet.data.articles import Allowlist, Skipped
 from tearsheet.data.prices import SPY_CIK, PriceStore, last_completed_session
-from tearsheet.extract import Extracted, extract_section
+from tearsheet.extract import Extracted, extract_section, planned_calls
 from tearsheet.flags import insider_buying_note, red_flags
 from tearsheet.methodology import Methodology
 from tearsheet.metrics import Metric, compute_metrics, inputs_from, tax_rate
@@ -333,6 +333,8 @@ class Run:
         self.articles: list[tuple[Any, Any]] = []  # (Article, Link)
         self.article_urls: dict[str, str] = {}
         self.cuts: list[str] = []
+        # The call budget's last cut (Technical Plan §3): no section rewrites.
+        self.rewrites_cut = False
         self.trend_sources: list[tuple[str, str, str, tuple[SectionKey, ...]]] = []
         self.press_sources: list[tuple[str, str, str, tuple[SectionKey, ...]]] = []
         self.peer_docs: list[Doc] = []
@@ -440,7 +442,7 @@ class Run:
         model_ids = sorted({r.model_id for c in clients for r in c.calls if r.model_id})
         with self.conn:
             self.conn.execute(
-                "UPDATE runs SET status = ?, ended_at = ?, failed_step = ?, ai_calls = ?, model_ids_json = ?, request_counts_json = ?, cik = ? WHERE run_id = ?",
+                "UPDATE runs SET status = ?, ended_at = ?, failed_step = ?, ai_calls = ?, model_ids_json = ?, request_counts_json = ?, cuts_json = ?, cik = ? WHERE run_id = ?",
                 (
                     status,
                     _now().isoformat(),
@@ -448,6 +450,7 @@ class Run:
                     calls,
                     json.dumps(model_ids),
                     json.dumps(self.data.request_counts()),
+                    json.dumps(self.cuts) if self.cuts else None,
                     self.cik,
                     self.run_id,
                 ),
@@ -570,7 +573,7 @@ class Run:
             )
             step = "news"
             self._step(step)
-            news_paragraphs = await self.news(resolved)
+            news_paragraphs = await self.news(resolved, paragraphs)
             paragraphs.update(news_paragraphs)
             if self.press_sources:
                 self.empty_sections.discard(SectionKey.NEWS)
@@ -1475,11 +1478,7 @@ class Run:
         # order, so it reads the same whatever finished first.
         jobs = []
         uses: list[tuple[str, tuple[SectionKey, ...]]] = []
-        for role, key, label, feeds in [*self.sources, *self.trend_sources, *self.press_sources]:
-            paras = paragraphs.get((role, key))
-            doc = self.docs_by_role.get(role)
-            if not paras or doc is None:
-                continue
+        for role, key, label, feeds, doc, paras in self._filing_reads(paragraphs):
             jobs.append(
                 self._job(
                     label,
@@ -1529,6 +1528,26 @@ class Run:
                 evidence[feed] += items
         return evidence
 
+    def _filing_reads(self, paragraphs: dict[tuple[str, str], list[Paragraph]]):
+        """The filing sections step 10 reads, in order: (role, key, label, feeds, doc, paras)."""
+        for role, key, label, feeds in [*self.sources, *self.trend_sources, *self.press_sources]:
+            paras = paragraphs.get((role, key))
+            doc = self.docs_by_role.get(role)
+            if paras and doc is not None:
+                yield role, key, label, feeds, doc, paras
+
+    def _planned_reads(self, paragraphs: dict[tuple[str, str], list[Paragraph]]) -> int:
+        """The filing reads still to make: saved ones cost nothing, a split section one call
+        per part."""
+        if self.ai is None:
+            return 0
+        return sum(
+            planned_calls(
+                self.ai, self.conn, source_id=doc.accession, section=key, paragraphs=paras
+            )
+            for _, key, _, _, doc, paras in self._filing_reads(paragraphs)
+        )
+
     def _search_links(self, resolved: Resolved, allowlist: Allowlist):
         prompt = load_prompt("news_search")
         return search_links(
@@ -1570,7 +1589,9 @@ class Run:
         elif not task.cancelled():
             task.exception()  # read, so asyncio doesn't warn that nobody did
 
-    async def news(self, resolved: Resolved) -> dict[tuple[str, str], list[Paragraph]]:
+    async def news(
+        self, resolved: Resolved, paragraphs: dict[tuple[str, str], list[Paragraph]]
+    ) -> dict[tuple[str, str], list[Paragraph]]:
         """Step 9: the AI suggests links from allowlisted sites (web search only); code
         downloads and saves each page (Technical Plan §9)."""
         out: dict[tuple[str, str], list[Paragraph]] = {}
@@ -1590,14 +1611,21 @@ class Run:
         if found is None:
             self.empty_sections.add(SectionKey.NEWS)
             return out
-        # The call budget: fewer articles first, down to 5 (Technical Plan §3).
-        room = config.CALL_BUDGET - (1 + len(self.sources) + 2 * len(self.sections) + 4)
-        cap = min(ARTICLE_CAP, max(ARTICLE_FLOOR, room))
+        # The call budget (Technical Plan §3). The projection: this link search, every filing
+        # read still to make, the articles, and for every section its draft, its check and
+        # room for one rewrite with its re-check. Over the budget, fewer articles are read,
+        # down to 5; still over, no section is rewritten.
+        fixed = 1 + self._planned_reads(paragraphs) + 2 * len(self.sections)
+        rewrites = 2 * len(self.sections)
+        cap = min(ARTICLE_CAP, max(ARTICLE_FLOOR, config.CALL_BUDGET - fixed - rewrites))
         links = found.kept[:cap]
         if len(found.kept) > cap:
             self.cuts.append(
                 f"read {cap} of {len(found.kept)} articles to stay within the call budget"
             )
+        if fixed + len(links) + rewrites > config.CALL_BUDGET:
+            self.rewrites_cut = True
+            self.cuts.append("no section rewrites, to stay within the call budget")
         phrases = [re.compile(x, re.I) for x in self.method.instruction_phrases.get("patterns", [])]
         skipped: dict[str, int] = {}
         for link in links:
@@ -1874,7 +1902,11 @@ class Run:
             result = decide(claims, skeptic={}, rewrites_allowed=False)
             return result.kept, result.removed, result.direction_split
         marks = await self._skeptic(section, claims, by_id)
-        result = decide(claims, skeptic=marks, rewrites_allowed=self.ai_stopped is None)
+        result = decide(
+            claims,
+            skeptic=marks,
+            rewrites_allowed=self.ai_stopped is None and not self.rewrites_cut,
+        )
         if result.needs_rewrite:
             notes = [f"{c.text} (removed: {'; '.join(c.reasons)})" for c in result.removed]
             notes += [f"{c.text} (tone: {c.note})" for c in result.kept if c.note]

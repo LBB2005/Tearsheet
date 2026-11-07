@@ -76,19 +76,20 @@ async def ask(client, **kwargs):
 # --- the call budget -------------------------------------------------------------------------
 
 
-def test_budget_stops_the_51st_call_before_it_is_sent(database):
+def test_budget_stops_the_61st_call_before_it_is_sent(database):
     connector = FakeConnector(default=answer(GOOD))
     client = make_client(database, connector)
+    assert client.budget == config.CALL_BUDGET == 60
 
     async def go():
-        for _ in range(50):
+        for _ in range(60):
             await ask(client)
         with pytest.raises(AIBudgetExhausted):
             await ask(client)
 
     run(go())
-    assert len(connector.requests) == 50
-    assert client.sent == 50
+    assert len(connector.requests) == 60
+    assert client.sent == 60
 
 
 def test_retries_count_against_the_budget(database):

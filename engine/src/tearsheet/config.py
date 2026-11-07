@@ -102,7 +102,9 @@ def refused_keys(settings: Settings) -> list[str]:
 
 # --- Run limits (Technical Plan §3, item 8) ----------------------------------
 
-CALL_BUDGET = 50
+# 60 (was 50): the most a run can need is about 56 (14 filing sections, 2 more parts, 15
+# articles, and 4 calls per section with a rewrite in every one), and 5 runs used 35-44.
+CALL_BUDGET = 60
 # 5 at a time (was 3): the same calls, finishing about a minute sooner per report (7 Nov 2026).
 AI_CALLS_IN_PARALLEL = 5
 AI_CALL_TIME_LIMIT_S = 300

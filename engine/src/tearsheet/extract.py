@@ -122,6 +122,32 @@ def _check(
     return items, quotes, dropped
 
 
+def _usable(saved: dict | None) -> dict | None:
+    """A saved answer, unless most of its citations didn't exist (it is read again)."""
+    if saved is None:
+        return None
+    kept = len(saved["items"]) + len(saved["quotes"])
+    return None if mostly_unknown(kept, saved.get("dropped", {})) else saved
+
+
+def planned_calls(
+    ai: AIClient,
+    conn: sqlite3.Connection,
+    *,
+    source_id: str,
+    section: str,
+    paragraphs: list[Paragraph],
+) -> int:
+    """The calls `extract_section` will make for this source, for the call budget's
+    projection: none when a usable answer is saved, else one per part. A miscopied answer
+    asked for again isn't counted; the budget's room covers it, as it covers retries."""
+    prompt = load_prompt("extract")
+    key = cache_key(source_id, section, PARSER_VERSION, prompt.version, ai.model_for("extract"))
+    if _usable(_load(conn, key)) is not None:
+        return 0
+    return len(chunk_paragraphs(paragraphs, MAX_SECTION_CHARS))
+
+
 def _unknown_ids(answer: EvidenceList, by_id: dict[str, Paragraph]) -> list[str]:
     """The cited IDs that aren't in the source, in the answer's order, each once."""
     cited = [p for item in answer.items for p in item.paragraph_ids]
@@ -140,10 +166,8 @@ async def extract_section(
 ) -> Extracted:
     prompt = load_prompt("extract")
     key = cache_key(source_id, section, PARSER_VERSION, prompt.version, ai.model_for("extract"))
-    saved = _load(conn, key)
-    if saved is not None and not mostly_unknown(
-        len(saved["items"]) + len(saved["quotes"]), saved.get("dropped", {})
-    ):
+    saved = _usable(_load(conn, key))
+    if saved is not None:
         return Extracted(
             source_id,
             section,
