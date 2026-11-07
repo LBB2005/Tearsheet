@@ -93,6 +93,8 @@ OFF_LOOP = frozenset({"grade_due", "fetch_history", "check_key"})
 # How often the price backfill looks again while a report, grading, a history download or the
 # safety check is under way (it never makes them wait).
 BACKFILL_POLL_S = 2.0
+# How often the open app checks for a newly closed session to add to the stored prices.
+KEEP_CURRENT_EVERY_S = 1800.0
 
 
 class EngineError(Exception):
@@ -200,6 +202,8 @@ class Server:
         # injected data ask for it.
         self.backfill_enabled = data_factory is None if backfill is None else backfill
         self.backfill_job: asyncio.Task | None = None
+        # None makes the price job one pass (tests); the app checks every half hour.
+        self.keep_current_every_s: float | None = KEEP_CURRENT_EVERY_S
         mark_interrupted(self.db.conn)
 
     # --- the defaults: live data and the user's AI tool -----------------------------------------
@@ -314,22 +318,67 @@ class Server:
         )
         self._start_backfill()
 
-    # --- the price backfill -----------------------------------------------------------------
+    # --- the background price job ---------------------------------------------------------------
 
     def _start_backfill(self) -> None:
-        """Start the one-time price backfill when it is on, a Massive key is saved, and the
-        index has a company it hasn't covered yet."""
+        """Start the background price job once a Massive key is saved (when the app opens, or
+        the moment setup saves the key): the one-time backfill while the index has a company it
+        hasn't covered, then, while the app stays open, each newly closed session for every
+        stored company. `prices_backfill off` stops both."""
         from tearsheet.data import market
-        from tearsheet.data.membership import stored_or_bundled
 
-        if not self.backfill_enabled or self.backfill_job is not None:
+        if not self.backfill_enabled:
+            return
+        if self.backfill_job is not None and not self.backfill_job.done():
             return
         if not config.get_key("massive"):
             return
-        wanted = market.wanted_members(stored_or_bundled(self.db.conn))
-        if not market.backfill_needed(config.Settings(self.db.conn), wanted):
+        if (config.Settings(self.db.conn).get(market.SWITCH_SETTING) or "").lower() == "off":
             return
-        self.backfill_job = asyncio.create_task(self._backfill(wanted))
+        self.backfill_job = asyncio.create_task(self._prices_job())
+
+    async def _prices_job(self) -> dict[str, Any] | None:
+        from tearsheet.data import market
+        from tearsheet.data.membership import stored_or_bundled
+
+        result = None
+        while True:
+            settings = config.Settings(self.db.conn)
+            if (settings.get(market.SWITCH_SETTING) or "").lower() == "off":
+                return result
+            wanted = market.wanted_members(stored_or_bundled(self.db.conn))
+            if market.backfill_needed(settings, wanted):
+                result = await self._backfill(wanted)
+                if result is None:
+                    return None  # it stopped; it tries again next time the app opens
+            await self._keep_current(wanted)
+            if self.keep_current_every_s is None:
+                return result
+            await asyncio.sleep(self.keep_current_every_s)
+
+    async def _keep_current(self, wanted: dict[str, tuple[int, str]]) -> None:
+        """Add the sessions closed since the stored prices end, for every stored company, from
+        the all-stocks summary (about 3 calls a session). A check that finds nothing new makes
+        no call."""
+        from tearsheet.data import market
+        from tearsheet.data.prices import PriceStore, last_completed_session
+
+        store = PriceStore(self.db.conn)
+        have, days = market.catch_up(store, wanted, end=last_completed_session(self.now()))
+        if not days:
+            return
+        try:
+            await self._backfill_gate()
+            async with self.http_factory(
+                f"prices-{self.now():%Y%m%dT%H%M%SZ}", self.db.conn, self.rawstore
+            ) as http:
+                await market.top_up(
+                    http, self.rawstore, store, have, days, tally=market.Tally(self._backfill_gate)
+                )
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - the next check, or the next report, tries again
+            log.warning("price top-up stopped: %s", exc)
 
     def _others_running(self) -> bool:
         return self._busy() or self._grading() or self._downloading() or self._safety_running()
@@ -968,6 +1017,9 @@ class Server:
     async def m_set_key(self, p) -> dict[str, Any]:
         config.set_key(p.service, p.key)  # never echoed or logged
         config.forget_key_refusal(config.Settings(self.db.conn), p.service)
+        if p.service == "massive":
+            # A new install starts its price download the moment setup saves the key.
+            self._start_backfill()
         return {"ok": True}
 
     async def m_check_key(self, p) -> dict[str, Any]:

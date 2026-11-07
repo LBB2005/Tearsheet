@@ -231,6 +231,30 @@ async def top_up(
     return extender.through
 
 
+def catch_up(
+    store: PriceStore,
+    wanted: dict[str, tuple[int, str]],
+    *,
+    end: date,
+    max_sessions: int = 30,
+) -> tuple[dict[str, tuple[int, str]], list[date]]:
+    """The stored companies among `wanted`, and the sessions to add so they reach `end`: from
+    the earliest of their latest closes, or, when that is more than `max_sessions` behind (a
+    long-halted stock), from the most common one. No sessions when they are all current."""
+    from collections import Counter
+
+    latest = store.latest_dates()
+    have = {t: key for t, key in wanted.items() if key in latest}
+    behind = Counter(latest[key] for key in have.values() if latest[key] < end)
+    if not behind:
+        return have, []
+    for start in (min(behind), behind.most_common(1)[0][0]):
+        days = sessions_between(start + timedelta(days=1), end)
+        if days and len(days) <= max_sessions:
+            return have, days
+    return have, []
+
+
 def window_start(end: date, months: int = FIRST_FILL_MONTHS) -> date:
     """Where the window of history a peer needs begins (the per-stock first fill's start)."""
     return end - timedelta(days=round(months * 30.44))

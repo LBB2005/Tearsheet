@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from datetime import date
 
 from tearsheet import config
 from tearsheet.ai.client import AIUsageLimit
@@ -312,6 +313,7 @@ def _backfill_harness(tmp_path, monkeypatch, *, delay_s=0.0):
     config.set_key("massive", "test-key")
     h = Harness(tmp_path, delay_s=delay_s)
     h.server.backfill_enabled = True
+    h.server.keep_current_every_s = None  # one pass, not the open app's half-hourly checks
     seen: list[str] = []
 
     async def fake_backfill(http, rawstore, store, wanted, *, end, gate, progress, **_):
@@ -340,11 +342,16 @@ def test_the_backfill_waits_for_a_report_and_never_blocks_it(tmp_path, monkeypat
     assert result["ready"] == result["wanted"]
     assert config.Settings(h.server.db.conn).get("prices_backfill_completed")
     h.server.close()
-    # Once it has covered every member, the next start doesn't run it again.
+    # Once it has covered every member, the next start only keeps prices current.
     again = Harness(tmp_path)
     again.server.backfill_enabled = True
-    run(again.server.start())
-    assert again.server.backfill_job is None
+    again.server.keep_current_every_s = None
+
+    async def restart():
+        await again.server.start()
+        return await asyncio.wait_for(again.server.backfill_job, 5)
+
+    assert run(restart()) is None and seen == ["free"]  # no second backfill
     again.server.close()
 
 
@@ -360,3 +367,61 @@ def test_the_backfill_stays_off_when_switched_off_or_with_no_key(tmp_path, monke
     run(other.server.start())
     assert other.server.backfill_job is None and seen == []
     other.server.close()
+
+
+def test_saving_the_massive_key_starts_the_price_download_at_once(tmp_path, monkeypatch):
+    h, seen = _backfill_harness(tmp_path, monkeypatch)
+    config.set_key("massive", "")
+
+    async def go():
+        await h.server.start()
+        before = h.server.backfill_job
+        reply = await h.call("set_key", {"service": "massive", "key": "new-key"})
+        result = await asyncio.wait_for(h.server.backfill_job, 5)
+        return before, reply, result
+
+    before, reply, result = run(go())
+    assert before is None  # no key yet when the app opened
+    assert reply["result"] == {"ok": True}
+    assert seen == ["free"] and result["ready"] == result["wanted"]
+    h.server.close()
+
+
+def test_the_open_app_adds_newly_closed_sessions(tmp_path, monkeypatch):
+    import tearsheet.data.market as market
+    from tearsheet.data.membership import stored_or_bundled
+    from tearsheet.data.prices import PriceStore, last_completed_session, previous_session
+    from tests.test_pipeline import NOW
+
+    h, _ = _backfill_harness(tmp_path, monkeypatch)
+    conn = h.server.db.conn
+    wanted = market.wanted_members(stored_or_bundled(conn))
+    market.record_backfill(config.Settings(conn), wanted, date(2026, 11, 2))  # done earlier
+    end = last_completed_session(NOW)
+    behind = previous_session(end)
+    store = PriceStore(conn)
+    for cik in (320193, 789019):
+        store.store_bars(cik, "", {"results": [{"t": _ms(behind), "c": 1.0}]}, raw_hash="x")
+    asked = []
+
+    async def fake_top_up(http, rawstore, store, have, days, *, tally=None):
+        asked.append((sorted(have), days))
+        return {}
+
+    monkeypatch.setattr(market, "top_up", fake_top_up)
+
+    async def go():
+        await h.server.start()
+        await asyncio.wait_for(h.server.backfill_job, 5)
+
+    run(go())
+    assert asked == [(["AAPL", "MSFT"], [end])]
+    h.server.close()
+
+
+def _ms(day) -> int:
+    from datetime import datetime
+
+    from tearsheet.http import EASTERN
+
+    return int(datetime(day.year, day.month, day.day, tzinfo=EASTERN).timestamp() * 1000)

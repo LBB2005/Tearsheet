@@ -314,3 +314,23 @@ def test_backfill_is_needed_until_it_covers_every_member(database):
     assert market.backfill_needed(settings, {**wanted, "MSFT": (MSFT, "")})  # a new member
     settings.set("prices_backfill", "off")
     assert not market.backfill_needed(settings, {**wanted, "MSFT": (MSFT, "")})
+
+
+def test_catch_up_starts_from_the_earliest_latest_close(database):
+    store = PriceStore(database.conn)
+    store_closes(store, AAPL, [date(2026, 11, 4)])
+    store_closes(store, MSFT, [date(2026, 11, 3)])
+    wanted = {"AAPL": (AAPL, ""), "MSFT": (MSFT, ""), "NVDA": (NVDA, "")}
+    have, days = market.catch_up(store, wanted, end=date(2026, 11, 6))
+    assert sorted(have) == ["AAPL", "MSFT"]  # NVDA has nothing stored to extend
+    assert days == [date(2026, 11, 4), date(2026, 11, 5), date(2026, 11, 6)]
+    assert market.catch_up(store, wanted, end=date(2026, 11, 3))[1] == []  # all current
+
+
+def test_catch_up_ignores_a_long_halted_stock(database):
+    store = PriceStore(database.conn)
+    store_closes(store, AAPL, [date(2026, 11, 5)])
+    store_closes(store, MSFT, [date(2026, 11, 5)])
+    store_closes(store, NVDA, [date(2026, 6, 1)])
+    wanted = {"AAPL": (AAPL, ""), "MSFT": (MSFT, ""), "NVDA": (NVDA, "")}
+    assert market.catch_up(store, wanted, end=date(2026, 11, 6))[1] == [date(2026, 11, 6)]
