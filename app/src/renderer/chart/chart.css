@@ -23,7 +23,16 @@
 .cpane .cpin { flex: none; display: flex; flex-direction: column; gap: 10px; min-width: 0; height: 100%; padding: 14px 16px 12px; }
 @keyframes split-in { from { width: 0; } }
 @keyframes split-out { to { width: 0; } }
+/* The panel shows one view at a time (panel/ViewPane.tsx). A pane that mounts while the panel is
+   already open (.swap: another view was on show) doesn't slide in from the edge; its content
+   fades in where the pane already is. It still slides away as the panel closes, below. */
+.cpane.swap { animation: none; }
+.cpane.swap .cpin { animation: fade .15s ease-out backwards; }
 .closing .cpane, .closing .divider { animation: split-out .3s ease-in forwards; }
+/* The price chart while a view shows: out of the way, at its own size, and still mounted, so its
+   range, toggles and draw-in are kept for the switch back. Hidden, not display: none, which would
+   play its draw-in again when shown. */
+.cpane.away { position: absolute; top: 0; right: 0; bottom: 0; visibility: hidden; pointer-events: none; }
 
 /* While the divider is dragged: live, with no transitions, and a shield over the report frame so
    it never takes the pointer. Snapping into Half or Full settles. */
@@ -38,6 +47,7 @@
 
 /* A narrow window: the chart takes the whole window, sliding over from the right. */
 .narrow .cpane { animation-name: cp-in; animation-duration: .42s; }
+.narrow .cpane.swap { animation: none; }
 .narrow .closing .cpane { animation: cp-out .26s cubic-bezier(.5, 0, .8, .4) forwards; }
 @keyframes cp-in { from { transform: translateX(104%); } }
 @keyframes cp-out { to { transform: translateX(104%); } }
@@ -56,7 +66,7 @@
 .narrowp .cpbig { min-width: 150px; }
 .narrowp .cpctl { margin-left: 0; max-width: none; justify-content: flex-start; flex-basis: 100%; }
 .cpane .segc button { padding: 4px 10px; }
-/* The width buttons: Narrow, Half, Wide and Full. */
+/* The width buttons: Narrow, Half, Wide and Full (panel/PanelHead.tsx, shared by every view). */
 .cpane .cwid button { padding: 4px 8px; font-size: 12px; }
 .tg { all: unset; cursor: pointer; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); font-size: 12px; color: var(--muted); display: inline-flex; gap: 6px; align-items: center; transition: background .2s, color .2s, border-color .2s; }
 .tg i { width: 12px; height: 3px; border-radius: 2px; }

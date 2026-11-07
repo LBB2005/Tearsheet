@@ -2,14 +2,19 @@
 // share it (pages/Report.tsx draws it). It asks the engine for the report in the view and column
 // the window needs (view.ts), keeps the company's other reports for the subtitle's menu, holds
 // the flag sheet that a Flag link in the frame opens (tearsheet://flag/…, main/navigation.ts),
-// and holds the chart split: whether it is open, and where its divider sits (chart/split.ts).
+// and holds the chart split: whether it is open, and where its divider sits (chart/split.ts). The
+// split's panel shows one view at a time (panel/state.ts): the price chart, or a chart or table
+// that a link in the frame opened bigger (tearsheet://open/…).
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+import type { ViewId } from '../../main/navigation'
 import type { ReportResult, ReportSummary } from '../../shared/protocol'
 import type { Split } from '../chart/split'
 import { markReportSeen, reportEntrance, splitOutMs } from '../motion'
 import type { Notice } from '../overlays/Toast'
+import { ViewMemory } from '../panel/memory'
+import { asked as askedView, FIRST, opened, switched, type Panel } from '../panel/state'
 import { flagClaimId, otherReports, renderOptions, type Side, type View } from './view'
 
 // Enough to hold every report of one company; list_reports is newest first.
@@ -53,12 +58,24 @@ export interface ReportPage {
   // Where the chart sits while it is open; null until the report page places it at Half as it
   // opens. Nothing is kept once it closes.
   split: Split | null
+  // What the panel shows, and what each of its views remembers; both start afresh for each report.
+  panel: Panel
+  memory: ViewMemory
+  // Changes when the company's full price history has downloaded, so the views' numbers load
+  // again with the longer spans.
+  numbersVersion: number
   others: ReportSummary[]
   flag: FlagRequest | null
   // ⌘1 and ⌘2: reload the frame with that view, even if the frame's own switch moved away.
   show: (view: View) => void
   setSide: (side: Side) => void
   toggleChart: () => void
+  // A link in the frame: opens the panel on that view, or switches it there, without touching the
+  // report frames.
+  openView: (view: ViewId, item: string | null) => void
+  // The panel's own switch, between the price chart and the last view.
+  showView: (view: ViewId) => void
+  historyDownloaded: () => void
   // Moves the divider, or picks one of the chart's width buttons.
   setSplit: (split: Split) => void
   closeFlag: () => void
@@ -106,6 +123,18 @@ export function useReport({ reportId, wide, active, notify, refresh }: Options):
   const [split, setSplitState] = useState<Split | null>(null)
   const [list, setList] = useState<ReportSummary[]>([])
   const [flag, setFlag] = useState<FlagRequest | null>(null)
+  const [numbersVersion, setNumbersVersion] = useState(0)
+  // The panel and its views' memory belong to one report. Another report starts on the price
+  // chart with nothing remembered, reset here as it renders, so a view never draws for it with
+  // the last report's view or state.
+  const [held, setHeld] = useState(() => ({ reportId, panel: FIRST, memory: new ViewMemory() }))
+  let mine = held
+  if (held.reportId !== reportId) {
+    mine = { reportId, panel: FIRST, memory: new ViewMemory() }
+    setHeld(mine)
+  }
+  const panelNow = useRef(mine.panel)
+  panelNow.current = mine.panel
 
   const chartOpen = chart !== 'closed'
   const view: View = chosen.reportId === reportId ? chosen.view : 'summary'
@@ -191,6 +220,20 @@ export function useReport({ reportId, wide, active, notify, refresh }: Options):
   // The sheet belongs to the report it was opened on.
   useEffect(() => setFlag(null), [reportId, active])
 
+  // An open link in the frame, while the report page is showing a report.
+  const activeNow = useRef(active)
+  activeNow.current = active
+  const reportNow = useRef(reportId)
+  reportNow.current = reportId
+  const openViewNow = useRef<(view: ViewId, item: string | null) => void>(() => {})
+  useEffect(
+    () =>
+      window.tearsheet.onOpenView(({ view, item }) => {
+        if (activeNow.current && reportNow.current) openViewNow.current(view, item)
+      }),
+    []
+  )
+
   const show = useCallback(
     (next: View) => {
       setChosen({ reportId, view: next })
@@ -205,19 +248,49 @@ export function useReport({ reportId, wide, active, notify, refresh }: Options):
   chartNow.current = chart
   const closeTimer = useRef<number | undefined>(undefined)
   useEffect(() => () => window.clearTimeout(closeTimer.current), [])
+  const setPanel = useCallback((next: Panel) => {
+    panelNow.current = next
+    setHeld((h) => ({ ...h, panel: next }))
+  }, [])
+  // Opens the panel, or stops it sliding shut. From closed, the switch starts on Text and the
+  // panel is placed afresh (at Half, by the report page).
+  const openPanel = useCallback(() => {
+    window.clearTimeout(closeTimer.current)
+    if (chartNow.current === 'closed') {
+      setSide('text')
+      setSplitState(null)
+    }
+    setChart('open')
+  }, [])
+  // ⌘3 and the Chart button open the panel on the price chart (or stop it sliding shut), and
+  // close it whatever it shows.
   const toggleChart = useCallback(() => {
     window.clearTimeout(closeTimer.current)
     if (chartNow.current === 'open') {
       setChart('closing')
       closeTimer.current = window.setTimeout(() => setChart('closed'), splitOutMs())
     } else {
-      if (chartNow.current === 'closed') {
-        setSide('text')
-        setSplitState(null)
-      }
-      setChart('open')
+      if (chartNow.current === 'closed') setPanel(opened(panelNow.current))
+      openPanel()
     }
-  }, [])
+  }, [openPanel, setPanel])
+  // A link opens the panel as ⌘3 would, then on the view it names: a closed panel starts afresh,
+  // so the price chart that mounts in it counts only this opening's links for its range. A link
+  // while the panel slides shut opens it again. It never reloads the report: the text frame's
+  // load is left as it is.
+  const openView = useCallback(
+    (view: ViewId, item: string | null) => {
+      const from = chartNow.current === 'closed' ? opened(panelNow.current) : panelNow.current
+      const next = askedView(from, chartNow.current === 'open', view, item)
+      if (!next) return
+      setPanel(next)
+      if (chartNow.current !== 'open') openPanel()
+    },
+    [openPanel, setPanel]
+  )
+  openViewNow.current = openView
+  const showView = useCallback((view: ViewId) => setPanel(switched(panelNow.current, view)), [setPanel])
+  const historyDownloaded = useCallback(() => setNumbersVersion((n) => n + 1), [])
   const setSplit = useCallback((next: Split) => setSplitState(next), [])
   const closeFlag = useCallback(() => setFlag(null), [])
 
@@ -248,11 +321,17 @@ export function useReport({ reportId, wide, active, notify, refresh }: Options):
     chartOpen,
     chartClosing: chart === 'closing',
     split,
+    panel: mine.panel,
+    memory: mine.memory,
+    numbersVersion,
     others: report ? otherReports(list, report.cik, report.report_id) : [],
     flag,
     show,
     setSide,
     toggleChart,
+    openView,
+    showView,
+    historyDownloaded,
     setSplit,
     closeFlag,
     saveFlag

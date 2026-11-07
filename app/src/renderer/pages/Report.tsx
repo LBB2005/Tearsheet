@@ -5,14 +5,22 @@
 // open, and the Chart button (⌘3). The chart opens from the right as a split beside the report,
 // with a divider between them (chart/split.ts): the report keeps the rest of the width, and in
 // Full it is hidden until the divider is dragged back. A narrow window gives the chart the whole
-// window. The state lives in report/useReport.ts.
+// window. The panel shows one view at a time (panel/state.ts): the price chart, or a chart or table
+// a link in the report opened bigger, with the same switch, width buttons and close button. The
+// state lives in report/useReport.ts.
 
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from 'react'
 
+import type { ViewId } from '../../main/navigation'
 import type { ReportSummary } from '../../shared/protocol'
 import { ChartPane } from '../chart/ChartPane'
 import { Divider } from '../chart/Divider'
 import { DIV, presetSplit, snapWidth, splitWidth, TEXT_MIN, type Preset, type Snap } from '../chart/split'
+import { PanelSize, PanelSwitch } from '../panel/PanelHead'
+import { viewTitle } from '../panel/titles'
+import { useReportNumbers } from '../panel/useReportNumbers'
+import type { PanelChrome } from '../panel/ViewFrame'
+import { ViewPane } from '../panel/ViewPane'
 import { useTextFrames } from '../report/frames'
 import type { ReportPage } from '../report/useReport'
 import { oneColumn, reportChoice, shownSide } from '../report/view'
@@ -48,7 +56,7 @@ function useWidth(ref: RefObject<HTMLElement>): number {
 }
 
 export function Report({ page, wide }: { page: ReportPage; wide: boolean }) {
-  const { report, error, chartOpen, chartClosing } = page
+  const { report, error, chartOpen, chartClosing, panel } = page
   const box = useRef<HTMLDivElement>(null)
   // Everything right of the sidebar: the report page's own width.
   const avail = useWidth(box)
@@ -120,6 +128,26 @@ export function Report({ page, wide }: { page: ReportPage; wide: boolean }) {
   const text = report ? { key: page.textKey, html: report.html } : null
   const texts = useTextFrames(text, error !== null)
 
+  // The panel's views. The price chart mounts the first time it shows in an opening and stays
+  // mounted, hidden, while another view shows, so switching back keeps it as it was. A view's
+  // pane mounts as it shows. Either one mounting while the panel was already open fades in where
+  // the panel is, rather than sliding in.
+  const away = panel.view !== 'price'
+  const priceShown = useRef(false)
+  if (!chartOpen) priceShown.current = false
+  else if (!away) priceShown.current = true
+  const openBefore = useRef(false)
+  useEffect(() => {
+    openBefore.current = chartOpen
+  })
+  const views = useReportNumbers(reportId, away, page.numbersVersion)
+  const titleOf = (v: ViewId) => viewTitle(v, views.numbers?.tables ?? null)
+  const size = split ? at.mode : null
+  const chrome: PanelChrome = {
+    switcher: <PanelSwitch view={panel.view} last={panel.last} title={titleOf} onShow={page.showView} />,
+    size: <PanelSize wide={wide} size={size} onSize={onSize} onClose={page.toggleChart} />
+  }
+
   return (
     <div ref={box} className={cls}>
       <div className="rmain">
@@ -184,7 +212,7 @@ export function Report({ page, wide }: { page: ReportPage; wide: boolean }) {
         />
       )}
       {dragging && <div className="dragshield" />}
-      {chartOpen && reportId && (
+      {chartOpen && reportId && priceShown.current && (
         <ChartPane
           key={reportId}
           reportId={reportId}
@@ -193,9 +221,29 @@ export function Report({ page, wide }: { page: ReportPage; wide: boolean }) {
           name={named?.name ?? null}
           width={paneW}
           wide={wide}
-          size={split ? at.mode : null}
+          size={size}
           onClose={page.toggleChart}
           onSize={onSize}
+          switcher={chrome.switcher}
+          away={away}
+          swap={openBefore.current}
+          rangeAsk={panel.rangeAsk}
+          onHistory={page.historyDownloaded}
+        />
+      )}
+      {chartOpen && reportId && away && (
+        <ViewPane
+          key={`${reportId}:${panel.view}`}
+          view={panel.view}
+          item={panel.item}
+          numbers={views.numbers}
+          problem={views.problem}
+          retry={views.retry}
+          ticker={named?.ticker ?? 'This company'}
+          memory={page.memory}
+          chrome={chrome}
+          width={paneW}
+          swap={openBefore.current}
         />
       )}
     </div>

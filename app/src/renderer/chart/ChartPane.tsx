@@ -12,20 +12,23 @@
 // short, 5Y greys out and All shows what is there, with a note. The series comes from
 // get_chart. Motion: the line traces and the volume rises as the chart opens (chart.css); after
 // that, a range or toggle change glides the lines to their new shape (glide.ts), and a part that
-// comes or goes fades. Nothing moves under Reduce motion.
+// comes or goes fades. Nothing moves under Reduce motion. It is the panel's first view
+// (panel/state.ts): while another view shows, it stays mounted, hidden, and the panel's switch,
+// width buttons and close button are the ones every view shares (panel/PanelHead.tsx).
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactElement } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactElement, type ReactNode } from 'react'
 
 import type { CallResult } from '../../preload/api'
 import type { ChartSeries } from '../../shared/protocol'
 import { reduced } from '../motion'
 import { shortDate } from '../nav'
+import { PanelSize } from '../panel/PanelHead'
 import { money } from '../shell/Sidebar'
 import { covers, measure, namedFilings, needsHistory, niceTicks, RANGE_ORDER, rangeLabel, rebase, slice, volumeText, yearsServed, type Range } from './series'
 import { carryOn, GLIDE_MS, glideTrack, nextGlide, resample, trackXs, type GlideState, type Track } from './glide'
 import { SHARE_DEFAULT, shareFor, volumeHeight } from './height'
 import { setVolumeOn, setVolumeShare, startRange, volumeOn, volumeShare } from './prefs'
-import { PRESETS, type Preset, type SnapMode } from './split'
+import type { Preset, SnapMode } from './split'
 
 import './chart.css'
 
@@ -44,6 +47,18 @@ export interface ChartPaneProps {
   size: SnapMode | null
   onClose: () => void
   onSize: (p: Preset) => void
+  // The panel's switch to the last view opened from the report (panel/PanelHead.tsx).
+  switcher?: ReactNode
+  // Another view shows in the panel: the chart is hidden but stays mounted, so switching back
+  // keeps its range and toggles and never plays its draw-in again.
+  away?: boolean
+  // The panel was already open as the chart mounted (it was switched to from another view), so
+  // it fades in where the panel is rather than sliding in from the edge.
+  swap?: boolean
+  // Counts the report's links to the price chart, each of which asks for its 12-month range.
+  rangeAsk?: number
+  // The company's full history has downloaded, which gives the report's numbers longer spans.
+  onHistory?: () => void
 }
 
 interface Toggles {
@@ -104,16 +119,6 @@ const sgn = (v: number, digits = 1) => `${v >= 0 ? '+' : '−'}${Math.abs(v).toF
 const signedMoney = (v: number) => `${v >= 0 ? '+' : '−'}${money.format(Math.abs(v))}`
 const day = (iso: string) => `${MONTHS[Number(iso.slice(5, 7)) - 1]} ${Number(iso.slice(8, 10))}`
 const f1 = (v: number) => v.toFixed(1)
-
-const PRESET_WORDS: Record<Preset, string> = { narrow: 'Narrow', half: 'Half', wide: 'Wide', full: 'Full' }
-
-const ICON = {
-  close: (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M6 6l12 12M18 6L6 18" />
-    </svg>
-  )
-}
 
 // ---------- geometry ----------
 
@@ -519,8 +524,14 @@ function readout(sl: ChartSeries, range: Range, filled: boolean, hover: number |
 
 // ---------- the pane ----------
 
-export function ChartPane({ reportId, cik, ticker, name, width, wide, size, onClose, onSize }: ChartPaneProps) {
+export function ChartPane({ reportId, cik, ticker, name, width, wide, size, onClose, onSize, switcher, away = false, swap = false, onHistory }: ChartPaneProps) {
   const company = cik === null ? `report:${reportId}` : `cik:${cik}`
+  // As it was when the pane mounted: a class that came or went later would start, or cut short,
+  // the pane's own animation.
+  const [swapped] = useState(swap)
+  // The newest callback, for a download that lands after the props have changed.
+  const historyDone = useRef(onHistory)
+  historyDone.current = onHistory
   const [series, setSeries] = useState<ChartSeries | null>(null)
   // The series on show was read after the company's history download, so a history still
   // short is what the plan serves.
@@ -706,6 +717,8 @@ export function ChartPane({ reportId, cik, ticker, name, width, wide, size, onCl
     following.current = download
     void download.then(async (h) => {
       if (following.current === download) following.current = null
+      // Told even when the pane has closed meanwhile, so the report's numbers still catch up.
+      if (h.ok) historyDone.current?.()
       if (!live.current) return
       if (h.ok) await reread()
       else setHistoryLine(h.line)
@@ -874,8 +887,9 @@ export function ChartPane({ reportId, cik, ticker, name, width, wide, size, onCl
     )
 
   return (
-    <section className={width < 760 ? 'cpane narrowp' : 'cpane'} style={{ width }} aria-label="Price chart">
+    <section className={['cpane', width < 760 && 'narrowp', away && 'away', swapped && 'swap'].filter(Boolean).join(' ')} style={{ width }} aria-label="Price chart">
       <div className="cpin" style={{ width }}>
+        {switcher}
         <div className="cph">
           <div className="cpt">
             <b>{ticker ?? 'Price'}</b>
@@ -910,18 +924,7 @@ export function ChartPane({ reportId, cik, ticker, name, width, wide, size, onCl
             {toggle('peers', 'Peers', '#8FA2FF', noPeers, 'No peer prices are stored for this report.')}
             {toggle('spy', 'S&P 500', '#D8DCE6', noSpy, 'No S&P 500 prices are stored.')}
             {toggle('volume', 'Volume', 'rgba(127, 227, 247, .45)', false, '')}
-            {wide && (
-              <div className="segc cwid" role="group" aria-label="Chart width">
-                {PRESETS.map((p) => (
-                  <button key={p} className={size === p ? 'on' : ''} aria-pressed={size === p} onClick={() => onSize(p)}>
-                    {PRESET_WORDS[p]}
-                  </button>
-                ))}
-              </div>
-            )}
-            <button className="ibtn" aria-label="Close the chart" title="Close the chart (⌘3)" onClick={onClose}>
-              {ICON.close}
-            </button>
+            <PanelSize wide={wide} size={size} onSize={onSize} onClose={onClose} />
           </div>
         </div>
         {long && !loading && historyLine && <p className="cline">{historyLine}</p>}

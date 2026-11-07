@@ -1,0 +1,23 @@
+/* The panel's shared parts (panel/PanelHead.tsx) and the bigger views' pane (panel/ViewPane.tsx,
+   panel/ViewFrame.tsx). A view's pane is a .cpane like the price chart's, so its size, its motion
+   and its head come from chart/chart.css; only what a view adds is here. Under Reduce motion
+   nothing moves (styles.css). */
+
+/* The switch back to the price chart, the first line of the pane, above the head. */
+.pswitch { flex: none; align-self: flex-start; max-width: 100%; }
+/* A long table name ends in an ellipsis. Within the pane, so .segc's own reset doesn't undo it. */
+.cpane .pswitch button { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* A view's content keeps the pane's width while the pane slides in or out, as the price chart's
+   does (ViewPane sets --pane-w). */
+.vpane .cpin { width: var(--pane-w); }
+
+/* The readout line, where the price chart shows its price: what the item pointed at says. Two
+   lines are kept for it, so the head never moves as the pointer does. */
+.vread { flex: 1 1 210px; min-width: 210px; max-width: 460px; min-height: 2.9em; font-size: 13px; line-height: 1.45; color: var(--text);
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.narrowp .vread { min-width: 150px; }
+
+/* The view's body: what it draws, scrolling when it is taller than the pane. */
+.vbody { flex: 1; min-height: 0; position: relative; overflow: auto; }
+.vbody .skel { inset: 4px 0 12px; }
