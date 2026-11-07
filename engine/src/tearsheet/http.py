@@ -406,9 +406,15 @@ class HttpClient:
         # The keyed services whose stored key was refused, or worked, on this client's calls.
         self.keys_refused: set[str] = set()
         self.keys_worked: set[str] = set()
+        self._gates: dict[str, Callable[[], Awaitable[Any]]] = {}
 
     async def aclose(self) -> None:
         await self._client.aclose()
+
+    def wait_first(self, service: str, gate: Callable[[], Awaitable[Any]]) -> None:
+        """Await `gate` before each of this client's calls to `service`, ahead of the rate
+        limiter: the background price job waits there while a report runs."""
+        self._gates[service] = gate
 
     async def __aenter__(self) -> HttpClient:
         return self
@@ -435,6 +441,9 @@ class HttpClient:
         full_url = str(httpx.URL(url, params=params)) if params else url
         attempt = 0
         while True:
+            gate = self._gates.get(service)
+            if gate is not None:
+                await gate()
             if svc.limiter:
                 await svc.limiter.wait()
             if svc.daily:

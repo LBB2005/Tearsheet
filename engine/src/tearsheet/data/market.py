@@ -347,6 +347,69 @@ def record_backfill(settings, wanted: dict[str, tuple[int, str]], end: date) -> 
     )
 
 
+# --- companies the backfill can't start ---------------------------------------------------
+
+# The backfill starts a company only on the window's first session (so a stored history is
+# always the whole window), so one whose ticker began trading later (a spin-off or a renamed
+# company: 7 of the index on 7 Nov 2026) is left with no closes. A report with it as a peer
+# then fills it first, at Massive's 5 calls a minute: about a minute for Alphabet's run.
+# The open app fills them in the background instead, one by one, as a report would.
+FILLED_SETTING = "prices_filled_one_by_one"
+# More companies than this with no closes means the backfill hasn't covered the index (a new
+# data folder, or the backfill switched off); filling them one by one would take hours.
+MAX_ONE_BY_ONE = 25
+
+
+def without_prices(store: PriceStore, holdings) -> dict[int, str]:
+    """The index's companies with no stored close: CIK → the ticker a run would ask for."""
+    latest = store.latest_dates()
+    return {c.cik: c.tickers[0] for c in holdings.companies() if (c.cik, "") not in latest}
+
+
+def to_fill_one_by_one(settings, store: PriceStore, holdings, *, end: date) -> dict[int, str]:
+    """The companies to fill one by one now: those with no closes, less any already tried for
+    this session (Massive may have none for a ticker until it trades); none while there are
+    more than `MAX_ONE_BY_ONE`."""
+    missing = without_prices(store, holdings)
+    if len(missing) > MAX_ONE_BY_ONE:
+        return {}
+    tried = json.loads(settings.get(FILLED_SETTING) or "{}")
+    if tried.get("end") == end.isoformat():
+        missing = {c: t for c, t in missing.items() if t not in tried.get("tickers", [])}
+    return missing
+
+
+def record_one_by_one(settings, members: dict[int, str], *, end: date) -> None:
+    """Note the companies tried for this session (before trying, so a failure isn't retried
+    every half hour)."""
+    tried = json.loads(settings.get(FILLED_SETTING) or "{}")
+    before = tried.get("tickers", []) if tried.get("end") == end.isoformat() else []
+    settings.set_internal(
+        FILLED_SETTING,
+        json.dumps({"end": end.isoformat(), "tickers": sorted({*before, *members.values()})}),
+    )
+
+
+async def fill_one_by_one(
+    http: HttpClient,
+    rawstore,
+    conn,
+    store: PriceStore,
+    members: dict[int, str],
+    *,
+    end: date,
+    gate: Callable[[], Awaitable[bool]] | None = None,
+) -> None:
+    """Each company's first fill exactly as a report's would be (`LiveData.fill_prices`: the
+    window's splits, then each one's bars and dividends), with `gate` awaited before every
+    call."""
+    from tearsheet.sources import LiveData
+
+    if gate is not None:
+        http.wait_first("massive", gate)
+    await LiveData(http, rawstore, conn, fred_key=None).fill_prices(store, members, end=end)
+
+
 @dataclass
 class BackfillResult:
     sessions: int
