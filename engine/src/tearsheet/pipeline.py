@@ -541,6 +541,7 @@ class Run:
                 typical=typical_seconds(self.conn),
                 writer=self._tool_name(self.ai),
                 checker=self._tool_name(self.checker),
+                parallel=config.AI_CALLS_IN_PARALLEL,
             )
             step = "resolve"
             self._step(step)

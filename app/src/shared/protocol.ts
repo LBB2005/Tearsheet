@@ -162,6 +162,7 @@ export type Typical = {
 } | null;
 export type Writer = string | null;
 export type Checker = string | null;
+export type Parallel = number | null;
 export type Companies1 = number | null;
 export type Fetching = ("prices" | "facts" | "filings" | "peer filings" | "rates" | "insider trades") | null;
 export type Prices = boolean | null;
@@ -654,6 +655,7 @@ export interface Tally {
   typical?: Typical;
   writer?: Writer;
   checker?: Checker;
+  parallel?: Parallel;
   companies?: Companies1;
   fetching?: Fetching;
   prices?: Prices;

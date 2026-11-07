@@ -417,6 +417,8 @@ class Tally(Strict):
     # only one is connected: the writer then checks itself, in a fresh session).
     writer: str | None = None
     checker: str | None = None
+    # How many AI calls run at a time (config.AI_CALLS_IN_PARALLEL).
+    parallel: int | None = None
     # Step 2: the company and its peers, and what is downloading now.
     companies: int | None = None
     fetching: (

@@ -27,8 +27,8 @@ export const USUAL: Record<string, number> = {
   save: 0.5
 }
 
-// The engine runs AI calls 3 at a time (config.AI_CALLS_IN_PARALLEL).
-const PARALLEL = 3
+// How many AI calls the engine runs at a time: the tally says (config.AI_CALLS_IN_PARALLEL).
+export const parallelOf = (tally?: Tally | null) => (tally?.parallel && tally.parallel > 0 ? tally.parallel : 3)
 // A step that has run past its usual time still has a few seconds left, until it says it's done.
 const FLOOR = 3
 // A call under way counts as at most this much done, until it is.
@@ -79,7 +79,7 @@ export function pace(states: StepStates, times: StepTimes, tally: Tally | null |
   let remain: number
   const counted = calls(tally, step)
   if (counted) {
-    const item = (typ * PARALLEL) / counted.total
+    const item = (typ * parallelOf(tally)) / counted.total
     const partial = (tally?.now ?? []).reduce((sum, name) => {
       const since = seen[name]
       return sum + (since === undefined || item <= 0 ? 0 : Math.min(PART, Math.max(0, (now - since) / 1000) / item))

@@ -98,6 +98,14 @@ describe('pace', () => {
     expect(nearly.left).toBeGreaterThanOrEqual(3)
   })
 
+  it('counts a call’s usual time by how many run at a time', () => {
+    const { states, times } = upTo(REPORT_STEPS.indexOf('extract'), 112)
+    const before = REPORT_STEPS.slice(0, REPORT_STEPS.indexOf('extract')).reduce((s, k) => s + USUAL[k], 0)
+    // Five at a time: a call usually takes 120 × 5 / 20 = 30 s, so 15 s in is half done.
+    const five = pace(states, times, { reads_done: 0, reads_total: 20, now: ['a'], parallel: 5 }, sec(165), { a: sec(150) })
+    expect(five.progress).toBeCloseTo((before + USUAL.extract * (0.5 / 20)) / ALL)
+  })
+
   it('paces by the engine’s usual times when it has them', () => {
     const { states, times } = upTo(1, 0)
     const quick = pace(states, times, { typical: { fetch: 10 } }, sec(5))

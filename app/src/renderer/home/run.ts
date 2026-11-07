@@ -3,7 +3,7 @@
 // times, the calls under way, and the Done card. The live counts come from the engine's tally
 // (protocol Tally), the steps from its progress notes; the times are the app's own clock.
 
-import { about, calls, clock, noteStep, usualTimes, type StepTimes } from '../../shared/pace'
+import { about, calls, clock, noteStep, parallelOf, usualTimes, type StepTimes } from '../../shared/pace'
 import type { Tally } from '../../shared/protocol'
 import { REPORT_STEPS, stepsBehind, type StepStates } from '../../shared/steps'
 
@@ -210,7 +210,7 @@ export function liveRows(run: RunState, ready: boolean, now: number): LiveRow[] 
   if (step === 'news') return [{ name: 'Finding recent news', frac: null }]
   const counted = calls(t, step)
   if (!counted || !t?.now?.length) return []
-  const item = (usualTimes(t)[step] * 3) / counted.total
+  const item = (usualTimes(t)[step] * parallelOf(t)) / counted.total
   return t.now.map((name) => {
     const since = run.seen[name]
     return { name, frac: since === undefined || item <= 0 ? 0 : Math.min(0.9, Math.max(0, (now - since) / 1000) / item) }

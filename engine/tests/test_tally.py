@@ -38,6 +38,7 @@ def test_a_full_run_tallies_its_downloads_ai_calls_evidence_and_claims(database,
         Tally(**note)  # every note is a valid protocol message
     last = notes[-1]
     assert last["writer"] == "Fake tool" and last["checker"] is None
+    assert last["parallel"] == 3
     assert last["typical"] is None  # no finished run yet
     assert last["companies"] == last["facts"] >= 2
     assert last["prices"] is True and last["fetching"] is None
