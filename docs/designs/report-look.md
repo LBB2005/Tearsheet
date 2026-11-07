@@ -309,6 +309,15 @@ changes several points below:*
 *   *The report is never reloaded as the chart opens, closes or resizes.*
 *   *The line draws in once each time the chart opens, then glides between ranges.*
 
+*The interactive report (2026-11-07,
+[`docs/superpowers/specs/2026-11-07-interactive-report-design.md`](../superpowers/specs/2026-11-07-interactive-report-design.md))
+builds on it:*
+
+*   *The right-hand panel now shows one view at a time.*
+*   *A click on a chart, table, ring or tile in the report opens it there, bigger, with its own
+    switches.*
+*   *⌘3 still opens the price chart.*
+
 *   **Where it opens.** The Chart button (⌘3) opens the chart from the right as a **split**
     beside the report. A divider sits between them.
 *   **Dragging the divider:**
@@ -349,7 +358,8 @@ changes several points below:*
 
 ## Motion
 
-Motion is CSS-led, plays once, and is off when the Mac's Reduce motion setting is on.
+Motion is CSS-led, plays once, and is off when the Mac's Reduce motion setting is on. Readouts in
+the report appear with no motion.
 
 *   **Opening a report:**
     *   panels rise in turn;
@@ -376,7 +386,7 @@ All are menu shortcuts, so they work only while Tearsheet is in front.
 | ⌘K | Look up a company (on the home page, its own field) |
 | ⌘N | New report, which is the home page |
 | ⌘1 / ⌘2 | Summary / Full report |
-| ⌘3 | Open or close the chart |
+| ⌘3 | Open or close the panel (it opens on the price chart) |
 | ⌘[ / ⌘] | Previous / next company |
 | ⌃⌘S | Show or hide the sidebar |
 | ⌘F | Find in the report |
@@ -396,7 +406,8 @@ All are menu shortcuts, so they work only while Tearsheet is in front.
 *   **Text.** All AI and source text stays escaped plain text.
 *   **Security policies.** They do not change. Avenir Next ships with macOS, so no outside fonts
     are used.
-*   **App links.** Flag and re-read links stay `tearsheet:` links handled by `navigation.ts`.
+*   **App links.** Flag, re-read and open links stay `tearsheet:` links handled by
+    `navigation.ts`.
 *   **The window.** It stays sandboxed with no Node access. The menus reach the window through
     one new preload event.
 
