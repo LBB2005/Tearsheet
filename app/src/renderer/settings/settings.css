@@ -1,67 +1,101 @@
-/* Settings and connections (pages/Settings.tsx). Class names, colours and spacing follow
-   docs/designs/report-look-c-chart-split.html (settingsPage, chartSettings: .three, .two, .tool,
-   .field, .stor, .kv, .prefc). The shared panels, pills and tables are in styles.css (.panels);
-   the paste-and-check card is setup's KeyCard, styled here under .keyform. Everything is scoped
-   under .setv. Under Reduce motion nothing moves (styles.css). */
+/* Settings (pages/Settings.tsx) in the "Outline" look, round 2 of the settings mockups: a list of
+   six topics with the app sidebar's own line icons and no boxes, one short page per topic, Mac
+   pop-up menus and pill buttons. The shared pills, notices and spinner are styles.css's
+   (.panels, on each page); the paste-and-check card is setup's KeyCard, styled under .keyform.
+   Motion: each page settles in part by part (A. Settle), the picked topic's icon draws itself,
+   and the storage bar grows. Under Reduce motion nothing moves (styles.css). Everything is
+   scoped under .setv. */
 
-.setv .tiles4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
-.setv .tiles4 .tl { display: flex; align-items: flex-start; font-size: 14px; }
-.setv .tiles4 .tl .dot { margin-top: 7px; }
-.setv .two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; align-items: start; }
-.setv .stack { display: grid; gap: 14px; min-width: 0; }
-@container (max-width: 860px) { .setv .two { grid-template-columns: minmax(0, 1fr); } }
-@container (max-width: 640px) { .setv .tiles4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* The page fills the frame: the topic list stays put and the page beside it scrolls. */
+.pagebody[data-page="settings"] { padding: 0; overflow: hidden; }
+.enter > .setv { animation: none; }
+.setv { position: absolute; inset: 0; display: flex; }
 
-/* ---------- rows: a label, a value and an action ---------- */
-.setv .p > .field, .setv .keyrow > .field { display: grid; grid-template-columns: 170px minmax(0, 1fr) auto; gap: 12px; align-items: center; min-height: 46px; padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 13.5px; }
-.setv .p > .field > span:first-child, .setv .keyrow > .field > span:first-child { color: var(--muted); }
-.setv .field small { font-size: 11.5px; color: var(--muted); }
-.setv .p > .field .in { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border: 1px solid var(--line); border-radius: 9px; padding: 5px 10px; background: rgba(255, 255, 255, .035); color: var(--text); font-size: 13.5px; }
-.setv .p > .field .in em { font-style: normal; color: var(--muted); }
-.setv .p > .field input.in { width: 100%; outline: none; border-color: var(--chipline); box-shadow: 0 0 0 3px rgba(127, 227, 247, .12); font-family: inherit; }
-.setv .field > .pill, .setv .field > .segc { justify-self: start; }
-.setv .p > .field:last-child { border-bottom: 0; }
-.setv .act { all: unset; justify-self: end; cursor: pointer; color: var(--accent); font-size: 12.5px; padding: 2px 4px; border-radius: 6px; white-space: nowrap; }
-.setv .act:hover { text-decoration: underline; }
-.setv .act:focus-visible { outline: 2px solid var(--accent); }
-.setv .act:disabled { opacity: .45; cursor: default; text-decoration: none; }
-.setv .act.quiet { color: var(--muted); }
-.setv .acts { display: flex; gap: 12px; justify-self: end; }
-.setv .p > .fine { padding: 8px 0 2px; }
-.setv .p > .field + .fine.bad, .setv .p > .field + .fine.hold { padding: 6px 0 8px; border-bottom: 1px solid var(--line); }
+/* ---------- the topic list: flat, like the app sidebar ---------- */
+.setv .topics { width: 212px; flex: none; overflow-y: auto; padding: 18px 10px; border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 1px; }
+.setv .topic { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 10px; width: 100%; padding: 7px 10px; border-radius: 8px; color: #C3CDD8; font-size: 13.5px; white-space: nowrap; cursor: pointer; transition: background .15s, color .15s; }
+.setv .topic:hover { background: rgba(255, 255, 255, .045); color: var(--text); }
+.setv .topic.on { background: rgba(255, 255, 255, .085); color: var(--text); }
+.setv .topic:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.setv .topic svg { width: 16px; height: 16px; flex: none; fill: none; stroke: #8C99A8; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; transition: stroke .2s; }
+.setv .topic.on svg { stroke: var(--accent); }
+/* Every part of the icons has pathLength 1, so a dash of 1 is the whole line: it draws in. */
+.setv .topic.on svg * { stroke-dasharray: 1; animation: set-draw .8s var(--slide) both; }
+@keyframes set-draw { from { stroke-dashoffset: 1; } }
+.setv .topic .need { margin-left: auto; width: 7px; height: 7px; border-radius: 50%; background: var(--hold); flex: none; }
+.setv .topic .need.bad { background: var(--down); }
+.setv .vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
-/* The Chart section: one choice, then two lines that say what Full and the long ranges do. */
-.setv .prefc .field { grid-template-columns: 190px minmax(0, 1fr); }
-.setv .prefc .field > span:last-child { color: var(--muted); }
-.setv .prefc .field:last-child { border-bottom: 0; }
-.setv .prefc .segc button { padding: 4px 12px; }
+/* ---------- a topic's page: it settles in part by part, 70 ms apart ---------- */
+.setv .tpage { flex: 1; min-width: 0; overflow-y: auto; padding: 28px 40px 48px; }
+.setv .tpin.panels { display: block; max-width: 640px; }
+.setv .tpin > * { animation: settle-in .5s var(--settle) backwards; animation-delay: 60ms; }
+.setv .tpin > :nth-child(2) { animation-delay: 130ms; }
+.setv .tpin > :nth-child(3) { animation-delay: 200ms; }
+.setv .tpin > :nth-child(4) { animation-delay: 270ms; }
+.setv .tpin > :nth-child(n+5) { animation-delay: 340ms; }
+.setv .sh2 { margin: 0; font: 600 20px/1.3 var(--ui); }
+.setv .slead { margin: 3px 0 0; color: var(--muted); font-size: 13px; }
 
-.setv .tiles4 .p h4 { margin-bottom: 4px; }
+/* What needs you, on General: amber, or red when new reports can't be written or rated. */
+.setv .snote { margin-top: 18px; display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: var(--r); background: rgba(255, 197, 107, .06); border: 1px solid rgba(255, 197, 107, .28); }
+.setv .snote.bad { background: rgba(255, 127, 138, .07); border-color: rgba(255, 127, 138, .32); }
+.setv .snote + .snote { margin-top: 8px; }
 
-/* ---------- the AI tools ---------- */
-.setv .tool { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 12px; align-items: start; padding: 12px 0; border-bottom: 1px solid var(--line); }
-.setv .tool .ic { width: 40px; height: 40px; border-radius: 11px; display: grid; place-items: center; font: 700 14px var(--ui); background: rgba(255, 255, 255, .07); border: 1px solid var(--line); }
-.setv .tool .tw { min-width: 0; display: flex; flex-direction: column; gap: 7px; }
-.setv .tool b { font: 600 14.5px var(--ui); }
-.setv .tool dl { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 12px; row-gap: 2px; margin: 0; font-size: 12.5px; }
-.setv .tool dt { color: #67768A; }
-.setv .tool dd { margin: 0; color: #B5C2CF; overflow-wrap: anywhere; }
-.setv .tool dd.path { font: 12px var(--mono); color: var(--muted); }
-.setv .tool dd.bad { color: #FFB3BA; }
-.setv .tool .pill { margin-top: 2px; }
-.setv .tool .btn2 { padding: 5px 11px; font-size: 12.5px; }
-.setv .p > .tool + .fine { padding-top: 10px; }
+/* ---------- groups of rows: a label with one line of help, a value, an action ---------- */
+.setv .sgrp { margin-top: 16px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .05); }
+.setv .sline { display: flex; align-items: center; gap: 14px; min-height: 58px; padding: 11px 16px; border-top: 1px solid var(--line); }
+.setv .sgrp > .sline:first-child, .setv .keyrow > .sline { border-top: 0; }
+.setv .sline.col { flex-direction: column; align-items: stretch; gap: 8px; padding-top: 14px; padding-bottom: 14px; }
+.setv .slab { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.setv .slab b { font-weight: 500; font-size: 14px; }
+.setv .slab .help { font-size: 12.5px; color: var(--muted); }
+.setv .slab .help.hold, .setv .sline .help.hold { color: var(--hold); }
+.setv .sline > .help { font-size: 12.5px; color: var(--muted); }
+.setv .sval { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: #B5C2CF; }
+.setv .sval em { font-style: normal; color: var(--muted); }
+.setv .sline input.sin { width: 260px; padding: 5px 10px; border-radius: 8px; border: 1px solid var(--chipline); background: rgba(0, 0, 0, .25); color: var(--text); font: 13px var(--ui); outline: none; box-shadow: 0 0 0 3px rgba(127, 227, 247, .12); }
+.setv .sgrp > .sfine { margin: 0; padding: 0 16px 10px; }
+.setv .sline > .pill { flex: none; }
 
-/* ---------- the data keys ---------- */
-.setv .keyrow { border-bottom: 1px solid var(--line); }
-.setv .keyrow:last-child { border-bottom: 0; }
-.setv .keyrow > .field { border-bottom: 0; }
-.setv .keyform { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 0 0 12px; }
+/* ---------- Mac pop-up menus: the native select, with ⌃⌄ drawn over its end ---------- */
+.setv .popw { position: relative; flex: none; display: inline-flex; }
+.setv .pop { appearance: none; -webkit-appearance: none; min-width: 150px; padding: 4px 30px 4px 12px; border-radius: 7px; border: 1px solid rgba(255, 255, 255, .12); background: rgba(255, 255, 255, .07); box-shadow: 0 1px 0 rgba(0, 0, 0, .25); color: var(--text); font: 13px var(--ui); cursor: pointer; outline: none; transition: background .15s; }
+.setv .pop:hover { background: rgba(255, 255, 255, .1); }
+.setv .pop:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.setv .pop:disabled { opacity: .5; cursor: default; }
+.setv .pop option { background: #1C2230; color: var(--text); }
+.setv .popw svg { position: absolute; top: 50%; right: 9px; width: 12px; height: 12px; margin-top: -6px; fill: none; stroke: var(--muted); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+
+/* ---------- pill buttons ---------- */
+.setv .pb { all: unset; box-sizing: border-box; flex: none; padding: 4px 13px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, .14); color: #D5DEE7; font-size: 12.5px; white-space: nowrap; cursor: pointer; transition: background .15s, border-color .15s; }
+.setv .pb:hover { background: rgba(255, 255, 255, .07); border-color: rgba(255, 255, 255, .22); }
+.setv .pb.go { border-color: rgba(127, 227, 247, .4); color: var(--accent); }
+.setv .pb.go:hover { background: rgba(127, 227, 247, .08); }
+.setv .pb:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.setv .pb:disabled, .setv .pb:disabled:hover { opacity: .45; cursor: default; background: none; }
+.setv .acts { display: flex; gap: 8px; flex: none; }
+.setv .lkw { margin-top: 12px; }
+.setv .lk { all: unset; cursor: pointer; color: var(--accent); font-size: 12.5px; border-radius: 6px; }
+.setv .lk:hover { text-decoration: underline; }
+.setv .lk:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ---------- AI tools: the details behind Show details ---------- */
+.setv .sdl { display: grid; grid-template-columns: 130px minmax(0, 1fr); column-gap: 12px; row-gap: 3px; width: 100%; margin: 0; font-size: 12.5px; }
+.setv .sdl dt { color: var(--muted); }
+.setv .sdl dd { margin: 0; color: #C3CDD8; overflow-wrap: anywhere; }
+.setv .sdl dd.path { font: 12px var(--mono); color: var(--muted); }
+.setv .sdl dd.bad { color: #FFB3BA; }
+
+/* ---------- Data keys ---------- */
+.setv .keyrow { border-top: 1px solid var(--line); }
+.setv .keyrow:first-child { border-top: 0; }
+.setv .keyform { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 0 16px 14px; }
 .setv .link { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; color: var(--accent); font-size: 12.5px; border-radius: 6px; }
 .setv .link:hover { text-decoration: underline; }
 .setv .link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .setv .link svg { width: 12px; height: 12px; stroke: currentColor; fill: none; stroke-width: 2; }
-/* Setup's paste-and-check card, flatter inside the panel. It settles in at once when it opens. */
+/* Setup's paste-and-check card, flatter inside the group. It settles in at once when it opens. */
 .setv .keyform .card { width: 100%; display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-radius: 12px; background: rgba(0, 0, 0, .18); border: 1px solid var(--line); transition: border-color .35s; }
 .setv .keyform .card.mv { animation: settle-in .4s var(--settle) backwards; animation-delay: 0s; }
 .setv .keyform .card.done { border-color: rgba(99, 223, 165, .28); }
@@ -72,11 +106,9 @@
 .setv .keyform .card .st { min-height: 18px; }
 
 /* ---------- storage: the bar grows as the page settles ---------- */
-.setv .stor { position: relative; height: 10px; margin: 8px 0 6px; border-radius: 5px; background: var(--track); overflow: hidden; }
-.setv .stor i { position: absolute; inset: 0 auto 0 0; min-width: 3px; border-radius: 5px; background: var(--accent); transition: width .6s var(--slide); }
+.setv .sbarhead { display: flex; justify-content: space-between; gap: 12px; }
+.setv .sbarhead b { font-weight: 500; font-size: 14px; }
+.setv .stor { position: relative; height: 8px; border-radius: 4px; background: var(--track); overflow: hidden; }
+.setv .stor i { position: absolute; inset: 0 auto 0 0; min-width: 3px; border-radius: 4px; background: var(--accent); transition: width .6s var(--slide); animation: set-grow .9s var(--slide) .35s backwards; }
 .setv .stor.hold i { background: var(--hold); }
-.enter .setv .stor i { animation: set-grow .8s var(--slide) backwards; animation-delay: .45s; }
 @keyframes set-grow { from { width: 0; } }
-.setv .kv { display: flex; justify-content: space-between; gap: 10px; color: var(--muted); font-size: 12.5px; }
-.setv .kv b { font: 600 13px var(--ui); color: var(--text); }
-.setv .stor + .kv + .fine { padding-top: 6px; }

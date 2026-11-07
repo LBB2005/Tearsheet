@@ -1,27 +1,29 @@
-// Settings and connections (the spec's "Settings and connections" and "The chart → The Settings
-// choice"), in look C. In order: the Chart section ("When the chart opens"), four health tiles,
-// the AI tools with their lock-down status, the data keys (each with setup's paste-and-check
-// card), the raw downloads against their cap, the general settings, and "What leaves your Mac".
-// Ported from docs/designs/report-look-c-chart-split.html (settingsPage, chartSettings), in
-// A. Settle only. Replaces views/Settings.tsx and views/Connections.tsx. The data keys are in
-// settings/Keys.tsx and the general settings in settings/General.tsx.
+// Settings (the spec's "Settings and connections"), laid out like the Mac's own settings: a list
+// of six topics on the left (settings/topics.ts) and one short page for the topic picked. A topic
+// that needs you has a dot, and General opens with a note and a button for each problem; together
+// they replace the four health tiles. The look is "Outline" (round 2 of the settings mockups):
+// the app sidebar's own line icons with no box, Mac pop-up menus and pill buttons. Each page
+// settles in part by part (A. Settle), and the picked topic's icon draws itself. Under Reduce
+// motion nothing moves (styles.css).
 //
-// Keys are never shown: a pasted key goes to the engine, which saves it to the Keychain, and the
-// window lets go of it.
+// The rows are in settings/General.tsx (labels, pop-up menus, typed settings, the main AI tool),
+// settings/ChartChoice.tsx and settings/Keys.tsx; the AI tools, storage, privacy and advanced
+// pages are below. Keys are never shown: a pasted key goes to the engine, which saves it to the
+// Keychain, and the window lets go of it.
 
 import '../settings/settings.css'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactElement, type ReactNode } from 'react'
 
 import type { ToolStatus } from '../../preload/api'
 import type { LockdownState, SettingsResult } from '../../shared/protocol'
-import { chartOpens, setChartOpens } from '../chart/prefs'
-import type { ChartOpens } from '../chart/split'
-import { GeneralPanel } from '../settings/General'
+import { ChartChoice } from '../settings/ChartChoice'
+import { FieldRow, Label, ToolChoice } from '../settings/General'
 import { KeysPanel } from '../settings/Keys'
 import { lockdownText } from '../settings/lockdown'
-import { healthTiles, storage, tildePath, toolPill } from '../settings/settings'
-import { at, Changes, Spinner } from '../setup/parts'
+import { healthTiles, maskEmail, storage, tildePath, toolPill, type HealthInput } from '../settings/settings'
+import { moveTopic, needsYou, problems, toolRole, TOPICS, type Problem, type Topic } from '../settings/topics'
+import { Changes, Spinner } from '../setup/parts'
 import type { SafetyState, ToolKind } from '../setup/steps'
 
 export interface SettingsProps {
@@ -33,11 +35,14 @@ export interface SettingsProps {
   onSafetyStarted: (tool: ToolKind) => void
   // Each fresh read of the settings, so the shell follows the main AI tool and its stored check.
   onSettings: (settings: SettingsResult) => void
+  // The topic shown. App keeps it, so the toolbar names it and the home page can open Data keys.
+  topic: Topic
+  onTopic: (topic: Topic) => void
 }
 
 const unanswered = 'Tearsheet’s engine didn’t answer.'
 
-export function Settings({ tools, onTools, safety, onSafetyStarted, onSettings }: SettingsProps) {
+export function Settings({ tools, onTools, safety, onSafetyStarted, onSettings, topic, onTopic }: SettingsProps) {
   const [s, setS] = useState<SettingsResult | null>(null)
   const [failed, setFailed] = useState<string | null>(null)
   const told = useRef(onSettings)
@@ -74,126 +79,183 @@ export function Settings({ tools, onTools, safety, onSafetyStarted, onSettings }
 
   if (!s) {
     return (
-      <div className="setv panels">
-        {failed ? (
-          <p className="notice error mv" role="alert">
-            Settings didn’t load. {failed}
-          </p>
-        ) : (
-          <p className="loading">Loading settings…</p>
-        )}
+      <div className="setv">
+        <div className="tpage">
+          <div className="tpin panels">
+            {failed ? (
+              <p className="notice error" role="alert">
+                Settings didn’t load. {failed}
+              </p>
+            ) : (
+              <p className="loading">Loading settings…</p>
+            )}
+          </div>
+        </div>
       </div>
     )
   }
 
   const primary: ToolKind = s.primary_tool === 'codex' ? 'codex' : 'claude'
   const lockdown = s.lockdown ?? {}
-  const tiles = healthTiles({ tools, primary, lockdown, safety, keys: s.keys, rejected: s.rejected_keys, rawBytes: s.raw_bytes, rawCap: s.raw_cap })
+  const health: HealthInput = { tools, primary, lockdown, safety, keys: s.keys, rejected: s.rejected_keys, rawBytes: s.raw_bytes, rawCap: s.raw_cap }
+  const found = problems(health)
+
+  let page: ReactNode
+  if (topic === 'general') page = <GeneralPage s={s} primary={primary} found={found} onSaved={load} onTopic={onTopic} />
+  else if (topic === 'ai') page = <ToolsPage tools={tools} health={health} lockdown={lockdown} safety={safety} onTools={onTools} onReload={load} onSafetyStarted={onSafetyStarted} />
+  else if (topic === 'keys')
+    page = (
+      <>
+        <Head title="Data keys" lead="Kept in your Mac’s Keychain. Tearsheet never shows a key." />
+        <KeysPanel keys={s.keys} rejected={s.rejected_keys} onSaved={load} />
+      </>
+    )
+  else if (topic === 'storage') page = <StoragePage s={s} onSaved={load} />
+  else if (topic === 'privacy') page = <PrivacyPage services={s.services} />
+  else page = <AdvancedPage s={s} onSaved={load} />
 
   return (
-    <div className="setv panels">
-      <ChartSection i={0} />
-      <div className="tiles4 mv" style={at(1)}>
-        {tiles.map((t) => (
-          <section key={t.name} className="p glass">
-            <h4>
-              <span>{t.name}</span>
-            </h4>
-            <div className="tl">
-              <i className={`dot ${t.tone}`} />
-              {t.text}
-            </div>
-          </section>
-        ))}
-      </div>
-      <div className="two">
-        <ToolsPanel i={2} tools={tools} lockdown={lockdown} safety={safety} onTools={onTools} onReload={load} onSafetyStarted={onSafetyStarted} />
-        <div className="stack">
-          <KeysPanel i={3} keys={s.keys} rejected={s.rejected_keys} onSaved={load} />
-          <StoragePanel i={4} rawBytes={s.raw_bytes} rawCap={s.raw_cap} />
-        </div>
-      </div>
-      <div className="two">
-        <GeneralPanel i={5} s={s} primary={primary} onSaved={load} />
-        <section className="p glass mv" style={at(6)}>
-          <h4>
-            <span>What leaves your Mac</span>
-          </h4>
-          <table className="t small">
-            <thead>
-              <tr>
-                <th>Service</th>
-                <th>Key</th>
-                <th>Cost</th>
-                <th>What is sent</th>
-              </tr>
-            </thead>
-            <tbody>
-              {s.services.map((x) => (
-                <tr key={x.name}>
-                  <td>{x.name}</td>
-                  <td>{x.key}</td>
-                  <td>{x.cost}</td>
-                  <td>{x.sent}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
+    <div className="setv">
+      <TopicList topic={topic} dots={needsYou(found)} onTopic={onTopic} />
+      {/* A new topic is a new page: it settles in afresh and starts at the top. */}
+      <div className="tpage" key={topic}>
+        <div className="tpin panels">{page}</div>
       </div>
     </div>
   )
 }
 
-// ---------- the Chart section ----------
+// ---------- the topic list ----------
 
-const OPENS: [ChartOpens, string][] = [
-  ['full', 'Full'],
-  ['half', 'Half'],
-  ['last', 'Where I left it']
-]
-
-// "When the chart opens", kept in the window's own storage (chart/prefs.ts); the chart reads it
-// each time it opens.
-function ChartSection({ i }: { i: number }) {
-  const [opens, setOpens] = useState<ChartOpens>(() => chartOpens())
-  const pick = (value: ChartOpens) => {
-    setChartOpens(value)
-    setOpens(value)
-  }
-  return (
-    <section className="p glass prefc mv" style={at(i)}>
-      <h4>
-        <span>Chart</span>
-        <em>⌘3 opens and closes it</em>
-      </h4>
-      <div className="field">
-        <span id="set-opens">When the chart opens</span>
-        <div className="segc" role="group" aria-labelledby="set-opens">
-          {OPENS.map(([value, label]) => (
-            <button key={value} className={opens === value ? 'on' : undefined} aria-pressed={opens === value} onClick={() => pick(value)}>
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
-      <div className="field">
-        <span>Full size</span>
-        <span>Everything right of the sidebar. It never covers the sidebar.</span>
-      </div>
-      <div className="field">
-        <span>Longest ranges</span>
-        <span>5Y and All download a company’s full price history the first time you open them, in one call, and show whatever your price plan serves.</span>
-      </div>
-    </section>
+// The app sidebar's line icons (shell/Sidebar.tsx's ICONS, the prototype's ICON4), one per topic.
+// Each part has pathLength 1, so the picked one can draw itself in (settings.css, set-draw).
+const ICONS: Record<Topic, ReactElement> = {
+  general: (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="3" pathLength={1} />
+      <path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1" pathLength={1} />
+    </svg>
+  ),
+  ai: (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z" pathLength={1} />
+      <path d="M18 16l.8 2.2L21 19l-2.2.8L18 22l-.8-2.2L15 19l2.2-.8z" pathLength={1} />
+    </svg>
+  ),
+  keys: (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="8" cy="15" r="4" pathLength={1} />
+      <path d="M11 12l8-8M16 7l3 3M14 9l2 2" pathLength={1} />
+    </svg>
+  ),
+  storage: (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <ellipse cx="12" cy="6" rx="7" ry="2.5" pathLength={1} />
+      <path d="M5 6v12c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5V6M5 12c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5" pathLength={1} />
+    </svg>
+  ),
+  privacy: (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z" pathLength={1} />
+    </svg>
+  ),
+  advanced: (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4 7h10M18 7h2M4 17h4M12 17h8" pathLength={1} />
+      <circle cx="16" cy="7" r="2" pathLength={1} />
+      <circle cx="10" cy="17" r="2" pathLength={1} />
+    </svg>
   )
 }
 
-// ---------- the AI tools ----------
+// The six topics. Click one, or move with ↑ ↓ (and Home, End) while the list has the focus.
+function TopicList({ topic, dots, onTopic }: { topic: Topic; dots: Map<Topic, Problem['tone']>; onTopic: (topic: Topic) => void }) {
+  const buttons = useRef<Partial<Record<Topic, HTMLButtonElement | null>>>({})
+  const onKey = (e: KeyboardEvent<HTMLElement>) => {
+    const next = moveTopic(topic, e.key)
+    if (!next) return
+    e.preventDefault()
+    onTopic(next)
+    buttons.current[next]?.focus()
+  }
+  return (
+    <nav className="topics" aria-label="Settings topics" onKeyDown={onKey}>
+      {TOPICS.map(({ id, name }) => {
+        const dot = dots.get(id)
+        return (
+          <button
+            key={id}
+            ref={(el) => {
+              buttons.current[id] = el
+            }}
+            className={id === topic ? 'topic on' : 'topic'}
+            aria-current={id === topic ? 'page' : undefined}
+            onClick={() => onTopic(id)}
+          >
+            {ICONS[id]}
+            {name}
+            {dot && (
+              <>
+                <i className={`need ${dot}`} />
+                <span className="vh">, needs you</span>
+              </>
+            )}
+          </button>
+        )
+      })}
+    </nav>
+  )
+}
 
-interface ToolsPanelProps {
-  i: number
+// ---------- the parts of a page ----------
+
+function Head({ title, lead }: { title: string; lead: string }) {
+  return (
+    <>
+      <h2 className="sh2">{title}</h2>
+      <p className="slead">{lead}</p>
+    </>
+  )
+}
+
+// One problem on General: what needs you, why, and the button that opens its topic.
+function Note({ p, onOpen }: { p: Problem; onOpen: () => void }) {
+  return (
+    <div className={`snote ${p.tone}`} role="status">
+      <Label title={p.title} help={p.detail} />
+      <button className="pb go" onClick={onOpen}>
+        {p.action}
+      </button>
+    </div>
+  )
+}
+
+// ---------- General ----------
+
+function GeneralPage({ s, primary, found, onSaved, onTopic }: { s: SettingsResult; primary: ToolKind; found: Problem[]; onSaved: () => Promise<void>; onTopic: (topic: Topic) => void }) {
+  const email = s.sec_contact_email
+  return (
+    <>
+      <Head title="General" lead="The few choices most people set once." />
+      {found.map((p) => (
+        <Note key={p.title} p={p} onOpen={() => onTopic(p.topic)} />
+      ))}
+      <div className="sgrp">
+        <ToolChoice primary={primary} onSaved={onSaved} />
+        <ChartChoice />
+      </div>
+      <div className="sgrp">
+        <FieldRow k="sec_contact_email" label="SEC contact email" help="SEC asks every app that downloads its filings for one. Only SEC gets it." shown={email ? maskEmail(email) : null} initial={email ?? ''} onSaved={onSaved} />
+      </div>
+    </>
+  )
+}
+
+// ---------- AI tools ----------
+
+interface ToolsPageProps {
   tools: ToolStatus[]
+  health: HealthInput
   lockdown: Record<string, LockdownState>
   safety: SafetyState | null
   onTools: (tools: ToolStatus[]) => void
@@ -201,8 +263,9 @@ interface ToolsPanelProps {
   onSafetyStarted: (tool: ToolKind) => void
 }
 
-function ToolsPanel({ i, tools, lockdown, safety, onTools, onReload, onSafetyStarted }: ToolsPanelProps) {
+function ToolsPage({ tools, health, lockdown, safety, onTools, onReload, onSafetyStarted }: ToolsPageProps) {
   const [looking, setLooking] = useState(false)
+  const [details, setDetails] = useState(false)
   // Check again: look for the tools afresh, skipping the probe's 30-second memory.
   const lookAgain = () => {
     if (looking) return
@@ -210,39 +273,79 @@ function ToolsPanel({ i, tools, lockdown, safety, onTools, onReload, onSafetySta
     const done = () => setLooking(false)
     Promise.all([window.tearsheet.getTools(true).then(onTools), onReload()]).then(done, done)
   }
+  const skeptic = healthTiles(health)[3]
   const checking = safety !== null && !safety.done
   return (
-    <section className="p glass mv" style={at(i)}>
-      <h4>
-        <span>AI tools</span>
-        <button className="act" disabled={looking} onClick={lookAgain}>
-          {looking ? 'Checking…' : 'Check again'}
+    <>
+      <Head title="AI tools" lead="Tearsheet uses your own AI tool, signed in to your own plan. It runs with no tools of its own." />
+      <div className="sgrp">
+        {tools.length === 0 && (
+          <div className="sline">
+            <span className="fine">
+              <Spinner />
+              Looking for your AI tools…
+            </span>
+          </div>
+        )}
+        {tools.map((t) => {
+          const pill = toolPill(t, lockdown[t.kind], safety)
+          return (
+            <div key={t.kind} className="sline">
+              <Label title={t.name} help={toolRole(t, health.primary, skeptic)} />
+              <span className={`pill ${pill.tone}`}>{pill.text}</span>
+            </div>
+          )
+        })}
+      </div>
+      <div className="sgrp">
+        {tools
+          .filter((t) => t.available)
+          .map((t) => (
+            <SafetyRow key={t.kind} tool={t} stored={lockdown[t.kind]} safety={safety} anyChecking={checking} onSafetyStarted={onSafetyStarted} />
+          ))}
+        <div className="sline">
+          <Label title="Look for AI tools again" help="Use this after you install one or sign in." />
+          <button className="pb" disabled={looking} onClick={lookAgain}>
+            {looking ? 'Checking…' : 'Check again'}
+          </button>
+        </div>
+      </div>
+      <div className="lkw">
+        <button className="lk" aria-expanded={details} onClick={() => setDetails((d) => !d)}>
+          {details ? 'Hide details' : 'Show details'}
         </button>
-      </h4>
-      <p className="fine">Tearsheet uses your own AI tool, signed in to your subscription. It runs with no tools of its own.</p>
-      {tools.length === 0 && (
-        <p className="fine">
-          <Spinner />
-          Looking for your AI tools…
-        </p>
+      </div>
+      {details && (
+        <div className="sgrp">
+          {tools.map((t) => (
+            <div key={t.kind} className="sline">
+              <dl className="sdl">
+                <dt>{t.name}</dt>
+                <dd className={t.available ? 'path' : 'bad'}>{t.available ? tildePath(t.path ?? '') : t.reason}</dd>
+                <dt>Version</dt>
+                <dd>{t.version ?? '—'}</dd>
+                <dt>Signed in</dt>
+                <dd>{t.loggedIn === null ? 'unknown' : t.loggedIn ? 'yes' : 'no'}</dd>
+                <dt>Lock-down check</dt>
+                <dd>{t.available ? lockdownText(t, lockdown[t.kind]) : '—'}</dd>
+              </dl>
+            </div>
+          ))}
+        </div>
       )}
-      {tools.map((t) => (
-        <ToolRow key={t.kind} tool={t} stored={lockdown[t.kind]} safety={safety} anyChecking={checking} onSafetyStarted={onSafetyStarted} />
-      ))}
-      <p className="fine">When both tools pass, the other tool checks each report’s draft.</p>
-    </section>
+    </>
   )
 }
 
-function ToolRow({ tool, stored, safety, anyChecking, onSafetyStarted }: { tool: ToolStatus; stored: LockdownState | undefined; safety: SafetyState | null; anyChecking: boolean; onSafetyStarted: (tool: ToolKind) => void }) {
+// One tool's safety check: how it stands, and the button that runs it again, as setup's chip and
+// the home page's red box do. A report running, or past predictions being graded, gets the
+// engine's own sentence as a plain line.
+function SafetyRow({ tool, stored, safety, anyChecking, onSafetyStarted }: { tool: ToolStatus; stored: LockdownState | undefined; safety: SafetyState | null; anyChecking: boolean; onSafetyStarted: (tool: ToolKind) => void }) {
   const [starting, setStarting] = useState(false)
   const [why, setWhy] = useState<string | null>(null)
-  const pill = toolPill(tool, stored, safety)
   const mine = safety && safety.tool === tool.kind ? safety : null
   const running = mine && !mine.done ? mine : null
 
-  // Run the check again, as setup's chip and the home page's red box do. A report running, or
-  // past predictions being graded, gets the engine's own sentence as a plain line.
   const recheck = async () => {
     if (starting) return
     setStarting(true)
@@ -253,76 +356,113 @@ function ToolRow({ tool, stored, safety, anyChecking, onSafetyStarted }: { tool:
     else setWhy(reply?.error?.message || 'The safety check didn’t start.')
   }
 
-  let line = null
+  let line: ReactNode = lockdownText(tool, stored)
   if (running) {
     line = (
       <>
         <Spinner />
-        Safety check, {running.n} of {running.total}
+        Checking, {running.n} of {running.total}
       </>
     )
   } else if (why) line = why
   else if (mine?.done && mine.stopped) line = mine.reason ?? 'The check stopped before it finished.'
   else if (mine?.done && !mine.passed) line = mine.reason ?? 'The check did not pass.'
-  else if (mine?.done && mine.passed) line = 'Safety check passed.'
+  else if (mine?.done && mine.passed) line = 'Passed just now.'
   // Why a check didn't start is the newest news, so it shows over the last check's result. A
   // check stopped part way is muted: it gave no verdict.
   const tone = running || why || mine?.stopped ? 'st' : mine?.done && !mine.passed ? 'st bad' : mine?.done && mine.passed ? 'st ok' : 'st'
-  const canCheck = tool.available && tool.loggedIn !== false && !running
+  const canCheck = tool.loggedIn !== false && !running
 
   return (
-    <div className="tool">
-      <span className="ic" aria-hidden="true">
-        {tool.kind === 'claude' ? 'C' : 'X'}
-      </span>
-      <div className="tw">
-        <b>{tool.name}</b>
-        <dl>
-          <dt>Found</dt>
-          <dd className={tool.available ? 'path' : 'bad'}>{tool.available ? tildePath(tool.path ?? '') : tool.reason}</dd>
-          <dt>Version</dt>
-          <dd>{tool.version ?? '—'}</dd>
-          <dt>Signed in</dt>
-          <dd>{tool.loggedIn === null ? 'unknown' : tool.loggedIn ? 'yes' : 'no'}</dd>
-          <dt>Lock-down check</dt>
-          <dd>{tool.available ? lockdownText(tool, stored) : '—'}</dd>
-        </dl>
-        {line && (
-          <Changes k={running ? 'running' : `${tone}:${String(line)}`} className={tone} live>
-            {line}
-          </Changes>
-        )}
-        {canCheck && (
-          <div className="row">
-            <button className="btn2" disabled={starting || anyChecking} onClick={() => void recheck()}>
-              {stored || mine ? 'Run the check again' : 'Run the safety check'}
-            </button>
-          </div>
-        )}
+    <div className="sline">
+      <div className="slab">
+        <b>Safety check for {tool.name}</b>
+        <Changes k={running ? 'running' : `${tone}:${String(line)}`} className={tone} live>
+          {line}
+        </Changes>
       </div>
-      <span className={`pill ${pill.tone}`}>{pill.text}</span>
+      {canCheck && (
+        <button className="pb" disabled={starting || anyChecking} onClick={() => void recheck()}>
+          {stored || mine ? 'Run again' : 'Run the check'}
+        </button>
+      )}
     </div>
   )
 }
 
-// ---------- storage ----------
+// ---------- Storage and backup ----------
 
-function StoragePanel({ i, rawBytes, rawCap }: { i: number; rawBytes: number; rawCap: number }) {
-  const st = storage(rawBytes, rawCap)
+function StoragePage({ s, onSaved }: { s: SettingsResult; onSaved: () => Promise<void> }) {
+  const st = storage(s.raw_bytes, s.raw_cap)
   return (
-    <section className="p glass mv" style={at(i)}>
-      <h4>
-        <span>Raw downloads</span>
-        <em>cap {st.cap}</em>
-      </h4>
-      <div className={`stor ${st.tone}`} role="meter" aria-label="Raw downloads against the cap" aria-valuemin={0} aria-valuemax={100} aria-valuenow={parseFloat(st.width)}>
-        <i style={{ width: st.width }} />
+    <>
+      <Head title="Storage and backup" lead="Where Tearsheet keeps its files." />
+      <div className="sgrp">
+        <div className="sline col">
+          <div className="sbarhead">
+            <b>Downloads</b>
+            <span className="sval">
+              {st.used} of {st.cap}
+            </span>
+          </div>
+          <div className={`stor ${st.tone}`} role="meter" aria-label="Downloads against the storage limit" aria-valuemin={0} aria-valuemax={100} aria-valuenow={parseFloat(st.width)}>
+            <i style={{ width: st.width }} />
+          </div>
+          {st.tone === 'hold' ? (
+            <span className="help hold">The folder is {st.over ? 'over' : 'near'} its limit. Raise the limit below.</span>
+          ) : (
+            <span className="help">Raw files from SEC, Massive and FRED, kept so every number can be traced.</span>
+          )}
+        </div>
+        <FieldRow k="raw_cap" label="Storage limit" help="Tearsheet warns you when downloads get close." shown={st.cap} initial={String(s.raw_cap)} onSaved={onSaved} />
       </div>
-      <div className="kv">
-        <span>{st.used} stored</span>
-        <b>{st.share}</b>
+      <div className="sgrp">
+        <FieldRow
+          k="backup_dir"
+          label="Backup folder"
+          help={s.backup_in_icloud ? 'Synced by iCloud, so backup copies also go to Apple’s servers.' : 'Not synced by iCloud, so backup copies stay on this Mac.'}
+          helpTone={s.backup_in_icloud ? 'hold' : undefined}
+          shown={tildePath(s.backup_dir)}
+          initial={tildePath(s.backup_dir)}
+          onSaved={onSaved}
+        />
       </div>
-      {st.tone === 'hold' && <p className="fine hold">The folder is {st.over ? 'over' : 'near'} its cap. Raise the cap under General.</p>}
-    </section>
+    </>
+  )
+}
+
+// ---------- Privacy ----------
+
+function PrivacyPage({ services }: { services: SettingsResult['services'] }) {
+  return (
+    <>
+      <Head title="What leaves your Mac" lead="Tearsheet talks only to these services. Nothing else is sent." />
+      <div className="sgrp">
+        {services.map((x) => (
+          <div key={x.name} className="sline">
+            <Label title={x.name} help={`${x.sent}. Key: ${x.key}.`} />
+            <span className="sval">{x.cost}</span>
+          </div>
+        ))}
+      </div>
+    </>
+  )
+}
+
+// ---------- Advanced ----------
+
+function AdvancedPage({ s, onSaved }: { s: SettingsResult; onSaved: () => Promise<void> }) {
+  return (
+    <>
+      <Head title="Advanced" lead="Rarely needed." />
+      <div className="sgrp">
+        <FieldRow k="goal1_round" label="Goal 1 round" help="New full reports count toward this round. Raise it to restart the test after a fix." shown={String(s.goal1_round)} initial={String(s.goal1_round)} onSaved={onSaved} />
+      </div>
+      <div className="sgrp">
+        <div className="sline">
+          <Label title="5Y and All chart ranges" help="The first time you open them, Tearsheet downloads the company’s full price history in one call, and shows whatever your price plan serves." />
+        </div>
+      </div>
+    </>
   )
 }

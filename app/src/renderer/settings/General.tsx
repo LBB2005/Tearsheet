@@ -1,32 +1,43 @@
-// Settings' general settings: the typed ones (each with Change, then Save or Cancel) and the
-// choice of the main AI tool.
+// Settings' rows (pages/Settings.tsx): a row's label with its one line of help, the Mac pop-up
+// menu, a typed setting (its value, and Change, which turns it into a field with Save or
+// Cancel), and the choice of the main AI tool.
 
-import { useState, type KeyboardEvent } from 'react'
+import { useState, type KeyboardEvent, type ReactNode } from 'react'
 
-import type { SettingsResult } from '../../shared/protocol'
-import { at } from '../setup/parts'
 import { TOOL_TEXT, type ToolKind } from '../setup/steps'
-import { fieldProblem, maskEmail, storage, tildePath, type FieldKey } from './settings'
+import { fieldProblem, type FieldKey } from './settings'
 
-export function GeneralPanel({ i, s, primary, onSaved }: { i: number; s: SettingsResult; primary: ToolKind; onSaved: () => Promise<void> }) {
-  const email = s.sec_contact_email
+// A row's name, and one line under it on what it does. A hold tone turns the line amber.
+export function Label({ id, title, help, tone }: { id?: string; title: string; help?: ReactNode; tone?: 'hold' }) {
   return (
-    <section className="p glass mv" style={at(i)}>
-      <h4>
-        <span>General</span>
-      </h4>
-      <FieldRow k="sec_contact_email" label="SEC contact email" shown={email ? maskEmail(email) : null} initial={email ?? ''} onSaved={onSaved} />
-      <ToolChoice primary={primary} onSaved={onSaved} />
-      <FieldRow k="backup_dir" label="Backup folder" shown={tildePath(s.backup_dir)} initial={tildePath(s.backup_dir)} onSaved={onSaved} />
-      {s.backup_in_icloud && <p className="fine hold">The backup folder is synced by iCloud, so backup copies also go to Apple’s servers.</p>}
-      <FieldRow k="raw_cap" label="Raw-download cap" shown={storage(0, s.raw_cap).cap} initial={String(s.raw_cap)} onSaved={onSaved} />
-      <FieldRow k="goal1_round" label="Goal 1 round" shown={String(s.goal1_round)} initial={String(s.goal1_round)} onSaved={onSaved} />
-    </section>
+    <div className="slab">
+      <b id={id}>{title}</b>
+      {help && <span className={tone ? `help ${tone}` : 'help'}>{help}</span>}
+    </div>
+  )
+}
+
+// A Mac pop-up button: the native select, so the menu that opens is the Mac's own, with the ⌃⌄
+// chevrons drawn over its right end.
+export function PopUp({ labelledBy, value, options, disabled, onChange }: { labelledBy: string; value: string; options: [string, string][]; disabled?: boolean; onChange: (value: string) => void }) {
+  return (
+    <span className="popw">
+      <select className="pop" aria-labelledby={labelledBy} value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)}>
+        {options.map(([v, text]) => (
+          <option key={v} value={v}>
+            {text}
+          </option>
+        ))}
+      </select>
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M8 9l4-4 4 4M8 15l4 4 4-4" />
+      </svg>
+    </span>
   )
 }
 
 // One typed setting: its value, and Change, which turns it into a field with Save and Cancel.
-function FieldRow({ k, label, shown, initial, onSaved }: { k: FieldKey; label: string; shown: string | null; initial: string; onSaved: () => Promise<void> }) {
+export function FieldRow({ k, label, help, helpTone, shown, initial, onSaved }: { k: FieldKey; label: string; help?: ReactNode; helpTone?: 'hold'; shown: string | null; initial: string; onSaved: () => Promise<void> }) {
   const [editing, setEditing] = useState(false)
   const [value, setValue] = useState('')
   const [problem, setProblem] = useState<string | null>(null)
@@ -63,30 +74,30 @@ function FieldRow({ k, label, shown, initial, onSaved }: { k: FieldKey; label: s
   }
   return (
     <>
-      <div className="field">
-        <span id={`set-${k}`}>{label}</span>
+      <div className="sline">
+        <Label id={`set-${k}`} title={label} help={help} tone={helpTone} />
         {editing ? (
-          <input type="text" className="in" aria-labelledby={`set-${k}`} autoFocus spellCheck={false} value={value} disabled={saving} onChange={(e) => setValue(e.target.value)} onKeyDown={onKey} />
+          <input type="text" className="sin" aria-labelledby={`set-${k}`} autoFocus spellCheck={false} value={value} disabled={saving} onChange={(e) => setValue(e.target.value)} onKeyDown={onKey} />
         ) : (
-          <span className="in">{shown ?? <em>not set</em>}</span>
+          <span className="sval">{shown ?? <em>not set</em>}</span>
         )}
         {editing ? (
           <span className="acts">
-            <button className="act" disabled={saving} onClick={() => void save()}>
+            <button className="pb go" disabled={saving} onClick={() => void save()}>
               {saving ? 'Saving…' : 'Save'}
             </button>
-            <button className="act quiet" disabled={saving} onClick={cancel}>
+            <button className="pb" disabled={saving} onClick={cancel}>
               Cancel
             </button>
           </span>
         ) : (
-          <button className="act" onClick={start}>
+          <button className="pb" aria-label={`Change ${label}`} onClick={start}>
             Change
           </button>
         )}
       </div>
       {problem && (
-        <p className="fine bad" role="alert">
+        <p className="fine bad sfine" role="alert">
           {problem}
         </p>
       )}
@@ -94,33 +105,37 @@ function FieldRow({ k, label, shown, initial, onSaved }: { k: FieldKey; label: s
   )
 }
 
-// The main AI tool, which writes the reports: a choice of the two.
-function ToolChoice({ primary, onSaved }: { primary: ToolKind; onSaved: () => Promise<void> }) {
-  const [saving, setSaving] = useState(false)
+// The main AI tool, which writes the reports, as a pop-up menu of the two. While the choice is
+// saved, the menu keeps showing it.
+export function ToolChoice({ primary, onSaved }: { primary: ToolKind; onSaved: () => Promise<void> }) {
+  const [saving, setSaving] = useState<ToolKind | null>(null)
   const [problem, setProblem] = useState<string | null>(null)
   const choose = async (kind: ToolKind) => {
     if (saving || kind === primary) return
-    setSaving(true)
+    setSaving(kind)
     setProblem(null)
     const reply = await window.tearsheet.setSetting('primary_tool', kind).catch(() => null)
-    setSaving(false)
-    if (!reply?.ok) return setProblem(reply?.error?.message || 'It wasn’t saved. Try again.')
-    void onSaved()
+    if (!reply?.ok) {
+      setSaving(null)
+      return setProblem(reply?.error?.message || 'It wasn’t saved. Try again.')
+    }
+    await onSaved()
+    setSaving(null)
   }
   return (
     <>
-      <div className="field">
-        <span id="set-primary">Main AI tool</span>
-        <div className="segc" role="group" aria-labelledby="set-primary">
-          {(['claude', 'codex'] as const).map((kind) => (
-            <button key={kind} className={primary === kind ? 'on' : undefined} aria-pressed={primary === kind} disabled={saving} onClick={() => void choose(kind)}>
-              {TOOL_TEXT[kind].name}
-            </button>
-          ))}
-        </div>
+      <div className="sline">
+        <Label id="set-primary" title="Main AI tool" help="Writes your reports. The other one checks each draft." />
+        <PopUp
+          labelledBy="set-primary"
+          value={saving ?? primary}
+          disabled={saving !== null}
+          options={(['claude', 'codex'] as const).map((kind) => [kind, TOOL_TEXT[kind].name])}
+          onChange={(v) => void choose(v === 'codex' ? 'codex' : 'claude')}
+        />
       </div>
       {problem && (
-        <p className="fine bad" role="alert">
+        <p className="fine bad sfine" role="alert">
           {problem}
         </p>
       )}
