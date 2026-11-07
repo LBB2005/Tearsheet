@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { forgetOldChartPrefs, setSidebarHidden, setVolumeOn, setVolumeShare, sidebarHidden, volumeOn, volumeShare } from './prefs'
+import { forgetOldChartPrefs, setSidebarHidden, setStartRange, setVolumeOn, setVolumeShare, sidebarHidden, startRange, volumeOn, volumeShare } from './prefs'
 
 const fake = () => {
   const m = new Map<string, string>()
@@ -38,6 +38,18 @@ describe('prefs', () => {
     expect(volumeOn(s)).toBe(true)
     s.m.set('chart.volume', 'maybe')
     expect(volumeOn(s)).toBe(true)
+  })
+
+  it('keeps the range the chart opens on: 1Y until another is picked', () => {
+    const s = fake()
+    expect(startRange(s)).toBe('1Y')
+    setStartRange('3M', s)
+    expect(startRange(s)).toBe('3M')
+    setStartRange('All', s)
+    expect(startRange(s)).toBe('All')
+    s.m.set('chart.startRange', '1D')
+    expect(startRange(s)).toBe('1Y')
+    expect(startRange(null)).toBe('1Y')
   })
 
   it('keeps whether the sidebar is hidden', () => {

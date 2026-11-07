@@ -2,14 +2,16 @@
 //   sidebar.hidden      '1' while the sidebar is hidden (⌃⌘S).
 //   chart.volumeShare   the volume bars' share of the chart's height (chart/height.ts).
 //   chart.volume        '0' while the chart's Volume toggle is off.
+//   chart.startRange    the range the chart opens on (Settings, "The chart opens on"); 1Y if none.
 // A storage that can't be read or written (it shouldn't happen in the app) falls back to the
 // defaults.
 
 type Store = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
 
 import { SHARE_DEFAULT } from './height'
+import { RANGE_ORDER, type Range } from './series'
 
-const KEYS = { sidebar: 'sidebar.hidden', volumeShare: 'chart.volumeShare', volume: 'chart.volume' } as const
+const KEYS = { sidebar: 'sidebar.hidden', volumeShare: 'chart.volumeShare', volume: 'chart.volume', startRange: 'chart.startRange' } as const
 const OLD_KEYS = ['chart.opens', 'chart.lastWidth'] as const
 
 const local = (): Store | null => {
@@ -66,4 +68,13 @@ export function volumeOn(store: Store | null = local()): boolean {
 
 export function setVolumeOn(on: boolean, store: Store | null = local()): void {
   write(KEYS.volume, on ? null : '0', store)
+}
+
+export function startRange(store: Store | null = local()): Range {
+  const v = read(KEYS.startRange, store)
+  return (RANGE_ORDER as readonly string[]).includes(v ?? '') ? (v as Range) : '1Y'
+}
+
+export function setStartRange(range: Range, store: Store | null = local()): void {
+  write(KEYS.startRange, range === '1Y' ? null : range, store)
 }

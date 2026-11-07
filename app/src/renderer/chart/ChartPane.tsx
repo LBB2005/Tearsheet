@@ -23,7 +23,7 @@ import { money } from '../shell/Sidebar'
 import { covers, measure, namedFilings, needsHistory, niceTicks, RANGE_ORDER, rebase, slice, volumeText, yearsServed, type Range } from './series'
 import { between, ease, GLIDE_MS, resample } from './glide'
 import { SHARE_DEFAULT, shareFor, volumeHeight } from './height'
-import { setVolumeOn, setVolumeShare, volumeOn, volumeShare } from './prefs'
+import { setVolumeOn, setVolumeShare, startRange, volumeOn, volumeShare } from './prefs'
 import { PRESETS, type Preset, type SnapMode } from './split'
 
 import './chart.css'
@@ -546,7 +546,8 @@ export function ChartPane({ reportId, cik, ticker, name, width, wide, size, onCl
   const [readAfter, setReadAfter] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
   const [attempt, setAttempt] = useState(0)
-  const [range, setRange] = useState<Range>('1Y')
+  // Settings' "The chart opens on" (prefs.ts).
+  const [range, setRange] = useState<Range>(startRange)
   const [toggles, setToggles] = useState<Toggles>(() => ({ fan: false, peers: false, spy: false, volume: volumeOn() }))
   // The volume bars' share of the height, live while the line above them is dragged.
   const [share, setShare] = useState(volumeShare)
@@ -571,7 +572,7 @@ export function ChartPane({ reportId, cik, ticker, name, width, wide, size, onCl
   const rangeNow = useRef(range)
   rangeNow.current = range
   // 5Y or All picked before the stored series arrived: the download starts once it has.
-  const waiting = useRef(false)
+  const waiting = useRef(range === '5Y' || range === 'All')
   // The company's download this pane is waiting on, so it reads the series once when it lands.
   const following = useRef<Promise<History> | null>(null)
   const label = ticker ?? 'This company'

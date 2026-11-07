@@ -15,6 +15,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 import type { ToolStatus } from '../../preload/api'
 import type { LockdownState, SettingsResult } from '../../shared/protocol'
+import { setStartRange, startRange } from '../chart/prefs'
+import { RANGE_ORDER, type Range } from '../chart/series'
 import { GeneralPanel } from '../settings/General'
 import { KeysPanel } from '../settings/Keys'
 import { lockdownText } from '../settings/lockdown'
@@ -145,14 +147,30 @@ export function Settings({ tools, onTools, safety, onSafetyStarted, onSettings }
 
 // ---------- the Chart section ----------
 
-// The chart opens at Half beside the report; its own buttons set Narrow, Half, Wide or Full.
+// The chart opens at Half beside the report, on the range picked here (kept in the window's own
+// storage, chart/prefs.ts); its own buttons set Narrow, Half, Wide or Full.
 function ChartSection({ i }: { i: number }) {
+  const [opensOn, setOpensOn] = useState<Range>(() => startRange())
+  const pick = (range: Range) => {
+    setStartRange(range)
+    setOpensOn(range)
+  }
   return (
     <section className="p glass prefc mv" style={at(i)}>
       <h4>
         <span>Chart</span>
         <em>⌘3 opens and closes it</em>
       </h4>
+      <div className="field">
+        <span id="set-opens">The chart opens on</span>
+        <div className="segc" role="group" aria-labelledby="set-opens">
+          {RANGE_ORDER.map((range) => (
+            <button key={range} className={opensOn === range ? 'on' : undefined} aria-pressed={opensOn === range} onClick={() => pick(range)}>
+              {range}
+            </button>
+          ))}
+        </div>
+      </div>
       <div className="field">
         <span>Full size</span>
         <span>Everything right of the sidebar. It never covers the sidebar.</span>
