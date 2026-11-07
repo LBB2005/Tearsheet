@@ -19,6 +19,9 @@ from jinja2 import Environment, PackageLoader, select_autoescape
 
 PLACEHOLDER = re.compile(r"\{\{([a-z_]+:[A-Za-z0-9_.\-]+)\}\}")
 CSP = "default-src 'none'; style-src 'unsafe-inline'; img-src data:"
+# The app's layout that follows the frame (column "auto"): both columns from this frame width,
+# and below it the one column `side` names. The app reads the same number (report/view.ts).
+TWO_COLUMNS_MIN = 860
 
 
 @dataclass(frozen=True)
@@ -146,29 +149,41 @@ def render_html(
     view: str = "summary",
     column: str = "both",
     narrow: bool = False,
+    side: str = "text",
+    motion: bool = True,
     numbers: dict[str, Any] | None = None,
 ) -> str:
     """`mode` is "app" (with flag and re-read links) or "file" (terminal mode: claim IDs shown,
     no tearsheet: links). `view` is the text view shown first ("summary" or "full"); `column` is
-    "both", or "numbers" or "text" alone for beside the chart. `narrow` is a window under about
-    1,100 px: with the text alone, a row of five key-number tiles sits above it. A file is read
-    without the app, so it always shows both columns, stacked, with the Full view open."""
+    "both", or "numbers" or "text" alone for beside the chart, or "auto": both columns, laid out
+    by the frame's own width, so the app can open, close and resize the chart without loading
+    the report again. From TWO_COLUMNS_MIN px both show; below it, the one `side` names.
+    `narrow` is a window under about 1,100 px: with the text alone, a row of five key-number
+    tiles sits above it. `motion` False leaves out the entrance motion, for a frame loaded
+    after the report was already on show. A file is read without the app, so it always shows
+    both columns, stacked, with the Full view open."""
     if mode not in ("app", "file"):
         raise ValueError(mode)
     if view not in ("summary", "full"):
         raise ValueError(view)
-    if column not in ("both", "numbers", "text"):
+    if column not in ("both", "numbers", "text", "auto"):
         raise ValueError(column)
+    if side not in ("text", "numbers"):
+        raise ValueError(side)
     if mode == "file":
-        view, column = "full", "both"
+        view, column, side = "full", "both", "text"
     given = numbers or {}
-    key_tiles = bool(narrow) and column == "text"
+    key_tiles = bool(narrow) and column in ("text", "auto")
     return _ENV.get_template("report.html.j2").render(
         r=report,
         n={key: given.get(key) for key in NUMBER_KEYS},
         mode=mode,
         view=view,
         column=column,
+        side=side,
+        motion=motion,
+        two_min=TWO_COLUMNS_MIN,
+        narrow_layout=bool(narrow) and column == "auto",
         key_tiles=key_tiles,
         csp=CSP,
         safe_url=_safe_url,

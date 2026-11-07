@@ -280,6 +280,16 @@ app icon versions".
 
 ## The chart
 
+*Round two (2026-11-06,
+[`docs/superpowers/specs/2026-11-06-chart-round-two-design.md`](../superpowers/specs/2026-11-06-chart-round-two-design.md))
+changes several points below:*
+
+*   *The chart opens at Half every time. Narrow, Half, Wide and Full buttons sit in its header.*
+*   *A drag line above the volume bars sets the height, and there is a Volume toggle.*
+*   *Settings picks the range the chart opens on.*
+*   *The report is never reloaded as the chart opens, closes or resizes.*
+*   *The line draws in once each time the chart opens, then glides between ranges.*
+
 *   **Where it opens.** The Chart button (⌘3) opens the chart from the right as a **split**
     beside the report. A divider sits between them.
 *   **Dragging the divider:**
@@ -314,8 +324,9 @@ app icon versions".
     With either compare line on, all lines start from 100.
 *   **Interaction.** Hover reads a day's price, change and volume. Dragging across measures the
     change between two dates.
-*   **The Settings choice: "When the chart opens".** The options are Full, Half, or Where I left
-    it, which is the default and reopens at your last width.
+*   **The Settings choice: "The chart opens on".** It picks the range the chart opens on, from 1W
+    to All. The default is 1Y. (Round two replaced "When the chart opens", which offered Full,
+    Half or Where I left it.)
 
 ## Motion
 
@@ -330,7 +341,8 @@ Motion is CSS-led, plays once, and is off when the Mac's Reduce motion setting i
     *   opening slides the split in from the right while the numbers column slides away;
     *   dragging the divider resizes it live;
     *   snapping settles it;
-    *   on range or toggle changes, the line re-traces and the volume rises.
+    *   on range or toggle changes, the lines glide to their new shape in about a third of a
+        second. The draw-in plays only as the chart opens (round two).
 *   **The sidebar** slides away, and the toolbar shifts to make room for the window buttons.
 *   **Switching views** slides the text in, and changing pages makes the content rise.
 *   **A run:** the step ring and the sidebar status line advance.

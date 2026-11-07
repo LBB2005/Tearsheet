@@ -1,5 +1,5 @@
 // Settings and connections (the spec's "Settings and connections" and "The chart → The Settings
-// choice"), in look C. In order: the Chart section ("When the chart opens"), four health tiles,
+// choice"), in look C. In order: the Chart section, four health tiles,
 // the AI tools with their lock-down status, the data keys (each with setup's paste-and-check
 // card), the raw downloads against their cap, the general settings, and "What leaves your Mac".
 // Ported from docs/designs/report-look-c-chart-split.html (settingsPage, chartSettings), in
@@ -15,8 +15,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 import type { ToolStatus } from '../../preload/api'
 import type { LockdownState, SettingsResult } from '../../shared/protocol'
-import { chartOpens, setChartOpens } from '../chart/prefs'
-import type { ChartOpens } from '../chart/split'
+import { setStartRange, startRange } from '../chart/prefs'
+import { RANGE_ORDER, type Range } from '../chart/series'
 import { GeneralPanel } from '../settings/General'
 import { KeysPanel } from '../settings/Keys'
 import { lockdownText } from '../settings/lockdown'
@@ -147,19 +147,13 @@ export function Settings({ tools, onTools, safety, onSafetyStarted, onSettings }
 
 // ---------- the Chart section ----------
 
-const OPENS: [ChartOpens, string][] = [
-  ['full', 'Full'],
-  ['half', 'Half'],
-  ['last', 'Where I left it']
-]
-
-// "When the chart opens", kept in the window's own storage (chart/prefs.ts); the chart reads it
-// each time it opens.
+// The chart opens at Half beside the report, on the range picked here (kept in the window's own
+// storage, chart/prefs.ts); its own buttons set Narrow, Half, Wide or Full.
 function ChartSection({ i }: { i: number }) {
-  const [opens, setOpens] = useState<ChartOpens>(() => chartOpens())
-  const pick = (value: ChartOpens) => {
-    setChartOpens(value)
-    setOpens(value)
+  const [opensOn, setOpensOn] = useState<Range>(() => startRange())
+  const pick = (range: Range) => {
+    setStartRange(range)
+    setOpensOn(range)
   }
   return (
     <section className="p glass prefc mv" style={at(i)}>
@@ -168,11 +162,11 @@ function ChartSection({ i }: { i: number }) {
         <em>⌘3 opens and closes it</em>
       </h4>
       <div className="field">
-        <span id="set-opens">When the chart opens</span>
+        <span id="set-opens">The chart opens on</span>
         <div className="segc" role="group" aria-labelledby="set-opens">
-          {OPENS.map(([value, label]) => (
-            <button key={value} className={opens === value ? 'on' : undefined} aria-pressed={opens === value} onClick={() => pick(value)}>
-              {label}
+          {RANGE_ORDER.map((range) => (
+            <button key={range} className={opensOn === range ? 'on' : undefined} aria-pressed={opensOn === range} onClick={() => pick(range)}>
+              {range}
             </button>
           ))}
         </div>

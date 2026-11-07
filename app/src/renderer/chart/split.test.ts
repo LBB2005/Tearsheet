@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { CHART_MIN, DIV, openSplit, openWidth, snapWidth, splitWidth, TEXT_MIN } from './split'
+import { CHART_MIN, DIV, presetSplit, snapWidth, splitWidth, TEXT_MIN } from './split'
 
 // A 1,280 px window with the 232 px sidebar shown.
 const AVAIL = 1280 - 232
@@ -38,34 +38,30 @@ describe('snapWidth', () => {
   })
 })
 
-describe('openWidth', () => {
-  it('opens at half when nothing is remembered', () => {
-    expect(openWidth('last', null, AVAIL)).toBe(524)
+describe('presetSplit', () => {
+  it('gives Narrow a third, Half a half and Wide two thirds of the space', () => {
+    expect(presetSplit('narrow', 1200)).toEqual({ mode: 'narrow', width: 400 })
+    expect(presetSplit('half', 1200)).toEqual({ mode: 'half', width: 600 })
+    expect(presetSplit('wide', 1200)).toEqual({ mode: 'wide', width: 800 })
+    expect(presetSplit('full', 1200)).toEqual({ mode: 'full', width: 1200 })
   })
 
-  it('opens full when Settings says so, whatever was last', () => {
-    expect(openWidth('full', 600, AVAIL)).toBe(1048)
+  it('keeps each preset inside the chart’s and the report’s limits', () => {
+    expect(presetSplit('narrow', 900)).toEqual({ mode: 'narrow', width: CHART_MIN })
+    expect(presetSplit('half', 900)).toEqual({ mode: 'half', width: 450 })
+    expect(presetSplit('wide', 900)).toEqual({ mode: 'wide', width: 900 - TEXT_MIN - DIV })
   })
 
-  it('opens at the last width, fitted to the space there is now', () => {
-    expect(openWidth('last', 900, 800)).toBe(snapWidth(900, 800).width)
-    expect(openWidth('last', 600, AVAIL)).toBe(600)
-  })
-
-  it('opens at half when Settings says so', () => {
-    expect(openWidth('half', 900, AVAIL)).toBe(524)
-  })
-
-  it('reopens full when it was left full', () => {
-    expect(openWidth('last', Infinity, 1280)).toBe(1280)
+  it('gives the whole width when the window is too narrow for both', () => {
+    for (const p of ['narrow', 'half', 'wide', 'full'] as const) expect(presetSplit(p, 700)).toEqual({ mode: 'full', width: 700 })
   })
 })
 
-describe('openSplit and splitWidth', () => {
-  it('remembers the snap it opened in', () => {
-    expect(openSplit('full', null, AVAIL)).toEqual({ mode: 'full', width: AVAIL })
-    expect(openSplit('last', null, AVAIL)).toEqual({ mode: 'half', width: 524 })
-    expect(openSplit('last', 600, AVAIL)).toEqual({ mode: 'free', width: 600 })
+describe('splitWidth', () => {
+  it('keeps Narrow and Wide as the space changes', () => {
+    expect(splitWidth({ mode: 'wide', width: 800 }, 900)).toBe(552)
+    expect(splitWidth({ mode: 'wide', width: 552 }, 1200)).toBe(800)
+    expect(splitWidth({ mode: 'narrow', width: 400 }, 900)).toBe(CHART_MIN)
   })
 
   it('keeps half and full as the space changes', () => {

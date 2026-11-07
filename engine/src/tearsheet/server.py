@@ -801,6 +801,8 @@ class Server:
                 view=p.view,
                 column=p.column,
                 narrow=p.narrow,
+                side=p.side,
+                motion=p.motion,
                 numbers=numbers,
             ),
         }

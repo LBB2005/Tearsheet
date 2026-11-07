@@ -2,9 +2,9 @@
    Class names, colours and spacing follow docs/designs/report-look-c-chart-split.html (.divider,
    .cpane5, .cph, .tg, .ibtn, .chartwrap, .loadbox, .cnote5, the c- chart parts). Motion is
    A. Settle: the split slides in from the right as it opens and away as it closes, resizes live
-   while the divider is dragged (no transitions), and settles into Half or Full as it snaps. On a
-   range or toggle change the line traces again and the volume rises. Under Reduce motion nothing
-   moves (styles.css). */
+   while the divider is dragged (no transitions), and settles into Half or Full as it snaps. The
+   line draws in as the chart opens; on a range or toggle change it glides. Under Reduce motion
+   nothing moves (styles.css). */
 
 /* ---------- the split: the divider and the pane ---------- */
 .divider { flex: none; width: 8px; position: relative; z-index: 3; cursor: col-resize; touch-action: none; outline: none;
@@ -12,8 +12,8 @@
   animation: split-in .45s var(--slide) backwards; }
 /* A wider place to grab than the line itself. */
 .divider::before { content: ""; position: absolute; inset: 0 -5px; }
-.divider i { position: absolute; left: 50%; top: 50%; width: 3px; height: 34px; margin: -17px 0 0 -1.5px; border-radius: 2px; background: rgba(255, 255, 255, .18); transition: background .15s, height .15s, margin .15s; }
-.divider:hover i, .divider:focus-visible i, .divider.hot i { background: var(--accent); height: 46px; margin-top: -23px; }
+.divider i { position: absolute; left: 50%; top: 50%; width: 4px; height: 40px; margin: -20px 0 0 -2px; border-radius: 2px; background: rgba(255, 255, 255, .3); transition: background .15s, height .15s, margin .15s; }
+.divider:hover i, .divider:focus-visible i, .divider.hot i { background: var(--accent); height: 64px; margin-top: -32px; }
 .divider:focus-visible { box-shadow: inset 0 0 0 1px var(--chipline); }
 .divider .snap { position: absolute; top: 50%; left: 14px; transform: translateY(-50%); font: 600 11px var(--ui); color: #062029; background: var(--accent); border-radius: 999px; padding: 2px 8px; white-space: nowrap; opacity: 0; transition: opacity .15s; pointer-events: none; z-index: 5; }
 .divider .snap.show { opacity: 1; }
@@ -32,7 +32,9 @@
 .dragging, .dragging * { cursor: col-resize !important; user-select: none; -webkit-user-select: none; }
 .dragshield { position: absolute; inset: 0; z-index: 2; }
 /* In Full the report is hidden; dragging the divider brings it back. */
-.rpage.full .rmain { visibility: hidden; }
+/* Behind a Full chart the report keeps the whole width, never squeezed to nothing, so it keeps
+   its place (pages/Report.tsx). */
+.rpage.full .rmain { position: absolute; inset: 0; visibility: hidden; }
 
 /* A narrow window: the chart takes the whole window, sliding over from the right. */
 .narrow .cpane { animation-name: cp-in; animation-duration: .42s; }
@@ -54,6 +56,8 @@
 .narrowp .cpbig { min-width: 150px; }
 .narrowp .cpctl { margin-left: 0; max-width: none; justify-content: flex-start; flex-basis: 100%; }
 .cpane .segc button { padding: 4px 10px; }
+/* The width buttons: Narrow, Half, Wide and Full. */
+.cpane .cwid button { padding: 4px 8px; font-size: 12px; }
 .tg { all: unset; cursor: pointer; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); font-size: 12px; color: var(--muted); display: inline-flex; gap: 6px; align-items: center; transition: background .2s, color .2s, border-color .2s; }
 .tg i { width: 12px; height: 3px; border-radius: 2px; }
 .tg:hover { color: var(--text); }
@@ -71,6 +75,11 @@
 /* ---------- the chart ---------- */
 .chartwrap { flex: 1; min-height: 0; position: relative; cursor: crosshair; user-select: none; -webkit-user-select: none; touch-action: none; }
 .chartwrap svg { display: block; }
+/* The line between the price chart and the volume bars: it drags to share the height. */
+.hsplit { position: absolute; height: 12px; z-index: 2; cursor: row-resize; touch-action: none; outline: none; display: grid; place-items: center; }
+.hsplit i { display: block; width: 40px; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, .22); transition: background .15s, width .15s; }
+.hsplit:hover i, .hsplit:focus-visible i, .hsplit.hot i { background: var(--accent); width: 64px; }
+.hsplit:focus-visible { box-shadow: inset 0 0 0 1px var(--chipline); border-radius: 6px; }
 .cmsg { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 10px; text-align: center; color: var(--muted); font-size: 13px; cursor: default; padding: 0 24px; }
 .cmsg p { margin: 0; max-width: 46ch; }
 .skel { position: absolute; inset: 18px 14px 30px 50px; border-radius: 10px; background: linear-gradient(100deg, rgba(255, 255, 255, .02) 20%, rgba(255, 255, 255, .06) 40%, rgba(255, 255, 255, .02) 60%); background-size: 200% 100%; animation: skel 1.4s linear infinite; }
@@ -112,14 +121,18 @@
 .c-measl { stroke: rgba(127, 227, 247, .6); stroke-width: 1; }
 .c-hovg { pointer-events: none; }
 
-/* The line traces and the volume rises, as the chart opens and on each range or toggle change. */
-.play .c-line, .play .ln-peer { stroke-dasharray: 1; animation: trace 1.1s .1s cubic-bezier(.4, .1, .2, 1) both; }
-.play .ln-spy { animation: fade .6s .6s both; }
-.play .c-area { animation: fade .7s .7s both; }
-.play .c-volg { transform-box: fill-box; transform-origin: bottom; animation: grow-y .7s .15s var(--settle) both; }
-.play .c-fang { animation: fade .6s 1s both; }
-.play .c-mkg { animation: settle-in .45s 1.1s var(--settle) both; }
-.play .c-buyg { animation: fade .5s .9s both; }
+/* The line traces and the volume rises as the chart opens, once (.first). After that, a range or
+   toggle change glides the lines (ChartPane, glide.ts); a part that wasn't there fades in, and a
+   line switched off fades out. */
+.play.first .c-line, .play.first .ln-peer { stroke-dasharray: 1; animation: trace 1.1s .1s cubic-bezier(.4, .1, .2, 1) both; }
+.play.first .ln-spy { animation: fade .6s .6s both; }
+.play.first .c-area { animation: fade .7s .7s both; }
+.play.first .c-volg { transform-box: fill-box; transform-origin: bottom; animation: grow-y .7s .15s var(--settle) both; }
+.play.first .c-fang { animation: fade .6s 1s both; }
+.play.first .c-mkg { animation: settle-in .45s 1.1s var(--settle) both; }
+.play.first .c-buyg { animation: fade .5s .9s both; }
+.c-enter { animation: fade .2s ease-out both; }
+.c-leave { animation: fade-out .2s ease-in forwards; pointer-events: none; }
 @keyframes trace { from { stroke-dashoffset: 1; } }
 @keyframes grow-y { from { transform: scaleY(0); } }
 

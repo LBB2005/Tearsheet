@@ -10,16 +10,21 @@
 // history (fetch_history: its bars, splits and dividends, and SPY's if they aren't stored yet),
 // then read the chart again. If the history is still
 // short, 5Y greys out and All shows what is there, with a note. The series comes from
-// get_chart. Motion: the line traces and the volume rises as the chart opens and on each range
-// or toggle change (chart.css); nothing moves under Reduce motion.
+// get_chart. Motion: the line traces and the volume rises as the chart opens (chart.css); after
+// that, a range or toggle change glides the lines to their new shape (glide.ts), and a part that
+// comes or goes fades. Nothing moves under Reduce motion.
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent, type ReactElement } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactElement } from 'react'
 
 import type { CallResult } from '../../preload/api'
 import type { ChartSeries } from '../../shared/protocol'
 import { shortDate } from '../nav'
 import { money } from '../shell/Sidebar'
 import { covers, measure, namedFilings, needsHistory, niceTicks, RANGE_ORDER, rebase, slice, volumeText, yearsServed, type Range } from './series'
+import { carryOn, GLIDE_MS, glideTrack, nextGlide, resample, trackXs, type GlideState, type Track } from './glide'
+import { SHARE_DEFAULT, shareFor, volumeHeight } from './height'
+import { setVolumeOn, setVolumeShare, startRange, volumeOn, volumeShare } from './prefs'
+import { PRESETS, type Preset, type SnapMode } from './split'
 
 import './chart.css'
 
@@ -31,18 +36,21 @@ export interface ChartPaneProps {
   name: string | null
   // The pane's width; the content keeps it while the pane slides in or out.
   width: number
-  // A wide window shows the Full size button and the divider; a narrow one gives the chart the
+  // A wide window shows the width buttons and the divider; a narrow one gives the chart the
   // whole window.
   wide: boolean
-  full: boolean
+  // The width button that is on: the split's mode (chart/split.ts), or none after a drag between.
+  size: SnapMode | null
   onClose: () => void
-  onFull: () => void
+  onSize: (p: Preset) => void
 }
 
 interface Toggles {
   fan: boolean
   peers: boolean
   spy: boolean
+  // The volume bars, on unless turned off; kept (prefs.ts).
+  volume: boolean
 }
 
 type History = { ok: true } | { ok: false; line: string }
@@ -97,17 +105,9 @@ const dollars = (v: number) => `$${Math.round(v).toLocaleString('en-US')}`
 const day = (iso: string) => `${MONTHS[Number(iso.slice(5, 7)) - 1]} ${Number(iso.slice(8, 10))}`
 const f1 = (v: number) => v.toFixed(1)
 
+const PRESET_WORDS: Record<Preset, string> = { narrow: 'Narrow', half: 'Half', wide: 'Wide', full: 'Full' }
+
 const ICON = {
-  wide: (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M4 9V4h5M20 15v5h-5M4 4l6 6M20 20l-6-6" />
-    </svg>
-  ),
-  narrow: (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M10 4v6H4M14 20v-6h6M10 10L4 4M14 14l6 6" />
-    </svg>
-  ),
   close: (
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <path d="M6 6l12 12M18 6L6 18" />
@@ -120,7 +120,6 @@ const ICON = {
 const PAD_L = 50
 const PAD_R = 14
 const AXIS_H = 22
-const VOL_H = 44
 const TOP = 18
 // Half the width of the fan's "Next 12 months" heading, at its 11 px.
 const FAN_HEAD_HALF = 40
@@ -133,6 +132,8 @@ interface Geo {
   x1: number
   plotB: number
   volB: number
+  // The volume bars' height: their share of the plot (height.ts), or 0 with Volume off.
+  volH: number
   lo: number
   hi: number
   indexed: boolean
@@ -149,14 +150,17 @@ interface Geo {
   bw: number
 }
 
-function geometry(sl: ChartSeries, t: Toggles, W: number, H: number): Geo {
+// The price chart and the volume bars together, as height.ts shares them.
+const plotHeight = (H: number) => H - TOP - AXIS_H - 12
+
+function geometry(sl: ChartSeries, t: Toggles, W: number, H: number, volH: number): Geo {
   const n = sl.dates.length
   const indexed = t.peers || t.spy
   const fan = t.fan && sl.range !== null
   const fanW = fan ? Math.round((W - PAD_L) * 0.24) : 0
   const x0 = PAD_L
   const x1 = W - PAD_R - fanW - (fan ? 10 : 0)
-  const plotB = H - AXIS_H - VOL_H - 12
+  const plotB = H - AXIS_H - volH - 12
   const volB = H - AXIS_H
   const total = indexed && sl.total?.length === n ? rebase(sl.total) : null
   const main =
@@ -184,7 +188,7 @@ function geometry(sl: ChartSeries, t: Toggles, W: number, H: number): Geo {
   // Bars fill their day, with a hairline between them; a few days' bars stay slim.
   const gap = (x1 - x0) / Math.max(1, n)
   const bw = Math.max(1, Math.min(n > 100 ? gap - 0.4 : gap - 1.5, 18))
-  return { W, H, n, x0, x1, plotB, volB, lo, hi, indexed, fan, main, peers, spy, scale, X, Y, vmax, bw }
+  return { W, H, n, x0, x1, plotB, volB, volH, lo, hi, indexed, fan, main, peers, spy, scale, X, Y, vmax, bw }
 }
 
 // Labels under the chart: each day for a week, every fifth day for a month, month starts up to
@@ -228,10 +232,67 @@ const linePath = (values: (number | null)[], g: Geo): string => {
   return d
 }
 
+// ---------- the glide ----------
+
+interface Tracks {
+  main: Track | null
+  peers: Track | null
+  spy: Track | null
+}
+// A range or toggle change on its way (glide.ts). `enter` names the parts that weren't there
+// before, which fade in; `ghosts` the lines switched off, which fade out.
+type Glide = GlideState<Tracks, { peers: boolean; spy: boolean; fan: boolean; price: boolean }>
+// What a glide changes in the drawing.
+interface Over extends Tracks {
+  main: Track
+  ghosts: { cls: string; track: Track }[]
+  enter: Glide['enter']
+}
+
+function trackOf(values: (number | null)[] | null, g: Geo): Track | null {
+  if (!values) return null
+  const first = values.findIndex((v) => v !== null)
+  let last = -1
+  for (let j = values.length - 1; j >= 0; j--)
+    if (values[j] !== null) {
+      last = j
+      break
+    }
+  if (first < 0 || last <= first) return null
+  const ys = resample(
+    values.map((_, j) => g.X(j)),
+    values.map((v) => (v === null ? null : g.Y(v))),
+    g.X(first),
+    g.X(last),
+    last - first + 1
+  )
+  return ys ? { xa: g.X(first), xb: g.X(last), ys } : null
+}
+
+const tracksOf = (g: Geo): Tracks => ({ main: trackOf(g.main, g), peers: trackOf(g.peers, g), spy: trackOf(g.spy, g) })
+
+const glideNow = (gl: Glide): Tracks => ({
+  main: gl.to.main ? glideTrack(gl.from.main, gl.to.main, gl.t) : null,
+  peers: gl.to.peers ? glideTrack(gl.from.peers, gl.to.peers, gl.t) : null,
+  spy: gl.to.spy ? glideTrack(gl.from.spy, gl.to.spy, gl.t) : null
+})
+
+const trackPoints = (t: Track) =>
+  trackXs(t)
+    .map((x, i) => `${f1(x)},${f1(t.ys[i])}`)
+    .join(' ')
+const trackPath = (t: Track) =>
+  trackXs(t)
+    .map((x, i) => `${i ? 'L' : 'M'}${f1(x)} ${f1(t.ys[i])}`)
+    .join('')
+
+const reducedMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
+
 // ---------- drawing ----------
 
-// Everything but the hover and the measured stretch, which change as the pointer moves.
-function drawChart(sl: ChartSeries, g: Geo, ticker: string): ReactElement {
+// Everything but the hover and the measured stretch, which change as the pointer moves. During
+// a glide, `over` gives the lines where they are now, and what fades in or out.
+function drawChart(sl: ChartSeries, g: Geo, ticker: string, over: Over | null): ReactElement {
   const { n, X, Y, x0, x1, plotB, volB, W, H } = g
   const ticks = niceTicks(g.lo, g.hi, 5)
   const step = ticks.length > 1 ? ticks[1] - ticks[0] : 1
@@ -239,10 +300,10 @@ function drawChart(sl: ChartSeries, g: Geo, ticker: string): ReactElement {
   const priceTick = (v: number) => `$${v.toLocaleString('en-US', { minimumFractionDigits: digits ? 2 : 0, maximumFractionDigits: digits ? 2 : 0 })}`
 
   const volume =
-    g.vmax > 0
+    g.vmax > 0 && g.volH > 0
       ? sl.volume
           .map((v, j) => {
-            const h = (v / g.vmax) * VOL_H
+            const h = (v / g.vmax) * g.volH
             // Kept inside the chart at both ends.
             const left = Math.max(x0, X(j) - g.bw / 2)
             const w = Math.min(x1, X(j) + g.bw / 2) - left
@@ -278,8 +339,11 @@ function drawChart(sl: ChartSeries, g: Geo, ticker: string): ReactElement {
     )
   })
 
-  const points = g.main.map((v, j) => `${f1(X(j))},${f1(Y(v))}`).join(' ')
+  const points = over ? trackPoints(over.main) : g.main.map((v, j) => `${f1(X(j))},${f1(Y(v))}`).join(' ')
   const end = g.main[n - 1]
+  const endX = over ? over.main.xb : X(n - 1)
+  const endY = over ? over.main.ys[over.main.ys.length - 1] : Y(end)
+  const enter = (cls: string, on: boolean | undefined) => (on ? `${cls} c-enter` : cls)
 
   // With a compare line on: each line's name and change at its end, kept apart.
   const ends: ReactElement[] = []
@@ -321,7 +385,7 @@ function drawChart(sl: ChartSeries, g: Geo, ticker: string): ReactElement {
     named.sort((a, b) => a.y - b.y)
     for (let k = 1; k < named.length; k++) if (named[k].y - named[k - 1].y < 28) named[k].y = named[k - 1].y + 28
     fan = (
-      <g className="c-fang">
+      <g className={over?.enter.fan ? 'c-fang c-enter' : 'c-fang'}>
         <line className="c-div" x1={x1 + 5} x2={x1 + 5} y1={TOP} y2={plotB} />
         <text className="c-fanh" x={(fx0 + fx1) / 2} y={TOP - 5} textAnchor="middle">
           Next 12 months
@@ -362,13 +426,16 @@ function drawChart(sl: ChartSeries, g: Geo, ticker: string): ReactElement {
         <path className="c-vol" d={volume} />
       </g>
       <g className="c-mkg">{filings}</g>
-      {!g.indexed && <polygon className="c-area" points={`${f1(X(0))},${plotB} ${points} ${f1(X(n - 1))},${plotB}`} />}
-      {g.spy && <path className="ln-spy" d={linePath(g.spy, g)} />}
-      {g.peers && <path className="ln-peer" pathLength={1} d={linePath(g.peers, g)} />}
+      {!g.indexed && <polygon className={enter('c-area', over?.enter.price)} points={`${f1(over ? over.main.xa : X(0))},${plotB} ${points} ${f1(endX)},${plotB}`} />}
+      {over?.ghosts.map(({ cls, track }) => (
+        <path key={`gone-${cls}`} className={`${cls} c-leave`} d={trackPath(track)} />
+      ))}
+      {g.spy && <path className={enter('ln-spy', over?.enter.spy)} d={over?.spy ? trackPath(over.spy) : linePath(g.spy, g)} />}
+      {g.peers && <path className={enter('ln-peer', over?.enter.peers)} pathLength={1} d={over?.peers ? trackPath(over.peers) : linePath(g.peers, g)} />}
       <polyline className="c-line" pathLength={1} points={points} />
       {ends}
       {!g.indexed && sl.trigger !== null && (
-        <g className="c-buyg">
+        <g className={enter('c-buyg', over?.enter.price)}>
           <line className="c-buy" x1={x0} x2={x1} y1={Y(sl.trigger)} y2={Y(sl.trigger)} />
           <text className="c-buyl" x={x0 + 6} y={Y(sl.trigger) - 6}>
             Buy trigger {money.format(sl.trigger)}
@@ -376,7 +443,7 @@ function drawChart(sl: ChartSeries, g: Geo, ticker: string): ReactElement {
         </g>
       )}
       {fan}
-      <circle cx={X(n - 1)} cy={Y(end)} r={4} fill="var(--hold)" />
+      <circle cx={endX} cy={endY} r={4} fill="var(--hold)" />
     </>
   )
 }
@@ -399,11 +466,11 @@ function drawHover(sl: ChartSeries, g: Geo, j: number, ticker: string): ReactEle
   const tw = Math.max(150, Math.max(...lines.map((l) => l.length)) * 6.6 + 24)
   const tx = Math.max(0, x + 12 + tw > g.x1 ? x - 12 - tw : x + 12)
   const ty = Math.max(TOP, Math.min(y - 30, g.plotB - 66))
-  const h = g.vmax > 0 ? (sl.volume[j] / g.vmax) * VOL_H : 0
+  const h = g.vmax > 0 ? (sl.volume[j] / g.vmax) * g.volH : 0
   return (
     <g className="c-hovg" aria-hidden="true">
-      <rect className="c-volhi" x={Math.max(g.x0, x - g.bw / 2)} y={g.volB - h} width={Math.min(g.x1, x + g.bw / 2) - Math.max(g.x0, x - g.bw / 2)} height={h} />
-      <line className="c-hov" x1={x} x2={x} y1={TOP} y2={g.volB} />
+      {h > 0 && <rect className="c-volhi" x={Math.max(g.x0, x - g.bw / 2)} y={g.volB - h} width={Math.min(g.x1, x + g.bw / 2) - Math.max(g.x0, x - g.bw / 2)} height={h} />}
+      <line className="c-hov" x1={x} x2={x} y1={TOP} y2={g.volH > 0 ? g.volB : g.plotB} />
       <circle className="c-hdot" cx={x} cy={y} r={5} />
       <rect className="c-tip" x={tx} y={ty} width={tw} height={62} rx={9} />
       <text className="c-tips" x={tx + 11} y={ty + 18}>
@@ -450,7 +517,7 @@ function readout(sl: ChartSeries, range: Range, filled: boolean, hover: number |
 
 // ---------- the pane ----------
 
-export function ChartPane({ reportId, cik, ticker, name, width, wide, full, onClose, onFull }: ChartPaneProps) {
+export function ChartPane({ reportId, cik, ticker, name, width, wide, size, onClose, onSize }: ChartPaneProps) {
   const company = cik === null ? `report:${reportId}` : `cik:${cik}`
   const [series, setSeries] = useState<ChartSeries | null>(null)
   // The series on show was read after the company's history download, so a history still
@@ -458,12 +525,23 @@ export function ChartPane({ reportId, cik, ticker, name, width, wide, full, onCl
   const [readAfter, setReadAfter] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
   const [attempt, setAttempt] = useState(0)
-  const [range, setRange] = useState<Range>('1Y')
-  const [toggles, setToggles] = useState<Toggles>({ fan: false, peers: false, spy: false })
+  // Settings' "The chart opens on" (prefs.ts).
+  const [range, setRange] = useState<Range>(startRange)
+  const [toggles, setToggles] = useState<Toggles>(() => ({ fan: false, peers: false, spy: false, volume: volumeOn() }))
+  // The volume bars' share of the height, live while the line above them is dragged.
+  const [share, setShare] = useState(volumeShare)
+  const [sizing, setSizing] = useState(false)
   const [downloading, setDownloading] = useState(false)
   const [historyLine, setHistoryLine] = useState<string | null>(null)
-  // Changes on each range or toggle change, so the line traces and the volume rises again.
-  const [play, setPlay] = useState(0)
+  // The draw-in plays as the chart opens, until the first range or toggle change; after that
+  // the lines glide (glide.ts).
+  const [first, setFirst] = useState(true)
+  const [glide, setGlide] = useState<Glide | null>(null)
+  const glideRef = useRef<Glide | null>(null)
+  glideRef.current = glide
+  // A range or toggle change is on its way: the next drawing glides to it.
+  const pending = useRef(false)
+  const lastG = useRef<Geo | null>(null)
   const [hover, setHover] = useState<number | null>(null)
   const [span, setSpan] = useState<{ a: number; b: number } | null>(null)
   const [box, setBox] = useState({ W: 0, H: 0 })
@@ -473,7 +551,7 @@ export function ChartPane({ reportId, cik, ticker, name, width, wide, full, onCl
   const rangeNow = useRef(range)
   rangeNow.current = range
   // 5Y or All picked before the stored series arrived: the download starts once it has.
-  const waiting = useRef(false)
+  const waiting = useRef(range === '5Y' || range === 'All')
   // The company's download this pane is waiting on, so it reads the series once when it lands.
   const following = useRef<Promise<History> | null>(null)
   const label = ticker ?? 'This company'
@@ -522,19 +600,70 @@ export function ChartPane({ reportId, cik, ticker, name, width, wide, full, onCl
   const short = series !== null && readAfter && needsHistory(series, '5Y')
   const shown: Range = range === '5Y' && short ? 'All' : range
   const sl = useMemo(() => (series ? slice(series, shown) : null), [series, shown])
-  const g = useMemo(() => (sl && sl.dates.length > 0 && box.W > 120 && box.H > 140 ? geometry(sl, toggles, box.W, box.H) : null), [sl, toggles, box])
-  const body = useMemo(() => (sl && g ? drawChart(sl, g, label) : null), [sl, g, label])
+  const volH = volumeHeight(share, plotHeight(box.H), toggles.volume)
+  const g = useMemo(() => (sl && sl.dates.length > 0 && box.W > 120 && box.H > 140 ? geometry(sl, toggles, box.W, box.H, volH) : null), [sl, toggles, box, volH])
+  // A change glides from the lines as they were (or as they are now, mid-glide) to the new ones;
+  // a resize, the first drawing, or Reduce motion just draws.
+  useLayoutEffect(() => {
+    const prev = lastG.current
+    lastG.current = g
+    if (!g) return
+    const changed = pending.current
+    pending.current = false
+    const to = tracksOf(g)
+    const step = nextGlide({ changed, running: glideRef.current !== null, drawn: prev !== null && to.main !== null, reduced: reducedMotion() })
+    if (step === 'drop' && glideRef.current) setGlide(null)
+    const running = glideRef.current
+    if (step === 'retarget' && running && to.main) {
+      setGlide(carryOn(running, glideNow(running), to))
+      return
+    }
+    if (step !== 'start' || !prev) return
+    const from = running ? glideNow(running) : tracksOf(prev)
+    const ghosts: Glide['ghosts'] = []
+    if (from.peers && !to.peers) ghosts.push({ cls: 'ln-peer', track: from.peers })
+    if (from.spy && !to.spy) ghosts.push({ cls: 'ln-spy', track: from.spy })
+    setGlide({
+      from,
+      to,
+      t: 0,
+      enter: { peers: !prev.peers && !!g.peers, spy: !prev.spy && !!g.spy, fan: !prev.fan && g.fan, price: prev.indexed && !g.indexed },
+      ghosts
+    })
+  }, [g])
+  useEffect(() => {
+    if (!glide) return
+    const start = performance.now() - glide.t * GLIDE_MS
+    let raf = requestAnimationFrame(function step(at: number) {
+      const t = Math.min(1, (at - start) / GLIDE_MS)
+      setGlide((gl) => (gl && t >= 1 ? null : gl ? { ...gl, t } : gl))
+      if (t < 1) raf = requestAnimationFrame(step)
+    })
+    return () => cancelAnimationFrame(raf)
+    // One loop per glide: a new one starts it again, and its own steps don't.
+  }, [glide?.from, glide?.to])
+  const over = useMemo((): Over | null => {
+    if (!glide) return null
+    const now = glideNow(glide)
+    if (!now.main) return null
+    return { main: now.main, peers: now.peers, spy: now.spy, ghosts: glide.ghosts, enter: glide.enter }
+  }, [glide])
+  const body = useMemo(() => (sl && g ? drawChart(sl, g, label, over) : null), [sl, g, label, over])
 
   const restart = () => {
     setHover(null)
     setSpan(null)
-    setPlay((n) => n + 1)
+    setFirst(false)
+    pending.current = true
   }
 
+  // Picking the range already on only retries its history download; it doesn't glide.
   const pick = (next: Range) => {
-    setRange(next)
+    if (next !== range) {
+      setRange(next)
+      restart()
+    }
     setHistoryLine(null)
-    restart()
     getHistory(next)
   }
 
@@ -596,8 +725,50 @@ export function ChartPane({ reportId, cik, ticker, name, width, wide, full, onCl
   }, [company])
 
   const flip = (k: keyof Toggles) => {
-    setToggles((t) => ({ ...t, [k]: !t[k] }))
+    setToggles((t) => {
+      if (k === 'volume') setVolumeOn(!t.volume)
+      return { ...t, [k]: !t[k] }
+    })
     restart()
+  }
+
+  // The line between the price chart and the volume bars: dragged, or moved with the arrow keys,
+  // it shares the height between them; a double-click puts the share back.
+  const shareAt = (clientY: number): number => {
+    const el = wrap.current
+    if (!el) return share
+    const top = clientY - el.getBoundingClientRect().top
+    const plotH = plotHeight(box.H)
+    return shareFor(volumeHeight(shareFor(box.H - AXIS_H - (top + 6), plotH), plotH, true), plotH)
+  }
+  const keepShare = (next: number) => {
+    const plotH = plotHeight(box.H)
+    const fitted = shareFor(volumeHeight(next, plotH, true), plotH)
+    setShare(fitted)
+    setVolumeShare(fitted)
+  }
+  const onSizeDown = (e: PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return
+    e.preventDefault()
+    e.stopPropagation()
+    e.currentTarget.setPointerCapture(e.pointerId)
+    setSizing(true)
+    setHover(null)
+  }
+  const onSizeMove = (e: PointerEvent<HTMLDivElement>) => {
+    e.stopPropagation()
+    if (sizing) setShare(shareAt(e.clientY))
+  }
+  const onSizeUp = (e: PointerEvent<HTMLDivElement>) => {
+    e.stopPropagation()
+    if (!sizing) return
+    setSizing(false)
+    keepShare(shareAt(e.clientY))
+  }
+  const onSizeKey = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return
+    e.preventDefault()
+    keepShare(share + (e.key === 'ArrowUp' ? 0.02 : -0.02))
   }
 
   // The day under the pointer; while measuring, the nearest day inside the chart.
@@ -693,7 +864,7 @@ export function ChartPane({ reportId, cik, ticker, name, width, wide, full, onCl
             <line className="c-measl" x1={g.X(span.b)} x2={g.X(span.b)} y1={TOP} y2={g.plotB} />
           </g>
         )}
-        <g key={play} className="play">
+        <g className={first ? 'play first' : 'play'}>
           {body}
         </g>
         {hover !== null && hover < g.n && drawHover(sl, g, hover, label)}
@@ -736,10 +907,15 @@ export function ChartPane({ reportId, cik, ticker, name, width, wide, full, onCl
             {toggle('fan', '12-month range', '#8FA2FF', !series?.range, 'This report has no 12-month range.')}
             {toggle('peers', 'Peers', '#8FA2FF', noPeers, 'No peer prices are stored for this report.')}
             {toggle('spy', 'S&P 500', '#D8DCE6', noSpy, 'No S&P 500 prices are stored.')}
+            {toggle('volume', 'Volume', 'rgba(127, 227, 247, .45)', false, '')}
             {wide && (
-              <button className="ibtn" aria-label={full ? 'Back to half' : 'Full size'} title={full ? 'Back to half' : 'Full size'} onClick={onFull}>
-                {full ? ICON.narrow : ICON.wide}
-              </button>
+              <div className="segc cwid" role="group" aria-label="Chart width">
+                {PRESETS.map((p) => (
+                  <button key={p} className={size === p ? 'on' : ''} aria-pressed={size === p} onClick={() => onSize(p)}>
+                    {PRESET_WORDS[p]}
+                  </button>
+                ))}
+              </div>
             )}
             <button className="ibtn" aria-label="Close the chart" title="Close the chart (⌘3)" onClick={onClose}>
               {ICON.close}
@@ -750,6 +926,26 @@ export function ChartPane({ reportId, cik, ticker, name, width, wide, full, onCl
         {shown === 'All' && short && <p className="cnote5">{served}</p>}
         <div ref={wrap} className="chartwrap" onPointerMove={onMove} onPointerDown={onDown} onPointerUp={onUp} onPointerCancel={onUp} onLostPointerCapture={onUp} onPointerLeave={onLeave}>
           {inside}
+          {g && sl && !loading && g.volH > 0 && (
+            <div
+              className={sizing ? 'hsplit hot' : 'hsplit'}
+              style={{ left: g.x0, width: g.x1 - g.x0, top: g.plotB }}
+              role="separator"
+              aria-orientation="horizontal"
+              aria-label="Price and volume heights"
+              aria-valuenow={Math.round(share * 100)}
+              tabIndex={0}
+              title="Drag to give the price or the volume more room. Double-click to reset."
+              onPointerDown={onSizeDown}
+              onPointerMove={onSizeMove}
+              onPointerUp={onSizeUp}
+              onPointerCancel={onSizeUp}
+              onDoubleClick={() => keepShare(SHARE_DEFAULT)}
+              onKeyDown={onSizeKey}
+            >
+              <i />
+            </div>
+          )}
         </div>
         <div className="cfoot">
           <span>

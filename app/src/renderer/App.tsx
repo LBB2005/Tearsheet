@@ -11,7 +11,7 @@ import type { MenuCommand } from '../main/menu'
 import type { CallResult, EngineNotification, ToolStatus } from '../preload/api'
 import type { CompanyRow, GradeResult, SearchHit, SettingsResult } from '../shared/protocol'
 import { bootView, GIVE_UP_AFTER_MS, STARTING_AFTER_MS } from './boot'
-import { setSidebarHidden, sidebarHidden } from './chart/prefs'
+import { forgetOldChartPrefs, setSidebarHidden, sidebarHidden } from './chart/prefs'
 import { runTitle } from './home/run'
 import { RunView } from './home/RunView'
 import { useRun } from './home/useRun'
@@ -61,6 +61,8 @@ export function App() {
   const [safety, setSafety] = useState<SafetyState | null>(null)
   // Kept between launches (chart/prefs.ts, sidebar.hidden).
   const [sideHidden, setSideHidden] = useState(sidebarHidden)
+  // An earlier version kept the chart's last width; it opens at Half now.
+  useEffect(() => forgetOldChartPrefs(), [])
   const [sideOver, setSideOver] = useState(false)
   const [lookUp, setLookUp] = useState(false)
   const [finding, setFinding] = useState(false)
@@ -442,7 +444,6 @@ export function App() {
 
   return (
     <div className={cls}>
-      {page !== 'setup' && <SidebarButton shown={sideShown} onClick={toggleSidebar} />}
       <Sidebar
         page={page}
         companies={companies}
@@ -495,6 +496,9 @@ export function App() {
         )}
         {lookUp && <LookUp onPick={(hit) => void pick(hit)} onClose={() => setLookUp(false)} />}
       </div>
+      {/* After the sidebar and the toolbar, whose top strips drag the window under it: where drag
+          areas overlap, the later one in the page wins (shell/sidebar.test.ts). */}
+      {page !== 'setup' && <SidebarButton shown={sideShown} onClick={toggleSidebar} />}
       <div className="toasts" aria-live="polite">
         {notice && <Toast key={notice.id} notice={notice} onDone={() => setNotice((n) => (n && n.id === notice.id ? null : n))} />}
       </div>

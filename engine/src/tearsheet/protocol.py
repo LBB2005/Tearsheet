@@ -49,9 +49,15 @@ class RunIdParams(Strict):
 class GetReportParams(Strict):
     report_id: str
     view: Literal["summary", "full"] = "summary"
-    column: Literal["both", "numbers", "text"] = "both"
+    # "auto" lays the report out by the frame's width (render.TWO_COLUMNS_MIN), so the app can
+    # open, close and resize the chart without loading it again.
+    column: Literal["both", "numbers", "text", "auto"] = "both"
     # A narrow window: the text alone, with a row of five key-number tiles above it.
     narrow: bool = False
+    # With column "auto", the one column kept below TWO_COLUMNS_MIN.
+    side: Literal["text", "numbers"] = "text"
+    # False for a frame loaded after the report was already on show: no entrance motion.
+    motion: bool = True
 
 
 class SearchParams(Strict):
