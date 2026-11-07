@@ -142,7 +142,8 @@ export function useReport({ reportId, wide, active, notify, refresh }: Options):
   const numbers = numbersDoc && numbersDoc.key === textKey && report ? numbersDoc.doc : null
   const numbersAsk = useRef('')
   useEffect(() => {
-    if (!active || !reportId || side !== 'numbers' || !report || textKey !== key) return
+    // Only while the switch can show it: the chart open beside the report, in a wide window.
+    if (!active || !reportId || side !== 'numbers' || !chartOpen || !wide || !report || textKey !== key) return
     if (numbersDoc?.key === key || numbersAsk.current === key) return
     numbersAsk.current = key
     const ask = key
@@ -157,7 +158,7 @@ export function useReport({ reportId, wide, active, notify, refresh }: Options):
         numbersAsk.current = ''
       }
     )
-  }, [active, reportId, side, report, textKey, key, numbersDoc, view, wide])
+  }, [active, reportId, side, chartOpen, report, textKey, key, numbersDoc, view, wide])
 
   // The company's reports, for the subtitle's menu of its other reports.
   useEffect(() => {

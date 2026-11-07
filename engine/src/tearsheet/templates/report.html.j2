@@ -39,13 +39,18 @@ a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outli
 .textcol { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 /* The app's layout that follows the frame (column "auto"): both columns from {{ two_min }} px, and
    below that the one column the side names. The other is put away at its own size, out of
-   sight, so it keeps its scroll for when the frame widens again. */
+   sight, so it keeps its scroll for when the frame widens again. A narrow window keeps one
+   column, with the key tiles, at any width. */
+{%- macro one_column(at) %}
+  {{ at }}.side-text .nums, {{ at }}.side-numbers .textcol { position: absolute; top: 0; left: -300vw; height: 100vh; visibility: hidden; }
+  {{ at }}.side-numbers .textcol { width: 100vw; }
+  {{ at }}.side-numbers .nums { width: auto; flex: 1; min-width: 0; max-width: 640px; grid-template-columns: 1fr 1fr; border-right: 0; }
+{%- endmacro %}
 @media (max-width: {{ two_min - 1 }}px) {
-  .col-auto.side-text .nums, .col-auto.side-numbers .textcol { position: absolute; top: 0; left: -300vw; height: 100vh; visibility: hidden; }
-  .col-auto.side-numbers .textcol { width: 100vw; }
-  .col-auto.side-numbers .nums { width: auto; flex: 1; min-width: 0; max-width: 640px; grid-template-columns: 1fr 1fr; border-right: 0; }
+{{- one_column(".col-auto") }}
 }
-@media (min-width: {{ two_min }}px) { .col-auto .keys { display: none; } }
+{{ one_column(".col-auto.narrow") }}
+@media (min-width: {{ two_min }}px) { .col-auto:not(.narrow) .keys { display: none; } }
 .tscroll { flex: 1; min-height: 0; overflow: auto; }
 .mode-file .layout { display: block; height: auto; max-width: 1140px; margin: 0 auto; padding-bottom: 40px; }
 .mode-file .nums { width: auto; overflow: visible; border-right: 0; grid-auto-flow: dense; }
@@ -245,7 +250,7 @@ table.t td { padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-a
 {%- from "report/_summary.html.j2" import summary_view with context %}
 {%- from "report/_full.html.j2" import full_view with context %}
 {%- set SHORT = {"rating": "Rating", "score": "Score", "valuation": "Valuation", "business": "Business", "risks": "Risks", "results": "Results", "news": "News", "trends": "Trends", "watch": "Watch"} %}
-<body data-view="{{ view }}" class="mode-{{ mode }} col-{{ column }} side-{{ side }}">
+<body data-view="{{ view }}" class="mode-{{ mode }} col-{{ column }} side-{{ side }}{% if narrow_layout %} narrow{% endif %}">
 <svg class="defs" width="0" height="0" aria-hidden="true" focusable="false"><defs>
 <linearGradient id="ring-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4C8DFF"/><stop offset="1" stop-color="#7FE3F7"/></linearGradient>
 <linearGradient id="area-g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7FE3F7" stop-opacity=".18"/><stop offset="1" stop-color="#7FE3F7" stop-opacity="0"/></linearGradient>

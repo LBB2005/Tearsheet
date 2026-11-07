@@ -183,6 +183,7 @@ def render_html(
         side=side,
         motion=motion,
         two_min=TWO_COLUMNS_MIN,
+        narrow_layout=bool(narrow) and column == "auto",
         key_tiles=key_tiles,
         csp=CSP,
         safe_url=_safe_url,

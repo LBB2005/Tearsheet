@@ -75,7 +75,7 @@ export function Report({ page, wide }: { page: ReportPage; wide: boolean }) {
   useLayoutEffect(() => {
     if (page.oneColumn !== one) page.setOneColumn(one)
   })
-  const showing = shownSide(page.side, one, page.numbers !== null && page.numbersReady)
+  const showing = shownSide(page.side, one, page.numbers !== null && page.numbersReady, chartOpen && wide)
 
   const onStart = () => {
     dragNow.current = { on: true, snap: null }

@@ -323,3 +323,16 @@ def test_a_file_keeps_both_columns_whatever_is_asked():
     )
     assert 'class="mode-file col-both side-text"' in file
     assert 'id="numbers"' in file and 'id="summary"' in file
+
+
+def test_a_narrow_window_keeps_one_column_at_any_frame_width():
+    """A window under about 1,100 px shows the text with the key tiles, whatever the frame's
+    width: the one-column rules hold without the 860 px media query."""
+    r = report("Plain sentence.")
+    narrow = render_html(r, mode="app", column="auto", narrow=True, numbers=numbers())
+    assert 'class="mode-app col-auto side-text narrow"' in narrow
+    css = narrow[: narrow.index("</style>")]
+    outside = re.sub(r"@media[^{]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}", "", css)
+    assert ".col-auto.narrow.side-text .nums" in outside
+    wide = render_html(r, mode="app", column="auto", numbers=numbers())
+    assert 'class="mode-app col-auto side-text"' in wide

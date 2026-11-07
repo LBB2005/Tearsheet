@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { between, ease, FADE_MS, GLIDE_MS, resample } from './glide'
+import { between, ease, FADE_MS, GLIDE_MS, glideTrack, nextGlide, resample } from './glide'
 
 describe('the timings', () => {
   it('glides in about a third of a second and fades in about a fifth', () => {
@@ -49,5 +49,43 @@ describe('between', () => {
   it('starts the next glide from wherever the line is now, with no jump', () => {
     const mid = between(a, b, 0.5)
     expect(between(mid, [5, 5, 5], 0)).toEqual(mid)
+  })
+})
+
+describe('glideTrack', () => {
+  const long = { xa: 0, xb: 40, ys: [0, 10, 20, 30, 40] }
+  const short = { xa: 0, xb: 40, ys: [40, 40, 40] }
+
+  it('starts exactly where the old line is, even going to a shorter range', () => {
+    expect(glideTrack(long, short, 0).ys).toEqual([0, 10, 20, 30, 40])
+  })
+
+  it('lands on the new line', () => {
+    expect(glideTrack(long, short, 1).ys.every((y) => y === 40)).toBe(true)
+    expect(glideTrack(short, long, 1).ys).toEqual([0, 10, 20, 30, 40])
+  })
+
+  it('starts the next glide from wherever a glide in progress has the line', () => {
+    const mid = glideTrack(long, short, 0.5)
+    expect(glideTrack(mid, { xa: 0, xb: 40, ys: [5, 5] }, 0).ys).toEqual(mid.ys)
+  })
+})
+
+describe('nextGlide', () => {
+  const at = (o: Partial<Parameters<typeof nextGlide>[0]>) => nextGlide({ changed: false, running: false, drawn: true, reduced: false, ...o })
+
+  it('glides to a range or toggle change from a chart already drawn', () => {
+    expect(at({ changed: true })).toBe('start')
+    expect(at({ changed: true, running: true })).toBe('start')
+  })
+
+  it('just draws a change with nothing drawn before it, or under Reduce motion', () => {
+    expect(at({ changed: true, drawn: false })).toBe('drop')
+    expect(at({ changed: true, reduced: true })).toBe('drop')
+  })
+
+  it('stops a glide when the chart is resized under it, so the lines match the new size', () => {
+    expect(at({ running: true })).toBe('drop')
+    expect(at({})).toBe('keep')
   })
 })

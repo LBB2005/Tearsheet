@@ -54,10 +54,12 @@ export function renderOptions(o: { view: View; side: Side; wide: boolean; motion
   return { view: o.view, column: 'auto', side: o.side, narrow: !o.wide, motion: o.motion }
 }
 
-// Which frame is on show: the numbers one only while the report is down to one column with
-// Numbers picked, and only once it has loaded, so a switch never shows a blank frame.
-export function shownSide(side: Side, one: boolean, numbersReady: boolean): Side {
-  return one && side === 'numbers' && numbersReady ? 'numbers' : 'text'
+// Which frame is on show: the numbers one only while it sits beside the open chart in a wide
+// window (where the switch is), down to one column with Numbers picked, and only once it has
+// loaded, so a switch never shows a blank frame and the report never stays on Numbers with no
+// switch to leave it.
+export function shownSide(side: Side, one: boolean, numbersReady: boolean, beside: boolean): Side {
+  return beside && one && side === 'numbers' && numbersReady ? 'numbers' : 'text'
 }
 
 // ⌘1 and ⌘2.

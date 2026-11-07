@@ -21,7 +21,7 @@ import type { ChartSeries } from '../../shared/protocol'
 import { shortDate } from '../nav'
 import { money } from '../shell/Sidebar'
 import { covers, measure, namedFilings, needsHistory, niceTicks, RANGE_ORDER, rebase, slice, volumeText, yearsServed, type Range } from './series'
-import { between, ease, GLIDE_MS, resample } from './glide'
+import { GLIDE_MS, glideTrack, nextGlide, resample, trackXs, type Track } from './glide'
 import { SHARE_DEFAULT, shareFor, volumeHeight } from './height'
 import { setVolumeOn, setVolumeShare, startRange, volumeOn, volumeShare } from './prefs'
 import { PRESETS, type Preset, type SnapMode } from './split'
@@ -234,13 +234,6 @@ const linePath = (values: (number | null)[], g: Geo): string => {
 
 // ---------- the glide ----------
 
-// A line as drawn: its y at ys.length evenly spaced x from xa to xb. Read at the new line's own
-// points, a glide always lands exactly on the line it is going to (glide.ts).
-interface Track {
-  xa: number
-  xb: number
-  ys: number[]
-}
 interface Tracks {
   main: Track | null
   peers: Track | null
@@ -260,8 +253,6 @@ interface Over extends Tracks {
   ghosts: { cls: string; track: Track }[]
   enter: Glide['enter']
 }
-
-const trackXs = (t: Track) => t.ys.map((_, i) => (t.ys.length < 2 ? t.xa : t.xa + ((t.xb - t.xa) * i) / (t.ys.length - 1)))
 
 function trackOf(values: (number | null)[] | null, g: Geo): Track | null {
   if (!values) return null
@@ -284,13 +275,6 @@ function trackOf(values: (number | null)[] | null, g: Geo): Track | null {
 }
 
 const tracksOf = (g: Geo): Tracks => ({ main: trackOf(g.main, g), peers: trackOf(g.peers, g), spy: trackOf(g.spy, g) })
-
-function glideTrack(from: Track | null, to: Track, t: number): Track {
-  if (!from) return to
-  const f = from.ys.length === to.ys.length ? from : { ...from, ys: resample(trackXs(from), from.ys, from.xa, from.xb, to.ys.length) ?? to.ys }
-  const e = ease(t)
-  return { xa: f.xa + (to.xa - f.xa) * e, xb: f.xb + (to.xb - f.xb) * e, ys: between(f.ys, to.ys, t) }
-}
 
 const glideNow = (gl: Glide): Tracks => ({
   main: gl.to.main ? glideTrack(gl.from.main, gl.to.main, gl.t) : null,
@@ -628,13 +612,13 @@ export function ChartPane({ reportId, cik, ticker, name, width, wide, size, onCl
   useLayoutEffect(() => {
     const prev = lastG.current
     lastG.current = g
-    if (!g || !pending.current) return
+    if (!g) return
+    const changed = pending.current
     pending.current = false
     const to = tracksOf(g)
-    if (!prev || reducedMotion() || !to.main) {
-      setGlide(null)
-      return
-    }
+    const step = nextGlide({ changed, running: glideRef.current !== null, drawn: prev !== null && to.main !== null, reduced: reducedMotion() })
+    if (step === 'drop' && glideRef.current) setGlide(null)
+    if (step !== 'start' || !prev) return
     const now = glideRef.current
     setGlide({
       from: now ? glideNow(now) : tracksOf(prev),
@@ -672,10 +656,13 @@ export function ChartPane({ reportId, cik, ticker, name, width, wide, size, onCl
     pending.current = true
   }
 
+  // Picking the range already on only retries its history download; it doesn't glide.
   const pick = (next: Range) => {
-    setRange(next)
+    if (next !== range) {
+      setRange(next)
+      restart()
+    }
     setHistoryLine(null)
-    restart()
     getHistory(next)
   }
 

@@ -1,6 +1,6 @@
 // The chart's motion after it has drawn in (the spec's round two, "Motion: glide"). On a range or
-// toggle change the lines don't draw again: the old line is read at the new line's own points
-// (evenly spaced across the chart), and slides to it in GLIDE_MS, landing exactly on it. A line
+// toggle change the lines don't draw again: the old and new lines are read at the same evenly
+// spaced points across the chart, and the one slides to the other in GLIDE_MS. A line
 // that comes or goes fades in FADE_MS (chart.css). Pure, so the pane and the tests share it.
 
 export const GLIDE_MS = 350
@@ -43,4 +43,36 @@ export function resample(xs: number[], ys: (number | null)[], x0: number, x1: nu
 export function between(from: number[], to: number[], t: number): number[] {
   const e = ease(t)
   return to.map((y, i) => (from[i] ?? y) + (y - (from[i] ?? y)) * e)
+}
+
+// A line as drawn: its y at ys.length evenly spaced x from xa to xb.
+export interface Track {
+  xa: number
+  xb: number
+  ys: number[]
+}
+
+export const trackXs = (t: Track): number[] => t.ys.map((_, i) => (t.ys.length < 2 ? t.xa : t.xa + ((t.xb - t.xa) * i) / (t.ys.length - 1)))
+
+// A track read at n points instead of its own.
+const atPoints = (t: Track, n: number): Track => (t.ys.length === n ? t : { ...t, ys: resample(trackXs(t), t.ys, t.xa, t.xb, n) ?? t.ys })
+
+// The line `t` of the way from one track to another. Both are read at the larger of their point
+// counts, so the glide starts exactly on the old line and ends on the new one, whichever is longer.
+export function glideTrack(from: Track | null, to: Track, t: number): Track {
+  if (!from) return to
+  const n = Math.max(from.ys.length, to.ys.length)
+  const f = atPoints(from, n)
+  const d = atPoints(to, n)
+  const e = ease(t)
+  return { xa: f.xa + (d.xa - f.xa) * e, xb: f.xb + (d.xb - f.xb) * e, ys: between(f.ys, d.ys, t) }
+}
+
+// What the chart does as its drawing changes: `start` a glide to a range or toggle change (from
+// the lines as they are now, even mid-glide), `drop` any glide and just draw (a change with
+// nothing drawn before it, Reduce motion, or a resize under a glide, so the lines match the new
+// size), or `keep` going as it is.
+export function nextGlide(o: { changed: boolean; running: boolean; drawn: boolean; reduced: boolean }): 'start' | 'drop' | 'keep' {
+  if (o.changed) return o.drawn && !o.reduced ? 'start' : 'drop'
+  return o.running ? 'drop' : 'keep'
 }

@@ -79,13 +79,17 @@ describe('oneColumn', () => {
 })
 
 describe('shownSide', () => {
-  it('shows the numbers frame only in one column, with Numbers picked, once it has loaded', () => {
-    expect(shownSide('numbers', true, true)).toBe('numbers')
+  it('shows the numbers frame only beside the chart, in one column, with Numbers picked, once it has loaded', () => {
+    expect(shownSide('numbers', true, true, true)).toBe('numbers')
     // Picked before its frame has loaded: the text stays on show, never a blank frame.
-    expect(shownSide('numbers', true, false)).toBe('text')
+    expect(shownSide('numbers', true, false, true)).toBe('text')
     // Two columns: the text frame shows both, so it stays.
-    expect(shownSide('numbers', false, true)).toBe('text')
-    expect(shownSide('text', true, true)).toBe('text')
+    expect(shownSide('numbers', false, true, true)).toBe('text')
+    expect(shownSide('text', true, true, true)).toBe('text')
+  })
+
+  it('goes back to the text once the switch is gone: the chart closed, or a narrow window', () => {
+    expect(shownSide('numbers', true, true, false)).toBe('text')
   })
 })
 
