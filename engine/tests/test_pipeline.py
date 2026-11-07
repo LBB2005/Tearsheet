@@ -1100,19 +1100,21 @@ def test_a_failed_other_tool_call_falls_back_to_a_fresh_session_of_the_same_tool
 
 
 def test_a_mix_says_which_sections_were_self_checked(database, tmp_path):
-    seen = []
-
     def codex(request):
-        seen.append(request)
-        if len(seen) in (3, 4):  # the third section's call and its one retry
+        # The risks section's call and its one retry fail. Sections are checked 3 at a time,
+        # so which others were already on Codex when it failed depends on timing; every
+        # section that wasn't is self-checked, and the box names them all.
+        if "Section: risks." in request.instructions:
             return AIUnavailable("Codex had a temporary error.")
         return answer(SkepticReport(findings=[]), model_id="gpt-fake")
 
     run, result, primary, other = run_with_checker(database, tmp_path, codex)
     text = run._skeptic_text()
+    selves = sorted(s for s, who in run.checked_by.items() if who == "self")
     assert text.startswith("checked by Codex, except ")
+    assert "risks" in selves and all(s in text for s in selves)
     assert "self-checked" in text
-    assert [r.task for r in primary.requests].count("skeptic") == 2
+    assert [r.task for r in primary.requests].count("skeptic") == len(selves)
 
 
 def test_the_checker_is_the_other_tool_only_when_it_is_connected(database, tmp_path, monkeypatch):
@@ -1527,3 +1529,31 @@ def test_an_unreadable_newer_filing_is_named_and_the_older_figures_kept(database
     asyncio.run(run.run("T0"))
     assert run.members[COMPANY].fin.ttm("revenue").end == date(2025, 12, 31)
     assert any("couldn't be read from the filing" in n for n in run.notes)
+
+
+def test_a_run_records_seconds_per_step(database, tmp_path):
+    from tearsheet.cli import time_line
+
+    run, result, connector = run_slice(database, tmp_path)
+    assert result.timings is not None
+    steps = result.timings["steps"]
+    assert list(steps)[:3] == ["resolve", "fetch", "normalize"] and "verify" in steps
+    assert result.timings["ai"]["extract"]["calls"] == sum(
+        r.task == "extract" for r in connector.requests
+    )
+    stored = json.loads(
+        database.conn.execute(
+            "SELECT json FROM step_outputs WHERE run_id = ? AND step = 'timings'", (run.run_id,)
+        ).fetchone()[0]
+    )
+    assert stored == result.timings
+    # The run's resume point is untouched by it.
+    assert (
+        database.conn.execute(
+            "SELECT last_step_done FROM runs WHERE run_id = ?", (run.run_id,)
+        ).fetchone()[0]
+        == "save"
+    )
+    assert time_line({"total_s": 272, "steps": {"fetch": 36, "rate": 0.1, "extract": 95}}) == (
+        "Time: 4.5 min (fetch 36 s, extract 1.6 min)."
+    )

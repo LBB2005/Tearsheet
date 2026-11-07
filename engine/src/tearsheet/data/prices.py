@@ -103,6 +103,61 @@ class PriceStore:
             )
         return len(rows)
 
+    def store_bar_rows(self, rows: list[tuple[int, str, dict[str, Any]]], *, raw_hash: str) -> int:
+        """Many companies' bars from one answer (the all-stocks daily summary), in one
+        transaction. Stored prices are never overwritten."""
+        values = [
+            (
+                cik,
+                share_class,
+                ms_to_eastern_date(b["t"]).isoformat(),
+                float(b["c"]),
+                b.get("v"),
+                SOURCE,
+                raw_hash,
+            )
+            for cik, share_class, b in rows
+            if b.get("c") is not None
+        ]
+        with self.conn:
+            self.conn.executemany(
+                "INSERT OR IGNORE INTO prices_daily VALUES (?, ?, ?, ?, ?, ?, ?)", values
+            )
+        return len(values)
+
+    def store_market_dividends(
+        self, data: dict[str, Any], tickers: dict[str, tuple[int, str]]
+    ) -> int:
+        """Whole-market dividends; only those for the given tickers (Massive spelling) are kept."""
+        rows = []
+        for d in data.get("results") or []:
+            key = tickers.get(d.get("ticker", ""))
+            if key and d.get("ex_dividend_date") and d.get("cash_amount") is not None:
+                rows.append(
+                    (
+                        key[0],
+                        key[1],
+                        d["ex_dividend_date"],
+                        "dividend",
+                        float(d["cash_amount"]),
+                        SOURCE,
+                    )
+                )
+        with self.conn:
+            self.conn.executemany(
+                "INSERT OR IGNORE INTO corporate_actions VALUES (?, ?, ?, ?, ?, ?)", rows
+            )
+        return len(rows)
+
+    def latest_dates(self) -> dict[tuple[int, str], date]:
+        """Each company and share class's latest stored close date, in one query."""
+        return {
+            (int(r[0]), r[1]): date.fromisoformat(r[2])
+            for r in self.conn.execute(
+                "SELECT cik, share_class, MAX(date) FROM prices_daily GROUP BY cik, share_class"
+            )
+        }
+
     def store_dividends(self, cik: int, share_class: str, data: dict[str, Any]) -> int:
         rows = [
             (cik, share_class, d["ex_dividend_date"], "dividend", float(d["cash_amount"]), SOURCE)

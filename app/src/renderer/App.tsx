@@ -27,6 +27,7 @@ import { Report, ReportSubtitle, ReportTools } from './pages/Report'
 import { Settings } from './pages/Settings'
 import { Setup } from './pages/Setup'
 import { useReport } from './report/useReport'
+import { topicName, type Topic } from './settings/topics'
 import { nextView, reportSubtitle } from './report/view'
 import { applySafetyNote, SAFETY_CALLS, safetyStarted, type SafetyState, type ToolKind } from './setup/steps'
 import { Sidebar, SidebarButton } from './shell/Sidebar'
@@ -70,6 +71,8 @@ export function App() {
   const [notice, setNotice] = useState<Notice | null>(null)
   // The prediction log's line in the toolbar ("2 logged, 0 graded"), once it has loaded.
   const [logLine, setLogLine] = useState<string | undefined>(undefined)
+  // The Settings topic shown. It stays put between visits, and the toolbar names it.
+  const [settingsTopic, setSettingsTopic] = useState<Topic>('general')
 
   // The page being shown, or the one on its way in while the old one leaves.
   const target = useRef<Page>('home')
@@ -369,7 +372,7 @@ export function App() {
       : page === 'log'
         ? { title: 'Prediction log', subtitle: logLine }
         : page === 'settings'
-          ? { title: 'Settings', subtitle: 'and connections' }
+          ? { title: 'Settings', subtitle: topicName(settingsTopic) }
           : runView
             ? runTitle(runView, report.readyHold)
             : {}
@@ -393,7 +396,10 @@ export function App() {
         refresh={graded}
         onStart={report.start}
         onOpen={openCompany}
-        onKeys={() => go('settings')}
+        onKeys={() => {
+          setSettingsTopic('keys')
+          go('settings')
+        }}
         onTools={setTools}
         onRecheck={recheck}
       />
@@ -411,6 +417,8 @@ export function App() {
           setPrimaryTool(s.primary_tool)
           setBootSettings(s)
         }}
+        topic={settingsTopic}
+        onTopic={setSettingsTopic}
       />
     )
 

@@ -1,30 +1,30 @@
-// Settings' data keys: Massive and FRED with setup's paste-and-check card (setup/KeyCard.tsx),
-// and Alpha Vantage, which isn't used yet, saved as it is. Keys are never shown: the window lets
-// go of a key once the engine has it.
+// Settings' Data keys page: Massive and FRED with setup's paste-and-check card
+// (setup/KeyCard.tsx), and Alpha Vantage, which isn't used yet, saved as it is. One row each: the
+// key's name and what it gives, whether it is added, and Add key or Replace key. Keys are never
+// shown: the window lets go of a key once the engine has it.
 
 import { useState } from 'react'
 
 import { KEY_TEXT, KeyCard } from '../setup/KeyCard'
 import { at, Changes, ExternalIcon, Spinner } from '../setup/parts'
 import type { KeyService } from '../setup/steps'
+import { Label } from './General'
 
 const KEYS: { service: KeyService | 'alphavantage'; name: string; what: string }[] = [
-  { service: 'massive', name: 'Massive', what: 'prices' },
-  { service: 'fred', name: 'FRED', what: 'economic data' },
-  { service: 'alphavantage', name: 'Alpha Vantage', what: 'not used yet' }
+  { service: 'massive', name: 'Massive', what: 'Prices' },
+  { service: 'fred', name: 'FRED', what: 'Economic data' },
+  { service: 'alphavantage', name: 'Alpha Vantage', what: 'Not used yet' }
 ]
 
 // A key is set, missing, or set but refused by its service on the last call that used it.
 type KeyState = 'set' | 'missing' | 'refused'
 
-export function KeysPanel({ i, keys, rejected, onSaved }: { i: number; keys: Record<string, 'set' | 'missing'>; rejected: string[]; onSaved: () => Promise<void> }) {
+const STATE_TEXT: Record<KeyState, string> = { set: 'Added', missing: 'Not added', refused: 'Not accepted' }
+
+export function KeysPanel({ keys, rejected, onSaved }: { keys: Record<string, 'set' | 'missing'>; rejected: string[]; onSaved: () => Promise<void> }) {
   const state = (service: string): KeyState => (keys[service] !== 'set' ? 'missing' : rejected.includes(service) ? 'refused' : 'set')
   return (
-    <section className="p glass keys mv" style={at(i)}>
-      <h4>
-        <span>Data keys</span>
-        <em>kept in the macOS Keychain</em>
-      </h4>
+    <div className="sgrp keys">
       {KEYS.map(({ service, name, what }) =>
         service === 'alphavantage' ? (
           <PlainKeyRow key={service} name={name} what={what} state={state(service)} onSaved={onSaved} />
@@ -32,18 +32,18 @@ export function KeysPanel({ i, keys, rejected, onSaved }: { i: number; keys: Rec
           <KeyRow key={service} service={service} name={name} what={what} state={state(service)} onSaved={onSaved} />
         )
       )}
-    </section>
+    </div>
   )
 }
 
 function KeyHead({ name, what, state, tone, open, action, onToggle }: { name: string; what: string; state: KeyState; tone: string; open: boolean; action: string; onToggle: () => void }) {
+  // A key that needs adding or replacing gets the accent button until its card is open.
+  const urgent = !open && state !== 'set' && tone !== 'off'
   return (
-    <div className="field">
-      <span>
-        {name} <small>({what})</small>
-      </span>
-      <span className={`pill ${state === 'set' ? 'ok' : state === 'refused' ? 'bad' : tone}`}>{state === 'refused' ? 'not accepted' : state}</span>
-      <button className="act" aria-expanded={open} onClick={onToggle}>
+    <div className="sline">
+      <Label title={name} help={what} />
+      <span className={`pill ${state === 'set' ? 'ok' : state === 'refused' ? 'bad' : tone}`}>{STATE_TEXT[state]}</span>
+      <button className={urgent ? 'pb go' : 'pb'} aria-expanded={open} aria-label={`${action}: ${name}`} onClick={onToggle}>
         {action}
       </button>
     </div>
