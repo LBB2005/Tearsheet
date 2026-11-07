@@ -72,6 +72,12 @@
 - [ ] Tests: `test_backfill_fills_new_stocks_from_the_window_start`, `test_backfill_resumes_from_stored_pages`, `test_backfill_waits_while_a_report_runs` (server test with a fake HTTP factory), `test_backfill_is_off_when_the_setting_says_so`.
 - [ ] Implement; tests pass; commit.
 
+### Task 2b: Start at setup, keep prices current (added 7 Nov, Liam: "when someone gets this app it immediately in the background starts loading everything")
+
+- `m_set_key` for Massive starts the price job at once, so a new install's download begins during setup, not at the next launch.
+- The price job loops while the app is open: the backfill while the index has a company it hasn't covered, then every 30 minutes (`KEEP_CURRENT_EVERY_S`) the sessions closed since the stored prices end, for every stored company (`market.catch_up` + `market.top_up`). A check that finds nothing makes no call.
+- [x] Tests: `test_saving_the_massive_key_starts_the_price_download_at_once`, `test_the_open_app_adds_newly_closed_sessions`, `test_catch_up_*`.
+
 ### Task 3: AI calls 3 at a time; the link search first
 
 **Files:**

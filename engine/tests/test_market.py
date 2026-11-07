@@ -334,3 +334,19 @@ def test_catch_up_ignores_a_long_halted_stock(database):
     store_closes(store, NVDA, [date(2026, 6, 1)])
     wanted = {"AAPL": (AAPL, ""), "MSFT": (MSFT, ""), "NVDA": (NVDA, "")}
     assert market.catch_up(store, wanted, end=date(2026, 11, 6))[1] == [date(2026, 11, 6)]
+
+
+def test_a_stored_answer_whose_file_is_gone_is_asked_for_again(database, rawstore):
+    store = PriceStore(database.conn)
+
+    async def go():
+        with respx.mock(assert_all_called=False) as mock:
+            massive = Massive(mock, {NEW_DAY: [summary_row("AAPL", NEW_DAY, 1.0)]})
+            async with client(rawstore) as http:
+                _, raw_hash = await market.fetch_day(http, rawstore, NEW_DAY, tally=market.Tally())
+                rawstore.path_for(raw_hash).unlink()
+                rows, _ = await market.fetch_day(http, rawstore, NEW_DAY, tally=market.Tally())
+            return massive, rows
+
+    massive, rows = asyncio.run(go())
+    assert massive.calls == [f"summary {NEW_DAY}"] * 2 and rows[0]["T"] == "AAPL"

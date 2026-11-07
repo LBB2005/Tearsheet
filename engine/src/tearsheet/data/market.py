@@ -78,11 +78,18 @@ def _full_url(url: str, params: dict[str, str] | None) -> str:
     return str(httpx.URL(url, params=params)) if params else url
 
 
-def _stored(rawstore, url: str) -> Any | None:
+def _stored(rawstore, url: str) -> tuple[Any, str] | None:
+    """A stored answer for the address and its raw hash, or None (also when its file has gone
+    from the raw folder, so it is asked for again)."""
     if rawstore is None:
         return None
     raw_hash = rawstore.latest(url)
-    return json.loads(rawstore.get(raw_hash)) if raw_hash else None
+    if not raw_hash:
+        return None
+    try:
+        return json.loads(rawstore.get(raw_hash)), raw_hash
+    except (OSError, ValueError):
+        return None
 
 
 async def paged(
@@ -100,11 +107,12 @@ async def paged(
     next_url: str | None = url
     next_params = params
     while next_url:
-        data = _stored(rawstore, _full_url(next_url, next_params)) if reuse else None
-        if data is None:
+        stored = _stored(rawstore, _full_url(next_url, next_params)) if reuse else None
+        if stored is None:
             await tally.before_call()
             data = (await http.fetch("massive", next_url, kind=kind, params=next_params)).json()
         else:
+            data = stored[0]
             tally.reused += 1
         yield data
         next_url, next_params = data.get("next_url"), None
@@ -116,11 +124,10 @@ async def fetch_day(
     """One session's all-stocks summary: (its rows, the raw hash they are stored under)."""
     url = _url(config.MASSIVE_DAILY_SUMMARY, day=day.isoformat())
     params = {"adjusted": "false"}
-    if reuse and rawstore is not None:
-        raw_hash = rawstore.latest(_full_url(url, params))
-        if raw_hash:
-            tally.reused += 1
-            return json.loads(rawstore.get(raw_hash)).get("results") or [], raw_hash
+    stored = _stored(rawstore, _full_url(url, params)) if reuse else None
+    if stored is not None:
+        tally.reused += 1
+        return stored[0].get("results") or [], stored[1]
     await tally.before_call()
     fetched = await http.fetch("massive", url, kind="daily_summary", params=params)
     return fetched.json().get("results") or [], fetched.raw_hash
