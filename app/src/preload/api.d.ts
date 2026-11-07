@@ -31,6 +31,8 @@ export interface TearsheetApi {
   listCompanies(): Promise<CallResult<import('../shared/protocol').CompanyRow[]>>
   searchCompanies(query: string, limit?: number): Promise<CallResult<import('../shared/protocol').SearchHit[]>>
   getChart(reportId: string): Promise<CallResult<import('../shared/protocol').ChartSeries>>
+  // The report's numbers for the panel's bigger views, each item with its readout.
+  getReportNumbers(reportId: string): Promise<CallResult<import('../shared/protocol').ReportNumbers>>
   fetchHistory(reportId: string): Promise<CallResult<import('../shared/protocol').FetchHistoryResult>>
   checkKey(service: 'massive' | 'fred', key: string): Promise<CallResult<import('../shared/protocol').KeyChecked>>
   runSafetyCheck(tool: 'claude' | 'codex'): Promise<CallResult<import('../shared/protocol').SafetyStarted>>

@@ -148,6 +148,30 @@ def test_get_chart_method(tmp_path):
     h.server.close()
 
 
+def test_get_report_numbers_method(tmp_path):
+    from tearsheet.protocol import ReportNumbers
+
+    h = Harness(tmp_path)
+
+    async def go():
+        ready = await _one_report(h)
+        found = await h.call("get_report_numbers", {"report_id": ready["report_id"]}, id_=2)
+        missing = await h.call("get_report_numbers", {"report_id": "nope"}, id_=3)
+        return ready, found, missing
+
+    ready, found, missing = run(go())
+    numbers = ReportNumbers.model_validate(found["result"])
+    assert numbers.report_id == ready["report_id"] and numbers.ticker == "T0"
+    assert numbers.factors and numbers.methods and numbers.returns
+    assert [t.key for t in numbers.tables] == ["score", "valuation"]
+    kept = h.server.db.conn.execute(
+        "SELECT COUNT(*) FROM claims WHERE report_id = ? AND removed = 0", (numbers.report_id,)
+    ).fetchone()[0]
+    assert numbers.claims is not None and numbers.claims.slices[0].count == kept
+    assert missing["error"]["data"]["code"] == "ENGINE_ERROR"
+    h.server.close()
+
+
 def test_fetch_history_refuses_while_running(tmp_path):
     h = Harness(tmp_path, delay_s=0.05)
     seed(h.server.db.conn)

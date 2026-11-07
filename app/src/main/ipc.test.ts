@@ -10,6 +10,10 @@ test('the call list is closed', () => {
   expect(engineMethod('getReport')).toBe('get_report')
 })
 
+test('the report’s numbers have a call of their own', () => {
+  expect(engineMethod('getReportNumbers')).toBe('get_report_numbers')
+})
+
 test('a new or changed query starts a find session, and the same query steps through it', () => {
   expect(findRequest(null, 'Hold', true)).toEqual({ text: 'Hold', forward: true, findNext: true })
   expect(findRequest('Hold', 'Hold', true)).toEqual({ text: 'Hold', forward: true, findNext: false })

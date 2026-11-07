@@ -928,6 +928,33 @@ class Server:
         run_id, cik, _ = self._report_target(p.report_id)
         return chart_series(self.db.conn, cik, run_id)
 
+    async def m_get_report_numbers(self, p) -> dict[str, Any]:
+        """The report's numbers for the panel's bigger views (protocol.ReportNumbers)."""
+        from tearsheet.report_views import views_for
+
+        row = self.db.conn.execute(
+            "SELECT r.report_id, r.run_id, u.cik FROM reports r"
+            " LEFT JOIN runs u ON u.run_id = r.run_id WHERE r.report_id = ?",
+            (p.report_id,),
+        ).fetchone()
+        # Without its run's company there are no stored numbers to read, as for the chart.
+        if row is None or row["cik"] is None:
+            raise EngineError("ENGINE_ERROR", f"No report {p.report_id}.")
+        stored = self.db.conn.execute(
+            "SELECT json FROM sections WHERE report_id = ? AND key = 'report'", (p.report_id,)
+        ).fetchone()
+        report = json.loads(stored[0])
+        ticker = report.get("ticker") or ""
+        views = views_for(
+            self.db.conn,
+            report,
+            row["run_id"],
+            row["cik"],
+            report_id=row["report_id"],
+            ticker=ticker,
+        )
+        return {"report_id": row["report_id"], "ticker": ticker, **views}
+
     async def m_fetch_history(self, p) -> dict[str, Any]:
         """The company's full daily history with its splits and dividends. It is answered off
         the request loop (OFF_LOOP), as a job: a second ask for the same company, from any of

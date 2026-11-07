@@ -73,6 +73,10 @@ class HistoryParams(Strict):
     report_id: str
 
 
+class NumbersParams(Strict):
+    report_id: str
+
+
 class ListReportsParams(Strict):
     limit: int = 50
     offset: int = 0
@@ -137,6 +141,7 @@ METHODS: dict[str, type[Strict]] = {
     "search_companies": SearchParams,
     "get_chart": ChartParams,
     "fetch_history": HistoryParams,
+    "get_report_numbers": NumbersParams,
 }
 
 
@@ -249,6 +254,138 @@ class ChartSeries(Strict):
 class FetchHistoryResult(Strict):
     first_date: str
     days: int
+
+
+# --- the report's numbers, for the panel's bigger views (report_views.views_for) -------------
+# Each item carries its readout, written by readouts.py, so the panel says what the report says.
+
+
+class FactorItem(Strict):
+    name: str
+    percentile: int
+    # A fraction: 0.3 counts for 30% of the score.
+    weight: float
+    readout: str
+
+
+class PeerValue(Strict):
+    ticker: str
+    value: float
+    text: str
+    readout: str
+
+
+class MetricItem(Strict):
+    name: str
+    label: str
+    value: float
+    # The value written as the report writes it ("65.2%", "425.8×").
+    text: str
+    peer_median: float | None
+    median_text: str | None
+    percentile: int | None
+    # Each peer's stored value, highest first.
+    peers: list[PeerValue]
+    readout: str
+
+
+class MethodItem(Strict):
+    method: str
+    label: str
+    value: float
+    readout: str
+
+
+class Mark(Strict):
+    value: float
+    readout: str
+
+
+class Band(Strict):
+    bear: float
+    base: float
+    bull: float
+    readout: str
+
+
+class ReturnRow(Strict):
+    name: str
+    # In percent, to one decimal (-3.0 is down 3%); None when it can't be worked out.
+    value: float | None
+    readout: str
+
+
+class ReturnSpan(Strict):
+    years: Literal[1, 3, 5]
+    company: ReturnRow
+    # The peer group and each peer are given for 1 year only: peers' prices are stored for
+    # about 14 months. `each_peer` is highest first, with None last, and empty otherwise.
+    peers: ReturnRow | None
+    spy: ReturnRow
+    each_peer: list[ReturnRow]
+
+
+class RedFlagItem(Strict):
+    code: str
+    label: str
+    found: bool
+    readout: str
+
+
+class EconomyItem(Strict):
+    series: str
+    label: str
+    value: str
+    date: str
+    readout: str
+
+
+class Slice(Strict):
+    key: Literal["buy", "hold", "sell", "kept", "removed"]
+    label: str
+    count: int
+    readout: str
+    # One line per item in the slice; None when the run didn't keep the list (a run keeps only
+    # the count of each peer rating).
+    items: list[str] | None
+
+
+class Ring(Strict):
+    total: int
+    slices: list[Slice]
+
+
+class ReportTable(Strict):
+    # The section's key and title.
+    key: str
+    title: str
+    # The stored text of each cell; the first row is the header.
+    rows: list[list[str]]
+
+
+class ReportNumbers(Strict):
+    """The report's numbers as data, with what can be worked out from stored data: each peer's
+    metric values and 12-month return, and 3- and 5-year total returns where the history is
+    stored. A part that isn't stored, or can't be read, is None."""
+
+    report_id: str
+    ticker: str
+    score_readout: str | None
+    factors: list[FactorItem] | None
+    metrics: list[MetricItem] | None
+    methods: list[MethodItem] | None
+    price: Mark | None
+    estimate: Mark | None
+    range: Band | None
+    # 1 year first, then 3 and 5 where both the company's and SPY's history reach back.
+    returns: list[ReturnSpan] | None
+    red_flags: list[RedFlagItem] | None
+    red_flags_readout: str | None
+    economy: list[EconomyItem] | None
+    peer_ratings: Ring | None
+    claims: Ring | None
+    # Every table the Full report shows, in its order.
+    tables: list[ReportTable]
 
 
 class ReportSummary(Strict):
@@ -445,6 +582,20 @@ ALL_MODELS: tuple[type[BaseModel], ...] = (
     PriceRange,
     ChartSeries,
     FetchHistoryResult,
+    FactorItem,
+    PeerValue,
+    MetricItem,
+    MethodItem,
+    Mark,
+    Band,
+    ReturnRow,
+    ReturnSpan,
+    RedFlagItem,
+    EconomyItem,
+    Slice,
+    Ring,
+    ReportTable,
+    ReportNumbers,
     ReportSummary,
     Grade,
     PredictionSummary,

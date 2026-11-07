@@ -26,6 +26,7 @@ export type Query1 = string;
 export type Limit1 = number;
 export type ReportId1 = string;
 export type ReportId2 = string;
+export type ReportId3 = string;
 export type Cik = number;
 export type Name = string;
 export type Ticker = string;
@@ -44,7 +45,7 @@ export type Capped = boolean;
 export type RedFlags = string[];
 export type Percentile = number | null;
 export type Peers = number | null;
-export type ReportId3 = string;
+export type ReportId4 = string;
 export type RunId2 = string;
 export type Ticker2 = string;
 export type Cik1 = number | null;
@@ -56,7 +57,7 @@ export type Html = string;
 export type Cik2 = number;
 export type Ticker3 = string;
 export type Name3 = string;
-export type ReportId4 = string;
+export type ReportId5 = string;
 export type ReportDate = string;
 export type Reports = number;
 export type Price = number | null;
@@ -65,7 +66,7 @@ export type Ticker4 = string;
 export type Name4 = string;
 export type Sector = string | null;
 export type Cik3 = number;
-export type ReportId5 = string | null;
+export type ReportId6 = string | null;
 export type ReportDate1 = string | null;
 export type PeerRule = string | null;
 export type Date = string;
@@ -81,11 +82,73 @@ export type Trigger = number | null;
 export type FirstDate = string;
 export type FirstDate1 = string;
 export type Days = number;
-export type ReportId6 = string;
+export type Name5 = string;
+export type Percentile1 = number;
+export type Weight = number;
+export type Readout = string;
+export type Ticker5 = string;
+export type Value1 = number;
+export type Text = string;
+export type Readout1 = string;
+export type Name6 = string;
+export type Label = string;
+export type Value2 = number;
+export type Text1 = string;
+export type PeerMedian = number | null;
+export type MedianText = string | null;
+export type Percentile2 = number | null;
+export type Peers2 = PeerValue[];
+export type Readout2 = string;
+export type Method = string;
+export type Label1 = string;
+export type Value3 = number;
+export type Readout3 = string;
+export type Value4 = number;
+export type Readout4 = string;
+export type Bear1 = number;
+export type Base1 = number;
+export type Bull1 = number;
+export type Readout5 = string;
+export type Name7 = string;
+export type Value5 = number | null;
+export type Readout6 = string;
+export type Years = 1 | 3 | 5;
+export type EachPeer = ReturnRow[];
+export type Code = string;
+export type Label2 = string;
+export type Found = boolean;
+export type Readout7 = string;
+export type Series = string;
+export type Label3 = string;
+export type Value6 = string;
+export type Date1 = string;
+export type Readout8 = string;
+export type Key3 = "buy" | "hold" | "sell" | "kept" | "removed";
+export type Label4 = string;
+export type Count = number;
+export type Readout9 = string;
+export type Items = string[] | null;
+export type Total1 = number;
+export type Slices = Slice[];
+export type Key4 = string;
+export type Title = string;
+export type Rows = string[][];
+export type ReportId7 = string;
+export type Ticker6 = string;
+export type ScoreReadout = string | null;
+export type Factors = FactorItem[] | null;
+export type Metrics = MetricItem[] | null;
+export type Methods = MethodItem[] | null;
+export type Returns = ReturnSpan[] | null;
+export type RedFlags1 = RedFlagItem[] | null;
+export type RedFlagsReadout = string | null;
+export type Economy = EconomyItem[] | null;
+export type Tables = ReportTable[];
+export type ReportId8 = string;
 export type RunId3 = string;
 export type Cik4 = number | null;
-export type Ticker5 = string | null;
-export type Name5 = string | null;
+export type Ticker7 = string | null;
+export type Name8 = string | null;
 export type CreatedAt1 = string;
 export type Rating1 = string | null;
 export type NarrativeComplete1 = boolean;
@@ -100,19 +163,19 @@ export type EndDate = string | null;
 export type InsideRange = boolean | null;
 export type PredictionId = string;
 export type Cik5 = number;
-export type Ticker6 = string;
+export type Ticker8 = string;
 export type RunAt = string;
 export type Rating2 = string;
-export type Bear1 = number | null;
-export type Base1 = number | null;
-export type Bull1 = number | null;
+export type Bear2 = number | null;
+export type Base2 = number | null;
+export type Bull2 = number | null;
 export type Grades = Grade[];
 export type ReviewId = string;
 export type Deleted = number;
 export type Graded = number;
 export type Note1 = string | null;
-export type Name6 = string;
-export type Key3 = string;
+export type Name9 = string;
+export type Key5 = string;
 export type Cost = string;
 export type Sent = string;
 export type Version = string | null;
@@ -142,8 +205,8 @@ export type Proof = string;
 export type Started = boolean;
 export type Tool2 = "claude" | "codex";
 export type N = number;
-export type Total1 = number;
-export type Name7 = string;
+export type Total2 = number;
+export type Name10 = string;
 export type Ok2 = boolean;
 export type Tool3 = "claude" | "codex";
 export type Passed1 = boolean;
@@ -158,11 +221,11 @@ export type Step = number;
 export type StepName = string;
 export type State = "started" | "done" | "skipped" | "retrying" | "failed";
 export type RunId5 = string;
-export type ReportId7 = string;
+export type ReportId9 = string;
 export type RunId6 = string;
 export type Step1 = string | null;
 export type Message = string;
-export type Code =
+export type Code1 =
   | "NOT_COVERED"
   | "RUN_IN_PROGRESS"
   | "NO_TOOL"
@@ -293,6 +356,13 @@ export interface HistoryParams {
 }
 /**
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "NumbersParams".
+ */
+export interface NumbersParams {
+  report_id: ReportId3;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
  * via the `definition` "Candidate".
  */
 export interface Candidate {
@@ -349,7 +419,7 @@ export interface ReportBar {
  * via the `definition` "ReportResult".
  */
 export interface ReportResult {
-  report_id: ReportId3;
+  report_id: ReportId4;
   run_id: RunId2;
   ticker: Ticker2;
   cik: Cik1;
@@ -368,7 +438,7 @@ export interface CompanyRow {
   cik: Cik2;
   ticker: Ticker3;
   name: Name3;
-  report_id: ReportId4;
+  report_id: ReportId5;
   report_date: ReportDate;
   reports: Reports;
   price: Price;
@@ -383,7 +453,7 @@ export interface SearchHit {
   name: Name4;
   sector: Sector;
   cik: Cik3;
-  report_id: ReportId5;
+  report_id: ReportId6;
   report_date: ReportDate1;
   peer_rule?: PeerRule;
 }
@@ -421,14 +491,172 @@ export interface FetchHistoryResult {
 }
 /**
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "FactorItem".
+ */
+export interface FactorItem {
+  name: Name5;
+  percentile: Percentile1;
+  weight: Weight;
+  readout: Readout;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "PeerValue".
+ */
+export interface PeerValue {
+  ticker: Ticker5;
+  value: Value1;
+  text: Text;
+  readout: Readout1;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "MetricItem".
+ */
+export interface MetricItem {
+  name: Name6;
+  label: Label;
+  value: Value2;
+  text: Text1;
+  peer_median: PeerMedian;
+  median_text: MedianText;
+  percentile: Percentile2;
+  peers: Peers2;
+  readout: Readout2;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "MethodItem".
+ */
+export interface MethodItem {
+  method: Method;
+  label: Label1;
+  value: Value3;
+  readout: Readout3;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "Mark".
+ */
+export interface Mark {
+  value: Value4;
+  readout: Readout4;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "Band".
+ */
+export interface Band {
+  bear: Bear1;
+  base: Base1;
+  bull: Bull1;
+  readout: Readout5;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "ReturnRow".
+ */
+export interface ReturnRow {
+  name: Name7;
+  value: Value5;
+  readout: Readout6;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "ReturnSpan".
+ */
+export interface ReturnSpan {
+  years: Years;
+  company: ReturnRow;
+  peers: ReturnRow | null;
+  spy: ReturnRow;
+  each_peer: EachPeer;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "RedFlagItem".
+ */
+export interface RedFlagItem {
+  code: Code;
+  label: Label2;
+  found: Found;
+  readout: Readout7;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "EconomyItem".
+ */
+export interface EconomyItem {
+  series: Series;
+  label: Label3;
+  value: Value6;
+  date: Date1;
+  readout: Readout8;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "Slice".
+ */
+export interface Slice {
+  key: Key3;
+  label: Label4;
+  count: Count;
+  readout: Readout9;
+  items: Items;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "Ring".
+ */
+export interface Ring {
+  total: Total1;
+  slices: Slices;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "ReportTable".
+ */
+export interface ReportTable {
+  key: Key4;
+  title: Title;
+  rows: Rows;
+}
+/**
+ * The report's numbers as data, with what can be worked out from stored data: each peer's
+ * metric values and 12-month return, and 3- and 5-year total returns where the history is
+ * stored. A part that isn't stored, or can't be read, is None.
+ *
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "ReportNumbers".
+ */
+export interface ReportNumbers {
+  report_id: ReportId7;
+  ticker: Ticker6;
+  score_readout: ScoreReadout;
+  factors: Factors;
+  metrics: Metrics;
+  methods: Methods;
+  price: Mark | null;
+  estimate: Mark | null;
+  range: Band | null;
+  returns: Returns;
+  red_flags: RedFlags1;
+  red_flags_readout: RedFlagsReadout;
+  economy: Economy;
+  peer_ratings: Ring | null;
+  claims: Ring | null;
+  tables: Tables;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
  * via the `definition` "ReportSummary".
  */
 export interface ReportSummary {
-  report_id: ReportId6;
+  report_id: ReportId8;
   run_id: RunId3;
   cik: Cik4;
-  ticker: Ticker5;
-  name: Name5;
+  ticker: Ticker7;
+  name: Name8;
   created_at: CreatedAt1;
   rating: Rating1;
   narrative_complete: NarrativeComplete1;
@@ -457,12 +685,12 @@ export interface Grade {
 export interface PredictionSummary {
   prediction_id: PredictionId;
   cik: Cik5;
-  ticker: Ticker6;
+  ticker: Ticker8;
   run_at: RunAt;
   rating: Rating2;
-  bear: Bear1;
-  base: Base1;
-  bull: Bull1;
+  bear: Bear2;
+  base: Base2;
+  bull: Bull2;
   grades: Grades;
 }
 /**
@@ -492,8 +720,8 @@ export interface GradeResult {
  * via the `definition` "Service".
  */
 export interface Service2 {
-  name: Name6;
-  key: Key3;
+  name: Name9;
+  key: Key5;
   cost: Cost;
   sent: Sent;
 }
@@ -583,8 +811,8 @@ export interface SafetyStarted {
 export interface SafetyProgress {
   tool: Tool2;
   n: N;
-  total: Total1;
-  name: Name7;
+  total: Total2;
+  name: Name10;
   ok: Ok2;
 }
 /**
@@ -623,7 +851,7 @@ export interface Progress {
  */
 export interface ReportReady {
   run_id: RunId5;
-  report_id: ReportId7;
+  report_id: ReportId9;
 }
 /**
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
@@ -633,7 +861,7 @@ export interface RunFailedNote {
   run_id: RunId6;
   step: Step1;
   message: Message;
-  code: Code;
+  code: Code1;
   reset_at?: ResetAt;
   fix_command?: FixCommand;
 }
