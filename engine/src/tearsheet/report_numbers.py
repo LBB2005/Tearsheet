@@ -15,7 +15,12 @@ from datetime import UTC, date, datetime
 from statistics import median
 from typing import Any
 
-from tearsheet.data.prices import PriceStore, last_completed_session, split_factor_after
+from tearsheet.data.prices import (
+    PriceStore,
+    last_completed_session,
+    previous_session,
+    split_factor_after,
+)
 
 FRED_LABELS = {
     "UNRATE": "Unemployment rate",
@@ -344,3 +349,59 @@ def numbers_for(
         **parse_code_lines(report),
         **stored_numbers(conn, run_id, cik, report_id=report_id),
     }
+
+
+# --- The top bar -----------------------------------------------------------------------------
+
+
+def _bar(conn: sqlite3.Connection, numbers: dict, run_id: str, cik: int) -> dict:
+    from tearsheet.render import RED_FLAG_LABELS
+
+    recent = conn.execute(
+        "SELECT date, close_unadjusted FROM prices_daily WHERE cik = ? AND share_class = ''"
+        " ORDER BY date DESC LIMIT 2",
+        (cik,),
+    ).fetchall()
+    splits = PriceStore(conn).splits(cik)
+    last_day = date.fromisoformat(recent[0][0]) if recent else None
+    previous = None
+    if last_day is not None and len(recent) > 1:
+        day = date.fromisoformat(recent[1][0])
+        # Only the session just before: an older close would pass a gap off as one day's move.
+        if day == previous_session(last_day):
+            previous = round(
+                float(recent[1][1]) / split_factor_after(splits, day, up_to=last_day), 6
+            )
+    price_range = numbers.get("range")
+    priced = run_price_date(conn, run_id)
+    if price_range and priced is not None and last_day is not None:
+        factor = split_factor_after(splits, priced, up_to=last_day)
+        price_range = {k: round(v / factor, 6) for k, v in price_range.items()}
+    rating = numbers.get("rating") or {}
+    score = numbers.get("score") or {}
+    peers = conn.execute(
+        "SELECT COUNT(*) FROM peer_groups WHERE run_id = ? AND peer_cik != ?", (run_id, cik)
+    ).fetchone()[0]
+    return {
+        "close": float(recent[0][1]) if recent else None,
+        "close_date": last_day.isoformat() if last_day else None,
+        "previous_close": previous,
+        "rating": rating.get("call"),
+        "capped": bool(rating.get("capped")),
+        "red_flags": [
+            RED_FLAG_LABELS.get(code) or code.replace("_", " ").capitalize()
+            for code in numbers.get("red_flags") or []
+        ],
+        "range": price_range or None,
+        "percentile": score.get("percentile"),
+        "peers": int(peers) or None,
+    }
+
+
+def bar_numbers(conn: sqlite3.Connection, numbers: dict, run_id: str, cik: int) -> dict | None:
+    """What the report page's top bar shows (protocol.ReportBar): the last close Tearsheet has,
+    the session's close before it, and the report's call from `numbers` (numbers_for). The
+    report gives its range in its price date's shares; here it is divided by the splits
+    executed since, so it sits on the last close's scale, as on the chart. None when the stored
+    rows are too odd to read."""
+    return _guard(lambda: _bar(conn, numbers, run_id, cik))

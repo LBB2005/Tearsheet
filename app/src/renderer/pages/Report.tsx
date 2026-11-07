@@ -7,7 +7,7 @@
 // Full it is hidden until the divider is dragged back. A narrow window gives the chart the whole
 // window. The state lives in report/useReport.ts.
 
-import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type RefObject } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from 'react'
 
 import type { ReportSummary } from '../../shared/protocol'
 import { ChartPane } from '../chart/ChartPane'
@@ -222,15 +222,28 @@ export function ReportTools({ page, wide }: { page: ReportPage; wide: boolean })
         </span>
       )}
       <button className={page.chartOpen ? 'cbtn on' : 'cbtn'} aria-pressed={page.chartOpen} title="Open or close the chart (⌘3)" onClick={page.toggleChart}>
-        {CHART_ICON}Chart<kbd>⌘3</kbd>
+        {CHART_ICON}Chart{wide && <kbd>⌘3</kbd>}
       </button>
     </>
   )
 }
 
 // The toolbar's subtitle. When the company has other reports, it is a small menu of them, newest
-// first; picking one opens it.
-export function ReportSubtitle({ text, others, onOpen }: { text: string; others: ReportSummary[]; onOpen: (reportId: string) => void }) {
+// first; picking one opens it. Beside the report's top bar it shows `label` (the report's date)
+// instead of `text`, and `text` becomes what pointing at it says.
+export function ReportSubtitle({
+  text,
+  others,
+  onOpen,
+  label,
+  className
+}: {
+  text: string
+  others: ReportSummary[]
+  onOpen: (reportId: string) => void
+  label?: ReactNode
+  className?: string
+}) {
   const [open, setOpen] = useState(false)
   const [at, setAt] = useState<{ left: number; top: number }>({ left: 0, top: 0 })
   const button = useRef<HTMLButtonElement>(null)
@@ -242,7 +255,14 @@ export function ReportSubtitle({ text, others, onOpen }: { text: string; others:
   // A new report, or one with no others, closes the menu.
   useEffect(() => setOpen(false), [text, others.length])
 
-  if (others.length === 0) return <>{text}</>
+  if (others.length === 0)
+    return label ? (
+      <span className={className} title={text}>
+        {label}
+      </span>
+    ) : (
+      <>{text}</>
+    )
 
   const toggle = () => {
     const r = button.current?.getBoundingClientRect()
@@ -268,8 +288,15 @@ export function ReportSubtitle({ text, others, onOpen }: { text: string; others:
 
   return (
     <>
-      <button ref={button} className="subbtn" aria-haspopup="menu" aria-expanded={open} title="This company’s other reports" onClick={toggle}>
-        {text}
+      <button
+        ref={button}
+        className={className ?? 'subbtn'}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        title={label ? `${text}. Pick another of this company’s reports.` : 'This company’s other reports'}
+        onClick={toggle}
+      >
+        {label ?? text}
         {CHEVRON}
       </button>
       {open && (

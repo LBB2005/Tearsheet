@@ -26,6 +26,8 @@ import { Log } from './pages/Log'
 import { Report, ReportSubtitle, ReportTools } from './pages/Report'
 import { Settings } from './pages/Settings'
 import { Setup } from './pages/Setup'
+import { listBar } from './report/bar'
+import { ReportBar, reportDateLabel } from './report/ReportBar'
 import { useReport } from './report/useReport'
 import { topicName, type Topic } from './settings/topics'
 import { nextView, reportSubtitle } from './report/view'
@@ -357,6 +359,25 @@ export function App() {
   // While a report loads, the toolbar names it from the lists.
   const shown = reportPage.report
   const entry = reportPage.listed
+  // The report page's top bar: the report's own numbers once it has loaded. Until then, or for a
+  // report whose numbers can't be read, the sidebar's last close and the list's rating.
+  const barTicker = shown?.ticker || entry?.ticker || openRow?.ticker || null
+  const barDate = shown?.created_at ?? entry?.created_at ?? (openRow?.report_id === openReport ? openRow.report_date : null)
+  const lead =
+    page === 'report' && barTicker ? (
+      <>
+        <ReportBar ticker={barTicker} name={shown?.name ?? entry?.name ?? openRow?.name ?? null} bar={shown?.bar ?? listBar(openRow, entry?.rating)} />
+        {barDate && (
+          <ReportSubtitle
+            text={reportSubtitle(barDate, shown?.kept ?? null)}
+            label={reportDateLabel(barDate)}
+            className="rdate"
+            others={shown ? reportPage.others : []}
+            onOpen={setOpenReport}
+          />
+        )}
+      </>
+    ) : undefined
   const bar =
     page === 'report'
       ? {
@@ -499,6 +520,7 @@ export function App() {
             <Toolbar
               title={bar.title}
               subtitle={bar.subtitle}
+              lead={lead}
               bare={page === 'home' && !runView}
               finding={finding}
               findFocus={findFocus}
