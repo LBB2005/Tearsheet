@@ -1529,3 +1529,31 @@ def test_an_unreadable_newer_filing_is_named_and_the_older_figures_kept(database
     asyncio.run(run.run("T0"))
     assert run.members[COMPANY].fin.ttm("revenue").end == date(2025, 12, 31)
     assert any("couldn't be read from the filing" in n for n in run.notes)
+
+
+def test_a_run_records_seconds_per_step(database, tmp_path):
+    from tearsheet.cli import time_line
+
+    run, result, connector = run_slice(database, tmp_path)
+    assert result.timings is not None
+    steps = result.timings["steps"]
+    assert list(steps)[:3] == ["resolve", "fetch", "normalize"] and "verify" in steps
+    assert result.timings["ai"]["extract"]["calls"] == sum(
+        r.task == "extract" for r in connector.requests
+    )
+    stored = json.loads(
+        database.conn.execute(
+            "SELECT json FROM step_outputs WHERE run_id = ? AND step = 'timings'", (run.run_id,)
+        ).fetchone()[0]
+    )
+    assert stored == result.timings
+    # The run's resume point is untouched by it.
+    assert (
+        database.conn.execute(
+            "SELECT last_step_done FROM runs WHERE run_id = ?", (run.run_id,)
+        ).fetchone()[0]
+        == "save"
+    )
+    assert time_line({"total_s": 272, "steps": {"fetch": 36, "rate": 0.1, "extract": 95}}) == (
+        "Time: 4.5 min (fetch 36 s, extract 1.6 min)."
+    )

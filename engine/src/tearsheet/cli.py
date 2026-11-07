@@ -34,6 +34,18 @@ def _open(args: argparse.Namespace, command: str):
     return paths, database
 
 
+def _span(seconds: float) -> str:
+    return f"{seconds / 60:.1f} min" if seconds >= 60 else f"{seconds:.0f} s"
+
+
+def time_line(timings: dict) -> str:
+    """How long the run took and where the time went: the steps that took 3 seconds or more,
+    in order."""
+    steps = [(k, v) for k, v in timings.get("steps", {}).items() if v >= 3]
+    detail = ", ".join(f"{k} {_span(v)}" for k, v in steps)
+    return f"Time: {_span(timings.get('total_s', 0))}" + (f" ({detail})." if detail else ".")
+
+
 def cmd_set_key(args: argparse.Namespace) -> int:
     service = args.service
     label = KEY_LABELS[service]
@@ -225,6 +237,8 @@ def cmd_run(args: argparse.Namespace) -> int:
         database.close()
     print()
     print(f"Status: {result.status}. Rating: {result.rating or 'withheld'}.")
+    if result.timings:
+        print(time_line(result.timings))
     if result.prediction:
         print(result.prediction)
     for note in result.notes:
@@ -290,6 +304,8 @@ def cmd_resume(args: argparse.Namespace) -> int:
                 client.connector.close()
         database.close()
     print(f"\nStatus: {result.status}. Rating: {result.rating or 'withheld'}.")
+    if result.timings:
+        print(time_line(result.timings))
     if result.html_path:
         print(f"Report: {result.html_path}")
     return 0 if result.status in ("done", "done_incomplete") else 1

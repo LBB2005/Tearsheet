@@ -16,6 +16,7 @@ import math
 import re
 import sqlite3
 import statistics
+import time
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -208,6 +209,8 @@ class RunResult:
     rating: str | None
     notes: list[str]
     prediction: str | None = None  # what happened to the prediction log on this run
+    # Seconds per step and per AI task (`Run._timings`), also saved as the `timings` step.
+    timings: dict[str, Any] | None = None
 
 
 def _now() -> datetime:
@@ -340,6 +343,11 @@ class Run:
         self.dropped: list[str] = []
         # Step 9's link search, started right after step 1 (`_start_link_search`).
         self._link_search: asyncio.Task | None = None
+        # Wall-clock seconds per step (item 34's timings), from `_step` and `_mark`.
+        self._step_seconds: dict[str, float] = {}
+        self._current: tuple[str, float] | None = None
+        self._started_at: float | None = None
+        self.timings: dict[str, Any] | None = None
 
     # --- bookkeeping ------------------------------------------------------------------------
 
@@ -395,7 +403,32 @@ class Run:
             )
         self.progress(step, "done")
 
+    def _mark(self, name: str) -> None:
+        """The step under way is now `name` (for the timings; no progress note)."""
+        now = time.monotonic()
+        if self._started_at is None:
+            self._started_at = now
+        if self._current is not None:
+            step, began = self._current
+            self._step_seconds[step] = self._step_seconds.get(step, 0.0) + now - began
+        self._current = (name, now)
+
+    def _timings(self) -> dict[str, Any]:
+        """Seconds per step, and each AI task's calls and summed call seconds (calls run 3 at
+        a time, so these can add up to more than the step's own time)."""
+        self._mark("end")
+        ai: dict[str, dict[str, float]] = {}
+        for client in (self.ai, self.checker):
+            for record in getattr(client, "calls", None) or []:
+                entry = ai.setdefault(record.task, {"calls": 0, "seconds": 0.0})
+                entry["calls"] += 1
+                entry["seconds"] = round(entry["seconds"] + record.duration_s, 1)
+        steps = {k: round(v, 1) for k, v in self._step_seconds.items() if k != "end"}
+        total = time.monotonic() - (self._started_at or time.monotonic())
+        return {"total_s": round(total, 1), "steps": steps, "ai": ai}
+
     def _finish(self, status: str, failed_step: str | None = None) -> None:
+        self.timings = self._timings()
         calls = self.ai.sent if self.ai is not None else 0  # the checker shares this budget
         clients = [c for c in (self.ai, self.checker) if c is not None]
         model_ids = sorted({r.model_id for c in clients for r in c.calls if r.model_id})
@@ -413,10 +446,17 @@ class Run:
                     self.run_id,
                 ),
             )
+            # Not through `_save_step`: the timings aren't a step to resume from, and replay
+            # doesn't compare them (replay.COMPARED_STEPS).
+            self.conn.execute(
+                "INSERT OR REPLACE INTO step_outputs (run_id, step, json) VALUES (?, 'timings', ?)",
+                (self.run_id, json.dumps(self.timings)),
+            )
 
     def _step(self, name: str) -> None:
         if self.cancel_requested:
             raise RunCancelled(name)
+        self._mark(name)
         self.progress(name, "started")
 
     def cancel(self) -> None:
@@ -550,6 +590,7 @@ class Run:
             step = "render"
             self._step(step)
             step = "verify"
+            self._mark(step)
             claims, removed, split = await self.verify(drafts, paragraphs, resolved)
             self._save_step(
                 step, {"kept": sum(len(v) for v in claims.values()), "removed": len(removed)}
@@ -589,6 +630,7 @@ class Run:
                 rating.rating,
                 self.notes,
                 self.prediction_note,
+                self.timings,
             )
         except RunCancelled:
             self._finish("cancelled")
