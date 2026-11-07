@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from tearsheet import PROTOCOL_VERSION
 
@@ -296,6 +296,34 @@ class LockdownState(Strict):
     blocked_reason: str | None
 
 
+class PriceDownload(Strict):
+    """The one-time background download of 14 months of prices for every S&P 500 company
+    (server._prices_job), as Settings shows it.
+
+    - no_key: it starts once a Massive key is saved.
+    - downloading: under way; `days_done` of `days_total` trading days so far, when known.
+    - paused: it waits while `paused_for` runs (a report, grading, a full price history
+      download, or a safety check), then goes on.
+    - stopped: it stopped (`stopped_because`, in plain words) and starts again the next time
+      the app opens.
+    - off: switched off with `set-setting prices_backfill off`.
+    - waiting: not running now; it starts the next time the app opens.
+    - done: finished; `companies_ready` of `companies` have the whole 14 months.
+    """
+
+    # Titled, so the generated TypeScript keeps `State` for a run's progress.
+    state: Literal["no_key", "downloading", "paused", "stopped", "off", "waiting", "done"] = Field(
+        title="DownloadState"
+    )
+    days_done: int | None = None
+    days_total: int | None = None
+    paused_for: Literal["report", "grading", "history", "safety"] | None = None
+    stopped_because: str | None = None
+    # S&P 500 companies (SPY isn't counted) with 14 months up to the newest stored session.
+    companies_ready: int
+    companies: int
+
+
 class SettingsResult(Strict):
     keys: dict[str, Literal["set", "missing"]]
     # Stored keys their service refused on the last call that used them (Settings, home).
@@ -310,6 +338,7 @@ class SettingsResult(Strict):
     setup_done: bool
     fred_skipped: bool
     services: list[Service]
+    price_download: PriceDownload
     lockdown: dict[str, LockdownState] = {}
 
 
@@ -401,6 +430,7 @@ ALL_MODELS: tuple[type[BaseModel], ...] = (
     GradeResult,
     Service,
     LockdownState,
+    PriceDownload,
     SettingsResult,
     KeyChecked,
     SafetyStarted,

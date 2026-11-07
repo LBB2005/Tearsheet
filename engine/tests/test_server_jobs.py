@@ -475,3 +475,182 @@ def test_switching_the_backfill_off_stops_it_at_its_next_call(tmp_path, monkeypa
     assert calls == ["first"]
     assert config.Settings(h.server.db.conn).get("prices_backfill_status") == "switched off"
     h.server.close()
+
+
+# --- the price download in get_settings (Settings' Data keys page) ---------------------------
+
+
+def _price_download(h: Harness, id_: int = 90):
+    async def ask():
+        return (await h.call("get_settings", id_=id_))["result"]["price_download"]
+
+    return ask()
+
+
+def test_settings_say_the_price_download_waits_for_a_massive_key(tmp_path, monkeypatch):
+    from tearsheet.protocol import PriceDownload
+
+    h, seen = _backfill_harness(tmp_path, monkeypatch)
+    config.set_key("massive", "")
+
+    async def go():
+        await h.server.start()
+        return await _price_download(h)
+
+    shown = run(go())
+    PriceDownload.model_validate(shown)
+    assert shown["state"] == "no_key" and seen == []
+    assert shown["companies"] > 400 and shown["companies_ready"] == 0  # SPY isn't counted
+    h.server.close()
+
+
+def test_settings_follow_the_price_download_as_it_goes_and_pauses_for_a_report(
+    tmp_path, monkeypatch
+):
+    import tearsheet.data.market as market
+    from tearsheet.data.prices import last_completed_session
+    from tests.test_pipeline import NOW
+
+    h, _ = _backfill_harness(tmp_path, monkeypatch, delay_s=0.02)
+    # An earlier pass stopped at 10; this one reads its stored answers again from the start.
+    config.Settings(h.server.db.conn).set_internal(market.STATUS_SETTING, "10 of 295 sessions")
+    inside, count, counted, release = (asyncio.Event() for _ in range(4))
+
+    async def slow_backfill(http, rawstore, store, wanted, *, end, gate, progress, **_):
+        inside.set()
+        await count.wait()
+        tally = market.Tally()
+        tally.made = 140
+        progress(120, 295, tally)
+        counted.set()
+        await release.wait()
+        return market.BackfillResult(sessions=295, calls=300, reused=0, ready=2, wanted=2)
+
+    monkeypatch.setattr(market, "backfill", slow_backfill)
+
+    async def no_top_up(*args, **kwargs):
+        return {}
+
+    monkeypatch.setattr(market, "top_up", no_top_up)
+    # Apple has the whole window; Microsoft only its last session.
+    _store_window(h, {320193: "whole", 789019: "last"}, end=last_completed_session(NOW))
+
+    async def go():
+        await h.server.start()
+        await asyncio.wait_for(inside.wait(), 5)
+        starting = await _price_download(h, 1)
+        count.set()
+        await asyncio.wait_for(counted.wait(), 5)
+        going = await _price_download(h, 2)
+        await h.call("run_report", {"query": "T0"}, id_=3)
+        paused = await _price_download(h, 4)
+        await h.finish()
+        after_report = await _price_download(h, 5)
+        release.set()
+        await asyncio.wait_for(h.server.backfill_job, 5)
+        done = await _price_download(h, 6)
+        return starting, going, paused, after_report, done
+
+    starting, going, paused, after_report, done = run(go())
+    assert starting["state"] == "downloading" and starting.get("days_done") is None
+    assert going["state"] == "downloading"
+    assert (going["days_done"], going["days_total"]) == (120, 295)
+    assert paused["state"] == "paused" and paused["paused_for"] == "report"
+    assert paused["days_done"] == 120
+    assert after_report["state"] == "downloading"
+    assert done["state"] == "done" and done["companies_ready"] == 1  # Apple; Microsoft is short
+    assert config.Settings(h.server.db.conn).get(market.STATUS_SETTING) == (
+        "120 of 295 sessions, 140 calls"
+    )
+    h.server.close()
+
+
+def _store_window(h: Harness, spans: dict[int, str], *, end) -> None:
+    """Two closes a stock for the whole window (ready() reads only the first and last), or one
+    on the last session."""
+    import tearsheet.data.market as market
+    from tearsheet.data.prices import PriceStore, sessions_between
+
+    first = sessions_between(market.window_start(end), end)[0]
+    store = PriceStore(h.server.db.conn)
+    for cik, span in spans.items():
+        days = (first, end) if span == "whole" else (end,)
+        bars = [{"t": _ms(day), "c": 1.0} for day in days]
+        store.store_bars(cik, "", {"results": bars}, raw_hash="x")
+
+
+def test_a_finished_price_download_counts_up_to_the_newest_stored_session(tmp_path, monkeypatch):
+    # The app opened after a few days away: every stored close, SPY's too, is a session behind
+    # until the top-up catches up, and the companies still count as downloaded.
+    import tearsheet.data.market as market
+    from tearsheet.data.membership import stored_or_bundled
+    from tearsheet.data.prices import SPY_CIK, last_completed_session, previous_session
+    from tests.test_pipeline import NOW
+
+    h = Harness(tmp_path)
+    conn = h.server.db.conn
+    behind = previous_session(last_completed_session(NOW))
+    _store_window(h, {320193: "whole", SPY_CIK: "whole"}, end=behind)
+    market.record_backfill(
+        config.Settings(conn), market.wanted_members(stored_or_bundled(conn)), behind
+    )
+    shown = run(_price_download(h))
+    assert shown["state"] == "done" and shown["companies_ready"] == 1
+    h.server.close()
+
+
+def test_settings_say_why_the_price_download_stopped_in_plain_words(tmp_path, monkeypatch):
+    import tearsheet.data.market as market
+    from tearsheet.http import HTTPFailure
+
+    h, _ = _backfill_harness(tmp_path, monkeypatch)
+
+    async def refused(http, rawstore, store, wanted, *, end, gate, progress, **_):
+        raise HTTPFailure("massive", "https://api.massive.com/v2/x?apiKey=secret", "HTTP 401", 401)
+
+    monkeypatch.setattr(market, "backfill", refused)
+
+    async def go():
+        await h.server.start()
+        await asyncio.wait_for(h.server.backfill_job, 5)
+        return await _price_download(h)
+
+    shown = run(go())
+    assert shown["state"] == "stopped"
+    assert shown["stopped_because"] == "Massive turned down the key"
+    assert "secret" not in json.dumps(h.messages) and "http" not in shown["stopped_because"]
+    h.server.close()
+
+
+def test_settings_say_when_the_price_download_is_off_or_waits_for_the_next_open(
+    tmp_path, monkeypatch
+):
+    h, _ = _backfill_harness(tmp_path, monkeypatch)
+    h.server.backfill_enabled = False  # as if the key came from the terminal while the app ran
+
+    async def ask():
+        await h.server.start()
+        return await _price_download(h)
+
+    assert run(ask())["state"] == "waiting"
+    config.Settings(h.server.db.conn).set("prices_backfill", "off")
+    assert run(_price_download(h))["state"] == "off"
+    h.server.close()
+
+
+def test_the_price_download_stop_reasons_are_plain_words():
+    from tearsheet.http import DailyLimitReached, HTTPFailure
+    from tearsheet.server import backfill_stop_reason
+
+    def failure(status):
+        return HTTPFailure("massive", "https://api.massive.com/x", "HTTP", status)
+
+    assert backfill_stop_reason(DailyLimitReached("massive", "", "used", 429)).startswith(
+        "the day’s Massive allowance"
+    )
+    assert backfill_stop_reason(failure(None)) == "no answer came from Massive"
+    assert backfill_stop_reason(failure(403)) == "the Massive plan doesn’t include these prices"
+    assert backfill_stop_reason(failure(429)).startswith("Massive was limiting")
+    assert backfill_stop_reason(failure(503)) == "Massive was having trouble"
+    assert backfill_stop_reason(failure(200)) == "Massive sent an unreadable answer"
+    assert backfill_stop_reason(KeyError("x")).startswith("something went wrong")
