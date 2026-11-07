@@ -11,6 +11,8 @@ METHOD_CODE_VERSION.
   before it.
 * Point in time: only facts filed on or before the run date are used, and for each period the
   latest such filing wins, so later restatements are recorded but not used for earlier dates.
+  Proxy and information statements are left out: their pay-versus-performance tables tag a
+  year's net income, often rounded, and being filed after the 10-K they would otherwise win.
 * Splits: share counts are multiplied, and per-share values divided, by every split between
   the fact's filing date and the price date.
 """
@@ -26,12 +28,16 @@ from typing import Any
 # trailing 12 months; AVERAGE items are durations read for the latest period (weighted share
 # counts, per-share figures); BALANCE items are instants.
 FLOW: dict[str, tuple[str, ...]] = {
+    # Total revenue first: a bank's or broker's net of interest expense, then the income
+    # statement's total. Revenue from contracts with customers is only part of the total for
+    # a company with rent, interest, premiums or investment income (Berkshire, MetLife, REITs),
+    # so it is used only where a company tags no total.
     "revenue": (
-        "RevenueFromContractWithCustomerExcludingAssessedTax",
+        "RevenuesNetOfInterestExpense",
         "Revenues",
+        "RevenueFromContractWithCustomerExcludingAssessedTax",
         "RevenueFromContractWithCustomerIncludingAssessedTax",
         "SalesRevenueNet",
-        "RevenuesNetOfInterestExpense",
     ),
     "cost_of_revenue": (
         "CostOfRevenue",
@@ -76,8 +82,17 @@ FLOW: dict[str, tuple[str, ...]] = {
     "diluted_eps": ("EarningsPerShareDiluted",),
 }
 AVERAGE: dict[str, tuple[str, ...]] = {
-    "diluted_shares": ("WeightedAverageNumberOfDilutedSharesOutstanding",),
+    "diluted_shares": (
+        "WeightedAverageNumberOfDilutedSharesOutstanding",
+        "WeightedAverageNumberOfShareOutstandingBasicAndDiluted",
+    ),
 }
+# A company with nothing that would add shares (no options or convertibles) may file only its
+# basic average count, as Exxon does. That count is used as the diluted count only for a
+# period whose basic and diluted earnings per share are filed and match.
+BASIC_SHARES_TAGS = ("WeightedAverageNumberOfSharesOutstandingBasic",)
+BASIC_EPS_TAGS = ("EarningsPerShareBasic",)
+EPS_MATCH = 0.005  # half a cent
 BALANCE: dict[str, tuple[str, ...]] = {
     "total_assets": ("Assets",),
     "common_equity": ("StockholdersEquity",),
@@ -129,6 +144,11 @@ DILUTED_INCOME_TAGS = (
     "NetIncomeLoss",
 )
 
+# Proxy and information statements (DEF 14A, DEFA14A, PRE 14C...): their pay-versus-performance
+# tables tag a year's net income, often rounded (JPMorgan's 2025 proxy gives $57,000 million for
+# the 10-K's $57,048 million). Their facts are left out.
+PROXY_FORM_KINDS = ("14A", "14C")
+
 YEAR = timedelta(days=365)
 YEAR_TOLERANCE = timedelta(days=45)
 # A tag whose newest value is this much older than the newest value of any tag for the
@@ -173,12 +193,19 @@ class _Fact:
     accn: str
 
 
+def _is_proxy(row: dict[str, Any]) -> bool:
+    """A fact from a proxy or information statement (DEF 14A, PRE 14C and the like)."""
+    form = str(row.get("form") or "")
+    return any(kind in form for kind in PROXY_FORM_KINDS)
+
+
 def _parse_rows(rows: list[dict[str, Any]], as_of: date) -> list[_Fact]:
-    """Facts filed by the run date; for each period, the latest such filing."""
+    """Facts filed by the run date, from reports rather than proxy statements; for each
+    period, the latest such filing."""
     best: dict[tuple[date | None, date], _Fact] = {}
     for row in rows:
         filed = date.fromisoformat(row["filed"])
-        if filed > as_of or row.get("val") is None:
+        if filed > as_of or row.get("val") is None or _is_proxy(row):
             continue
         start = date.fromisoformat(row["start"]) if row.get("start") else None
         end = date.fromisoformat(row["end"])
@@ -197,7 +224,12 @@ def newest_period(company_facts: dict[str, Any], *, as_of: date) -> date | None:
     for tag in (*BALANCE["total_assets"], *FLOW["revenue"]):
         for rows in ((us_gaap.get(tag) or {}).get("units") or {}).values():
             for row in rows:
-                if not row.get("end") or not row.get("filed") or row["filed"] > as_of.isoformat():
+                if (
+                    not row.get("end")
+                    or not row.get("filed")
+                    or row["filed"] > as_of.isoformat()
+                    or _is_proxy(row)
+                ):
                     continue
                 end = date.fromisoformat(row["end"])
                 newest = end if newest is None or end > newest else newest
@@ -531,20 +563,43 @@ class Financials:
             return self._instant(item, DEI_BALANCE[item], near)
         if item in AVERAGE:
             value = self._latest_duration(item, AVERAGE[item], near)
-            return self._checked_scale(value) if item == "diluted_shares" else value
+            if item != "diluted_shares":
+                return value
+            if value is None:
+                value = self._basic_when_undiluted(near)
+            return self._checked_scale(value)
         raise KeyError(item)
+
+    def _value_for(self, tags: tuple[str, ...], start: date, end: date) -> float | None:
+        """The first of these tags' values for exactly this period."""
+        for tag in tags:
+            for f in self._facts(tag):
+                if f.start == start and f.end == end:
+                    return f.value
+        return None
+
+    def _basic_when_undiluted(self, near: date | None) -> Value | None:
+        """The basic average share count, for a period whose basic and diluted earnings per
+        share match (a company with nothing that would add shares)."""
+        value = self._latest_duration("diluted_shares", BASIC_SHARES_TAGS, near)
+        if value is None or value.start is None:
+            return None
+        basic = self._value_for(BASIC_EPS_TAGS, value.start, value.end)
+        diluted = self._value_for(FLOW["diluted_eps"], value.start, value.end)
+        if basic is None or diluted is None or abs(basic - diluted) > EPS_MATCH:
+            return None
+        note = (
+            "The filings give no diluted share count. Basic and diluted earnings per share are "
+            "the same, so nothing adds shares, and the basic average share count was used."
+        )
+        if note not in self.corrections:
+            self.corrections.append(note)
+        return value
 
     def _implied_shares(self, start: date, end: date) -> float | None:
         """Net income ÷ diluted earnings per share for one period: the share count they imply."""
-
-        def at(tags: tuple[str, ...]) -> float | None:
-            for tag in tags:
-                for f in self._facts(tag):
-                    if f.start == start and f.end == end:
-                        return f.value
-            return None
-
-        income, eps = at(DILUTED_INCOME_TAGS), at(FLOW["diluted_eps"])
+        income = self._value_for(DILUTED_INCOME_TAGS, start, end)
+        eps = self._value_for(FLOW["diluted_eps"], start, end)
         if income is None or eps is None or abs(eps) < 0.01:
             return None
         implied = income / eps

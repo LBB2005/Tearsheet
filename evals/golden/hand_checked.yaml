@@ -1,6 +1,298 @@
 # Hand-checked numbers (design item 40): at least 5 per ticker, each checked by hand against
 # the filing on EDGAR. `eval golden` fails if any checked number is more than 0.5% off (share
-# counts and dates must match exactly). After the store is frozen, `eval golden --draft-checks`
-# prints candidates from the engine's own numbers with `checked: false`: compare each with the
-# filing, correct any that differ, set `checked: true`, and paste them here.
-checks: []
+# counts and dates must match exactly). Unchecked entries (`checked: false`) are skipped.
+#
+# How to check one company: open the link on its "---" line (its newest 10-Q or 10-K).
+# * total_assets, total_equity: the balance sheet, in millions.
+# * diluted_shares: the earnings-per-share note or the income statement's "diluted" average
+#   shares for the quarter shown.
+# * revenue, net_income: 12-month totals. The note gives the sum: last year's 10-K figure, plus
+#   this year's months to date, minus the same months last year (both in the newest report's
+#   income statement). Check the three parts, not the total.
+# * period_end: the date on the report's cover.
+# If a number matches, change `checked: false` to `checked: true`. If it's wrong, put the
+# filing's number in `value` (in dollars or shares, not millions), set `checked: true`, and tell
+# Claude: `eval golden` will then fail on it until the engine is fixed.
+checks:
+# --- JPM: JPMORGAN CHASE & CO. Newest report: 10-Q for 2026-09-30: https://www.sec.gov/Archives/edgar/data/19617/000162828026069523/jpm-20260930.htm
+#     Last 10-K, for 2025-12-31: https://www.sec.gov/Archives/edgar/data/19617/000162828026008131/jpm-20251231.htm
+# revenue (RevenuesNetOfInterestExpense), $M: year to 2025-12-31 182,447 [10-K] + 9 months to 2026-09-30 157,355 − 9 months to 2025-09-30 136,649 (both in the newest 10-Q)
+- {ticker: JPM, field: revenue, value: 203153000000.0, checked: true}
+# net_income (NetIncomeLoss), $M: year to 2025-12-31 57,048 [10-K] + 9 months to 2026-09-30 52,954 − 9 months to 2025-09-30 44,023 (both in the newest 10-Q)
+- {ticker: JPM, field: net_income, value: 65979000000.0, checked: true}
+# total_assets (Assets) at 2026-09-30: 5,091,545 ($M), balance sheet of the newest report
+- {ticker: JPM, field: total_assets, value: 5091545000000.0, checked: true}
+# total_equity (StockholdersEquity) at 2026-09-30: 372,368 ($M), balance sheet of the newest report
+- {ticker: JPM, field: total_equity, value: 372368000000.0, checked: true}
+# diluted_shares (WeightedAverageNumberOfDilutedSharesOutstanding), 2026-07-01 to 2026-09-30: 2,683.0 million as filed, 10-Q earnings-per-share note
+- {ticker: JPM, field: diluted_shares, value: 2683000000.0, checked: true}
+# period_end: the newest report's period
+- {ticker: JPM, field: period_end, value: '2026-09-30', checked: true}
+
+# --- TRV: TRAVELERS COMPANIES, INC.. Newest report: 10-Q for 2026-09-30: https://www.sec.gov/Archives/edgar/data/86312/000008631226000181/trv-20260930.htm
+#     Last 10-K, for 2025-12-31: https://www.sec.gov/Archives/edgar/data/86312/000008631226000065/trv-20251231.htm
+# revenue (Revenues), $M: year to 2025-12-31 48,828 [10-K] + 9 months to 2026-09-30 36,489 − 9 months to 2025-09-30 36,396 (both in the newest 10-Q)
+- {ticker: TRV, field: revenue, value: 48921000000.0, checked: true}
+# net_income (NetIncomeLoss), $M: year to 2025-12-31 6,288 [10-K] + 9 months to 2026-09-30 5,836 − 9 months to 2025-09-30 3,792 (both in the newest 10-Q)
+- {ticker: TRV, field: net_income, value: 8332000000.0, checked: true}
+# total_assets (Assets) at 2026-09-30: 142,089 ($M), balance sheet of the newest report
+- {ticker: TRV, field: total_assets, value: 142089000000.0, checked: true}
+# total_equity (StockholdersEquity) at 2026-09-30: 28,995 ($M), balance sheet of the newest report
+- {ticker: TRV, field: total_equity, value: 28995000000.0, checked: true}
+# diluted_shares (WeightedAverageNumberOfDilutedSharesOutstanding), 2026-07-01 to 2026-09-30: 210.6 million as filed, 10-Q earnings-per-share note
+- {ticker: TRV, field: diluted_shares, value: 210600000.0, checked: true}
+# period_end: the newest report's period
+- {ticker: TRV, field: period_end, value: '2026-09-30', checked: true}
+
+# --- PLD: Prologis, Inc.. Newest report: 10-Q for 2026-09-30: https://www.sec.gov/Archives/edgar/data/1045609/000119312526436160/pld-20260930.htm
+#     Last 10-K, for 2025-12-31: https://www.sec.gov/Archives/edgar/data/1045609/000119312526051453/pld-20251231.htm
+# revenue (Revenues), $M: year to 2025-12-31 8,790 [10-K] + 9 months to 2026-09-30 7,111 − 9 months to 2025-09-30 6,537 (both in the newest 10-Q)
+- {ticker: PLD, field: revenue, value: 9363405000.0, checked: true}
+# net_income (NetIncomeLoss), $M: year to 2025-12-31 3,328 [10-K] + 9 months to 2026-09-30 2,861 − 9 months to 2025-09-30 1,928 (both in the newest 10-Q)
+- {ticker: PLD, field: net_income, value: 4261053000.0, checked: true}
+# total_assets (Assets) at 2026-09-30: 103,895 ($M), balance sheet of the newest report
+- {ticker: PLD, field: total_assets, value: 103894706000.0, checked: true}
+# total_equity (StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest) at 2026-09-30: 60,342 ($M), balance sheet of the newest report
+- {ticker: PLD, field: total_equity, value: 60341631000.0, checked: true}
+# diluted_shares (WeightedAverageNumberOfDilutedSharesOutstanding), 2026-07-01 to 2026-09-30: 968.5 million as filed, 10-Q earnings-per-share note
+- {ticker: PLD, field: diluted_shares, value: 968511000.0, checked: true}
+# period_end: the newest report's period
+- {ticker: PLD, field: period_end, value: '2026-09-30', checked: true}
+
+# --- DUK: Duke Energy CORP. Newest report: 10-Q for 2026-09-30: https://www.sec.gov/Archives/edgar/data/1326160/000132616026000051/duk-20260930.htm
+#     Last 10-K, for 2025-12-31: https://www.sec.gov/Archives/edgar/data/1326160/000132616026000014/duk-20251231.htm
+# revenue (RevenueFromContractWithCustomerIncludingAssessedTax), $M: year to 2025-12-31 31,741 [10-K] + 9 months to 2026-09-30 25,524 − 9 months to 2025-09-30 23,968 (both in the newest 10-Q)
+- {ticker: DUK, field: revenue, value: 33297000000.0, checked: true}
+# net_income (NetIncomeLoss), $M: year to 2025-12-31 4,968 [10-K] + 9 months to 2026-09-30 4,207 − 9 months to 2025-09-30 3,784 (both in the newest 10-Q)
+- {ticker: DUK, field: net_income, value: 5391000000.0, checked: true}
+# total_assets (Assets) at 2026-09-30: 203,863 ($M), balance sheet of the newest report
+- {ticker: DUK, field: total_assets, value: 203863000000.0, checked: true}
+# total_equity (StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest) at 2026-09-30: 57,542 ($M), balance sheet of the newest report
+- {ticker: DUK, field: total_equity, value: 57542000000.0, checked: true}
+# diluted_shares (WeightedAverageNumberOfDilutedSharesOutstanding), 2026-01-01 to 2026-03-31: 779.0 million as filed, 10-Q earnings-per-share note
+- {ticker: DUK, field: diluted_shares, value: 779000000.0, checked: true}
+# period_end: the newest report's period
+- {ticker: DUK, field: period_end, value: '2026-09-30', checked: true}
+
+# --- INTC: INTEL CORP. Newest report: 10-Q for 2026-09-26: https://www.sec.gov/Archives/edgar/data/50863/000005086326000191/intc-20260926.htm
+#     Last 10-K, for 2025-12-27: https://www.sec.gov/Archives/edgar/data/50863/000005086326000011/intc-20251227.htm
+# revenue (RevenueFromContractWithCustomerExcludingAssessedTax), $M: year to 2025-12-27 52,853 [10-K] + 9 months to 2026-09-26 46,218 − 9 months to 2025-09-27 39,179 (both in the newest 10-Q)
+- {ticker: INTC, field: revenue, value: 59892000000.0, checked: true}
+# net_income (NetIncomeLoss), $M: year to 2025-12-27 -267 [10-K] + 9 months to 2026-09-26 -11,441 − 9 months to 2025-09-27 324 (both in the newest 10-Q)
+- {ticker: INTC, field: net_income, value: -12032000000.0, checked: true}
+# total_assets (Assets) at 2026-09-26: 228,574 ($M), balance sheet of the newest report
+- {ticker: INTC, field: total_assets, value: 228574000000.0, checked: true}
+# total_equity (StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest) at 2026-09-26: 131,556 ($M), balance sheet of the newest report
+- {ticker: INTC, field: total_equity, value: 131556000000.0, checked: true}
+# diluted_shares (WeightedAverageNumberOfDilutedSharesOutstanding), 2026-06-28 to 2026-09-26: 5,307.0 million as filed, 10-Q earnings-per-share note
+- {ticker: INTC, field: diluted_shares, value: 5307000000.0, checked: true}
+# period_end: the newest report's period
+- {ticker: INTC, field: period_end, value: '2026-09-26', checked: true}
+
+# --- MCD: MCDONALDS CORP. Newest report: 10-Q for 2026-06-30: https://www.sec.gov/Archives/edgar/data/63908/000006390826000073/mcd-20260630.htm
+#     Last 10-K, for 2025-12-31: https://www.sec.gov/Archives/edgar/data/63908/000006390826000035/mcd-20251231.htm
+# revenue (Revenues), $M: year to 2025-12-31 26,885 [10-K] + 6 months to 2026-06-30 13,616 − 6 months to 2025-06-30 12,799 (both in the newest 10-Q)
+- {ticker: MCD, field: revenue, value: 27702000000.0, checked: true}
+# net_income (NetIncomeLoss), $M: year to 2025-12-31 8,563 [10-K] + 6 months to 2026-06-30 4,345 − 6 months to 2025-06-30 4,121 (both in the newest 10-Q)
+- {ticker: MCD, field: net_income, value: 8787000000.0, checked: true}
+# total_assets (Assets) at 2026-06-30: 59,920 ($M), balance sheet of the newest report
+- {ticker: MCD, field: total_assets, value: 59920000000.0, checked: true}
+# total_equity (StockholdersEquity) at 2026-06-30: -1,023 ($M), balance sheet of the newest report
+- {ticker: MCD, field: total_equity, value: -1023000000.0, checked: true}
+# diluted_shares (WeightedAverageNumberOfDilutedSharesOutstanding), 2026-04-01 to 2026-06-30: 711.1 million as filed, 10-Q earnings-per-share note
+- {ticker: MCD, field: diluted_shares, value: 711100000.0, checked: true}
+# period_end: the newest report's period
+- {ticker: MCD, field: period_end, value: '2026-06-30', checked: true}
+
+# --- NVDA: NVIDIA CORP. Newest report: 10-Q for 2026-07-26: https://www.sec.gov/Archives/edgar/data/1045810/000104581026000075/nvda-20260726.htm
+#     Last 10-K, for 2026-01-25: https://www.sec.gov/Archives/edgar/data/1045810/000104581026000021/nvda-20260125.htm
+# revenue (Revenues), $M: year to 2026-01-25 215,938 [10-K] + 6 months to 2026-07-26 177,837 − 6 months to 2025-07-27 90,805 (both in the newest 10-Q)
+- {ticker: NVDA, field: revenue, value: 302970000000.0, checked: true}
+# net_income (NetIncomeLoss), $M: year to 2026-01-25 120,067 [10-K] + 6 months to 2026-07-26 118,010 − 6 months to 2025-07-27 45,197 (both in the newest 10-Q)
+- {ticker: NVDA, field: net_income, value: 192880000000.0, checked: true}
+# total_assets (Assets) at 2026-07-26: 320,272 ($M), balance sheet of the newest report
+- {ticker: NVDA, field: total_assets, value: 320272000000.0, checked: true}
+# total_equity (StockholdersEquity) at 2026-07-26: 228,984 ($M), balance sheet of the newest report
+- {ticker: NVDA, field: total_equity, value: 228984000000.0, checked: true}
+# diluted_shares (WeightedAverageNumberOfDilutedSharesOutstanding), 2026-04-27 to 2026-07-26: 24,285.0 million as filed, 10-Q earnings-per-share note
+- {ticker: NVDA, field: diluted_shares, value: 24285000000.0, checked: true}
+# period_end: the newest report's period
+- {ticker: NVDA, field: period_end, value: '2026-07-26', checked: true}
+
+# --- GOOGL: Alphabet Inc.. Newest report: 10-Q for 2026-09-30: https://www.sec.gov/Archives/edgar/data/1652044/000165204426000084/goog-20260930.htm
+#     Last 10-K, for 2025-12-31: https://www.sec.gov/Archives/edgar/data/1652044/000165204426000018/goog-20251231.htm
+# revenue (Revenues), $M: year to 2025-12-31 402,836 [10-K] + 9 months to 2026-09-30 357,269 − 9 months to 2025-09-30 289,007 (both in the newest 10-Q)
+- {ticker: GOOGL, field: revenue, value: 471098000000.0, checked: true}
+# net_income (NetIncomeLoss), $M: year to 2025-12-31 132,170 [10-K] + 9 months to 2026-09-30 201,239 − 9 months to 2025-09-30 97,715 (both in the newest 10-Q)
+- {ticker: GOOGL, field: net_income, value: 235694000000.0, checked: true}
+# total_assets (Assets) at 2026-09-30: 1,003,312 ($M), balance sheet of the newest report
+- {ticker: GOOGL, field: total_assets, value: 1003312000000.0, checked: true}
+# total_equity (StockholdersEquity) at 2026-09-30: 677,549 ($M), balance sheet of the newest report
+- {ticker: GOOGL, field: total_equity, value: 677549000000.0, checked: true}
+# diluted_shares (WeightedAverageNumberOfDilutedSharesOutstanding), 2026-07-01 to 2026-09-30: 12,368.0 million as filed, 10-Q earnings-per-share note
+- {ticker: GOOGL, field: diluted_shares, value: 12368000000.0, checked: true}
+# period_end: the newest report's period
+- {ticker: GOOGL, field: period_end, value: '2026-09-30', checked: true}
+
+# --- BRK.B: BERKSHIRE HATHAWAY INC. Newest report: 10-Q for 2026-06-30: https://www.sec.gov/Archives/edgar/data/1067983/000119312526341032/brka-20260630.htm
+#     Last 10-K, for 2025-12-31: https://www.sec.gov/Archives/edgar/data/1067983/000119312526083899/brka-20251231.htm
+# revenue (Revenues, "Total revenues"), $M: year to 2025-12-31 371,444 [10-K] + 6 months to 2026-06-30 195,483 − 6 months to 2025-06-30 182,240 (both in the newest 10-Q)
+- {ticker: BRK.B, field: revenue, value: 384687000000.0, checked: true}
+# net_income (NetIncomeLoss), $M: year to 2025-12-31 66,968 [10-K] + 6 months to 2026-06-30 35,773 − 6 months to 2025-06-30 16,973 (both in the newest 10-Q)
+- {ticker: BRK.B, field: net_income, value: 85768000000.0, checked: true}
+# total_assets (Assets) at 2026-06-30: 1,263,071 ($M), balance sheet of the newest report
+- {ticker: BRK.B, field: total_assets, value: 1263071000000.0, checked: true}
+# total_equity (StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest) at 2026-06-30: 750,177 ($M), balance sheet of the newest report
+- {ticker: BRK.B, field: total_equity, value: 750177000000.0, checked: true}
+# period_end: the newest report's period
+- {ticker: BRK.B, field: period_end, value: '2026-06-30', checked: true}
+
+# --- MMM: 3M CO. Newest report: 10-Q for 2026-09-30: https://www.sec.gov/Archives/edgar/data/66740/000006674026000311/mmm-20260930.htm
+#     Last 10-K, for 2025-12-31: https://www.sec.gov/Archives/edgar/data/66740/000006674026000014/mmm-20251231.htm
+# revenue (RevenueFromContractWithCustomerExcludingAssessedTax), $M: year to 2025-12-31 24,948 [10-K] + 9 months to 2026-09-30 19,114 − 9 months to 2025-09-30 18,815 (both in the newest 10-Q)
+- {ticker: MMM, field: revenue, value: 25247000000.0, checked: true}
+# net_income (NetIncomeLoss), $M: year to 2025-12-31 3,250 [10-K] + 9 months to 2026-09-30 2,959 − 9 months to 2025-09-30 2,673 (both in the newest 10-Q)
+- {ticker: MMM, field: net_income, value: 3536000000.0, checked: true}
+# total_assets (Assets) at 2026-09-30: 39,526 ($M), balance sheet of the newest report
+- {ticker: MMM, field: total_assets, value: 39526000000.0, checked: true}
+# total_equity (StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest) at 2026-09-30: 4,169 ($M), balance sheet of the newest report
+- {ticker: MMM, field: total_equity, value: 4169000000.0, checked: true}
+# diluted_shares (WeightedAverageNumberOfDilutedSharesOutstanding), 2026-07-01 to 2026-09-30: 522.6 million as filed, 10-Q earnings-per-share note
+- {ticker: MMM, field: diluted_shares, value: 522600000.0, checked: true}
+# period_end: the newest report's period
+- {ticker: MMM, field: period_end, value: '2026-09-30', checked: true}
+
+# --- WFC: WELLS FARGO & COMPANY/MN. Newest report: 10-Q for 2026-09-30: https://www.sec.gov/Archives/edgar/data/72971/000007297126000327/wfc-20260930.htm
+#     Last 10-K, for 2025-12-31: https://www.sec.gov/Archives/edgar/data/72971/000007297126000133/wfc-20251231.htm
+# revenue (RevenuesNetOfInterestExpense), $M: year to 2025-12-31 83,699 [10-K] + 9 months to 2026-09-30 65,938 − 9 months to 2025-09-30 62,407 (both in the newest 10-Q)
+- {ticker: WFC, field: revenue, value: 87230000000.0, checked: true}
+# net_income (NetIncomeLoss), $M: year to 2025-12-31 21,338 [10-K] + 9 months to 2026-09-30 17,611 − 9 months to 2025-09-30 15,977 (both in the newest 10-Q)
+- {ticker: WFC, field: net_income, value: 22972000000.0, checked: true}
+# total_assets (Assets) at 2026-09-30: 2,253,291 ($M), balance sheet of the newest report
+- {ticker: WFC, field: total_assets, value: 2253291000000.0, checked: true}
+# total_equity (StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest) at 2026-09-30: 177,877 ($M), balance sheet of the newest report
+- {ticker: WFC, field: total_equity, value: 177877000000.0, checked: true}
+# diluted_shares (WeightedAverageNumberOfDilutedSharesOutstanding), 2026-07-01 to 2026-09-30: 3,051.5 million as filed, 10-Q earnings-per-share note
+- {ticker: WFC, field: diluted_shares, value: 3051500000.0, checked: true}
+# period_end: the newest report's period
+- {ticker: WFC, field: period_end, value: '2026-09-30', checked: true}
+
+# --- AAPL: Apple Inc.. Newest report: 10-K for 2026-09-26: https://www.sec.gov/Archives/edgar/data/320193/000032019326000026/aapl-20260926.htm
+#     Last 10-K, for 2026-09-26: https://www.sec.gov/Archives/edgar/data/320193/000032019326000026/aapl-20260926.htm
+# revenue (RevenueFromContractWithCustomerExcludingAssessedTax): the year to 2026-09-26, 478,834 ($M), 10-K for 2026-09-26: https://www.sec.gov/Archives/edgar/data/320193/000032019326000026/aapl-20260926.htm
+- {ticker: AAPL, field: revenue, value: 478834000000.0, checked: true}
+# net_income (NetIncomeLoss): the year to 2026-09-26, 132,175 ($M), 10-K for 2026-09-26: https://www.sec.gov/Archives/edgar/data/320193/000032019326000026/aapl-20260926.htm
+- {ticker: AAPL, field: net_income, value: 132175000000.0, checked: true}
+# total_assets (Assets) at 2026-09-26: 404,548 ($M), balance sheet of the newest report
+- {ticker: AAPL, field: total_assets, value: 404548000000.0, checked: true}
+# total_equity (StockholdersEquity) at 2026-09-26: 112,093 ($M), balance sheet of the newest report
+- {ticker: AAPL, field: total_equity, value: 112093000000.0, checked: true}
+# diluted_shares (WeightedAverageNumberOfDilutedSharesOutstanding), 2025-09-28 to 2026-09-26: 14,720.3 million as filed, 10-K earnings-per-share note
+- {ticker: AAPL, field: diluted_shares, value: 14720306000.0, checked: true}
+# period_end: the newest report's period
+- {ticker: AAPL, field: period_end, value: '2026-09-26', checked: true}
+
+# --- AMZN: AMAZON COM INC. Newest report: 10-Q for 2026-09-30: https://www.sec.gov/Archives/edgar/data/1018724/000101872426000040/amzn-20260930.htm
+#     Last 10-K, for 2025-12-31: https://www.sec.gov/Archives/edgar/data/1018724/000101872426000004/amzn-20251231.htm
+# revenue (RevenueFromContractWithCustomerExcludingAssessedTax), $M: year to 2025-12-31 716,924 [10-K] + 9 months to 2026-09-30 584,069 − 9 months to 2025-09-30 503,538 (both in the newest 10-Q)
+- {ticker: AMZN, field: revenue, value: 797455000000.0, checked: true}
+# net_income (NetIncomeLoss): the year to 2026-09-30, 134,779 ($M), 10-Q for 2026-09-30: https://www.sec.gov/Archives/edgar/data/1018724/000101872426000040/amzn-20260930.htm
+- {ticker: AMZN, field: net_income, value: 134779000000.0, checked: true}
+# total_assets (Assets) at 2026-09-30: 1,243,390 ($M), balance sheet of the newest report
+- {ticker: AMZN, field: total_assets, value: 1243390000000.0, checked: true}
+# total_equity (StockholdersEquity) at 2026-09-30: 613,601 ($M), balance sheet of the newest report
+- {ticker: AMZN, field: total_equity, value: 613601000000.0, checked: true}
+# diluted_shares (WeightedAverageNumberOfDilutedSharesOutstanding), 2026-07-01 to 2026-09-30: 10,929.0 million as filed, 10-Q earnings-per-share note
+- {ticker: AMZN, field: diluted_shares, value: 10929000000.0, checked: true}
+# period_end: the newest report's period
+- {ticker: AMZN, field: period_end, value: '2026-09-30', checked: true}
+
+# --- META: Meta Platforms, Inc.. Newest report: 10-Q for 2026-09-30: https://www.sec.gov/Archives/edgar/data/1326801/000162828026066773/meta-20260930.htm
+#     Last 10-K, for 2025-12-31: https://www.sec.gov/Archives/edgar/data/1326801/000162828026003942/meta-20251231.htm
+# revenue (RevenueFromContractWithCustomerExcludingAssessedTax), $M: year to 2025-12-31 200,966 [10-K] + 9 months to 2026-09-30 181,712 − 9 months to 2025-09-30 141,073 (both in the newest 10-Q)
+- {ticker: META, field: revenue, value: 241605000000.0, checked: true}
+# net_income (NetIncomeLoss), $M: year to 2025-12-31 60,458 [10-K] + 9 months to 2026-09-30 52,481 − 9 months to 2025-09-30 37,690 (both in the newest 10-Q)
+- {ticker: META, field: net_income, value: 75249000000.0, checked: true}
+# total_assets (Assets) at 2026-09-30: 478,836 ($M), balance sheet of the newest report
+- {ticker: META, field: total_assets, value: 478836000000.0, checked: true}
+# total_equity (StockholdersEquity) at 2026-09-30: 272,386 ($M), balance sheet of the newest report
+- {ticker: META, field: total_equity, value: 272386000000.0, checked: true}
+# diluted_shares (WeightedAverageNumberOfDilutedSharesOutstanding), 2026-07-01 to 2026-09-30: 2,573.0 million as filed, 10-Q earnings-per-share note
+- {ticker: META, field: diluted_shares, value: 2573000000.0, checked: true}
+# period_end: the newest report's period
+- {ticker: META, field: period_end, value: '2026-09-30', checked: true}
+
+# --- XOM: ExxonMobil Holdings Corp. Newest report: 10-Q for 2026-09-30: https://www.sec.gov/Archives/edgar/data/2115436/000211543626000020/xom-20260930.htm
+#     Last 10-K, for 2025-12-31: https://www.sec.gov/Archives/edgar/data/34088/000003408826000045/xom-20251231.htm
+# revenue (Revenues), $M: year to 2025-12-31 332,238 [10-K] + 9 months to 2026-09-30 314,319 − 9 months to 2025-09-30 249,930 (both in the newest 10-Q)
+- {ticker: XOM, field: revenue, value: 396627000000.0, checked: true}
+# net_income (NetIncomeLoss), $M: year to 2025-12-31 28,844 [10-K] + 9 months to 2026-09-30 34,121 − 9 months to 2025-09-30 22,343 (both in the newest 10-Q)
+- {ticker: XOM, field: net_income, value: 40622000000.0, checked: true}
+# total_assets (Assets) at 2026-09-30: 470,917 ($M), balance sheet of the newest report
+- {ticker: XOM, field: total_assets, value: 470917000000.0, checked: true}
+# total_equity (StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest) at 2026-09-30: 272,520 ($M), balance sheet of the newest report
+- {ticker: XOM, field: total_equity, value: 272520000000.0, checked: true}
+# diluted_shares (WeightedAverageNumberOfSharesOutstandingBasic), 2026-07-01 to 2026-09-30: 4,140.0 million as filed, 10-Q earnings-per-share note
+- {ticker: XOM, field: diluted_shares, value: 4140000000.0, checked: true}
+# period_end: the newest report's period
+- {ticker: XOM, field: period_end, value: '2026-09-30', checked: true}
+
+# --- JNJ: JOHNSON & JOHNSON. Newest report: 10-Q for 2026-09-27: https://www.sec.gov/Archives/edgar/data/200406/000020040626000197/jnj-20260927.htm
+#     Last 10-K, for 2025-12-28: https://www.sec.gov/Archives/edgar/data/200406/000020040626000016/jnj-20251228.htm
+# revenue (RevenueFromContractWithCustomerExcludingAssessedTax), $M: year to 2025-12-28 94,193 [10-K] + 9 months to 2026-09-27 74,771 − 9 months to 2025-09-28 69,629 (both in the newest 10-Q)
+- {ticker: JNJ, field: revenue, value: 99335000000.0, checked: true}
+# net_income (NetIncomeLoss), $M: year to 2025-12-28 26,804 [10-K] + 9 months to 2026-09-27 10,979 − 9 months to 2025-09-28 21,688 (both in the newest 10-Q)
+- {ticker: JNJ, field: net_income, value: 16095000000.0, checked: true}
+# total_assets (Assets) at 2026-09-27: 197,425 ($M), balance sheet of the newest report
+- {ticker: JNJ, field: total_assets, value: 197425000000.0, checked: true}
+# total_equity (StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest) at 2026-09-27: 81,529 ($M), balance sheet of the newest report
+- {ticker: JNJ, field: total_equity, value: 81529000000.0, checked: true}
+# diluted_shares (WeightedAverageNumberOfDilutedSharesOutstanding), 2026-06-29 to 2026-09-27: 2,448.6 million as filed, 10-Q earnings-per-share note
+- {ticker: JNJ, field: diluted_shares, value: 2448600000.0, checked: true}
+# period_end: the newest report's period
+- {ticker: JNJ, field: period_end, value: '2026-09-27', checked: true}
+
+# --- PG: PROCTER & GAMBLE Co. Newest report: 10-Q for 2026-09-30: https://www.sec.gov/Archives/edgar/data/80424/000008042426000256/pg-20260930.htm
+#     Last 10-K, for 2026-06-30: https://www.sec.gov/Archives/edgar/data/80424/000008042426000103/pg-20260630.htm
+# revenue (Revenues), $M: year to 2026-06-30 87,032 [10-K] + 3 months to 2026-09-30 23,276 − 3 months to 2025-09-30 22,386 (both in the newest 10-Q)
+- {ticker: PG, field: revenue, value: 87922000000.0, checked: true}
+# net_income (NetIncomeLoss), $M: year to 2026-06-30 16,046 [10-K] + 3 months to 2026-09-30 4,731 − 3 months to 2025-09-30 4,750 (both in the newest 10-Q)
+- {ticker: PG, field: net_income, value: 16027000000.0, checked: true}
+# total_assets (Assets) at 2026-09-30: 133,132 ($M), balance sheet of the newest report
+- {ticker: PG, field: total_assets, value: 133132000000.0, checked: true}
+# total_equity (StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest) at 2026-09-30: 55,337 ($M), balance sheet of the newest report
+- {ticker: PG, field: total_equity, value: 55337000000.0, checked: true}
+# diluted_shares (WeightedAverageNumberOfDilutedSharesOutstanding), 2026-07-01 to 2026-09-30: 2,407.2 million as filed, 10-Q earnings-per-share note
+- {ticker: PG, field: diluted_shares, value: 2407200000.0, checked: true}
+# period_end: the newest report's period
+- {ticker: PG, field: period_end, value: '2026-09-30', checked: true}
+
+# --- CAT: CATERPILLAR INC. Newest report: 10-Q for 2026-09-30: https://www.sec.gov/Archives/edgar/data/18230/000001823026000057/cat-20260930.htm
+#     Last 10-K, for 2025-12-31: https://www.sec.gov/Archives/edgar/data/18230/000001823026000008/cat-20251231.htm
+# revenue (Revenues), $M: year to 2025-12-31 67,589 [8-K] + 9 months to 2026-09-30 58,640 − 9 months to 2025-09-30 48,456 (both in the newest 10-Q)
+- {ticker: CAT, field: revenue, value: 77773000000.0, checked: true}
+# net_income (ProfitLoss), $M: year to 2025-12-31 8,882 [10-K] + 9 months to 2026-09-30 9,427 − 9 months to 2025-09-30 6,481 (both in the newest 10-Q)
+- {ticker: CAT, field: net_income, value: 11828000000.0, checked: true}
+# total_assets (Assets) at 2026-09-30: 106,843 ($M), balance sheet of the newest report
+- {ticker: CAT, field: total_assets, value: 106843000000.0, checked: true}
+# total_equity (StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest) at 2026-09-30: 21,482 ($M), balance sheet of the newest report
+- {ticker: CAT, field: total_equity, value: 21482000000.0, checked: true}
+# diluted_shares (WeightedAverageNumberOfDilutedSharesOutstanding), 2026-07-01 to 2026-09-30: 460.9 million as filed, 10-Q earnings-per-share note
+- {ticker: CAT, field: diluted_shares, value: 460900000.0, checked: true}
+# period_end: the newest report's period
+- {ticker: CAT, field: period_end, value: '2026-09-30', checked: true}
+
+# --- LIN: LINDE PLC. Newest report: 10-Q for 2026-09-30: https://www.sec.gov/Archives/edgar/data/1707925/000162828026068079/lin-20260930.htm
+#     Last 10-K, for 2025-12-31: https://www.sec.gov/Archives/edgar/data/1707925/000162828026011430/lin-20251231.htm
+# revenue (RevenueFromContractWithCustomerExcludingAssessedTax), $M: year to 2025-12-31 33,986 [10-K] + 9 months to 2026-09-30 27,474 − 9 months to 2025-09-30 25,222 (both in the newest 10-Q)
+- {ticker: LIN, field: revenue, value: 36238000000.0, checked: true}
+# net_income (NetIncomeLoss), $M: year to 2025-12-31 6,898 [10-K] + 9 months to 2026-09-30 5,477 − 9 months to 2025-09-30 5,368 (both in the newest 10-Q)
+- {ticker: LIN, field: net_income, value: 7007000000.0, checked: true}
+# total_assets (Assets) at 2026-09-30: 88,075 ($M), balance sheet of the newest report
+- {ticker: LIN, field: total_assets, value: 88075000000.0, checked: true}
+# total_equity (StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest) at 2026-09-30: 40,985 ($M), balance sheet of the newest report
+- {ticker: LIN, field: total_equity, value: 40985000000.0, checked: true}
+# diluted_shares (WeightedAverageNumberOfDilutedSharesOutstanding), 2026-07-01 to 2026-09-30: 462.5 million as filed, 10-Q earnings-per-share note
+- {ticker: LIN, field: diluted_shares, value: 462512000.0, checked: true}
+# period_end: the newest report's period
+- {ticker: LIN, field: period_end, value: '2026-09-30', checked: true}

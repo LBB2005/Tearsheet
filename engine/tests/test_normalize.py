@@ -90,6 +90,35 @@ def test_the_first_tag_with_current_values_is_used():
     assert f.ttm("revenue").tag == "RevenueFromContractWithCustomerExcludingAssessedTax"
 
 
+def _scaled(series, k: float):
+    unit, rows = series
+    return unit, [{**r, "val": r["val"] * k} for r in rows]
+
+
+def test_total_revenue_comes_before_revenue_from_contracts_with_customers():
+    # Like Berkshire: contracts with customers are only part of the total (premiums, rent and
+    # interest are the rest), and both are reported for the same periods.
+    f = Financials(
+        facts(
+            {
+                "RevenueFromContractWithCustomerExcludingAssessedTax": _scaled(REVENUE, 0.7),
+                "Revenues": REVENUE,
+            }
+        ),
+        as_of=date(2026, 6, 1),
+    )
+    assert f.ttm("revenue").tag == "Revenues"
+    assert f.ttm("revenue").value == pytest.approx(430.0)
+
+
+def test_a_banks_revenue_net_of_interest_expense_comes_first():
+    f = Financials(
+        facts({"Revenues": _scaled(REVENUE, 1.5), "RevenuesNetOfInterestExpense": REVENUE}),
+        as_of=date(2026, 6, 1),
+    )
+    assert f.ttm("revenue").tag == "RevenuesNetOfInterestExpense"
+
+
 def test_balance_items_now_and_a_year_earlier():
     assets = (
         "USD",
@@ -279,6 +308,58 @@ def test_a_right_share_count_or_one_with_nothing_to_check_against_is_kept():
     assert _mcd_like(7_166_000.0).latest("diluted_shares").value == 7_166_000.0
 
 
+def _exxon_like(*, basic_eps: float | None = 1.88, diluted_eps: float | None = 1.88, **extra):
+    # Exxon files only its basic average count: nothing it has would add shares.
+    q, q_ago = ("2026-07-01", "2026-09-30"), ("2025-07-01", "2025-09-30")
+    tags = {
+        "WeightedAverageNumberOfSharesOutstandingBasic": (
+            "shares",
+            [
+                fact(*q_ago, 4_310_000_000.0, "2025-11-03", fp="Q3"),
+                fact(*q, 4_200_000_000.0, "2026-11-03", fp="Q3"),
+            ],
+        ),
+        "NetIncomeLoss": ("USD", [fact(*q, 7_896_000_000.0, "2026-11-03", fp="Q3")]),
+        **extra,
+    }
+    for tag, eps in (
+        ("EarningsPerShareBasic", basic_eps),
+        ("EarningsPerShareDiluted", diluted_eps),
+    ):
+        if eps is not None:
+            tags[tag] = (
+                "USD/shares",
+                [fact(*q_ago, 1.76, "2025-11-03", fp="Q3"), fact(*q, eps, "2026-11-03", fp="Q3")],
+            )
+    return Financials(facts(tags), as_of=date(2026, 11, 5))
+
+
+def test_the_basic_count_is_used_when_basic_and_diluted_earnings_per_share_match():
+    f = _exxon_like()
+    now = f.latest("diluted_shares")
+    assert (
+        now.value == 4_200_000_000.0 and now.tag == "WeightedAverageNumberOfSharesOutstandingBasic"
+    )
+    assert f.year_ago("diluted_shares").value == 4_310_000_000.0
+    assert len(f.corrections) == 1 and "basic average share count" in f.corrections[0]
+
+
+def test_the_basic_count_is_not_used_when_earnings_per_share_differ_or_are_missing():
+    assert _exxon_like(diluted_eps=1.85).latest("diluted_shares") is None
+    assert _exxon_like(diluted_eps=None).latest("diluted_shares") is None
+    assert _exxon_like(basic_eps=None).latest("diluted_shares") is None
+
+
+def test_a_filed_diluted_count_comes_before_the_basic_count():
+    q = ("2026-07-01", "2026-09-30")
+    combined = (
+        "shares",
+        [fact(*q, 4_250_000_000.0, "2026-11-03", fp="Q3")],
+    )
+    f = _exxon_like(WeightedAverageNumberOfShareOutstandingBasicAndDiluted=combined)
+    assert f.latest("diluted_shares").value == 4_250_000_000.0 and not f.corrections
+
+
 def test_the_newest_period_counts_only_facts_filed_by_the_run_date():
     from tearsheet.normalize import newest_period
 
@@ -286,3 +367,24 @@ def test_the_newest_period_counts_only_facts_filed_by_the_run_date():
     assert newest_period(data, as_of=date(2026, 6, 1)) == date(2026, 3, 28)
     assert newest_period(data, as_of=date(2026, 2, 1)) == date(2025, 12, 27)
     assert newest_period(facts({}), as_of=date(2026, 6, 1)) is None
+
+
+def test_a_proxy_statements_rounded_figure_does_not_replace_the_10k():
+    # JPMorgan's 2025 proxy tags net income as $57,000 million, filed after the 10-K's $57,048.
+    year = ("2025-01-01", "2025-12-31")
+    rows = [
+        fact(*year, 57_048.0, "2026-02-13", form="10-K", fp="FY"),
+        fact(*year, 57_000.0, "2026-04-07", form="DEF 14A", fp="FY"),
+        fact(*year, 56_900.0, "2026-04-20", form="PRE 14C", fp="FY"),
+    ]
+    f = Financials(facts({"NetIncomeLoss": ("USD", rows)}), as_of=date(2026, 11, 5))
+    assert f.ttm("net_income").value == 57_048.0
+
+
+def test_the_newest_period_leaves_out_proxy_statements():
+    from tearsheet.normalize import newest_period
+
+    rows = [*REVENUE[1], fact("2025-12-28", "2026-06-27", 90.0, "2026-07-01", form="DEF 14A")]
+    assert newest_period(facts({"Revenues": ("USD", rows)}), as_of=date(2026, 8, 1)) == date(
+        2026, 3, 28
+    )

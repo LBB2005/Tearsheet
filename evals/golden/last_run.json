@@ -1,0 +1,159 @@
+{
+  "as_of": "2026-11-06T02:21:02+00:00",
+  "engine_version": "0.0.1",
+  "method_code_version": 3,
+  "results": {
+    "AAPL": {
+      "base": 346.7851,
+      "bear": 208.2764,
+      "bull": 577.4053,
+      "rating": "Hold",
+      "score": 79.268293,
+      "status": "done_incomplete"
+    },
+    "AMZN": {
+      "base": 272.1108,
+      "bear": 176.2711,
+      "bull": 420.0592,
+      "rating": "Hold",
+      "score": 10.97561,
+      "status": "done_incomplete"
+    },
+    "BRK.B": {
+      "base": 622.5778,
+      "bear": 477.6453,
+      "bull": 811.4875,
+      "rating": "Hold",
+      "score": 10.97561,
+      "status": "done_incomplete"
+    },
+    "CAT": {
+      "base": 575.5112,
+      "bear": 365.9966,
+      "bull": 904.9624,
+      "rating": "Hold",
+      "score": 98.780488,
+      "status": "done_incomplete"
+    },
+    "DUK": {
+      "base": 133.5193,
+      "bear": 106.5159,
+      "bull": 167.3684,
+      "rating": "Buy",
+      "score": 82.258065,
+      "status": "done_incomplete"
+    },
+    "GOOGL": {
+      "base": 293.9339,
+      "bear": 189.6828,
+      "bull": 455.4821,
+      "rating": "Hold",
+      "score": 86.842105,
+      "status": "done_incomplete"
+    },
+    "INTC": {
+      "base": 46.0932,
+      "bear": 18.8566,
+      "bull": 112.6703,
+      "rating": "Hold",
+      "score": 25.609756,
+      "status": "done_incomplete"
+    },
+    "JNJ": {
+      "base": 228.614,
+      "bear": 162.1448,
+      "bull": 322.3313,
+      "rating": "Hold",
+      "score": 71.95122,
+      "status": "done_incomplete"
+    },
+    "JPM": {
+      "base": 353.6912,
+      "bear": 258.1901,
+      "bull": 484.5168,
+      "rating": "Hold",
+      "score": 67.073171,
+      "status": "done_incomplete"
+    },
+    "LIN": {
+      "base": 432.9675,
+      "bear": 310.5673,
+      "bull": 603.6079,
+      "rating": "Hold",
+      "score": 56.25,
+      "status": "done_incomplete"
+    },
+    "MCD": {
+      "base": 249.6507,
+      "bear": 175.3505,
+      "bull": 355.4337,
+      "rating": "Sell",
+      "score": 28.04878,
+      "status": "done_incomplete"
+    },
+    "META": {
+      "base": 567.3116,
+      "bear": 349.7375,
+      "bull": 920.2401,
+      "rating": "Hold",
+      "score": 92.105263,
+      "status": "done_incomplete"
+    },
+    "MMM": {
+      "base": 165.1987,
+      "bear": 114.5989,
+      "bull": 238.1401,
+      "rating": "Sell",
+      "score": 20.731707,
+      "status": "done_incomplete"
+    },
+    "NVDA": {
+      "base": 213.2261,
+      "bear": 117.4243,
+      "bull": 387.1888,
+      "rating": "Hold",
+      "score": 74.390244,
+      "status": "done_incomplete"
+    },
+    "PG": {
+      "base": 157.5272,
+      "bear": 114.892,
+      "bull": 215.9838,
+      "rating": "Hold",
+      "score": 54.6875,
+      "status": "done_incomplete"
+    },
+    "PLD": {
+      "base": 110.6549,
+      "bear": 83.4542,
+      "bull": 146.7212,
+      "rating": "Hold",
+      "score": 38.333333,
+      "status": "done_incomplete"
+    },
+    "TRV": {
+      "base": 462.2722,
+      "bear": 342.6415,
+      "bull": 623.671,
+      "rating": "Buy",
+      "score": 98.780488,
+      "status": "done_incomplete"
+    },
+    "WFC": {
+      "base": 95.5034,
+      "bear": 68.3582,
+      "bull": 133.4279,
+      "rating": "Hold",
+      "score": 37.804878,
+      "status": "done_incomplete"
+    },
+    "XOM": {
+      "base": 165.624,
+      "bear": 112.6421,
+      "bull": 243.5261,
+      "rating": "Hold",
+      "score": 73.809524,
+      "status": "done_incomplete"
+    }
+  }
+}
