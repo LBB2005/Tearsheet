@@ -10,7 +10,7 @@ import { app, BrowserWindow, Menu, shell } from 'electron'
 import { dockUpdate, NO_RUN } from './dockProgress'
 import { Engine, type Notification } from './engine'
 import { registerIpc } from './ipc'
-import { closeHides } from './lifecycle'
+import { claimOnlyCopy, closeHides } from './lifecycle'
 import { loginShellPath } from './loginShellPath'
 import { menuTemplate } from './menu'
 import { navigationAction } from './navigation'
@@ -134,7 +134,8 @@ async function createWindow(): Promise<void> {
   else await window.loadFile(join(__dirname, '../renderer/index.html'))
 }
 
-app.whenReady().then(createWindow)
+// One copy per data folder: starting Tearsheet again brings this window back (lifecycle.ts).
+if (claimOnlyCopy(app, () => mainWindow)) app.whenReady().then(createWindow)
 // Clicking the Dock icon brings the hidden window back as it was.
 app.on('activate', () => {
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.show()

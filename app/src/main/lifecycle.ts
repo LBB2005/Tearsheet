@@ -6,3 +6,38 @@
 export function closeHides(platform: NodeJS.Platform, quitting: boolean): boolean {
   return platform === 'darwin' && !quitting
 }
+
+// One Tearsheet at a time for a data folder. A second copy would run a second engine on the same
+// reports, so starting Tearsheet again quits the new copy and brings the open window back to the
+// front instead. The lock is Electron's, kept in the window's own folder under the data folder,
+// so a copy run on other data (TEARSHEET_DATA_DIR) is a different Tearsheet and opens as usual.
+export interface Instance {
+  requestSingleInstanceLock(): boolean
+  quit(): void
+  on(event: 'second-instance', listener: () => void): unknown
+}
+
+export interface Shown {
+  isDestroyed(): boolean
+  isMinimized(): boolean
+  restore(): void
+  show(): void
+  focus(): void
+}
+
+export function claimOnlyCopy(app: Instance, window: () => Shown | null): boolean {
+  if (!app.requestSingleInstanceLock()) {
+    app.quit()
+    return false
+  }
+  app.on('second-instance', () => bringBack(window()))
+  return true
+}
+
+// The window as it was, in front: un-minimised, shown if ⌘W hid it, and focused.
+export function bringBack(win: Shown | null): void {
+  if (!win || win.isDestroyed()) return
+  if (win.isMinimized()) win.restore()
+  win.show()
+  win.focus()
+}
