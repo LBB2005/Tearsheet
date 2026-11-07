@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { between, ease, FADE_MS, GLIDE_MS, glideTrack, nextGlide, resample } from './glide'
+import { between, carryOn, ease, FADE_MS, GLIDE_MS, glideTrack, nextGlide, resample } from './glide'
 
 describe('the timings', () => {
   it('glides in about a third of a second and fades in about a fifth', () => {
@@ -89,5 +89,13 @@ describe('nextGlide', () => {
     // new line's fade, carry on, landing on the lines at the new size.
     expect(at({ running: true })).toBe('retarget')
     expect(at({})).toBe('keep')
+  })
+})
+
+describe('carryOn', () => {
+  it('keeps what fades in and out when a resize carries a glide on', () => {
+    const gone = { cls: 'ln-peer', track: { xa: 0, xb: 10, ys: [1, 2] } }
+    const running = { from: 'old', to: 'new', t: 0.4, enter: { spy: true }, ghosts: [gone] }
+    expect(carryOn(running, 'now', 'resized')).toEqual({ from: 'now', to: 'resized', t: 0, enter: { spy: true }, ghosts: [gone] })
   })
 })

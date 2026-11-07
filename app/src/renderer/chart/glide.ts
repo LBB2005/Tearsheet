@@ -76,3 +76,19 @@ export function nextGlide(o: { changed: boolean; running: boolean; drawn: boolea
   if (o.changed) return o.drawn && !o.reduced ? 'start' : 'drop'
   return o.running ? 'retarget' : 'keep'
 }
+
+// A glide on its way: the lines from where they were to where they go, `t` of the way there,
+// with what fades in (`enter`) and the lines that fade out (`ghosts`), both fixed as it starts.
+export interface GlideState<L, E> {
+  from: L
+  to: L
+  t: number
+  enter: E
+  ghosts: { cls: string; track: Track }[]
+}
+
+// The chart resized under a glide: it carries on from where the lines are now to where they are
+// at the new size, still fading what it was fading.
+export function carryOn<L, E>(running: GlideState<L, E>, now: L, to: L): GlideState<L, E> {
+  return { from: now, to, t: 0, enter: running.enter, ghosts: running.ghosts }
+}

@@ -21,7 +21,7 @@ import type { ChartSeries } from '../../shared/protocol'
 import { shortDate } from '../nav'
 import { money } from '../shell/Sidebar'
 import { covers, measure, namedFilings, needsHistory, niceTicks, RANGE_ORDER, rebase, slice, volumeText, yearsServed, type Range } from './series'
-import { GLIDE_MS, glideTrack, nextGlide, resample, trackXs, type Track } from './glide'
+import { carryOn, GLIDE_MS, glideTrack, nextGlide, resample, trackXs, type GlideState, type Track } from './glide'
 import { SHARE_DEFAULT, shareFor, volumeHeight } from './height'
 import { setVolumeOn, setVolumeShare, startRange, volumeOn, volumeShare } from './prefs'
 import { PRESETS, type Preset, type SnapMode } from './split'
@@ -239,14 +239,9 @@ interface Tracks {
   peers: Track | null
   spy: Track | null
 }
-// A range or toggle change on its way: the lines from where they were to where they go, `t` of
-// the way there. `enter` names the parts that weren't there before, which fade in.
-interface Glide {
-  from: Tracks
-  to: Tracks
-  t: number
-  enter: { peers: boolean; spy: boolean; fan: boolean; price: boolean }
-}
+// A range or toggle change on its way (glide.ts). `enter` names the parts that weren't there
+// before, which fade in; `ghosts` the lines switched off, which fade out.
+type Glide = GlideState<Tracks, { peers: boolean; spy: boolean; fan: boolean; price: boolean }>
 // What a glide changes in the drawing.
 interface Over extends Tracks {
   main: Track
@@ -620,16 +615,20 @@ export function ChartPane({ reportId, cik, ticker, name, width, wide, size, onCl
     if (step === 'drop' && glideRef.current) setGlide(null)
     const running = glideRef.current
     if (step === 'retarget' && running && to.main) {
-      setGlide({ from: glideNow(running), to, t: 0, enter: running.enter })
+      setGlide(carryOn(running, glideNow(running), to))
       return
     }
     if (step !== 'start' || !prev) return
-    const now = glideRef.current
+    const from = running ? glideNow(running) : tracksOf(prev)
+    const ghosts: Glide['ghosts'] = []
+    if (from.peers && !to.peers) ghosts.push({ cls: 'ln-peer', track: from.peers })
+    if (from.spy && !to.spy) ghosts.push({ cls: 'ln-spy', track: from.spy })
     setGlide({
-      from: now ? glideNow(now) : tracksOf(prev),
+      from,
       to,
       t: 0,
-      enter: { peers: !prev.peers && !!g.peers, spy: !prev.spy && !!g.spy, fan: !prev.fan && g.fan, price: prev.indexed && !g.indexed }
+      enter: { peers: !prev.peers && !!g.peers, spy: !prev.spy && !!g.spy, fan: !prev.fan && g.fan, price: prev.indexed && !g.indexed },
+      ghosts
     })
   }, [g])
   useEffect(() => {
@@ -647,10 +646,7 @@ export function ChartPane({ reportId, cik, ticker, name, width, wide, size, onCl
     if (!glide) return null
     const now = glideNow(glide)
     if (!now.main) return null
-    const ghosts: Over['ghosts'] = []
-    if (glide.from.peers && !glide.to.peers) ghosts.push({ cls: 'ln-peer', track: glide.from.peers })
-    if (glide.from.spy && !glide.to.spy) ghosts.push({ cls: 'ln-spy', track: glide.from.spy })
-    return { main: now.main, peers: now.peers, spy: now.spy, ghosts, enter: glide.enter }
+    return { main: now.main, peers: now.peers, spy: now.spy, ghosts: glide.ghosts, enter: glide.enter }
   }, [glide])
   const body = useMemo(() => (sl && g ? drawChart(sl, g, label, over) : null), [sl, g, label, over])
 
