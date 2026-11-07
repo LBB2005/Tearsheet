@@ -41,8 +41,10 @@ from tearsheet.protocol import (
     Progress,
     ReportReady,
     RunFailedNote,
+    RunTally,
     SafetyDone,
     SafetyProgress,
+    Tally,
 )
 from tearsheet.rawstore import RawStore
 
@@ -626,6 +628,14 @@ class Server:
 
         return send
 
+    def _tally(self, run_id: str):
+        """The run's live counts, for the app's progress screen (protocol Tally)."""
+
+        def send(tally: dict[str, Any]) -> None:
+            self.notify("run_tally", RunTally(run_id=run_id, tally=Tally(**tally)))
+
+        return send
+
     async def _job(
         self,
         run_id: str,
@@ -754,6 +764,7 @@ class Server:
                 now=now,
                 out_dir=None,
                 progress=self._progress(run_id),
+                tally=self._tally(run_id),
                 run_id=run_id,
                 rawstore=self.rawstore,
                 checker=checker,
@@ -790,6 +801,7 @@ class Server:
                 out_dir=None,
                 progress=self._progress(p.run_id),
                 checker=checker,
+                tally=self._tally(p.run_id),
             )
         except ReplayError as exc:
             raise EngineError("NOT_RESUMABLE", str(exc)) from exc

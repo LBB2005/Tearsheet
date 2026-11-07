@@ -406,6 +406,52 @@ class Progress(Strict):
     state: Literal["started", "done", "skipped", "retrying", "failed"]
 
 
+class Tally(Strict):
+    """A run's live counts, for the app's progress screen while a report is written. A field
+    stays empty until the run gets to it; each note carries the whole tally so far."""
+
+    # Each step's usual time in seconds, from the last few finished runs (empty before the
+    # first); the app paces its progress bars and time left by them.
+    typical: dict[str, float] | None = None
+    # The AI tool that writes the sections, and the other tool that checks them (empty when
+    # only one is connected: the writer then checks itself, in a fresh session).
+    writer: str | None = None
+    checker: str | None = None
+    # Step 2: the company and its peers, and what is downloading now.
+    companies: int | None = None
+    fetching: (
+        Literal["prices", "facts", "filings", "peer filings", "rates", "insider trades"] | None
+    ) = None
+    prices: bool | None = None
+    facts: int | None = None
+    filings: int | None = None
+    rates: bool | None = None
+    insider: int | None = None
+    # Steps 6 and 8: the company's peer score (a percentile) and its rating.
+    score: float | None = None
+    rating: str | None = None
+    # Step 9: articles downloaded.
+    articles: int | None = None
+    # Steps 10, 11 and 13: the AI calls done out of all, 3 at a time, and the evidence and
+    # claims they found or kept.
+    reads_done: int | None = None
+    reads_total: int | None = None
+    evidence: int | None = None
+    sections_done: int | None = None
+    sections_total: int | None = None
+    checks_done: int | None = None
+    checks_total: int | None = None
+    claims_kept: int | None = None
+    claims_removed: int | None = None
+    # The sources, sections or checks under way now, by name.
+    now: list[str] | None = None
+
+
+class RunTally(Strict):
+    run_id: str
+    tally: Tally
+
+
 class ReportReady(Strict):
     run_id: str
     report_id: str
@@ -461,6 +507,8 @@ ALL_MODELS: tuple[type[BaseModel], ...] = (
     SafetyDone,
     Hello,
     Progress,
+    Tally,
+    RunTally,
     ReportReady,
     RunFailedNote,
 )

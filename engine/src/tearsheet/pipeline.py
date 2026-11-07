@@ -173,6 +173,40 @@ FULL_SECTIONS = (
 )
 ARTICLE_CAP = 15
 ARTICLE_FLOOR = 5
+# The sections' titles as the report prints them, for the app's live progress.
+SECTION_TITLES = {
+    SectionKey.BUSINESS: "The business",
+    SectionKey.RISKS: "Risks",
+    SectionKey.RESULTS: "Recent results",
+    SectionKey.NEWS: "News and views",
+    SectionKey.TRENDS: "Industry trends",
+    SectionKey.WATCH: "What to watch",
+}
+# The usual step times the app paces its progress by come from this many recent finished runs.
+TYPICAL_RUNS = 5
+
+
+def typical_seconds(conn: sqlite3.Connection, runs: int = TYPICAL_RUNS) -> dict[str, float] | None:
+    """Each step's usual time in seconds: the median over the last few finished full-method
+    runs that recorded their timings, or None before the first one."""
+    rows = conn.execute(
+        "SELECT so.json FROM step_outputs so JOIN runs r ON r.run_id = so.run_id"
+        " WHERE so.step = 'timings' AND r.mode = 'full' AND r.status = 'done'"
+        " ORDER BY r.started_at DESC LIMIT ?",
+        (runs,),
+    ).fetchall()
+    times: dict[str, list[float]] = {}
+    for (text,) in rows:
+        try:
+            steps = json.loads(text).get("steps") or {}
+        except (ValueError, AttributeError):
+            continue
+        for step, seconds in steps.items():
+            if step in STEPS and isinstance(seconds, int | float):
+                times.setdefault(step, []).append(float(seconds))
+    if not times:
+        return None
+    return {step: round(statistics.median(v), 1) for step, v in times.items()}
 
 
 class RunCancelled(Exception):
@@ -296,6 +330,7 @@ class Run:
         checker: AIClient | None = None,
         log_predictions: bool = False,
         backup_dir: Path | None = None,
+        tally: Callable[[dict[str, Any]], None] | None = None,
     ):
         if mode not in ("slice", "full"):
             raise ValueError("mode is 'slice' (Phase 1a) or 'full' (Phase 1b's code steps)")
@@ -325,6 +360,9 @@ class Run:
         self.today = self.now.astimezone(UTC).date()
         self.out_dir = out_dir
         self.progress = progress or (lambda step, state: None)
+        # The run's live counts for the app (protocol Tally); each change sends the whole tally.
+        self.tally: dict[str, Any] = {}
+        self.on_tally = tally or (lambda tally: None)
         self.run_id = run_id or new_run_id(self.now)
         self.rawstore = rawstore
         self.sources = SLICE_SOURCES if mode == "slice" else FULL_SOURCES
@@ -465,6 +503,19 @@ class Run:
         self._mark(name)
         self.progress(name, "started")
 
+    def _tally(self, **changes: Any) -> None:
+        """Some live counts changed: send the whole tally (lists copied, so a later change
+        can't alter a note already sent)."""
+        self.tally.update(changes)
+        self.on_tally({k: list(v) if isinstance(v, list) else v for k, v in self.tally.items()})
+
+    def _bump(self, key: str, by: int = 1) -> int:
+        return self.tally.get(key, 0) + by
+
+    @staticmethod
+    def _tool_name(client: AIClient | None) -> str | None:
+        return getattr(getattr(client, "connector", None), "display_name", None)
+
     def cancel(self) -> None:
         """Ask the run to stop at the next step or AI call."""
         self.cancel_requested = True
@@ -486,6 +537,11 @@ class Run:
             self.method.store_copies(self.rawstore, self.run_id)
         step = "resolve"
         try:
+            self._tally(
+                typical=typical_seconds(self.conn),
+                writer=self._tool_name(self.ai),
+                checker=self._tool_name(self.checker),
+            )
             step = "resolve"
             self._step(step)
             resolved, group = await self.resolve(query)
@@ -540,6 +596,7 @@ class Run:
             step = "score"
             self._step(step)
             score = self.score()
+            self._tally(score=score.composite.get(self.cik))
             self._save_step(
                 step, {"composite": score.composite.get(self.cik), "scaling": score.scaling.note}
             )
@@ -559,6 +616,7 @@ class Run:
             self._step(step)
             rating, rng, level, mix = self.rate(score)
             self.rated = (rating, rng)
+            self._tally(rating=rating.rating)
             self._log_prediction(resolved, docs, score, rating, rng, level)
             self._save_step(
                 step,
@@ -596,7 +654,7 @@ class Run:
             step = "render"
             self._step(step)
             step = "verify"
-            self._mark(step)
+            self._step(step)
             claims, removed, split = await self.verify(drafts, paragraphs, resolved)
             self._save_step(
                 step, {"kept": sum(len(v) for v in claims.values()), "removed": len(removed)}
@@ -697,10 +755,12 @@ class Run:
 
     async def fetch(self, resolved: Resolved, group: PeerGroup) -> list[Doc]:
         members = {cik: self.holdings.tickers_of(cik)[0] for cik in group.members}
+        self._tally(companies=len(members), fetching="prices")
         # Top up to the latest session whose close is out, not the UTC date: in New York's
         # evening the UTC date is already tomorrow, and Massive refuses a day that hasn't closed.
         self.price_date = last_completed_session(self.now)
         await self.data.fill_prices(self.store, members, end=self.price_date)
+        self._tally(prices=True, fetching="facts", facts=0)
         stale_company = self.store.is_stale(self.cik, "", self.now)
         stale_spy = self.store.is_stale(SPY_CIK, "", self.now)
         self.withheld = stale_company or stale_spy
@@ -712,7 +772,9 @@ class Run:
             if self.store.is_stale(cik, "", self.now):
                 group = group.leave_out(cik, "missing or stale prices")
         financial_sector = group.sector in ("Financials", "Real Estate")
-        for cik in group.members:
+        for done, cik in enumerate(group.members):
+            if done:
+                self._tally(facts=done)
             member = MemberData(cik, members[cik])
             try:
                 facts = await self.data.company_facts(cik)
@@ -742,6 +804,7 @@ class Run:
                 member.financial_class = financial_class(sic, cik, self.method.peers)
             self.members[cik] = member
         self.group = group
+        self._tally(facts=len(members), fetching="filings")
         older = self.predecessors.get(self.cik, ())
         docs = await self.data.filing_documents(
             self.cik, today=self.today, **({"predecessors": older} if older else {})
@@ -749,6 +812,7 @@ class Run:
         self._successor_note(docs)
         if self.mode == "slice":
             docs = [d for d in docs if d.role in ("10-K", "10-Q", "10-K prior")]
+        self._tally(filings=len(docs))
         if self.mode == "full":
             for doc in docs:
                 if doc.role.startswith("press "):
@@ -765,11 +829,13 @@ class Run:
                 linked = {
                     c: self.predecessors[c] for c in group.trend_peers if c in self.predecessors
                 }
+                self._tally(fetching="peer filings")
                 self.peer_docs = await peer_documents(
                     group.trend_peers,
                     today=self.today,
                     **({"predecessors": linked} if linked else {}),
                 )
+                self._tally(filings=len(docs) + len(self.peer_docs))
                 for doc in self.peer_docs:
                     cik = int(doc.role.split()[1])
                     name = self.holdings.name_of(cik) if self.holdings.has(cik) else str(cik)
@@ -786,14 +852,18 @@ class Run:
                 self.notes.append("The trends section has no peer filings with these inputs.")
             macro = getattr(self.data, "macro", None)
             if macro is not None:
+                self._tally(fetching="rates")
                 self.macro = await macro(self.today)
+                self._tally(rates=True)
             trades = getattr(self.data, "form4_trades", None)
-            self.insider_note = (
-                insider_buying_note(await trades(self.cik, today=self.today), self.today)
-                if trades
-                else None
-            )
+            self.insider_note = None
+            if trades:
+                self._tally(fetching="insider trades")
+                found = list(await trades(self.cik, today=self.today))
+                self._tally(insider=len(found))
+                self.insider_note = insider_buying_note(found, self.today)
             self.insider_checked = trades is not None
+        self._tally(fetching=None)
         return docs + self.peer_docs
 
     async def _with_predecessors(self, cik: int, facts: dict[str, Any]) -> dict[str, Any]:
@@ -1427,7 +1497,13 @@ class Run:
         """One AI call for `_parallel`: its coroutine is made only when a slot is free."""
         return lambda: self._ai_call(label, make())
 
-    async def _parallel(self, jobs: list[Callable[[], Any]]) -> list[Any]:
+    async def _parallel(
+        self,
+        jobs: list[Callable[[], Any]],
+        *,
+        count: str | None = None,
+        names: list[str] | None = None,
+    ) -> list[Any]:
         """Run AI jobs at most `config.AI_CALLS_IN_PARALLEL` at a time (Technical Plan §3) and
         return their results in the jobs' order.
 
@@ -1435,14 +1511,29 @@ class Run:
         ones before they send anything. The notes and dropped-source lines the jobs add are
         put in the jobs' order, so a report reads the same whatever finished first. (Which
         calls got in before a usage limit or the end of the budget still depends on timing,
-        as it must.) A cancel, or an unexpected error, is raised once every job has settled."""
+        as it must.) A cancel, or an unexpected error, is raised once every job has settled.
+
+        With `count` ("reads", "sections" or "checks") and the jobs' `names`, the live tally
+        counts the jobs done out of all, and `now` names the ones under way."""
         slots = asyncio.Semaphore(config.AI_CALLS_IN_PARALLEL)
         notes_before, dropped_before = len(self.notes), len(self.dropped)
+        if count is not None:
+            self._tally(**{f"{count}_total": len(jobs), f"{count}_done": 0}, now=[])
 
         async def one(index: int, make: Callable[[], Any]) -> Any:
             _JOB.set(index)  # this task's own context: the notes it adds are tagged with it
             async with slots:
-                return await make()
+                if count is None or names is None:
+                    return await make()
+                name = names[index]
+                self._tally(now=[*self.tally.get("now", []), name])
+                try:
+                    return await make()
+                finally:
+                    now = list(self.tally.get("now", []))
+                    if name in now:
+                        now.remove(name)
+                    self._tally(now=now, **{f"{count}_done": self._bump(f"{count}_done")})
 
         results = await asyncio.gather(
             *(one(i, make) for i, make in enumerate(jobs)), return_exceptions=True
@@ -1474,24 +1565,38 @@ class Run:
         # One call per source, 3 at a time (`_parallel`); the evidence is added in the sources'
         # order, so it reads the same whatever finished first.
         jobs = []
+        names: list[str] = []
         uses: list[tuple[str, tuple[SectionKey, ...]]] = []
+        self._tally(evidence=0)
+
+        async def counted(call):
+            # The live tally counts the evidence each read finds.
+            result = await call
+            if result is not None:
+                self._tally(evidence=self._bump("evidence", len(result.items)))
+            return result
+
+        def add(label: str, name: str, make: Callable[[], Any]) -> None:
+            job = self._job(label, make)
+            jobs.append(lambda: counted(job()))
+            names.append(name)
+
         for role, key, label, feeds in [*self.sources, *self.trend_sources, *self.press_sources]:
             paras = paragraphs.get((role, key))
             doc = self.docs_by_role.get(role)
             if not paras or doc is None:
                 continue
-            jobs.append(
-                self._job(
-                    label,
-                    lambda doc=doc, key=key, paras=paras, label=label: extract_section(
-                        self.ai,
-                        self.conn,
-                        source_id=doc.accession,
-                        section=key,
-                        paragraphs=paras,
-                        label=label,
-                    ),
-                )
+            add(
+                label,
+                label[:1].upper() + label[1:],
+                lambda doc=doc, key=key, paras=paras, label=label: extract_section(
+                    self.ai,
+                    self.conn,
+                    source_id=doc.accession,
+                    section=key,
+                    paragraphs=paras,
+                    label=label,
+                ),
             )
             uses.append((role, feeds))
         # Articles: one call each, and their evidence reaches section 7 only.
@@ -1500,23 +1605,22 @@ class Run:
             paras = paragraphs.get(("article", source_id), [])
             if not paras:
                 continue
-            jobs.append(
-                self._job(
-                    f"article {article.url}",
-                    lambda source_id=source_id, paras=paras, article=article, link=link: (
-                        extract_section(
-                            self.ai,
-                            self.conn,
-                            source_id=source_id,
-                            section="article",
-                            paragraphs=paras,
-                            label=f"an article, {link.title!r} ({link.publisher}, {article.published:%-d %b %Y})",
-                        )
-                    ),
-                )
+            add(
+                f"article {article.url}",
+                f"{link.publisher}: {link.title}",
+                lambda source_id=source_id, paras=paras, article=article, link=link: (
+                    extract_section(
+                        self.ai,
+                        self.conn,
+                        source_id=source_id,
+                        section="article",
+                        paragraphs=paras,
+                        label=f"an article, {link.title!r} ({link.publisher}, {article.published:%-d %b %Y})",
+                    )
+                ),
             )
             uses.append(("article", (SectionKey.NEWS,)))
-        results: list[Extracted | None] = await self._parallel(jobs)
+        results: list[Extracted | None] = await self._parallel(jobs, count="reads", names=names)
         for (role, feeds), result in zip(uses, results, strict=True):
             if result is None:
                 continue
@@ -1600,6 +1704,7 @@ class Run:
             )
         phrases = [re.compile(x, re.I) for x in self.method.instruction_phrases.get("patterns", [])]
         skipped: dict[str, int] = {}
+        self._tally(articles=0)
         for link in links:
             got = await fetch(link.url, allowlist)
             if isinstance(got, Skipped):
@@ -1627,6 +1732,7 @@ class Run:
             ]
             out[("article", source_id)] = paras
             self.articles.append((got, link))
+            self._tally(articles=len(self.articles))
             self.article_urls[source_id] = got.url
             with self.conn:
                 self.conn.execute(
@@ -1731,7 +1837,9 @@ class Run:
             keys.append(section)
         # Each section is written from its own sources, so they go 3 at a time; the drafts
         # keep the sections' order.
-        for section, draft in zip(keys, await self._parallel(jobs), strict=True):
+        names = [SECTION_TITLES.get(s, s.value) for s in keys]
+        done = await self._parallel(jobs, count="sections", names=names)
+        for section, draft in zip(keys, done, strict=True):
             if draft is not None:
                 drafts[section] = draft
         return drafts
@@ -1841,14 +1949,22 @@ class Run:
         order = list(drafts.items())
         # Each section's checks, skeptic and rewrite form one chain; the chains go 3 at a time
         # and are put together in the sections' order.
-        jobs = [
-            lambda section=section, draft=draft: self._verify_section(
-                section, draft, drafts, guard, by_id, full=full
+        self._tally(claims_kept=0, claims_removed=0)
+
+        async def chain(section: SectionKey, draft: Draft):
+            out = await self._verify_section(section, draft, drafts, guard, by_id, full=full)
+            self._tally(
+                claims_kept=self._bump("claims_kept", len(out[0])),
+                claims_removed=self._bump("claims_removed", len(out[1])),
             )
-            for section, draft in order
+            return out
+
+        jobs = [
+            lambda section=section, draft=draft: chain(section, draft) for section, draft in order
         ]
+        names = [SECTION_TITLES.get(s, s.value) for s, _ in order]
         for (section, _), (section_kept, section_removed, section_split) in zip(
-            order, await self._parallel(jobs), strict=True
+            order, await self._parallel(jobs, count="checks", names=names), strict=True
         ):
             kept[section] = section_kept
             removed += section_removed
@@ -2300,6 +2416,7 @@ def prepare_resume(
     out_dir: Path | None,
     progress: Callable[[str, str], None] | None = None,
     checker: AIClient | None = None,
+    tally: Callable[[dict[str, Any]], None] | None = None,
 ) -> tuple[Run, str]:
     """Continue a stopped or interrupted run (item 34). Steps 1-8 are re-run from the run's own
     stored inputs, with its stored methodology, so their numbers can't change; the AI steps
@@ -2345,6 +2462,7 @@ def prepare_resume(
         progress=progress,
         run_id=run_id,
         checker=checker,
+        tally=tally,
     )
     return again, resolved["ticker"]
 
