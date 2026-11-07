@@ -282,7 +282,7 @@ The engine can also run from the terminal (`tearsheet-engine run GOOGL`) and wri
 
 *   **First report on a company:** about 30–45 calls.
 *   **Repeat report:** about 20–35 calls, because saved evidence skips filing extraction.
-*   **In parallel:** 3 calls at a time.
+*   **In parallel:** 5 calls at a time (3 until 7 Nov 2026: the same calls, finishing about a minute sooner per report).
 *   **Call budget:** 50 calls per run (drafter default). When a run would go over it, the engine cuts in this order: fewer articles (down to 5), then no section rewrites. The report says what was cut.
 
 **When something fails:**
@@ -1081,7 +1081,7 @@ These are drafter defaults. Change any of them at this section's approval.
 | :-- | :-- |
 | Python version and tooling | Python 3.12, managed with `uv` and built with `hatchling`; `ruff` for linting; `pytest` and `pytest-cov` for tests |
 | Desktop app tooling | Electron with `electron-vite`, React and TypeScript for the window; `vitest` for tests; `json-schema-to-typescript` for the shared message types. `electron-builder` and `electron-updater` come in Phase 3. |
-| Concurrency in the engine | `asyncio` throughout: `httpx.AsyncClient` for HTTP; one async rate limiter per service; `asyncio.Semaphore(3)` for AI calls in parallel and `asyncio.wait_for` for the 5-minute limit; `asyncio.create_subprocess_exec` for `codex app-server`, with separate readers for its standard output and standard error; an async reader on standard input, so `cancel` is read during a run. Calculation modules are plain functions, run with `asyncio.to_thread`. |
+| Concurrency in the engine | `asyncio` throughout: `httpx.AsyncClient` for HTTP; one async rate limiter per service; `asyncio.Semaphore(5)` for AI calls in parallel and `asyncio.wait_for` for the 5-minute limit; `asyncio.create_subprocess_exec` for `codex app-server`, with separate readers for its standard output and standard error; an async reader on standard input, so `cancel` is read during a run. Calculation modules are plain functions, run with `asyncio.to_thread`. |
 | Trading calendar | The NYSE calendar (`XNYS`) from the `exchange_calendars` package, in US Eastern time |
 | Where keys are stored | macOS Keychain, through Python's `keyring` package, under the service name `Tearsheet` |
 | App data folder | `~/Library/Application Support/Tearsheet/` (database, raw-data folder, logs) |
@@ -1135,7 +1135,7 @@ Goal: test the five assumptions in the Technical Plan roadmap before building th
     *   **Keys:** reads and writes keys in the Keychain (`massive`, `fred`, `alphavantage`). Keys are never logged or sent to the window.
     *   **SEC contact string:** `Tearsheet/<version> <email>`, where the email is the `sec_contact_email` setting that each user enters once. No email is built in.
     *   **AI tools:** the program paths and PATH passed in by the app (`TEARSHEET_CLAUDE_BIN`, `TEARSHEET_CODEX_BIN`, `TEARSHEET_PATH`; item 37). In terminal mode, the programs are looked up on PATH. The `primary_tool` setting (item 8).
-    *   **Run limits:** the call budget (50), calls in parallel (3), the per-call time limit (5 minutes) and the model for each step: on Claude Code, Haiku for extraction and Sonnet for narration and the skeptic; Codex's models come from the Phase 0 results.
+    *   **Run limits:** the call budget (50), calls in parallel (5), the per-call time limit (5 minutes) and the model for each step: on Claude Code, Haiku for extraction and Sonnet for narration and the skeptic; Codex's models come from the Phase 0 results.
     *   **Other settings:** the raw-data cap (5 GB), `goal1_round` (item 36), and the values recorded in `docs/phase0-results.md` (item 12).
 
 #### 4. `engine/src/tearsheet/http.py` (Create)
@@ -1231,7 +1231,7 @@ Goal: test the five assumptions in the Technical Plan roadmap before building th
 *   **Proposed Changes:**
     *   **Interface:** `structured(task, instructions, sources, schema, allow_web_search=False) -> validated object`. `sources` is the list of paragraphs (ID and text) the call may cite.
     *   **Which AI tool:** chosen at the start of the run: the `--tool` flag or the `run_report` field, otherwise the `primary_tool` setting, otherwise Claude Code if it is connected, otherwise Codex. "Connected" means the program was found and passed the lock-down check for its current version. The tool is stored on the run, and Resume uses the same tool. There is no automatic switch when a tool hits its usage limit.
-    *   **Run limits:** at most 3 calls at a time, and the time limit on each.
+    *   **Run limits:** at most 5 calls at a time, and the time limit on each.
     *   **Call budget:** every call sent counts against the run's 50, including retries and each part of a split section. The automatic lock-down check is logged but not counted. A call that would be the 51st raises `AIBudgetExhausted` instead of being sent (item 34).
     *   **Retries:** a temporary error or a time-out is retried once after 30 seconds. An answer that doesn't match the schema is retried once, straight away. Usage-limit, sign-in and tool-use errors are never retried.
     *   **What every call records:** tool, program version, model ID, prompt version, token counts if reported, and duration.
@@ -1406,7 +1406,7 @@ Goal: test the five assumptions in the Technical Plan roadmap before building th
         *   the re-download rule: a second run on the same day makes no requests for company facts or stored filing documents.
     *   **`test_ai_client.py`,** with the fake connector:
         *   the call budget, counting retries, and `AIBudgetExhausted` before a 51st call;
-        *   no more than 3 calls at a time, and the time limit;
+        *   no more than 5 calls at a time, and the time limit;
         *   the schema retry, and no retry for usage-limit and sign-in errors;
         *   the lock-down gate: a changed version or a tool-use attempt holds new calls until the short check passes, and a failed check blocks the tool;
         *   the error table on the recorded fixtures, and an unknown error becoming `AIUnavailable`.

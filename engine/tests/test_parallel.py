@@ -1,4 +1,4 @@
-"""AI calls 3 at a time (Technical Plan §3), and the link search that starts while the data
+"""AI calls 5 at a time (Technical Plan §3), and the link search that starts while the data
 downloads."""
 
 from __future__ import annotations
@@ -42,11 +42,11 @@ def make_run(database, tmp_path, connector, *, data=None, name="r"):
     )
 
 
-def test_ai_calls_run_three_at_a_time(database, tmp_path):
+def test_ai_calls_run_five_at_a_time(database, tmp_path):
     connector = FakeConnector(default=news_ai, delay_s=0.01)
     result = asyncio.run(make_run(database, tmp_path, connector).run("T0"))
     assert result.status == "done"
-    assert connector.max_active == config.AI_CALLS_IN_PARALLEL == 3
+    assert connector.max_active == config.AI_CALLS_IN_PARALLEL == 5
 
 
 def report(database, run, result) -> list[tuple]:
@@ -62,9 +62,9 @@ def test_parallel_reports_match_sequential_ones(database, tmp_path, monkeypatch)
     monkeypatch.setattr(config, "AI_CALLS_IN_PARALLEL", 1)
     first = make_run(database, tmp_path, Jittery(default=news_ai), name="one")
     one = report(database, first, asyncio.run(first.run("T0")))
-    monkeypatch.setattr(config, "AI_CALLS_IN_PARALLEL", 3)
+    monkeypatch.setattr(config, "AI_CALLS_IN_PARALLEL", 5)
     for seed in (1, 2, 3):
-        run = make_run(database, tmp_path, Jittery(default=news_ai, seed=seed), name=f"three{seed}")
+        run = make_run(database, tmp_path, Jittery(default=news_ai, seed=seed), name=f"five{seed}")
         assert report(database, run, asyncio.run(run.run("T0"))) == one
 
 
@@ -83,8 +83,8 @@ def test_a_usage_limit_mid_batch_stops_once_and_starts_nothing_more(database, tm
     assert result.status == "stopped"
     assert sum("The AI steps stopped" in n for n in result.notes) == 1
     tasks = [r.task for r in connector.requests]
-    # The link search, then the first 3 reads; the queued reads never started.
-    assert tasks.count("extract") == 3 and "narrate" not in tasks
+    # The link search, then the first 5 reads; the queued reads never started.
+    assert tasks.count("extract") == config.AI_CALLS_IN_PARALLEL and "narrate" not in tasks
 
 
 def test_a_cancel_mid_batch_starts_no_more_calls(database, tmp_path):
@@ -99,7 +99,7 @@ def test_a_cancel_mid_batch_starts_no_more_calls(database, tmp_path):
     run = make_run(database, tmp_path, connector)
     with pytest.raises(RunCancelled):
         asyncio.run(run.run("T0"))
-    assert [r.task for r in connector.requests].count("extract") == 3
+    assert [r.task for r in connector.requests].count("extract") == config.AI_CALLS_IN_PARALLEL
     status = database.conn.execute(
         "SELECT status FROM runs WHERE run_id = ?", (run.run_id,)
     ).fetchone()[0]
@@ -203,7 +203,7 @@ def test_dropped_sources_keep_the_sources_order(database, tmp_path, monkeypatch)
     one = make_run(database, tmp_path, Jittery(default=fake), name="one")
     asyncio.run(one.run("T0"))
     assert len(one.dropped) >= 4
-    monkeypatch.setattr(config, "AI_CALLS_IN_PARALLEL", 3)
+    monkeypatch.setattr(config, "AI_CALLS_IN_PARALLEL", 5)
     for seed in (4, 5):
         run = make_run(database, tmp_path, Jittery(default=fake, seed=seed), name=f"t{seed}")
         asyncio.run(run.run("T0"))

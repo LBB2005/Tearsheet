@@ -103,7 +103,8 @@ def refused_keys(settings: Settings) -> list[str]:
 # --- Run limits (Technical Plan §3, item 8) ----------------------------------
 
 CALL_BUDGET = 50
-AI_CALLS_IN_PARALLEL = 3
+# 5 at a time (was 3): the same calls, finishing about a minute sooner per report (7 Nov 2026).
+AI_CALLS_IN_PARALLEL = 5
 AI_CALL_TIME_LIMIT_S = 300
 AI_RETRY_WAIT_S = 30
 TOOL_VERSION_TIME_LIMIT_S = 5

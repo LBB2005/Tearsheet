@@ -107,7 +107,7 @@ def test_retries_count_against_the_budget(database):
 # --- limits ---------------------------------------------------------------------------------
 
 
-def test_no_more_than_3_calls_at_a_time(database):
+def test_no_more_than_5_calls_at_a_time(database):
     connector = FakeConnector(default=answer(GOOD), delay_s=0.02)
     client = make_client(database, connector)
 
@@ -115,7 +115,7 @@ def test_no_more_than_3_calls_at_a_time(database):
         await asyncio.gather(*(ask(client) for _ in range(8)))
 
     run(go())
-    assert connector.max_active == 3
+    assert connector.max_active == 5
     assert len(connector.requests) == 8
 
 

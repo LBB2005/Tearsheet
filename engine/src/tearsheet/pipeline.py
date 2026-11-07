@@ -420,7 +420,7 @@ class Run:
         self._current = (name, now)
 
     def _timings(self) -> dict[str, Any]:
-        """Seconds per step, and each AI task's calls and summed call seconds (calls run 3 at
+        """Seconds per step, and each AI task's calls and summed call seconds (calls run 5 at
         a time, so these can add up to more than the step's own time)."""
         self._mark("end")
         ai: dict[str, dict[str, float]] = {}
@@ -1471,7 +1471,7 @@ class Run:
         if self.ai is None:
             self.notes.append("No AI tool was used, so the narrative sections are empty.")
             return evidence
-        # One call per source, 3 at a time (`_parallel`); the evidence is added in the sources'
+        # One call per source, 5 at a time (`_parallel`); the evidence is added in the sources'
         # order, so it reads the same whatever finished first.
         jobs = []
         uses: list[tuple[str, tuple[SectionKey, ...]]] = []
@@ -1729,7 +1729,7 @@ class Run:
                 )
             )
             keys.append(section)
-        # Each section is written from its own sources, so they go 3 at a time; the drafts
+        # Each section is written from its own sources, so they go 5 at a time; the drafts
         # keep the sections' order.
         for section, draft in zip(keys, await self._parallel(jobs), strict=True):
             if draft is not None:
@@ -1839,7 +1839,7 @@ class Run:
         split: dict[str, int] = {}
         full = self.mode == "full" and self.ai is not None
         order = list(drafts.items())
-        # Each section's checks, skeptic and rewrite form one chain; the chains go 3 at a time
+        # Each section's checks, skeptic and rewrite form one chain; the chains go 5 at a time
         # and are put together in the sections' order.
         jobs = [
             lambda section=section, draft=draft: self._verify_section(
