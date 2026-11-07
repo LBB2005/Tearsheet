@@ -1,16 +1,18 @@
 // The window's own small preferences, kept in localStorage:
-//   chart.opens      the Settings choice "When the chart opens": 'full', 'half' or 'last'
-//                    (Where I left it, the default). Settings writes it; the chart reads it.
-//   chart.lastWidth  where the chart was left: 'full', or a width in px. No entry means Half.
-//   sidebar.hidden   '1' while the sidebar is hidden (⌃⌘S).
+//   sidebar.hidden      '1' while the sidebar is hidden (⌃⌘S).
+//   chart.volumeShare   the volume bars' share of the chart's height (chart/height.ts).
+//   chart.volume        '0' while the chart's Volume toggle is off.
+//   chart.startRange    the range the chart opens on (Settings, "The chart opens on"); 1Y if none.
 // A storage that can't be read or written (it shouldn't happen in the app) falls back to the
 // defaults.
 
-import type { ChartOpens, Split } from './split'
-
 type Store = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
 
-const KEYS = { opens: 'chart.opens', lastWidth: 'chart.lastWidth', sidebar: 'sidebar.hidden' } as const
+import { SHARE_DEFAULT } from './height'
+import { RANGE_ORDER, type Range } from './series'
+
+const KEYS = { sidebar: 'sidebar.hidden', volumeShare: 'chart.volumeShare', volume: 'chart.volume', startRange: 'chart.startRange' } as const
+const OLD_KEYS = ['chart.opens', 'chart.lastWidth'] as const
 
 const local = (): Store | null => {
   try {
@@ -37,26 +39,10 @@ function write(key: string, value: string | null, store: Store | null): void {
   }
 }
 
-export function chartOpens(store: Store | null = local()): ChartOpens {
-  const v = read(KEYS.opens, store)
-  return v === 'full' || v === 'half' ? v : 'last'
-}
-
-export function setChartOpens(value: ChartOpens, store: Store | null = local()): void {
-  write(KEYS.opens, value, store)
-}
-
-// The width the chart was left at, as split.ts's openWidth takes it: null for Half or nothing
-// kept, Infinity for Full, else the width in px.
-export function lastWidth(store: Store | null = local()): number | null {
-  const v = read(KEYS.lastWidth, store)
-  if (v === 'full') return Infinity
-  const n = v === null ? NaN : Number(v)
-  return Number.isFinite(n) && n > 0 ? n : null
-}
-
-export function setLastWidth(split: Split, store: Store | null = local()): void {
-  write(KEYS.lastWidth, split.mode === 'full' ? 'full' : split.mode === 'half' ? null : String(Math.round(split.width)), store)
+// The keys an earlier version kept: the "When the chart opens" choice and the width the chart was
+// left at. The chart opens at Half now, so they are cleared once, as the window starts.
+export function forgetOldChartPrefs(store: Store | null = local()): void {
+  for (const key of OLD_KEYS) write(key, null, store)
 }
 
 export function sidebarHidden(store: Store | null = local()): boolean {
@@ -65,4 +51,30 @@ export function sidebarHidden(store: Store | null = local()): boolean {
 
 export function setSidebarHidden(hidden: boolean, store: Store | null = local()): void {
   write(KEYS.sidebar, hidden ? '1' : null, store)
+}
+
+export function volumeShare(store: Store | null = local()): number {
+  const n = Number(read(KEYS.volumeShare, store) ?? NaN)
+  return n > 0 && n < 1 ? n : SHARE_DEFAULT
+}
+
+export function setVolumeShare(share: number, store: Store | null = local()): void {
+  write(KEYS.volumeShare, String(Math.round(share * 1000) / 1000), store)
+}
+
+export function volumeOn(store: Store | null = local()): boolean {
+  return read(KEYS.volume, store) !== '0'
+}
+
+export function setVolumeOn(on: boolean, store: Store | null = local()): void {
+  write(KEYS.volume, on ? null : '0', store)
+}
+
+export function startRange(store: Store | null = local()): Range {
+  const v = read(KEYS.startRange, store)
+  return (RANGE_ORDER as readonly string[]).includes(v ?? '') ? (v as Range) : '1Y'
+}
+
+export function setStartRange(range: Range, store: Store | null = local()): void {
+  write(KEYS.startRange, range === '1Y' ? null : range, store)
 }

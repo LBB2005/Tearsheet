@@ -5,8 +5,10 @@ export type Tool = ("claude" | "codex") | null;
 export type RunId = string;
 export type ReportId = string;
 export type View = "summary" | "full";
-export type Column = "both" | "numbers" | "text";
+export type Column = "both" | "numbers" | "text" | "auto";
 export type Narrow = boolean;
+export type Side = "text" | "numbers";
+export type Motion = boolean;
 export type Limit = number;
 export type Offset = number;
 export type ClaimId = string;
@@ -190,6 +192,8 @@ export interface GetReportParams {
   view?: View;
   column?: Column;
   narrow?: Narrow;
+  side?: Side;
+  motion?: Motion;
 }
 /**
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema

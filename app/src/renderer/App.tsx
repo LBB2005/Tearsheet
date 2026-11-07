@@ -11,7 +11,7 @@ import type { MenuCommand } from '../main/menu'
 import type { CallResult, EngineNotification, ToolStatus } from '../preload/api'
 import type { CompanyRow, GradeResult, SearchHit, SettingsResult } from '../shared/protocol'
 import { bootView, GIVE_UP_AFTER_MS, STARTING_AFTER_MS } from './boot'
-import { setSidebarHidden, sidebarHidden } from './chart/prefs'
+import { forgetOldChartPrefs, setSidebarHidden, sidebarHidden } from './chart/prefs'
 import { runTitle } from './home/run'
 import { RunView } from './home/RunView'
 import { useRun } from './home/useRun'
@@ -62,6 +62,8 @@ export function App() {
   const [safety, setSafety] = useState<SafetyState | null>(null)
   // Kept between launches (chart/prefs.ts, sidebar.hidden).
   const [sideHidden, setSideHidden] = useState(sidebarHidden)
+  // An earlier version kept the chart's last width; it opens at Half now.
+  useEffect(() => forgetOldChartPrefs(), [])
   const [sideOver, setSideOver] = useState(false)
   const [lookUp, setLookUp] = useState(false)
   const [finding, setFinding] = useState(false)

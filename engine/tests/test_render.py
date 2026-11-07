@@ -288,3 +288,51 @@ def test_no_script_tags_anywhere():
                         numbers=n,
                     )
                     assert "<script" not in html.lower()
+
+
+def test_auto_layout_holds_both_columns_and_names_its_side():
+    r = report("Plain sentence.")
+    for side in ("text", "numbers"):
+        html = render_html(r, mode="app", column="auto", side=side, numbers=numbers())
+        # Both columns are in the document: the frame's width decides what shows, in CSS.
+        assert 'id="numbers"' in html and 'id="summary"' in html and 'id="full"' in html
+        assert f'class="mode-app col-auto side-{side}"' in html
+        assert "@media (max-width: 859px)" in html
+    with pytest.raises(ValueError):
+        render_html(r, mode="app", column="auto", side="left")
+
+
+def test_auto_layout_keeps_the_key_strip_for_a_narrow_window_only():
+    r = report("Plain sentence.")
+    narrow = render_html(r, mode="app", column="auto", narrow=True, numbers=numbers())
+    assert key_tiles(narrow).count('class="kt"') == 5
+    wide = render_html(r, mode="app", column="auto", numbers=numbers())
+    assert 'id="keys"' not in wide
+
+
+def test_still_render_has_no_entrance_motion():
+    r = report("Plain sentence.")
+    assert "@keyframes rise" in render_html(r, mode="app", column="auto", numbers=numbers())
+    still = render_html(r, mode="app", column="auto", motion=False, numbers=numbers())
+    assert "@keyframes" not in still and "Plain sentence." in still
+
+
+def test_a_file_keeps_both_columns_whatever_is_asked():
+    file = render_html(
+        report("Plain sentence."), mode="file", column="auto", side="numbers", numbers=numbers()
+    )
+    assert 'class="mode-file col-both side-text"' in file
+    assert 'id="numbers"' in file and 'id="summary"' in file
+
+
+def test_a_narrow_window_keeps_one_column_at_any_frame_width():
+    """A window under about 1,100 px shows the text with the key tiles, whatever the frame's
+    width: the one-column rules hold without the 860 px media query."""
+    r = report("Plain sentence.")
+    narrow = render_html(r, mode="app", column="auto", narrow=True, numbers=numbers())
+    assert 'class="mode-app col-auto side-text narrow"' in narrow
+    css = narrow[: narrow.index("</style>")]
+    outside = re.sub(r"@media[^{]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}", "", css)
+    assert ".col-auto.narrow.side-text .nums" in outside
+    wide = render_html(r, mode="app", column="auto", numbers=numbers())
+    assert 'class="mode-app col-auto side-text"' in wide

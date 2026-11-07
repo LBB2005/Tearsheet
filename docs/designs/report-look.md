@@ -107,7 +107,7 @@ Over six rounds of mockups, Liam settled on:
     in the "Outline" style.
     *   A list of six topics on the left, each with the app sidebar's own line icons. There is
         one short page per topic, and the toolbar names the topic.
-    *   **General:** the main AI tool and the Chart choice (below), as Mac pop-up menus, and the
+    *   **General:** the main AI tool and "The chart opens on" (below), as Mac pop-up menus, and the
         SEC email. A note at the top, with a button, for each thing that needs you.
     *   **AI tools:** each tool's job and version, its safety check, and "Look for AI tools
         again". The paths and the lock-down details are behind "Show details".
@@ -290,6 +290,16 @@ app icon versions".
 
 ## The chart
 
+*Round two (2026-11-06,
+[`docs/superpowers/specs/2026-11-06-chart-round-two-design.md`](../superpowers/specs/2026-11-06-chart-round-two-design.md))
+changes several points below:*
+
+*   *The chart opens at Half every time. Narrow, Half, Wide and Full buttons sit in its header.*
+*   *A drag line above the volume bars sets the height, and there is a Volume toggle.*
+*   *Settings picks the range the chart opens on.*
+*   *The report is never reloaded as the chart opens, closes or resizes.*
+*   *The line draws in once each time the chart opens, then glides between ranges.*
+
 *   **Where it opens.** The Chart button (⌘3) opens the chart from the right as a **split**
     beside the report. A divider sits between them.
 *   **Dragging the divider:**
@@ -324,8 +334,9 @@ app icon versions".
     With either compare line on, all lines start from 100.
 *   **Interaction.** Hover reads a day's price, change and volume. Dragging across measures the
     change between two dates.
-*   **The Settings choice: "When the chart opens".** The options are Full, Half, or Where I left
-    it, which is the default and reopens at your last width.
+*   **The Settings choice: "The chart opens on".** It picks the range the chart opens on, from 1W
+    to All. The default is 1Y. (Round two replaced "When the chart opens", which offered Full,
+    Half or Where I left it.)
 
 ## Motion
 
@@ -340,7 +351,8 @@ Motion is CSS-led, plays once, and is off when the Mac's Reduce motion setting i
     *   opening slides the split in from the right while the numbers column slides away;
     *   dragging the divider resizes it live;
     *   snapping settles it;
-    *   on range or toggle changes, the line re-traces and the volume rises.
+    *   on range or toggle changes, the lines glide to their new shape in about a third of a
+        second. The draw-in plays only as the chart opens (round two).
 *   **The sidebar** slides away, and the toolbar shifts to make room for the window buttons.
 *   **Switching views** slides the text in, and changing pages makes the content rise.
 *   **A run:** the step ring and the sidebar status line advance.

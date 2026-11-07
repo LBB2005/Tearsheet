@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { chartOpens, lastWidth, setChartOpens, setLastWidth, setSidebarHidden, sidebarHidden } from './prefs'
+import { forgetOldChartPrefs, setSidebarHidden, setStartRange, setVolumeOn, setVolumeShare, sidebarHidden, startRange, volumeOn, volumeShare } from './prefs'
 
 const fake = () => {
   const m = new Map<string, string>()
@@ -8,26 +8,48 @@ const fake = () => {
 }
 
 describe('prefs', () => {
-  it('opens where it was left by default, and keeps the Settings choice', () => {
+  it('forgets the old opening width and the Settings choice it came from', () => {
     const s = fake()
-    expect(chartOpens(s)).toBe('last')
-    setChartOpens('full', s)
-    expect(chartOpens(s)).toBe('full')
-    s.m.set('chart.opens', 'sideways')
-    expect(chartOpens(s)).toBe('last')
+    s.m.set('chart.opens', 'last')
+    s.m.set('chart.lastWidth', '612')
+    s.m.set('sidebar.hidden', '1')
+    forgetOldChartPrefs(s)
+    expect([...s.m.keys()]).toEqual(['sidebar.hidden'])
   })
 
-  it('keeps the last width: Half as nothing, Full as Infinity, else the px', () => {
+  it('keeps the volume’s share of the chart’s height, and falls back on a bad one', () => {
     const s = fake()
-    expect(lastWidth(s)).toBeNull()
-    setLastWidth({ mode: 'free', width: 612.4 }, s)
-    expect(lastWidth(s)).toBe(612)
-    setLastWidth({ mode: 'full', width: 1048 }, s)
-    expect(lastWidth(s)).toBe(Infinity)
-    setLastWidth({ mode: 'half', width: 524 }, s)
-    expect(s.m.has('chart.lastWidth')).toBe(false)
-    s.m.set('chart.lastWidth', 'wide')
-    expect(lastWidth(s)).toBeNull()
+    expect(volumeShare(s)).toBe(0.1)
+    setVolumeShare(0.234, s)
+    expect(volumeShare(s)).toBe(0.234)
+    for (const bad of ['2', 'x', '0', '-0.1']) {
+      s.m.set('chart.volumeShare', bad)
+      expect(volumeShare(s)).toBe(0.1)
+    }
+  })
+
+  it('keeps whether the volume is shown, on unless it was turned off', () => {
+    const s = fake()
+    expect(volumeOn(s)).toBe(true)
+    setVolumeOn(false, s)
+    expect(s.m.get('chart.volume')).toBe('0')
+    expect(volumeOn(s)).toBe(false)
+    setVolumeOn(true, s)
+    expect(volumeOn(s)).toBe(true)
+    s.m.set('chart.volume', 'maybe')
+    expect(volumeOn(s)).toBe(true)
+  })
+
+  it('keeps the range the chart opens on: 1Y until another is picked', () => {
+    const s = fake()
+    expect(startRange(s)).toBe('1Y')
+    setStartRange('3M', s)
+    expect(startRange(s)).toBe('3M')
+    setStartRange('All', s)
+    expect(startRange(s)).toBe('All')
+    s.m.set('chart.startRange', '1D')
+    expect(startRange(s)).toBe('1Y')
+    expect(startRange(null)).toBe('1Y')
   })
 
   it('keeps whether the sidebar is hidden', () => {
@@ -40,8 +62,6 @@ describe('prefs', () => {
   })
 
   it('falls back to the defaults without a storage', () => {
-    expect(chartOpens(null)).toBe('last')
-    expect(lastWidth(null)).toBeNull()
     expect(sidebarHidden(null)).toBe(false)
   })
 })
