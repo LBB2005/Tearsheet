@@ -104,7 +104,9 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .top { height: 52px; flex: none; display: flex; align-items: center; gap: 12px; padding: 0 14px 0 20px; border-bottom: 1px solid var(--line); position: relative; z-index: 4; user-select: none; -webkit-app-region: drag; transition: padding-left .34s var(--slide); }
 .top.bare { border-bottom-color: transparent; }
 .sbhidden .top, .narrow .top { padding-left: 132px; }
-.top button, .top input, .top select, .top a, .top .find4 { -webkit-app-region: no-drag; }
+/* Every control in the toolbar takes its own clicks, never a window move. !important, because a
+   control styled with all: unset (the Chart button, the Numbers / Text switch) would reset it. */
+.top button, .top input, .top select, .top a, .top .find4 { -webkit-app-region: no-drag !important; }
 .top .ttl { margin: 0 auto 0 0; min-width: 0; font: 600 14.5px/1.2 var(--ui); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .top .ttl small { display: block; font: 12px var(--ui); color: var(--muted); }
 /* Narrow windows keep the title to one line, except for the menu of the company's other reports, the only way to them there. */
