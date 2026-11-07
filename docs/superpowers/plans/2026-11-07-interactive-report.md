@@ -209,7 +209,7 @@ the switches the spec lists, without the report ever reloading.
   - `red_flags(1, 4)`: "1 of 4 checks found a red flag. Any one caps the rating at Hold."
   - `red_flags(0, 4)`: "No red flags found in 4 checks."
   - `economy("10-year Treasury yield", "4.9%", "4 Nov 2026")`: "10-year Treasury yield: 4.9% on 4 Nov 2026, from FRED."
-  - `peer_rating("Buy", 8, 41)`: "Buy: 8 of 41 peers, rated before red-flag caps."
+  - `peer_rating("Buy", 8, 41)`: "Buy: 8 of 41 companies in the group, rated before red-flag caps."
   - `claims("kept", 41, 53)`: "Kept: 41 of 53 claims passed every check."
   - `claims("removed", 12, 53)`: "Removed: 12 of 53 claims failed a check and were taken out."
   - `kept_item("Business", 4)`: "Business: 4 claims kept."
@@ -1001,7 +1001,7 @@ the switches the spec lists, without the report ever reloading.
     - "Close on 14 Nov 2025: $180.00, 10% below today’s $200.13."
     - "Score: 74th percentile. Better than 74 of 100 peers on the weighted factors."
     - "1 of 4 checks found a red flag. Any one caps the rating at Hold."
-    - "Buy: 8 of 41 peers, rated before red-flag caps."
+    - "Buy: 8 of 41 companies in the group, rated before red-flag caps."
     - with a section holding `TABLES["score"]`, "Profitability: percentile 93, weight used 30.0%."
   - `test_the_past_year_has_a_readout_for_each_week_and_each_case`: 52 `"Close on "`
     readouts, and one each of "Bull case:", "Base case:" and "Bear case:".
