@@ -128,3 +128,33 @@ th[aria-sort='ascending'] .tsort, th[aria-sort='descending'] .tsort { color: var
 .rcount { color: var(--muted); font-variant-numeric: tabular-nums; }
 .rlists ul { margin: 8px 0 0; padding-left: 22px; line-height: 1.5; }
 .rnone { margin: 8px 0 0; color: var(--muted); }
+
+/* Analyst ratings (AnalystsPane.tsx): analystdb's firms, recent changes and trust check, each a
+   table whose rows read themselves out, with the side filter above the firms and the notes and
+   the source line under. */
+.avw { display: flex; flex-direction: column; gap: 10px; padding: 4px 0 12px; }
+.aside b, .atabs b { font-weight: 600; font-variant-numeric: tabular-nums; opacity: .8; margin-left: 2px; }
+.aside { align-self: flex-start; }
+.atw { overflow-x: auto; }
+.atable { width: 100%; border-collapse: collapse; font-size: 13px; }
+.atable th { text-align: left; font-weight: 500; color: var(--muted); padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: bottom; }
+.atable td { padding: 6px 8px; border-bottom: 1px solid rgba(255, 255, 255, .05); white-space: nowrap; }
+/* In a narrow pane the words wrap (a firm's name, its rating, the headers) and the figures don't. */
+.atable td:first-child, .atable td.awrap { white-space: normal; min-width: 7em; }
+.atable .num { text-align: right; font-variant-numeric: tabular-nums; }
+.atable tbody tr { cursor: default; }
+.atable tbody tr:hover td { background: rgba(127, 227, 247, .05); }
+.atable tbody tr:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.atable .abuy, .atable .aup { color: var(--up); }
+.atable .ahold { color: var(--hold); }
+.atable .asell, .atable .adown { color: var(--down); }
+.atable .adim { color: var(--muted); }
+.atable .aoff { color: var(--hold); }
+.ahero { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.ahero > div { display: flex; flex-direction: column; gap: 3px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); }
+.ahero span, .ahero small { color: var(--muted); font-size: 12px; }
+.ahero b { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.ahero b.aoff { color: var(--hold); }
+.anote { margin: 0; max-width: 78ch; color: var(--muted); font-size: 12.5px; line-height: 1.5; }
+.anote.warn { color: var(--hold); }
+.afoot { margin: 4px 0 0; color: var(--muted); font-size: 12px; }

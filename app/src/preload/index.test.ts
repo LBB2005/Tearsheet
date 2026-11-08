@@ -42,6 +42,7 @@ describe('the calls', () => {
     ['searchCompanies', ['app', 5], ['tearsheet:call', 'searchCompanies', { query: 'app', limit: 5 }]],
     ['getChart', ['r-1'], ['tearsheet:call', 'getChart', { report_id: 'r-1' }]],
     ['getReportNumbers', ['r-1'], ['tearsheet:call', 'getReportNumbers', { report_id: 'r-1' }]],
+    ['getAnalysts', ['r-1'], ['tearsheet:call', 'getAnalysts', { report_id: 'r-1' }]],
     ['fetchHistory', ['r-1'], ['tearsheet:call', 'fetchHistory', { report_id: 'r-1' }]],
     ['checkKey', ['massive', 'k'], ['tearsheet:call', 'checkKey', { service: 'massive', key: 'k' }]],
     ['runSafetyCheck', ['claude'], ['tearsheet:call', 'runSafetyCheck', { tool: 'claude' }]],
@@ -90,6 +91,6 @@ describe('the listeners', () => {
 
 test('the window gets nothing but these calls and listeners', () => {
   expect(Object.keys(api).sort()).toEqual(
-    ['cancel', 'checkKey', 'fetchHistory', 'find', 'flagClaim', 'getChart', 'getReport', 'getReportNumbers', 'eraseReports', 'getSettings', 'getTools', 'gradeDue', 'hideReports', 'listCompanies', 'listPredictions', 'listReports', 'onFlagRequested', 'onMenu', 'onNotification', 'onOpenView', 'openExternal', 'openTerminal', 'pinCompany', 'rereadFiling', 'resume', 'runReport', 'runSafetyCheck', 'searchCompanies', 'setKey', 'setSetting', 'showReports', 'stopFind'].sort()
+    ['cancel', 'checkKey', 'fetchHistory', 'find', 'flagClaim', 'getAnalysts', 'getChart', 'getReport', 'getReportNumbers', 'eraseReports', 'getSettings', 'getTools', 'gradeDue', 'hideReports', 'listCompanies', 'listPredictions', 'listReports', 'onFlagRequested', 'onMenu', 'onNotification', 'onOpenView', 'openExternal', 'openTerminal', 'pinCompany', 'rereadFiling', 'resume', 'runReport', 'runSafetyCheck', 'searchCompanies', 'setKey', 'setSetting', 'showReports', 'stopFind'].sort()
   )
 })

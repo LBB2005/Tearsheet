@@ -4,7 +4,7 @@
 // tearsheet://flag/<claim ID>, tearsheet://reread/<accession> and
 // tearsheet://open/<view>[/<item>], which asks the app to show a chart or table bigger.
 
-export const VIEWS = ['price', 'factors', 'metrics', 'methods', 'returns', 'flags', 'economy', 'rings'] as const
+export const VIEWS = ['price', 'factors', 'metrics', 'methods', 'returns', 'flags', 'economy', 'rings', 'analysts'] as const
 export type ViewKind = (typeof VIEWS)[number]
 export type ViewId = ViewKind | `table-${string}`
 

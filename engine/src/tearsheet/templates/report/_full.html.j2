@@ -71,7 +71,7 @@
 {%- for s in r.sections %}
 <section id="s-{{ s.key }}" class="rsec">
 <h3>{% if s.number %}{{ s.number }}. {% endif %}{{ s.title }}</h3>
-{%- for para in s.paragraphs or [] %}
+{%- for para in s.paragraphs or [] if not (hide_line and para == hide_line) %}
 {{ code_line(para) }}
 {%- endfor %}
 {%- if s.table %}

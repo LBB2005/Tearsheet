@@ -266,5 +266,55 @@
 {%- endif %}
 </div>
 </section>
+{#- 10. Analyst ratings from analystdb (design item 20), asked for as the report opened, as of
+    its price date: the street's view, never part of the rating, score or range. It is laid out
+    like the peer ratings ring above it, with the targets beside the ring and the analysts' low
+    to high target bar under, marking Tearsheet's base value and the price. Every part opens the
+    side panel's Analyst ratings view. When analystdb can't answer, the panel is one quiet line;
+    without `analysts` there is no panel at all. #}
+{%- if analysts %}
+{%- set a = analysts %}
+<section class="p glass span2" id="analysts">
+{%- if a.state == "ok" %}
+<h4><span>Analyst ratings</span><em>analystdb, as of {{ a.asof_text }}{% if a.rebuilt %}, rebuilt from history{% endif %}</em></h4>
+{%- if a.stale %}
+<div class="note">Some of this may be out of date: {% if a.stale|length > 1 %}{{ a.stale[:-1]|join(", ") }} and {{ a.stale[-1] }}{% else %}{{ a.stale[0] }}{% endif %} missed analystdb’s last evening run.</div>
+{%- endif %}
+{%- set sd = a.sides %}
+{%- set slices = [("buy", "Buy", sd.buy), ("hold", "Hold", sd.hold), ("sell", "Sell", sd.sell)] %}
+<div class="donutrow">
+<div class="donut">
+{%- for key, call, count in slices if count > 0 %}<span class="ro ro-{{ key }}" aria-hidden="true">{{ ro.analyst_side(call, count, a.n_firms, a.asof_text) }}</span>{% endfor -%}
+<div class="dn">{{ donut(80, 10, [[sd.buy, "buy"], [sd.hold, "hold"], [sd.sell, "sell"]], "Analyst ratings: " ~ sd.buy ~ " Buy, " ~ sd.hold ~ " Hold, " ~ sd.sell ~ " Sell", view="analysts") }}<b>{{ a.n_firms }}</b></div>
+</div>
+<div class="legend">
+{%- for key, call, count in slices %}{% call hot("analysts", key, ro.analyst_side(call, count, a.n_firms, a.asof_text)) %}<i class="{{ key }}"></i>{{ count }} {{ call }}{% endcall %}{% endfor -%}
+</div>
+<div class="half akvs">
+{%- for key, label in (("mean", "Average target"), ("median", "Median"), ("high", "High"), ("low", "Low")) %}
+{%- set v = a.target[key] %}
+{% call hot("analysts", "firms", ro.analyst_target(key, v, a.target.n), "kv") %}<span>{{ label }}</span>{% if v is number %}<b>{{ fmt("price", v) }}</b>{% else %}<b class="clear">not available</b>{% endif %}{% endcall %}
+{%- endfor %}
+</div>
+</div>
+{%- set t = a.target %}
+{%- if t.low is number and t.high is number %}
+{%- set base = n.range.base if n.range and n.range.base is number else none %}
+{%- set px = today if today is number else none %}
+{%- set marks = [t.low, t.high] + ([base] if base is not none else []) + ([px] if px is not none else []) %}
+{%- set lo0, hi0 = marks|min, marks|max %}
+{%- set pad = [(hi0 - lo0) * 0.06, 0.01]|max %}
+{%- set lo, span = lo0 - pad, hi0 - lo0 + 2 * pad %}
+{%- macro apos(v) -%}{{ "%.1f"|format((v - lo) / span * 100) }}%{%- endmacro -%}
+{% call hot("analysts", "firms", ro.analyst_band(t.low, t.high, t.mean, t.median, base, px, n.price.date if n.price else none), "astriphot") %}<div class="astrip" aria-hidden="true"><i class="aband" style="left:{{ apos(t.low) }};width:{{ "%.1f"|format((t.high - t.low) / span * 100) }}%"></i>{% if t.mean is number %}<i class="aavg" style="left:{{ apos(t.mean) }}"></i>{% endif %}{% if t.median is number %}<i class="amed" style="left:{{ apos(t.median) }}"></i>{% endif %}{% if base is not none %}<i class="abase" style="left:{{ apos(base) }}"></i>{% endif %}{% if px is not none %}<i class="apx" style="left:{{ apos(px) }}"></i>{% endif %}</div>
+<div class="aends"><span>{{ dollars(t.low) }}</span><span>{{ dollars(t.high) }}</span></div>
+<div class="akeys"><span><i class="k-band"></i>analysts, low to high</span>{% if t.mean is number %}<span><i class="k-avg"></i>average</span>{% endif %}{% if t.median is number %}<span><i class="k-med"></i>median</span>{% endif %}{% if base is not none %}<span><i class="k-base"></i>Tearsheet base {{ dollars(base) }}</span>{% endif %}{% if px is not none %}<span><i class="k-px"></i>price {{ dollars(px) }}</span>{% endif %}</div>{% endcall %}
+{%- endif %}
+<p class="afoot">Source: analystdb, {{ a.n_firms }} firms, as of {{ a.asof_text }}. Research data, not investment advice.</p>
+{%- else %}
+<p class="aquiet">{{ a.note }}</p>
+{%- endif %}
+</section>
+{%- endif %}
 </aside>
 {%- endmacro -%}

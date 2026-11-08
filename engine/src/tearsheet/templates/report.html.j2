@@ -186,6 +186,28 @@ a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outli
 .legend i.buy { background: var(--up); } .legend i.hold { background: var(--hold); } .legend i.sell { background: var(--down); } .legend i.kept { background: var(--accent); }
 .legend .sub { padding-left: 13px; font-size: 11.5px; }
 .half { flex: 1; min-width: 160px; }
+/* The Analyst ratings panel (analystdb): the peer ratings ring's layout, the targets beside the
+   ring, and under them the analysts' low-to-high target bar with the average and median, and
+   Tearsheet's base value and the price marked. */
+.akvs { min-width: 170px; }
+.akvs > .kv:first-child { border-top: 0; }
+.astriphot { margin-top: 10px; border-radius: 8px; padding: 4px 2px; }
+.astrip { position: relative; height: 18px; }
+.astrip i { position: absolute; }
+.aband { top: 6px; height: 6px; border-radius: 3px; background: var(--band); }
+.aavg, .amed { top: 2px; width: 2px; height: 14px; margin-left: -1px; }
+.aavg { background: var(--accent); } .amed { background: var(--text); opacity: .7; }
+.abase { top: 4px; width: 10px; height: 10px; margin-left: -5px; transform: rotate(45deg); border: 2px solid var(--accent2); background: #070B14; }
+.apx { top: 0; width: 2px; height: 18px; margin-left: -1px; background: var(--hold); }
+.aends { display: flex; justify-content: space-between; font: 11px var(--num); color: var(--muted); }
+.akeys { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 4px; font-size: 11.5px; color: var(--muted); }
+.akeys i { display: inline-block; vertical-align: middle; margin-right: 5px; }
+.akeys .k-band { width: 14px; height: 6px; border-radius: 3px; background: var(--band); }
+.akeys .k-avg, .akeys .k-med, .akeys .k-px { width: 2px; height: 11px; }
+.akeys .k-avg { background: var(--accent); } .akeys .k-med { background: var(--text); opacity: .7; } .akeys .k-px { background: var(--hold); }
+.akeys .k-base { width: 8px; height: 8px; transform: rotate(45deg); border: 2px solid var(--accent2); }
+.afoot { margin: 8px 0 0; font-size: 11.5px; color: var(--muted); }
+.aquiet { margin: 0; font-size: 12.5px; color: var(--muted); }
 .ch-band { fill: var(--band); opacity: .6; } .ch-axis { stroke: var(--line); } .ch-grid { stroke: rgba(255,255,255,.06); }
 .ch-lab { fill: var(--muted); font: 11px var(--ui); } .ch-val { fill: var(--text); font: 600 11.5px var(--num); }
 .ch-plab { fill: var(--hold); font: 600 11.5px var(--num); } .ch-dot { fill: var(--accent); } .ch-row { fill: var(--muted); font: 12px var(--ui); }

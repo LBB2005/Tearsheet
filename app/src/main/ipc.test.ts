@@ -12,6 +12,7 @@ test('the call list is closed', () => {
 
 test('the report’s numbers have a call of their own', () => {
   expect(engineMethod('getReportNumbers')).toBe('get_report_numbers')
+  expect(engineMethod('getAnalysts')).toBe('get_analysts')
 })
 
 test('the sidebar’s delete and pin calls reach the engine', () => {

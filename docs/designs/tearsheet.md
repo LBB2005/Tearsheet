@@ -104,9 +104,7 @@ None of it is checked, and nothing ties a claim back to its source.
 
 ## Open Questions
 
-*   **Analyst ratings source (deferred by Liam).** Two options:
-    *   **Free (the default until Liam decides):** Alpha Vantage's free company overview gives the consensus rating counts and the average price target. Checked on IBM: 3 strong buy, 9 buy, 10 hold, 1 sell, 1 strong sell; average target $259.30. Recent upgrades and downgrades come from the news scan.
-    *   **Paid:** Benzinga Analyst Ratings through Massive at $99/month per user. It adds high and low targets, firm names and each analyst's history.
+*   **Analyst ratings source (decided by Liam, Nov 7).** analystdb, Liam's own local API (see "Analyst ratings from analystdb" in §9). The two options weighed before, Alpha Vantage's free overview (now a premium endpoint) and Benzinga through Massive ($99/month), are not used.
 *   **Waiting on Liam's answer:**
     *   **Monthly code-only rating of all ~500 companies (A18).** Add it in Phase 2, or keep it deferred? If deferred, the log screen states that it grades the companies Liam chose to look up, not the method.
     *   **Everyday AI tool.** If it is Claude Code, the Codex connector moves from Phase 0 to Phase 2, where the other-tool skeptic needs it.
@@ -197,7 +195,7 @@ In the Status column, "Liam, Nov 2" means Liam decided it. "Drafter default" mea
 | How the news step reads articles | The AI suggests links, the engine downloads them, and the AI reads the saved text with every tool denied (§9) | Liam, Nov 2 |
 | Valuation methods in v1 | All three: DCF, residual income and peer multiples. Disagreement between them raises the uncertainty level. | Liam, Nov 2 |
 | How the three are combined | The median of the methods that are valid for this company (§8) | Drafter default |
-| Analyst ratings source | The free Alpha Vantage source until Liam decides (Open Questions) | Waiting on Liam |
+| Analyst ratings source | analystdb, Liam's local read-only API, shown beside the report and never part of its numbers (§9) | Liam, Nov 7 |
 
 ### 1. The parts and how they connect
 
@@ -544,6 +542,14 @@ The engine can also run from the terminal (`tearsheet-engine run GOOGL`) and wri
 *   counts by grade and the average price target, from the free source (Open Questions), labelled "as fetched on [date]" because the source gives no as-of date;
 *   recent upgrades and downgrades from the news scan, under the quote rule above;
 *   a standing note: street targets have run about 15 points optimistic, and about 56% of street ratings on S&P 500 stocks are Buy.
+
+**Analyst ratings from analystdb (Liam, Nov 7).** This replaces the plan above for now. analystdb is Liam's own project (`~/code/analysis-rating-stock`): a read-only API at `http://127.0.0.1:8765` on this Mac, with no key. The engine's `data/analystdb.py` reads it.
+
+*   **When:** as a report opens, asked for the report's price date, so a report of 6 Nov shows what analysts said on 6 Nov. Nothing is stored. A report is made, saved, rated, logged and replayed exactly as before, and the golden set and replay checks don't see it. Old reports get it too.
+*   **Where:** a panel at the foot of the numbers column, laid out like the peer ratings ring: the firm count; Buy, Hold and Sell; the average, median, high and low targets; and the analysts' low-to-high target bar with Tearsheet's base value and the price marked. It carries its source and as-of date, a note when a source missed analystdb's evening run, and "Research data, not investment advice."
+*   **Click:** every part opens the side panel's Analyst ratings view. Its tabs are every firm with its track record (rank among ranked firms, average excess return; "not ranked" and "not enough data" where analystdb says so), the 20 latest changes, and the trust check of our targets and counts against S&P Global's.
+*   **When analystdb can't answer:** the report opens as normal, and the panel is one quiet line. The engine waits at most half a second, then leaves analystdb alone for a minute. Answers are kept in memory for four hours. The side panel always asks again on Try again.
+*   **Not touched:** the rating, score, range, prediction, narrative and checks. Section 1's stored line "Analyst consensus is not available…" stays in the stored report, but is hidden on screen while the panel shows its figures.
 
 **Next earnings date.** Estimated from the dates of the company's past earnings 8-Ks (Item 2.02; rule in item 7) and labelled "estimated." It is replaced when a press release or article quotes an announced date.
 

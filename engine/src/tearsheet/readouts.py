@@ -247,3 +247,132 @@ def table_row(header: list[str], row: list[str]) -> str:
     if not parts:
         return f"{subject}."
     return f"{subject}: {', '.join(parts)}."
+
+
+# --- Analyst ratings, from analystdb (data/analystdb.py) -----------------------------------------
+# The street's view, shown beside the report and never part of its rating, score or range.
+
+_SIDE_WORDS = {"Buy": "Buy or Strong Buy", "Hold": "Hold", "Sell": "Sell or Strong Sell"}
+_TARGET_WORDS = {"mean": "Average", "median": "Median", "high": "Highest", "low": "Lowest"}
+
+
+def _firms(n: int) -> str:
+    return f"{n} firm" if n == 1 else f"{n} firms"
+
+
+def analyst_side(call: str, count: int, total: int, asof_text: str) -> str:
+    return f"{call}: {count} of {_firms(total)} rate it {_SIDE_WORDS.get(call, call)}, as of {asof_text}."
+
+
+def analyst_target(
+    kind: Literal["mean", "median", "high", "low"], value: float | None, n: int
+) -> str:
+    word = _TARGET_WORDS[kind]
+    if value is None:
+        return f"{word} analyst target: not available."
+    text = f"{word} analyst target {format_value('price', value)}"
+    if kind in ("mean", "median"):
+        text += f", from the {_firms(n)} with a target"
+    return f"{text}."
+
+
+def analyst_band(
+    low: float,
+    high: float,
+    mean: float | None,
+    median: float | None,
+    base: float | None,
+    price: float | None,
+    price_day_text: str | None,
+) -> str:
+    text = f"Analyst targets run from {format_value('price', low)} to {format_value('price', high)}"
+    middle = [
+        f"{name} {format_value('price', v)}"
+        for name, v in (("average", mean), ("median", median))
+        if v is not None
+    ]
+    text += f" ({', '.join(middle)})." if middle else "."
+    ours = []
+    if base is not None:
+        ours.append(f"Tearsheet’s base value is {format_value('price', base)}")
+    if price is not None:
+        when = f"on {price_day_text}" if price_day_text else "at the report"
+        ours.append(f"the price {when} was {format_value('price', price)}")
+    if ours:
+        text += f" {_upper_first('; '.join(ours))}."
+    return text
+
+
+def analyst_firm(
+    firm: str,
+    label: str,
+    target: float | None,
+    day_text: str,
+    rank: int | None,
+    ranked_of: int | None,
+    excess_text: str | None,
+) -> str:
+    """`ranked_of` None: the track records didn't load, so none is said. `excess_text` None:
+    too few calls to judge."""
+    with_target = f" with a {format_value('price', target)} target" if target is not None else ""
+    head = f"{firm} rates it {label}{with_target} ({day_text})."
+    if ranked_of is None:
+        return head
+    place = f"#{rank} of {ranked_of} ranked firms" if rank is not None else "not ranked"
+    calls = (
+        f"its rating calls averaged {excess_text} against the S&P 500"
+        if excess_text is not None
+        else "not enough data to judge its calls"
+    )
+    return f"{head} Track record: {place}; {calls}."
+
+
+def analyst_change(
+    firm: str,
+    action: str,
+    from_label: str | None,
+    to_label: str | None,
+    prior: float | None,
+    current: float | None,
+    day_text: str,
+) -> str:
+    rating = to_label or "its rating"
+    if action in ("up", "down"):
+        verb = "upgraded" if action == "up" else "downgraded"
+        what = (
+            f"{verb} it from {from_label} to {rating}" if from_label else f"{verb} it to {rating}"
+        )
+    elif action == "init":
+        what = f"started coverage at {rating}"
+    elif action == "reit":
+        what = f"reiterated {rating}"
+    elif action == "main":
+        what = f"maintained {rating}"
+    else:
+        what = f"changed its view to {rating}"
+    if current is None:
+        target = ""
+    elif prior is None:
+        target = f" and set a {format_value('price', current)} target"
+    elif current == prior:
+        target = f" and kept its {format_value('price', current)} target"
+    else:
+        verb = "raised" if current > prior else "cut"
+        target = f" and {verb} its target from {format_value('price', prior)} to {format_value('price', current)}"
+    return f"{firm} {what}{target} on {day_text}."
+
+
+def analyst_check(
+    label: str,
+    ours_text: str,
+    theirs_text: str,
+    gap_words: str | None,
+    within: bool,
+    tolerance_text: str,
+) -> str:
+    gap = f", {gap_words}" if gap_words else ""
+    verdict = "within" if within else "outside"
+    return (
+        f"{label}: analystdb {ours_text}, S&P Global {theirs_text}{gap}; "
+        f"{verdict} the {tolerance_text} tolerance."
+    )

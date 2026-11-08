@@ -10,6 +10,8 @@ import type { ViewId, ViewKind } from '../../main/navigation'
 import type { ReportNumbers } from '../../shared/protocol'
 import type { ViewMemory } from './memory'
 import { viewTitle } from './titles'
+import { ANALYSTS_START } from '../views/analysts'
+import { Analysts } from '../views/AnalystsPane'
 import { FACTORS_START } from '../views/factors'
 import { Factors } from '../views/FactorsPane'
 import { Economy, RedFlags, Rings } from '../views/FiguresPane'
@@ -39,6 +41,7 @@ export const VIEW_PANES: Partial<Record<ViewKind | 'table', ViewSpec>> = {
   flags: { start: null, Pane: RedFlags },
   economy: { start: null, Pane: Economy },
   rings: { start: null, Pane: Rings },
+  analysts: { start: ANALYSTS_START, Pane: Analysts },
   table: { start: TABLE_START, Pane: Table }
 }
 

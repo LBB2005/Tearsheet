@@ -1,0 +1,1165 @@
+{
+ "data": [
+  {
+   "firm": "William Blair",
+   "firm_slug": "william-blair",
+   "rank": 1,
+   "n_closed_target": 13,
+   "n_closed_rating": 144,
+   "avg_excess": 0.10777929049748636,
+   "avg_excess_lo": 0.030517976923723378
+  },
+  {
+   "firm": "JMP Securities",
+   "firm_slug": "jmp-securities",
+   "rank": 2,
+   "n_closed_target": 671,
+   "n_closed_rating": 116,
+   "avg_excess": 0.1137231963565784,
+   "avg_excess_lo": 0.02772516496338505
+  },
+  {
+   "firm": "SunTrust Robinson Humphrey",
+   "firm_slug": "suntrust-robinson-humphrey",
+   "rank": 3,
+   "n_closed_target": 811,
+   "n_closed_rating": 205,
+   "avg_excess": 0.10193598869422107,
+   "avg_excess_lo": 0.021137122122188337
+  },
+  {
+   "firm": "Tigress Financial",
+   "firm_slug": "tigress-financial",
+   "rank": 4,
+   "n_closed_target": 180,
+   "n_closed_rating": 51,
+   "avg_excess": 0.10151765829450507,
+   "avg_excess_lo": 0.02017812892881754
+  },
+  {
+   "firm": "Nomura",
+   "firm_slug": "nomura",
+   "rank": 5,
+   "n_closed_target": 1119,
+   "n_closed_rating": 215,
+   "avg_excess": 0.061935362059838156,
+   "avg_excess_lo": 0.01686629136431897
+  },
+  {
+   "firm": "Raymond James",
+   "firm_slug": "raymond-james",
+   "rank": 6,
+   "n_closed_target": 3204,
+   "n_closed_rating": 704,
+   "avg_excess": 0.05190074421370521,
+   "avg_excess_lo": 0.016312757588748256
+  },
+  {
+   "firm": "Rosenblatt",
+   "firm_slug": "rosenblatt",
+   "rank": 7,
+   "n_closed_target": 849,
+   "n_closed_rating": 92,
+   "avg_excess": 0.1512919821687096,
+   "avg_excess_lo": 0.014063162243511867
+  },
+  {
+   "firm": "MKM Partners",
+   "firm_slug": "mkm-partners",
+   "rank": 8,
+   "n_closed_target": 316,
+   "n_closed_rating": 95,
+   "avg_excess": 0.10182345318461107,
+   "avg_excess_lo": 0.009691626880969278
+  },
+  {
+   "firm": "Buckingham Research",
+   "firm_slug": "buckingham-research",
+   "rank": 9,
+   "n_closed_target": 471,
+   "n_closed_rating": 125,
+   "avg_excess": 0.05960935036258329,
+   "avg_excess_lo": 0.008423433323304919
+  },
+  {
+   "firm": "Piper Sandler",
+   "firm_slug": "piper-sandler",
+   "rank": 10,
+   "n_closed_target": 3634,
+   "n_closed_rating": 517,
+   "avg_excess": 0.048586404995877776,
+   "avg_excess_lo": 0.007413752260283853
+  },
+  {
+   "firm": "Oppenheimer",
+   "firm_slug": "oppenheimer",
+   "rank": 11,
+   "n_closed_target": 2088,
+   "n_closed_rating": 278,
+   "avg_excess": 0.06513171570578348,
+   "avg_excess_lo": 0.005400518424574563
+  },
+  {
+   "firm": "Needham",
+   "firm_slug": "needham",
+   "rank": 12,
+   "n_closed_target": 1117,
+   "n_closed_rating": 179,
+   "avg_excess": 0.08277738791464985,
+   "avg_excess_lo": 0.004937974443114473
+  },
+  {
+   "firm": "Keefe, Bruyette & Woods",
+   "firm_slug": "keefe-bruyette-woods",
+   "rank": 13,
+   "n_closed_target": 1027,
+   "n_closed_rating": 166,
+   "avg_excess": 0.039965144309161454,
+   "avg_excess_lo": 0.004873259609654179
+  },
+  {
+   "firm": "Stifel",
+   "firm_slug": "stifel",
+   "rank": 14,
+   "n_closed_target": 3665,
+   "n_closed_rating": 422,
+   "avg_excess": 0.03934390136808139,
+   "avg_excess_lo": 0.003484344723674246
+  },
+  {
+   "firm": "Drexel Hamilton",
+   "firm_slug": "drexel-hamilton",
+   "rank": 15,
+   "n_closed_target": 58,
+   "n_closed_rating": 57,
+   "avg_excess": 0.07767611051654781,
+   "avg_excess_lo": 0.0033053495903383745
+  },
+  {
+   "firm": "Baird",
+   "firm_slug": "baird",
+   "rank": 16,
+   "n_closed_target": 2797,
+   "n_closed_rating": 431,
+   "avg_excess": 0.02843234653949445,
+   "avg_excess_lo": 0.001026203146857179
+  },
+  {
+   "firm": "JP Morgan",
+   "firm_slug": "jp-morgan",
+   "rank": 17,
+   "n_closed_target": 7358,
+   "n_closed_rating": 1000,
+   "avg_excess": 0.03031477075499269,
+   "avg_excess_lo": -0.0003047019000029273
+  },
+  {
+   "firm": "Janney Montgomery Scott",
+   "firm_slug": "janney-montgomery-scott",
+   "rank": 18,
+   "n_closed_target": 100,
+   "n_closed_rating": 86,
+   "avg_excess": 0.0779531187765792,
+   "avg_excess_lo": -0.0017760754075576701
+  },
+  {
+   "firm": "BMO Capital",
+   "firm_slug": "bmo-capital",
+   "rank": 19,
+   "n_closed_target": 3778,
+   "n_closed_rating": 529,
+   "avg_excess": 0.02289437674255675,
+   "avg_excess_lo": -0.0033258053362930674
+  },
+  {
+   "firm": "Stephens & Co.",
+   "firm_slug": "stephens-co",
+   "rank": 20,
+   "n_closed_target": 850,
+   "n_closed_rating": 188,
+   "avg_excess": 0.04080548168028318,
+   "avg_excess_lo": -0.004137888404426145
+  },
+  {
+   "firm": "Pacific Crest",
+   "firm_slug": "pacific-crest",
+   "rank": 21,
+   "n_closed_target": 117,
+   "n_closed_rating": 55,
+   "avg_excess": 0.073646999517997,
+   "avg_excess_lo": -0.005493941519958093
+  },
+  {
+   "firm": "Cowen & Co.",
+   "firm_slug": "cowen-co",
+   "rank": 22,
+   "n_closed_target": 776,
+   "n_closed_rating": 265,
+   "avg_excess": 0.033157034685003244,
+   "avg_excess_lo": -0.0056257049989696245
+  },
+  {
+   "firm": "Wells Fargo",
+   "firm_slug": "wells-fargo",
+   "rank": 23,
+   "n_closed_target": 7303,
+   "n_closed_rating": 890,
+   "avg_excess": 0.013857662097181745,
+   "avg_excess_lo": -0.008632827620566118
+  },
+  {
+   "firm": "Craig-Hallum",
+   "firm_slug": "craig-hallum",
+   "rank": 24,
+   "n_closed_target": 140,
+   "n_closed_rating": 62,
+   "avg_excess": 0.11561817675627614,
+   "avg_excess_lo": -0.009021221060414558
+  },
+  {
+   "firm": "Goldman Sachs",
+   "firm_slug": "goldman-sachs",
+   "rank": 25,
+   "n_closed_target": 4161,
+   "n_closed_rating": 1249,
+   "avg_excess": 0.04441880056800444,
+   "avg_excess_lo": -0.013775984064381804
+  },
+  {
+   "firm": "Keybanc",
+   "firm_slug": "keybanc",
+   "rank": 26,
+   "n_closed_target": 2793,
+   "n_closed_rating": 371,
+   "avg_excess": 0.019815949193982562,
+   "avg_excess_lo": -0.014219377767465454
+  },
+  {
+   "firm": "Deutsche Bank",
+   "firm_slug": "deutsche-bank",
+   "rank": 27,
+   "n_closed_target": 6816,
+   "n_closed_rating": 803,
+   "avg_excess": 0.014000129002749002,
+   "avg_excess_lo": -0.01622148181502995
+  },
+  {
+   "firm": "Loop Capital",
+   "firm_slug": "loop-capital",
+   "rank": 28,
+   "n_closed_target": 726,
+   "n_closed_rating": 183,
+   "avg_excess": 0.042656935923989496,
+   "avg_excess_lo": -0.016951219576580363
+  },
+  {
+   "firm": "Wolfe Research",
+   "firm_slug": "wolfe-research",
+   "rank": 29,
+   "n_closed_target": 524,
+   "n_closed_rating": 417,
+   "avg_excess": 0.03712852219979741,
+   "avg_excess_lo": -0.01801420713224442
+  },
+  {
+   "firm": "Longbow Research",
+   "firm_slug": "longbow-research",
+   "rank": 30,
+   "n_closed_target": 64,
+   "n_closed_rating": 95,
+   "avg_excess": 0.03577847446385002,
+   "avg_excess_lo": -0.019883179056515016
+  },
+  {
+   "firm": "Barclays",
+   "firm_slug": "barclays",
+   "rank": 31,
+   "n_closed_target": 10554,
+   "n_closed_rating": 966,
+   "avg_excess": 0.0031304383169086297,
+   "avg_excess_lo": -0.02079468858752898
+  },
+  {
+   "firm": "MoffettNathanson",
+   "firm_slug": "moffettnathanson",
+   "rank": 32,
+   "n_closed_target": 84,
+   "n_closed_rating": 54,
+   "avg_excess": 0.05053595002566607,
+   "avg_excess_lo": -0.02120466168502797
+  },
+  {
+   "firm": "Morgan Stanley",
+   "firm_slug": "morgan-stanley",
+   "rank": 33,
+   "n_closed_target": 14131,
+   "n_closed_rating": 1016,
+   "avg_excess": 0.01237913846748137,
+   "avg_excess_lo": -0.02153775699813789
+  },
+  {
+   "firm": "B. Riley Securities",
+   "firm_slug": "b-riley-securities",
+   "rank": 34,
+   "n_closed_target": 437,
+   "n_closed_rating": 89,
+   "avg_excess": 0.10835759439943574,
+   "avg_excess_lo": -0.02373233488582327
+  },
+  {
+   "firm": "DA Davidson",
+   "firm_slug": "da-davidson",
+   "rank": 35,
+   "n_closed_target": 1019,
+   "n_closed_rating": 170,
+   "avg_excess": 0.03195111251055337,
+   "avg_excess_lo": -0.025008595813156488
+  },
+  {
+   "firm": "Northland Capital Markets",
+   "firm_slug": "northland-capital-markets",
+   "rank": 36,
+   "n_closed_target": 203,
+   "n_closed_rating": 76,
+   "avg_excess": 0.17717924455346892,
+   "avg_excess_lo": -0.025809887915830387
+  },
+  {
+   "firm": "FBR Capital",
+   "firm_slug": "fbr-capital",
+   "rank": 37,
+   "n_closed_target": 207,
+   "n_closed_rating": 67,
+   "avg_excess": 0.03483878591585292,
+   "avg_excess_lo": -0.026231079030909217
+  },
+  {
+   "firm": "UBS",
+   "firm_slug": "ubs",
+   "rank": 38,
+   "n_closed_target": 6781,
+   "n_closed_rating": 903,
+   "avg_excess": -0.00537812494477315,
+   "avg_excess_lo": -0.026659144163428586
+  },
+  {
+   "firm": "Citigroup",
+   "firm_slug": "citigroup",
+   "rank": 39,
+   "n_closed_target": 8661,
+   "n_closed_rating": 1020,
+   "avg_excess": 0.055871154985386924,
+   "avg_excess_lo": -0.027765614039580243
+  },
+  {
+   "firm": "Atlantic Equities",
+   "firm_slug": "atlantic-equities",
+   "rank": 40,
+   "n_closed_target": 282,
+   "n_closed_rating": 219,
+   "avg_excess": 0.004457884989100998,
+   "avg_excess_lo": -0.02781431557146765
+  },
+  {
+   "firm": "Credit Suisse",
+   "firm_slug": "credit-suisse",
+   "rank": 41,
+   "n_closed_target": 5056,
+   "n_closed_rating": 756,
+   "avg_excess": -0.0059379495716366665,
+   "avg_excess_lo": -0.02979834715683443
+  },
+  {
+   "firm": "Bernstein",
+   "firm_slug": "bernstein",
+   "rank": 42,
+   "n_closed_target": 887,
+   "n_closed_rating": 354,
+   "avg_excess": 0.07656043181985402,
+   "avg_excess_lo": -0.029819381037685333
+  },
+  {
+   "firm": "HSBC",
+   "firm_slug": "hsbc",
+   "rank": 43,
+   "n_closed_target": 459,
+   "n_closed_rating": 230,
+   "avg_excess": 0.04825877234827927,
+   "avg_excess_lo": -0.032056582429901795
+  },
+  {
+   "firm": "ISI Group",
+   "firm_slug": "isi-group",
+   "rank": 44,
+   "n_closed_target": 277,
+   "n_closed_rating": 132,
+   "avg_excess": 0.005002767527657127,
+   "avg_excess_lo": -0.03217443725759125
+  },
+  {
+   "firm": "RBC Capital",
+   "firm_slug": "rbc-capital",
+   "rank": 45,
+   "n_closed_target": 4381,
+   "n_closed_rating": 597,
+   "avg_excess": -0.006076336254747422,
+   "avg_excess_lo": -0.03422631449589655
+  },
+  {
+   "firm": "Berenberg",
+   "firm_slug": "berenberg",
+   "rank": 46,
+   "n_closed_target": 253,
+   "n_closed_rating": 159,
+   "avg_excess": 0.006389325893609103,
+   "avg_excess_lo": -0.03734182824054983
+  },
+  {
+   "firm": "BTIG",
+   "firm_slug": "btig",
+   "rank": 47,
+   "n_closed_target": 481,
+   "n_closed_rating": 178,
+   "avg_excess": 0.01646120465205214,
+   "avg_excess_lo": -0.03871213681081696
+  },
+  {
+   "firm": "Jefferies",
+   "firm_slug": "jefferies",
+   "rank": 48,
+   "n_closed_target": 4485,
+   "n_closed_rating": 735,
+   "avg_excess": 0.06532649383397894,
+   "avg_excess_lo": -0.03903719137036529
+  },
+  {
+   "firm": "Argus Research",
+   "firm_slug": "argus-research",
+   "rank": 49,
+   "n_closed_target": 896,
+   "n_closed_rating": 481,
+   "avg_excess": -0.00542621095427327,
+   "avg_excess_lo": -0.040689795796919725
+  },
+  {
+   "firm": "Evercore ISI Group",
+   "firm_slug": "evercore-isi-group",
+   "rank": 50,
+   "n_closed_target": 2574,
+   "n_closed_rating": 571,
+   "avg_excess": -0.015720932696738462,
+   "avg_excess_lo": -0.041667582890781325
+  },
+  {
+   "firm": "Macquarie",
+   "firm_slug": "macquarie",
+   "rank": 51,
+   "n_closed_target": 574,
+   "n_closed_rating": 250,
+   "avg_excess": -0.005536478835863777,
+   "avg_excess_lo": -0.041753085719898664
+  },
+  {
+   "firm": "Compass Point",
+   "firm_slug": "compass-point",
+   "rank": 52,
+   "n_closed_target": 280,
+   "n_closed_rating": 87,
+   "avg_excess": 0.019092486288514975,
+   "avg_excess_lo": -0.04219312290674058
+  },
+  {
+   "firm": "B of A Securities",
+   "firm_slug": "b-of-a-securities",
+   "rank": 53,
+   "n_closed_target": 4918,
+   "n_closed_rating": 1297,
+   "avg_excess": 0.022784267206536216,
+   "avg_excess_lo": -0.0432104699992899
+  },
+  {
+   "firm": "CLSA",
+   "firm_slug": "clsa",
+   "rank": 54,
+   "n_closed_target": 93,
+   "n_closed_rating": 184,
+   "avg_excess": 0.03561244549684071,
+   "avg_excess_lo": -0.04546136673032739
+  },
+  {
+   "firm": "Exane BNP Paribas",
+   "firm_slug": "exane-bnp-paribas",
+   "rank": 55,
+   "n_closed_target": 191,
+   "n_closed_rating": 136,
+   "avg_excess": 0.014203833674088548,
+   "avg_excess_lo": -0.04626483077318797
+  },
+  {
+   "firm": "Guggenheim",
+   "firm_slug": "guggenheim",
+   "rank": 56,
+   "n_closed_target": 750,
+   "n_closed_rating": 318,
+   "avg_excess": -0.01155613160937254,
+   "avg_excess_lo": -0.046314826127658554
+  },
+  {
+   "firm": "Vertical Research",
+   "firm_slug": "vertical-research",
+   "rank": 57,
+   "n_closed_target": 85,
+   "n_closed_rating": 92,
+   "avg_excess": 0.03916507477446871,
+   "avg_excess_lo": -0.05092046790736363
+  },
+  {
+   "firm": "Sterne Agee",
+   "firm_slug": "sterne-agee",
+   "rank": 58,
+   "n_closed_target": 280,
+   "n_closed_rating": 116,
+   "avg_excess": -0.00793029219528249,
+   "avg_excess_lo": -0.05282224375692064
+  },
+  {
+   "firm": "Cantor Fitzgerald",
+   "firm_slug": "cantor-fitzgerald",
+   "rank": 59,
+   "n_closed_target": 615,
+   "n_closed_rating": 129,
+   "avg_excess": 0.12607300640373645,
+   "avg_excess_lo": -0.05771861130510664
+  },
+  {
+   "firm": "Canaccord Genuity",
+   "firm_slug": "canaccord-genuity",
+   "rank": 60,
+   "n_closed_target": 1018,
+   "n_closed_rating": 139,
+   "avg_excess": 0.007076663293326722,
+   "avg_excess_lo": -0.05933205188900682
+  },
+  {
+   "firm": "Truist Securities",
+   "firm_slug": "truist-securities",
+   "rank": 61,
+   "n_closed_target": 2693,
+   "n_closed_rating": 165,
+   "avg_excess": 0.001788720685766742,
+   "avg_excess_lo": -0.06566133059245614
+  },
+  {
+   "firm": "Mizuho",
+   "firm_slug": "mizuho",
+   "rank": 62,
+   "n_closed_target": 3101,
+   "n_closed_rating": 355,
+   "avg_excess": 0.011955643041461395,
+   "avg_excess_lo": -0.06790433677524166
+  },
+  {
+   "firm": "Societe Generale",
+   "firm_slug": "societe-generale",
+   "rank": 63,
+   "n_closed_target": 133,
+   "n_closed_rating": 89,
+   "avg_excess": -0.005614838513827893,
+   "avg_excess_lo": -0.07079831471322111
+  },
+  {
+   "firm": "Standpoint Research",
+   "firm_slug": "standpoint-research",
+   "rank": 64,
+   "n_closed_target": 41,
+   "n_closed_rating": 126,
+   "avg_excess": -0.028863825110661417,
+   "avg_excess_lo": -0.07086090984365556
+  },
+  {
+   "firm": "Northcoast Research",
+   "firm_slug": "northcoast-research",
+   "rank": 65,
+   "n_closed_target": 58,
+   "n_closed_rating": 79,
+   "avg_excess": -0.0033977461307216784,
+   "avg_excess_lo": -0.07127936988052622
+  },
+  {
+   "firm": "Gordon Haskett",
+   "firm_slug": "gordon-haskett",
+   "rank": 66,
+   "n_closed_target": 86,
+   "n_closed_rating": 83,
+   "avg_excess": -0.02989795398055656,
+   "avg_excess_lo": -0.07884499742047038
+  },
+  {
+   "firm": "Seaport Global",
+   "firm_slug": "seaport-global",
+   "rank": 67,
+   "n_closed_target": 221,
+   "n_closed_rating": 202,
+   "avg_excess": -0.032398287282384725,
+   "avg_excess_lo": -0.0789707172157866
+  },
+  {
+   "firm": "Susquehanna",
+   "firm_slug": "susquehanna",
+   "rank": 68,
+   "n_closed_target": 1547,
+   "n_closed_rating": 242,
+   "avg_excess": 0.11930949261621561,
+   "avg_excess_lo": -0.0848891948213313
+  },
+  {
+   "firm": "Scotiabank",
+   "firm_slug": "scotiabank",
+   "rank": 69,
+   "n_closed_target": 727,
+   "n_closed_rating": 156,
+   "avg_excess": -0.022445253788321937,
+   "avg_excess_lo": -0.09169131828645324
+  },
+  {
+   "firm": "OTR Global",
+   "firm_slug": "otr-global",
+   "rank": 70,
+   "n_closed_target": 0,
+   "n_closed_rating": 50,
+   "avg_excess": -0.006400756490946631,
+   "avg_excess_lo": -0.1038667308960286
+  },
+  {
+   "firm": "Edward Jones",
+   "firm_slug": "edward-jones",
+   "rank": 71,
+   "n_closed_target": 0,
+   "n_closed_rating": 66,
+   "avg_excess": -0.034472348939766084,
+   "avg_excess_lo": -0.11099942440974143
+  },
+  {
+   "firm": "Wedbush",
+   "firm_slug": "wedbush",
+   "rank": 72,
+   "n_closed_target": 1394,
+   "n_closed_rating": 185,
+   "avg_excess": 0.04103190130944185,
+   "avg_excess_lo": -0.14822646552151184
+  },
+  {
+   "firm": "DZ Bank",
+   "firm_slug": "dz-bank",
+   "rank": 73,
+   "n_closed_target": 84,
+   "n_closed_rating": 68,
+   "avg_excess": -0.05823279840471554,
+   "avg_excess_lo": -0.15061638873513689
+  },
+  {
+   "firm": "TD Cowen",
+   "firm_slug": "td-cowen",
+   "rank": 74,
+   "n_closed_target": 1174,
+   "n_closed_rating": 102,
+   "avg_excess": -0.09047332725999951,
+   "avg_excess_lo": -0.17088433206622033
+  },
+  {
+   "firm": "CFRA",
+   "firm_slug": "cfra",
+   "rank": 75,
+   "n_closed_target": 357,
+   "n_closed_rating": 85,
+   "avg_excess": -0.09185399178533292,
+   "avg_excess_lo": -0.2596903410742383
+  },
+  {
+   "firm": "Benchmark",
+   "firm_slug": "benchmark",
+   "rank": 76,
+   "n_closed_target": 494,
+   "n_closed_rating": 111,
+   "avg_excess": 0.49041469846223684,
+   "avg_excess_lo": -0.2713677549279596
+  },
+  {
+   "firm": "Redburn Atlantic",
+   "firm_slug": "redburn-atlantic",
+   "rank": 77,
+   "n_closed_target": 100,
+   "n_closed_rating": 53,
+   "avg_excess": -0.14157898403578684,
+   "avg_excess_lo": -0.5870515724706633
+  },
+  {
+   "firm": "Daiwa Capital",
+   "firm_slug": "daiwa-capital",
+   "rank": null,
+   "n_closed_target": 84,
+   "n_closed_rating": 49,
+   "avg_excess": 0.10017463067895538,
+   "avg_excess_lo": -0.051174781865284874
+  },
+  {
+   "firm": "Redburn Partners",
+   "firm_slug": "redburn-partners",
+   "rank": null,
+   "n_closed_target": 28,
+   "n_closed_rating": 49,
+   "avg_excess": -0.04677755539117838,
+   "avg_excess_lo": -0.15660160270983003
+  },
+  {
+   "firm": "Imperial Capital",
+   "firm_slug": "imperial-capital",
+   "rank": null,
+   "n_closed_target": 239,
+   "n_closed_rating": 48,
+   "avg_excess": 0.06694842821083066,
+   "avg_excess_lo": -0.03311055353424078
+  },
+  {
+   "firm": "Wunderlich Securities",
+   "firm_slug": "wunderlich-securities",
+   "rank": null,
+   "n_closed_target": 223,
+   "n_closed_rating": 47,
+   "avg_excess": -0.033393291155842844,
+   "avg_excess_lo": -0.17956156238379062
+  },
+  {
+   "firm": "Brean Capital",
+   "firm_slug": "brean-capital",
+   "rank": null,
+   "n_closed_target": 130,
+   "n_closed_rating": 46,
+   "avg_excess": 0.08515011582661822,
+   "avg_excess_lo": -0.03531666034380637
+  },
+  {
+   "firm": "Tudor Pickering",
+   "firm_slug": "tudor-pickering",
+   "rank": null,
+   "n_closed_target": 16,
+   "n_closed_rating": 45,
+   "avg_excess": 0.05107479689632544,
+   "avg_excess_lo": -0.06353144888772777
+  },
+  {
+   "firm": "Telsey Advisory Group",
+   "firm_slug": "telsey-advisory-group",
+   "rank": null,
+   "n_closed_target": 549,
+   "n_closed_rating": 44,
+   "avg_excess": 0.17846916112046812,
+   "avg_excess_lo": -0.2753463685983208
+  },
+  {
+   "firm": "Maxim Group",
+   "firm_slug": "maxim-group",
+   "rank": null,
+   "n_closed_target": 82,
+   "n_closed_rating": 44,
+   "avg_excess": 0.04089304437210312,
+   "avg_excess_lo": -0.075272760187555
+  },
+  {
+   "firm": "Pivotal Research",
+   "firm_slug": "pivotal-research",
+   "rank": null,
+   "n_closed_target": 106,
+   "n_closed_rating": 43,
+   "avg_excess": 0.0511903509922345,
+   "avg_excess_lo": -0.04396791690507984
+  },
+  {
+   "firm": "Gabelli & Co.",
+   "firm_slug": "gabelli-co",
+   "rank": null,
+   "n_closed_target": 7,
+   "n_closed_rating": 42,
+   "avg_excess": -0.023632274211219523,
+   "avg_excess_lo": -0.10193381120435611
+  },
+  {
+   "firm": "BB&T Capital",
+   "firm_slug": "bb-t-capital",
+   "rank": null,
+   "n_closed_target": 25,
+   "n_closed_rating": 38,
+   "avg_excess": 0.044656682054299165,
+   "avg_excess_lo": -0.054062903313768965
+  },
+  {
+   "firm": "Roth Capital",
+   "firm_slug": "roth-capital",
+   "rank": null,
+   "n_closed_target": 121,
+   "n_closed_rating": 37,
+   "avg_excess": 0.06828156217126718,
+   "avg_excess_lo": -0.22444927285010674
+  },
+  {
+   "firm": "Monness, Crespi, Hardt",
+   "firm_slug": "monness-crespi-hardt",
+   "rank": null,
+   "n_closed_target": 75,
+   "n_closed_rating": 37,
+   "avg_excess": 0.06045613815573024,
+   "avg_excess_lo": -0.24495025506248702
+  },
+  {
+   "firm": "Capital One",
+   "firm_slug": "capital-one",
+   "rank": null,
+   "n_closed_target": 35,
+   "n_closed_rating": 36,
+   "avg_excess": 0.006700264635219089,
+   "avg_excess_lo": -0.14161739785575778
+  },
+  {
+   "firm": "Summit Insights Group",
+   "firm_slug": "summit-insights-group",
+   "rank": null,
+   "n_closed_target": 25,
+   "n_closed_rating": 35,
+   "avg_excess": 0.13079821063019426,
+   "avg_excess_lo": -0.012960057757942539
+  },
+  {
+   "firm": "Melius Research",
+   "firm_slug": "melius-research",
+   "rank": null,
+   "n_closed_target": 68,
+   "n_closed_rating": 34,
+   "avg_excess": 0.15154814596161062,
+   "avg_excess_lo": -0.04104208682884308
+  },
+  {
+   "firm": "SVB Leerink",
+   "firm_slug": "svb-leerink",
+   "rank": null,
+   "n_closed_target": 385,
+   "n_closed_rating": 33,
+   "avg_excess": -0.09151630524197124,
+   "avg_excess_lo": -0.21229756742311334
+  },
+  {
+   "firm": "Topeka",
+   "firm_slug": "topeka",
+   "rank": null,
+   "n_closed_target": 77,
+   "n_closed_rating": 32,
+   "avg_excess": 0.09432618259835945,
+   "avg_excess_lo": -0.08874871048978611
+  },
+  {
+   "firm": "Ladenburg Thalmann",
+   "firm_slug": "ladenburg-thalmann",
+   "rank": null,
+   "n_closed_target": 54,
+   "n_closed_rating": 32,
+   "avg_excess": 0.049776694258766394,
+   "avg_excess_lo": -0.016322534669183708
+  },
+  {
+   "firm": "Odeon Capital",
+   "firm_slug": "odeon-capital",
+   "rank": null,
+   "n_closed_target": 30,
+   "n_closed_rating": 32,
+   "avg_excess": 0.011400138496196952,
+   "avg_excess_lo": -0.07625737111724047
+  },
+  {
+   "firm": "Avondale Partners",
+   "firm_slug": "avondale-partners",
+   "rank": null,
+   "n_closed_target": 43,
+   "n_closed_rating": 31,
+   "avg_excess": -0.09874814048613333,
+   "avg_excess_lo": -0.21939607616705023
+  },
+  {
+   "firm": "Leerink Swann",
+   "firm_slug": "leerink-swann",
+   "rank": null,
+   "n_closed_target": 123,
+   "n_closed_rating": 30,
+   "avg_excess": 0.12617698190271526,
+   "avg_excess_lo": 0.010088777124683812
+  },
+  {
+   "firm": "Hilliard Lyons",
+   "firm_slug": "hilliard-lyons",
+   "rank": null,
+   "n_closed_target": 33,
+   "n_closed_rating": 27,
+   "avg_excess": -0.038989230132466385,
+   "avg_excess_lo": -0.1266175640776115
+  },
+  {
+   "firm": "Leerink Partners",
+   "firm_slug": "leerink-partners",
+   "rank": null,
+   "n_closed_target": 56,
+   "n_closed_rating": 26,
+   "avg_excess": -0.11697823936782746,
+   "avg_excess_lo": -0.23860456652564574
+  },
+  {
+   "firm": "Johnson Rice",
+   "firm_slug": "johnson-rice",
+   "rank": null,
+   "n_closed_target": 13,
+   "n_closed_rating": 26,
+   "avg_excess": 0.11892187482304041,
+   "avg_excess_lo": -0.08319412141506226
+  },
+  {
+   "firm": "Credit Agricole",
+   "firm_slug": "credit-agricole",
+   "rank": null,
+   "n_closed_target": 23,
+   "n_closed_rating": 25,
+   "avg_excess": -0.01683821469302381,
+   "avg_excess_lo": -0.17471051796066023
+  },
+  {
+   "firm": "Cleveland Research",
+   "firm_slug": "cleveland-research",
+   "rank": null,
+   "n_closed_target": 7,
+   "n_closed_rating": 25,
+   "avg_excess": 0.11116006721746219,
+   "avg_excess_lo": -0.0033897853020382618
+  },
+  {
+   "firm": "S&P Capital IQ",
+   "firm_slug": "s-p-capital-iq",
+   "rank": null,
+   "n_closed_target": 4,
+   "n_closed_rating": 25,
+   "avg_excess": 0.021299595983474737,
+   "avg_excess_lo": -0.04412005893044463
+  },
+  {
+   "firm": "New Street Research",
+   "firm_slug": "new-street-research",
+   "rank": null,
+   "n_closed_target": 41,
+   "n_closed_rating": 23,
+   "avg_excess": 0.14901349721994042,
+   "avg_excess_lo": 0.005127562550745868
+  },
+  {
+   "firm": "CL King",
+   "firm_slug": "cl-king",
+   "rank": null,
+   "n_closed_target": 14,
+   "n_closed_rating": 23,
+   "avg_excess": -0.026722598953908838,
+   "avg_excess_lo": -0.15625333793226817
+  },
+  {
+   "firm": "TD Securities",
+   "firm_slug": "td-securities",
+   "rank": null,
+   "n_closed_target": 81,
+   "n_closed_rating": 22,
+   "avg_excess": -0.11663713989073309,
+   "avg_excess_lo": -0.26428671826298583
+  },
+  {
+   "firm": "FBN Securities",
+   "firm_slug": "fbn-securities",
+   "rank": null,
+   "n_closed_target": 66,
+   "n_closed_rating": 22,
+   "avg_excess": 0.01183391265920874,
+   "avg_excess_lo": -0.18941715275456705
+  },
+  {
+   "firm": "KLR Group",
+   "firm_slug": "klr-group",
+   "rank": null,
+   "n_closed_target": 16,
+   "n_closed_rating": 22,
+   "avg_excess": 0.0013248042770152063,
+   "avg_excess_lo": -0.14608608430436842
+  },
+  {
+   "firm": "Lazard",
+   "firm_slug": "lazard",
+   "rank": null,
+   "n_closed_target": 14,
+   "n_closed_rating": 21,
+   "avg_excess": 0.2523569873023668,
+   "avg_excess_lo": 0.03530852587957187
+  },
+  {
+   "firm": "Miller Tabak",
+   "firm_slug": "miller-tabak",
+   "rank": null,
+   "n_closed_target": 56,
+   "n_closed_rating": 20,
+   "avg_excess": 0.07015798759503034,
+   "avg_excess_lo": -0.07185630699631831
+  },
+  {
+   "firm": "Barrington Research",
+   "firm_slug": "barrington-research",
+   "rank": null,
+   "n_closed_target": 71,
+   "n_closed_rating": 19,
+   "avg_excess": null,
+   "avg_excess_lo": null
+  },
+  {
+   "firm": "GLJ Research",
+   "firm_slug": "glj-research",
+   "rank": null,
+   "n_closed_target": 36,
+   "n_closed_rating": 17,
+   "avg_excess": null,
+   "avg_excess_lo": null
+  },
+  {
+   "firm": "CIBC",
+   "firm_slug": "cibc",
+   "rank": null,
+   "n_closed_target": 43,
+   "n_closed_rating": 16,
+   "avg_excess": null,
+   "avg_excess_lo": null
+  },
+  {
+   "firm": "Roth MKM",
+   "firm_slug": "roth-mkm",
+   "rank": null,
+   "n_closed_target": 201,
+   "n_closed_rating": 15,
+   "avg_excess": null,
+   "avg_excess_lo": null
+  },
+  {
+   "firm": "Ascendiant Capital",
+   "firm_slug": "ascendiant-capital",
+   "rank": null,
+   "n_closed_target": 40,
+   "n_closed_rating": 14,
+   "avg_excess": null,
+   "avg_excess_lo": null
+  },
+  {
+   "firm": "Freedom Broker",
+   "firm_slug": "freedom-broker",
+   "rank": null,
+   "n_closed_target": 30,
+   "n_closed_rating": 14,
+   "avg_excess": null,
+   "avg_excess_lo": null
+  },
+  {
+   "firm": "CRT Capital",
+   "firm_slug": "crt-capital",
+   "rank": null,
+   "n_closed_target": 59,
+   "n_closed_rating": 13,
+   "avg_excess": null,
+   "avg_excess_lo": null
+  },
+  {
+   "firm": "SMBC Nikko",
+   "firm_slug": "smbc-nikko",
+   "rank": null,
+   "n_closed_target": 24,
+   "n_closed_rating": 13,
+   "avg_excess": null,
+   "avg_excess_lo": null
+  },
+  {
+   "firm": "HC Wainwright & Co.",
+   "firm_slug": "hc-wainwright-co",
+   "rank": null,
+   "n_closed_target": 65,
+   "n_closed_rating": 12,
+   "avg_excess": null,
+   "avg_excess_lo": null
+  },
+  {
+   "firm": "Dahlman Rose",
+   "firm_slug": "dahlman-rose",
+   "rank": null,
+   "n_closed_target": 28,
+   "n_closed_rating": 12,
+   "avg_excess": null,
+   "avg_excess_lo": null
+  },
+  {
+   "firm": "Sidoti & Co.",
+   "firm_slug": "sidoti-co",
+   "rank": null,
+   "n_closed_target": 23,
+   "n_closed_rating": 12,
+   "avg_excess": null,
+   "avg_excess_lo": null
+  },
+  {
+   "firm": "Feltl & Co.",
+   "firm_slug": "feltl-co",
+   "rank": null,
+   "n_closed_target": 24,
+   "n_closed_rating": 11,
+   "avg_excess": null,
+   "avg_excess_lo": null
+  },
+  {
+   "firm": "Williams Capital",
+   "firm_slug": "williams-capital",
+   "rank": null,
+   "n_closed_target": 26,
+   "n_closed_rating": 10,
+   "avg_excess": null,
+   "avg_excess_lo": null
+  },
+  {
+   "firm": "Nomura Instinet",
+   "firm_slug": "nomura-instinet",
+   "rank": null,
+   "n_closed_target": 21,
+   "n_closed_rating": 6,
+   "avg_excess": null,
+   "avg_excess_lo": null
+  },
+  {
+   "firm": "Cascend",
+   "firm_slug": "cascend",
+   "rank": null,
+   "n_closed_target": 44,
+   "n_closed_rating": 2,
+   "avg_excess": null,
+   "avg_excess_lo": null
+  },
+  {
+   "firm": "Citizens",
+   "firm_slug": "citizens",
+   "rank": null,
+   "n_closed_target": 23,
+   "n_closed_rating": 2,
+   "avg_excess": null,
+   "avg_excess_lo": null
+  }
+ ],
+ "asof": "2026-11-07",
+ "generated_at": "2026-11-08T04:19:24Z",
+ "rebuilt": false,
+ "rules": {
+  "version": "consensus-1",
+  "window_days": 365,
+  "label_map_version": 14
+ },
+ "sources": []
+}

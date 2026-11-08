@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld('tearsheet', {
   searchCompanies: (query: string, limit?: number) => call('searchCompanies', limit === undefined ? { query } : { query, limit }),
   getChart: (reportId: string) => call('getChart', { report_id: reportId }),
   getReportNumbers: (reportId: string) => call('getReportNumbers', { report_id: reportId }),
+  getAnalysts: (reportId: string) => call('getAnalysts', { report_id: reportId }),
   fetchHistory: (reportId: string) => call('fetchHistory', { report_id: reportId }),
   checkKey: (service: string, key: string) => call('checkKey', { service, key }),
   runSafetyCheck: (tool: string) => call('runSafetyCheck', { tool }),

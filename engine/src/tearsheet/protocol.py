@@ -77,6 +77,10 @@ class NumbersParams(Strict):
     report_id: str
 
 
+class AnalystsParams(Strict):
+    report_id: str
+
+
 class ListReportsParams(Strict):
     limit: int = 50
     offset: int = 0
@@ -153,6 +157,7 @@ METHODS: dict[str, type[Strict]] = {
     "get_chart": ChartParams,
     "fetch_history": HistoryParams,
     "get_report_numbers": NumbersParams,
+    "get_analysts": AnalystsParams,
     "hide_reports": ReportIdsParams,
     "show_reports": ReportIdsParams,
     "erase_reports": ReportIdsParams,
@@ -413,6 +418,113 @@ class ReportNumbers(Strict):
     claims: Ring | None
     # Every table the Full report shows, in its order.
     tables: list[ReportTable]
+
+
+# --- analyst ratings, from analystdb (data/analystdb.py) -------------------------------------
+# Each figure comes with its text as the side panel shows it, worked out by the engine, so the
+# panel and the report never round a number differently.
+
+
+class AnalystSides(Strict):
+    buy: int
+    hold: int
+    sell: int
+
+
+class AnalystTargets(Strict):
+    mean: float | None
+    median: float | None
+    high: float | None
+    low: float | None
+    # How many firms have a target.
+    n: int
+
+
+class AnalystFirm(Strict):
+    firm: str
+    firm_slug: str
+    # The firm's own word for its rating ("Overweight"), and the side it counts on.
+    label: str
+    side: Literal["buy", "hold", "sell"] | None
+    target: float | None
+    target_text: str
+    date: str
+    date_text: str
+    # Its place among the firms analystdb ranks by track record; None when not ranked.
+    rank: int | None
+    rank_text: str
+    # The average return of its rating calls over the S&P 500; None when too few calls to judge.
+    avg_excess: float | None
+    excess_text: str
+    readout: str
+
+
+class AnalystChange(Strict):
+    date: str
+    date_text: str
+    firm: str
+    # up, down, init, main (maintained) or reit (reiterated).
+    action: str
+    action_label: str
+    from_label: str | None
+    to_label: str | None
+    rating_text: str
+    target_prior: float | None
+    target_current: float | None
+    target_text: str
+    readout: str
+
+
+class AnalystCheckRow(Strict):
+    measure: str
+    label: str
+    # In dollars, or a count of firms.
+    money: bool
+    ours: float | None
+    theirs: float
+    ours_text: str
+    theirs_text: str
+    diff_fraction: float | None
+    gap_text: str
+    within_tolerance: bool
+    # The tolerance as words: "3%", "3-firm".
+    tolerance_text: str
+    readout: str
+
+
+class AnalystCheck(Strict):
+    supplier: str
+    fetched: str
+    fetched_text: str
+    rows: list[AnalystCheckRow]
+
+
+class ReportAnalysts(Strict):
+    """analystdb's view of a report's company as of its price date, for the side panel: the
+    panel's figures, every firm with its track record, the recent changes and the trust check.
+    `state` "down" (analystdb didn't answer) or "missing" (it has nothing for the company) comes
+    with the quiet `note` and no parts. A part that failed on its own is None, with its note."""
+
+    report_id: str
+    ticker: str
+    state: Literal["ok", "down", "missing"]
+    note: str | None
+    asof: str
+    asof_text: str
+    rebuilt: bool
+    # The data sources that missed analystdb's last evening run.
+    stale: list[str]
+    n_firms: int | None
+    sides: AnalystSides | None
+    target: AnalystTargets | None
+    firms: list[AnalystFirm] | None
+    firms_note: str | None
+    ranked_of: int | None
+    tracks_asof_text: str | None
+    changes: list[AnalystChange] | None
+    changes_note: str | None
+    check: AnalystCheck | None
+    check_note: str | None
 
 
 class ReportSummary(Strict):
@@ -691,6 +803,13 @@ ALL_MODELS: tuple[type[BaseModel], ...] = (
     Ring,
     ReportTable,
     ReportNumbers,
+    AnalystSides,
+    AnalystTargets,
+    AnalystFirm,
+    AnalystChange,
+    AnalystCheckRow,
+    AnalystCheck,
+    ReportAnalysts,
     ReportSummary,
     HideResult,
     ShowResult,

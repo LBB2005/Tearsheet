@@ -113,7 +113,17 @@ def _anchor(mode: str, frag: str) -> str:
 
 # The views the app can open bigger. app/src/main/views.test.ts checks this against VIEWS in
 # navigation.ts, so the two lists can't drift apart.
-OPEN_VIEWS = ("price", "factors", "metrics", "methods", "returns", "flags", "economy", "rings")
+OPEN_VIEWS = (
+    "price",
+    "factors",
+    "metrics",
+    "methods",
+    "returns",
+    "flags",
+    "economy",
+    "rings",
+    "analysts",
+)
 _TABLE_VIEW = re.compile(r"table-[a-z_]{1,32}")
 _OPEN_ITEM = re.compile(r"[A-Za-z0-9_.\-]{1,64}")
 
@@ -192,6 +202,7 @@ def render_html(
     side: str = "text",
     motion: bool = True,
     numbers: dict[str, Any] | None = None,
+    analysts: dict[str, Any] | None = None,
 ) -> str:
     """`mode` is "app" (with flag and re-read links) or "file" (terminal mode: claim IDs shown,
     no tearsheet: links). `view` is the text view shown first ("summary" or "full"); `column` is
@@ -201,7 +212,13 @@ def render_html(
     `narrow` is a window under about 1,100 px: with the text alone, a row of five key-number
     tiles sits above it. `motion` False leaves out the entrance motion, for a frame loaded
     after the report was already on show. A file is read without the app, so it always shows
-    both columns, stacked, with the Full view open."""
+    both columns, stacked, with the Full view open.
+
+    `analysts` is analystdb's panel (data/analystdb.py), asked for as the report opened: its
+    figures, or the quiet line when analystdb couldn't answer. None leaves it out, and the page
+    is then exactly as before. While the figures show, section 1's stored line saying the
+    consensus is not available is left off the page; the stored report keeps it. A file never
+    shows the panel."""
     if mode not in ("app", "file"):
         raise ValueError(mode)
     if view not in ("summary", "full"):
@@ -213,14 +230,20 @@ def render_html(
     # readouts.py imports format_value from this module, so it is imported here, when a page is
     # drawn, rather than at the top, where the two modules would import each other in a loop.
     from tearsheet import readouts
+    from tearsheet.data.analyst import NOT_AVAILABLE
 
     if mode == "file":
         view, column, side = "full", "both", "text"
     given = numbers or {}
+    if mode != "app":
+        analysts = None
+    shows_analysts = bool(analysts) and analysts.get("state") == "ok"
     key_tiles = bool(narrow) and column in ("text", "auto")
     return _ENV.get_template("report.html.j2").render(
         r=report,
         n={key: given.get(key) for key in NUMBER_KEYS},
+        analysts=analysts or None,
+        hide_line=NOT_AVAILABLE if shows_analysts else None,
         mode=mode,
         view=view,
         column=column,

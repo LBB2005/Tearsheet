@@ -28,6 +28,7 @@ export type Limit1 = number;
 export type ReportId1 = string;
 export type ReportId2 = string;
 export type ReportId3 = string;
+export type ReportId4 = string;
 /**
  * @minItems 1
  * @maxItems 1000
@@ -53,7 +54,7 @@ export type Capped = boolean;
 export type RedFlags = string[];
 export type Percentile = number | null;
 export type Peers = number | null;
-export type ReportId4 = string;
+export type ReportId5 = string;
 export type RunId2 = string;
 export type Ticker2 = string;
 export type Cik2 = number | null;
@@ -65,7 +66,7 @@ export type Html = string;
 export type Cik3 = number;
 export type Ticker3 = string;
 export type Name3 = string;
-export type ReportId5 = string;
+export type ReportId6 = string;
 export type ReportDate = string;
 export type CreatedAt1 = string;
 export type Reports = number;
@@ -81,7 +82,7 @@ export type Ticker4 = string;
 export type Name4 = string;
 export type Sector1 = string | null;
 export type Cik4 = number;
-export type ReportId6 = string | null;
+export type ReportId7 = string | null;
 export type ReportDate1 = string | null;
 export type PeerRule = string | null;
 export type Date = string;
@@ -148,7 +149,7 @@ export type Slices = Slice[];
 export type Key4 = string;
 export type Title = string;
 export type Rows = string[][];
-export type ReportId7 = string;
+export type ReportId8 = string;
 export type Ticker6 = string;
 export type ScoreReadout = string | null;
 export type Factors = FactorItem[] | null;
@@ -159,10 +160,75 @@ export type RedFlags1 = RedFlagItem[] | null;
 export type RedFlagsReadout = string | null;
 export type Economy = EconomyItem[] | null;
 export type Tables = ReportTable[];
-export type ReportId8 = string;
+export type Buy = number;
+export type Hold = number;
+export type Sell = number;
+export type Mean = number | null;
+export type Median = number | null;
+export type High = number | null;
+export type Low = number | null;
+export type N = number;
+export type Firm = string;
+export type FirmSlug = string;
+export type Label5 = string;
+export type Side1 = ("buy" | "hold" | "sell") | null;
+export type Target = number | null;
+export type TargetText = string;
+export type Date2 = string;
+export type DateText = string;
+export type Rank = number | null;
+export type RankText = string;
+export type AvgExcess = number | null;
+export type ExcessText = string;
+export type Readout10 = string;
+export type Date3 = string;
+export type DateText1 = string;
+export type Firm1 = string;
+export type Action = string;
+export type ActionLabel = string;
+export type FromLabel = string | null;
+export type ToLabel = string | null;
+export type RatingText = string;
+export type TargetPrior = number | null;
+export type TargetCurrent = number | null;
+export type TargetText1 = string;
+export type Readout11 = string;
+export type Measure = string;
+export type Label6 = string;
+export type Money = boolean;
+export type Ours = number | null;
+export type Theirs = number;
+export type OursText = string;
+export type TheirsText = string;
+export type DiffFraction = number | null;
+export type GapText = string;
+export type WithinTolerance = boolean;
+export type ToleranceText = string;
+export type Readout12 = string;
+export type Supplier = string;
+export type Fetched = string;
+export type FetchedText = string;
+export type Rows1 = AnalystCheckRow[];
+export type ReportId9 = string;
+export type Ticker7 = string;
+export type State = "ok" | "down" | "missing";
+export type Note1 = string | null;
+export type Asof = string;
+export type AsofText = string;
+export type Rebuilt = boolean;
+export type Stale = string[];
+export type NFirms = number | null;
+export type Firms = AnalystFirm[] | null;
+export type FirmsNote = string | null;
+export type RankedOf = number | null;
+export type TracksAsofText = string | null;
+export type Changes = AnalystChange[] | null;
+export type ChangesNote = string | null;
+export type CheckNote = string | null;
+export type ReportId10 = string;
 export type RunId3 = string;
 export type Cik5 = number | null;
-export type Ticker7 = string | null;
+export type Ticker8 = string | null;
 export type Name8 = string | null;
 export type CreatedAt2 = string;
 export type Rating2 = string | null;
@@ -184,7 +250,7 @@ export type EndDate = string | null;
 export type InsideRange = boolean | null;
 export type PredictionId = string;
 export type Cik6 = number;
-export type Ticker8 = string;
+export type Ticker9 = string;
 export type RunAt = string;
 export type Rating3 = string;
 export type Bear2 = number | null;
@@ -194,7 +260,7 @@ export type Grades = Grade[];
 export type ReviewId = string;
 export type Deleted = number;
 export type Graded = number;
-export type Note1 = string | null;
+export type Note2 = string | null;
 export type Name9 = string;
 export type Key5 = string;
 export type Cost = string;
@@ -225,7 +291,7 @@ export type Services = Service2[];
 export type Proof = string;
 export type Started = boolean;
 export type Tool2 = "claude" | "codex";
-export type N = number;
+export type N1 = number;
 export type Total2 = number;
 export type Name10 = string;
 export type Ok2 = boolean;
@@ -240,7 +306,7 @@ export type MethodCodeVersion = number;
 export type RunId4 = string;
 export type Step = number;
 export type StepName = string;
-export type State = "started" | "done" | "skipped" | "retrying" | "failed";
+export type State1 = "started" | "done" | "skipped" | "retrying" | "failed";
 export type Typical = {
   [k: string]: number;
 } | null;
@@ -269,7 +335,7 @@ export type ClaimsRemoved = number | null;
 export type Now = string[] | null;
 export type RunId5 = string;
 export type RunId6 = string;
-export type ReportId9 = string;
+export type ReportId11 = string;
 export type RunId7 = string;
 export type Step1 = string | null;
 export type Message = string;
@@ -412,6 +478,13 @@ export interface NumbersParams {
 }
 /**
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "AnalystsParams".
+ */
+export interface AnalystsParams {
+  report_id: ReportId4;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
  * via the `definition` "ReportIdsParams".
  */
 export interface ReportIdsParams {
@@ -483,7 +556,7 @@ export interface ReportBar {
  * via the `definition` "ReportResult".
  */
 export interface ReportResult {
-  report_id: ReportId4;
+  report_id: ReportId5;
   run_id: RunId2;
   ticker: Ticker2;
   cik: Cik2;
@@ -502,7 +575,7 @@ export interface CompanyRow {
   cik: Cik3;
   ticker: Ticker3;
   name: Name3;
-  report_id: ReportId5;
+  report_id: ReportId6;
   report_date: ReportDate;
   created_at: CreatedAt1;
   reports: Reports;
@@ -524,7 +597,7 @@ export interface SearchHit {
   name: Name4;
   sector: Sector1;
   cik: Cik4;
-  report_id: ReportId6;
+  report_id: ReportId7;
   report_date: ReportDate1;
   peer_rule?: PeerRule;
 }
@@ -701,7 +774,7 @@ export interface ReportTable {
  * via the `definition` "ReportNumbers".
  */
 export interface ReportNumbers {
-  report_id: ReportId7;
+  report_id: ReportId8;
   ticker: Ticker6;
   score_readout: ScoreReadout;
   factors: Factors;
@@ -720,13 +793,128 @@ export interface ReportNumbers {
 }
 /**
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "AnalystSides".
+ */
+export interface AnalystSides {
+  buy: Buy;
+  hold: Hold;
+  sell: Sell;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "AnalystTargets".
+ */
+export interface AnalystTargets {
+  mean: Mean;
+  median: Median;
+  high: High;
+  low: Low;
+  n: N;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "AnalystFirm".
+ */
+export interface AnalystFirm {
+  firm: Firm;
+  firm_slug: FirmSlug;
+  label: Label5;
+  side: Side1;
+  target: Target;
+  target_text: TargetText;
+  date: Date2;
+  date_text: DateText;
+  rank: Rank;
+  rank_text: RankText;
+  avg_excess: AvgExcess;
+  excess_text: ExcessText;
+  readout: Readout10;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "AnalystChange".
+ */
+export interface AnalystChange {
+  date: Date3;
+  date_text: DateText1;
+  firm: Firm1;
+  action: Action;
+  action_label: ActionLabel;
+  from_label: FromLabel;
+  to_label: ToLabel;
+  rating_text: RatingText;
+  target_prior: TargetPrior;
+  target_current: TargetCurrent;
+  target_text: TargetText1;
+  readout: Readout11;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "AnalystCheckRow".
+ */
+export interface AnalystCheckRow {
+  measure: Measure;
+  label: Label6;
+  money: Money;
+  ours: Ours;
+  theirs: Theirs;
+  ours_text: OursText;
+  theirs_text: TheirsText;
+  diff_fraction: DiffFraction;
+  gap_text: GapText;
+  within_tolerance: WithinTolerance;
+  tolerance_text: ToleranceText;
+  readout: Readout12;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "AnalystCheck".
+ */
+export interface AnalystCheck {
+  supplier: Supplier;
+  fetched: Fetched;
+  fetched_text: FetchedText;
+  rows: Rows1;
+}
+/**
+ * analystdb's view of a report's company as of its price date, for the side panel: the
+ * panel's figures, every firm with its track record, the recent changes and the trust check.
+ * `state` "down" (analystdb didn't answer) or "missing" (it has nothing for the company) comes
+ * with the quiet `note` and no parts. A part that failed on its own is None, with its note.
+ *
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "ReportAnalysts".
+ */
+export interface ReportAnalysts {
+  report_id: ReportId9;
+  ticker: Ticker7;
+  state: State;
+  note: Note1;
+  asof: Asof;
+  asof_text: AsofText;
+  rebuilt: Rebuilt;
+  stale: Stale;
+  n_firms: NFirms;
+  sides: AnalystSides | null;
+  target: AnalystTargets | null;
+  firms: Firms;
+  firms_note: FirmsNote;
+  ranked_of: RankedOf;
+  tracks_asof_text: TracksAsofText;
+  changes: Changes;
+  changes_note: ChangesNote;
+  check: AnalystCheck | null;
+  check_note: CheckNote;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
  * via the `definition` "ReportSummary".
  */
 export interface ReportSummary {
-  report_id: ReportId8;
+  report_id: ReportId10;
   run_id: RunId3;
   cik: Cik5;
-  ticker: Ticker7;
+  ticker: Ticker8;
   name: Name8;
   created_at: CreatedAt2;
   rating: Rating2;
@@ -780,7 +968,7 @@ export interface Grade {
 export interface PredictionSummary {
   prediction_id: PredictionId;
   cik: Cik6;
-  ticker: Ticker8;
+  ticker: Ticker9;
   run_at: RunAt;
   rating: Rating3;
   bear: Bear2;
@@ -808,7 +996,7 @@ export interface RereadResult {
  */
 export interface GradeResult {
   graded: Graded;
-  note?: Note1;
+  note?: Note2;
 }
 /**
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
@@ -905,7 +1093,7 @@ export interface SafetyStarted {
  */
 export interface SafetyProgress {
   tool: Tool2;
-  n: N;
+  n: N1;
   total: Total2;
   name: Name10;
   ok: Ok2;
@@ -938,7 +1126,7 @@ export interface Progress {
   run_id: RunId4;
   step: Step;
   step_name: StepName;
-  state: State;
+  state: State1;
 }
 /**
  * A run's live counts, for the app's progress screen while a report is written. A field
@@ -987,7 +1175,7 @@ export interface RunTally {
  */
 export interface ReportReady {
   run_id: RunId6;
-  report_id: ReportId9;
+  report_id: ReportId11;
 }
 /**
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema

@@ -92,7 +92,9 @@ ICLOUD_FOLDERS = ("Documents", "Desktop", "Library/Mobile Documents")
 # Requests answered off the request loop, because they can take minutes: grading and the full
 # price history fetch at Massive's calls-per-minute pace, and a Massive key check waits its turn
 # in the same queue.
-OFF_LOOP = frozenset({"grade_due", "fetch_history", "check_key"})
+# get_analysts may wait up to analystdb's time limit (data/analystdb.py), so it never holds up
+# the requests behind it.
+OFF_LOOP = frozenset({"grade_due", "fetch_history", "check_key", "get_analysts"})
 # How often the price backfill looks again while a report, grading, a history download or the
 # safety check is under way (it never makes them wait).
 BACKFILL_POLL_S = 2.0
@@ -246,6 +248,11 @@ class Server:
         self.backfill_job: asyncio.Task | None = None
         # None makes the price job one pass (tests); the app checks every half hour.
         self.keep_current_every_s: float | None = KEEP_CURRENT_EVERY_S
+        # analystdb, Liam's local analyst-ratings API, with its answers kept in memory. Tests
+        # put a stand-in here; the tests' offline guard keeps the real one from reaching it.
+        from tearsheet.data.analystdb import AnalystDB
+
+        self.analystdb = AnalystDB()
         mark_interrupted(self.db.conn)
 
     # --- the defaults: live data and the user's AI tool -----------------------------------------
@@ -935,6 +942,11 @@ class Server:
             except Exception:  # noqa: BLE001 - logged; the report opens from its text alone
                 log.exception("reading the numbers of report %s", p.report_id)
         claims = (numbers or {}).get("claims")
+        analysts = (
+            await self._analyst_panel(report, row["run_id"], row["created_at"])
+            if cik is not None
+            else None
+        )
         return {
             "report_id": row["report_id"],
             "run_id": row["run_id"],
@@ -954,8 +966,30 @@ class Server:
                 side=p.side,
                 motion=p.motion,
                 numbers=numbers,
+                analysts=analysts,
             ),
         }
+
+    def _report_day(self, run_id: str, created_at: str):
+        """The day a report is as of: its price date, else the Eastern day it was made."""
+        from tearsheet.http import EASTERN
+        from tearsheet.report_numbers import run_price_date
+
+        day = run_price_date(self.db.conn, run_id)
+        return day or datetime.fromisoformat(created_at).astimezone(EASTERN).date()
+
+    async def _analyst_panel(self, report: dict, run_id: str, created_at: str):
+        """analystdb's panel for a report (data/analystdb.py), as of its price date: its figures
+        or the quiet line. None, and so no panel at all, if anything here goes wrong: it never
+        fails or changes the report itself."""
+        ticker = str(report.get("ticker") or "")
+        if not ticker:
+            return None
+        try:
+            return await self.analystdb.panel(ticker, self._report_day(run_id, created_at))
+        except Exception:  # noqa: BLE001 - logged; the report opens as it always has
+            log.exception("analystdb's panel for %s", ticker)
+            return None
 
     def _report_target(self, report_id: str) -> tuple[str, int, str]:
         """The run id, company cik and ticker behind a stored report."""
@@ -1019,6 +1053,28 @@ class Server:
             ticker=ticker,
         )
         return {"report_id": row["report_id"], "ticker": ticker, **views}
+
+    async def m_get_analysts(self, p) -> dict[str, Any]:
+        """analystdb's view of a report's company for the side panel (protocol.ReportAnalysts),
+        as of the report's price date. analystdb being off is an answer (state "down" with its
+        quiet note), not an error. Answered off the request loop (OFF_LOOP)."""
+        row = self.db.conn.execute(
+            "SELECT report_id, run_id, created_at FROM reports WHERE report_id = ?",
+            (p.report_id,),
+        ).fetchone()
+        stored = (
+            self.db.conn.execute(
+                "SELECT json FROM sections WHERE report_id = ? AND key = 'report'",
+                (p.report_id,),
+            ).fetchone()
+            if row is not None
+            else None
+        )
+        if row is None or stored is None:
+            raise EngineError("ENGINE_ERROR", f"No report {p.report_id}.")
+        ticker = str(json.loads(stored[0]).get("ticker") or "")
+        view = await self.analystdb.view(ticker, self._report_day(row["run_id"], row["created_at"]))
+        return {**view, "report_id": row["report_id"], "ticker": ticker}
 
     async def m_fetch_history(self, p) -> dict[str, Any]:
         """The company's full daily history with its splits and dividends. It is answered off

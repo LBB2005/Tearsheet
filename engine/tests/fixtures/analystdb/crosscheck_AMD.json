@@ -1,0 +1,234 @@
+{
+ "data": [
+  {
+   "supplier": "spglobal",
+   "measure": "buy_side",
+   "ours": 32.0,
+   "theirs": 43.0,
+   "diff": -11.0,
+   "diff_fraction": null,
+   "tolerance": 3.0,
+   "tolerance_unit": "firms",
+   "within_tolerance": false,
+   "their_fetched_at": "2026-11-06T23:07:22Z",
+   "their_raw_path": "raw/2026-11-06/yahoo/quoteSummary/AMD.json.gz"
+  },
+  {
+   "supplier": "spglobal",
+   "measure": "hold",
+   "ours": 6.0,
+   "theirs": 10.0,
+   "diff": -4.0,
+   "diff_fraction": null,
+   "tolerance": 3.0,
+   "tolerance_unit": "firms",
+   "within_tolerance": false,
+   "their_fetched_at": "2026-11-06T23:07:22Z",
+   "their_raw_path": "raw/2026-11-06/yahoo/quoteSummary/AMD.json.gz"
+  },
+  {
+   "supplier": "spglobal",
+   "measure": "sell_side",
+   "ours": 0.0,
+   "theirs": 0.0,
+   "diff": 0.0,
+   "diff_fraction": null,
+   "tolerance": 3.0,
+   "tolerance_unit": "firms",
+   "within_tolerance": true,
+   "their_fetched_at": "2026-11-06T23:07:22Z",
+   "their_raw_path": "raw/2026-11-06/yahoo/quoteSummary/AMD.json.gz"
+  },
+  {
+   "supplier": "spglobal",
+   "measure": "n_with_target",
+   "ours": 38.0,
+   "theirs": 48.0,
+   "diff": -10.0,
+   "diff_fraction": null,
+   "tolerance": 3.0,
+   "tolerance_unit": "firms",
+   "within_tolerance": false,
+   "their_fetched_at": "2026-11-06T23:07:22Z",
+   "their_raw_path": "raw/2026-11-06/yahoo/quoteSummary/AMD.json.gz"
+  },
+  {
+   "supplier": "spglobal",
+   "measure": "target_mean",
+   "ours": 587.92,
+   "theirs": 650.0083,
+   "diff": -62.0883,
+   "diff_fraction": -0.0955,
+   "tolerance": 0.03,
+   "tolerance_unit": "fraction",
+   "within_tolerance": false,
+   "their_fetched_at": "2026-11-06T23:07:22Z",
+   "their_raw_path": "raw/2026-11-06/yahoo/quoteSummary/AMD.json.gz"
+  },
+  {
+   "supplier": "spglobal",
+   "measure": "target_median",
+   "ours": 625.0,
+   "theirs": 645.5,
+   "diff": -20.5,
+   "diff_fraction": -0.0318,
+   "tolerance": 0.03,
+   "tolerance_unit": "fraction",
+   "within_tolerance": false,
+   "their_fetched_at": "2026-11-06T23:07:22Z",
+   "their_raw_path": "raw/2026-11-06/yahoo/quoteSummary/AMD.json.gz"
+  },
+  {
+   "supplier": "spglobal",
+   "measure": "target_high",
+   "ours": 800.0,
+   "theirs": 1250.0,
+   "diff": -450.0,
+   "diff_fraction": -0.36,
+   "tolerance": 0.05,
+   "tolerance_unit": "fraction",
+   "within_tolerance": false,
+   "their_fetched_at": "2026-11-06T23:07:22Z",
+   "their_raw_path": "raw/2026-11-06/yahoo/quoteSummary/AMD.json.gz"
+  },
+  {
+   "supplier": "spglobal",
+   "measure": "target_low",
+   "ours": 265.0,
+   "theirs": 430.0,
+   "diff": -165.0,
+   "diff_fraction": -0.3837,
+   "tolerance": 0.05,
+   "tolerance_unit": "fraction",
+   "within_tolerance": false,
+   "their_fetched_at": "2026-11-06T23:07:22Z",
+   "their_raw_path": "raw/2026-11-06/yahoo/quoteSummary/AMD.json.gz"
+  },
+  {
+   "supplier": "finnhub",
+   "measure": "buy_side",
+   "ours": 32.0,
+   "theirs": 50.0,
+   "diff": -18.0,
+   "diff_fraction": null,
+   "tolerance": 3.0,
+   "tolerance_unit": "firms",
+   "within_tolerance": false,
+   "their_fetched_at": "2026-11-06T23:24:18Z",
+   "their_raw_path": "raw/2026-11-06/finnhub/recommendation/AMD.json.gz"
+  },
+  {
+   "supplier": "finnhub",
+   "measure": "hold",
+   "ours": 6.0,
+   "theirs": 10.0,
+   "diff": -4.0,
+   "diff_fraction": null,
+   "tolerance": 3.0,
+   "tolerance_unit": "firms",
+   "within_tolerance": false,
+   "their_fetched_at": "2026-11-06T23:24:18Z",
+   "their_raw_path": "raw/2026-11-06/finnhub/recommendation/AMD.json.gz"
+  },
+  {
+   "supplier": "finnhub",
+   "measure": "sell_side",
+   "ours": 0.0,
+   "theirs": 0.0,
+   "diff": 0.0,
+   "diff_fraction": null,
+   "tolerance": 3.0,
+   "tolerance_unit": "firms",
+   "within_tolerance": true,
+   "their_fetched_at": "2026-11-06T23:24:18Z",
+   "their_raw_path": "raw/2026-11-06/finnhub/recommendation/AMD.json.gz"
+  },
+  {
+   "supplier": "fmp",
+   "measure": "target_mean",
+   "ours": 587.92,
+   "theirs": 653.81,
+   "diff": -65.89,
+   "diff_fraction": -0.1008,
+   "tolerance": 0.03,
+   "tolerance_unit": "fraction",
+   "within_tolerance": false,
+   "their_fetched_at": "2026-11-06T23:33:07Z",
+   "their_raw_path": "raw/2026-11-06/fmp/price-target-consensus/AMD.json.gz"
+  },
+  {
+   "supplier": "fmp",
+   "measure": "target_median",
+   "ours": 625.0,
+   "theirs": 650.0,
+   "diff": -25.0,
+   "diff_fraction": -0.0385,
+   "tolerance": 0.03,
+   "tolerance_unit": "fraction",
+   "within_tolerance": false,
+   "their_fetched_at": "2026-11-06T23:33:07Z",
+   "their_raw_path": "raw/2026-11-06/fmp/price-target-consensus/AMD.json.gz"
+  },
+  {
+   "supplier": "fmp",
+   "measure": "target_high",
+   "ours": 800.0,
+   "theirs": 1250.0,
+   "diff": -450.0,
+   "diff_fraction": -0.36,
+   "tolerance": 0.05,
+   "tolerance_unit": "fraction",
+   "within_tolerance": false,
+   "their_fetched_at": "2026-11-06T23:33:07Z",
+   "their_raw_path": "raw/2026-11-06/fmp/price-target-consensus/AMD.json.gz"
+  },
+  {
+   "supplier": "fmp",
+   "measure": "target_low",
+   "ours": 265.0,
+   "theirs": 465.0,
+   "diff": -200.0,
+   "diff_fraction": -0.4301,
+   "tolerance": 0.05,
+   "tolerance_unit": "fraction",
+   "within_tolerance": false,
+   "their_fetched_at": "2026-11-06T23:33:07Z",
+   "their_raw_path": "raw/2026-11-06/fmp/price-target-consensus/AMD.json.gz"
+  }
+ ],
+ "asof": "2026-11-06",
+ "generated_at": "2026-11-08T04:28:23Z",
+ "rebuilt": false,
+ "rules": {
+  "version": "consensus-1",
+  "window_days": 365,
+  "label_map_version": 14
+ },
+ "sources": [
+  {
+   "name": "yahoo",
+   "last_success_at": "2026-11-06T23:07:22Z",
+   "stale": false
+  },
+  {
+   "name": "finnhub",
+   "last_success_at": "2026-11-06T23:24:18Z",
+   "stale": false
+  },
+  {
+   "name": "fmp",
+   "last_success_at": "2026-11-06T23:33:07Z",
+   "stale": false
+  },
+  {
+   "name": "alpaca",
+   "last_success_at": "2026-11-06T23:33:43Z",
+   "stale": false
+  },
+  {
+   "name": "massive",
+   "last_success_at": "2026-11-06T23:34:20Z",
+   "stale": false
+  }
+ ]
+}

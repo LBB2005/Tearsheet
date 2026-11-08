@@ -12,7 +12,8 @@ const TITLES: Record<ViewKind, string> = {
   returns: 'Total return',
   flags: 'Red flags',
   economy: 'Economy',
-  rings: 'Peer ratings and checks'
+  rings: 'Peer ratings and checks',
+  analysts: 'Analyst ratings'
 }
 
 const TABLE = 'table-'

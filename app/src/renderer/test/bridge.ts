@@ -12,6 +12,7 @@ import type { MenuCommand } from '../../main/menu'
 import type { ViewId } from '../../main/navigation'
 import type { CallResult, EngineNotification, TearsheetApi, ToolStatus } from '../../preload/api'
 import type { ChartSeries, CompanyRow, PredictionSummary, ReportBar, ReportNumbers, ReportResult, ReportSummary, SearchHit, SettingsResult } from '../../shared/protocol'
+import { analysts } from './analysts'
 
 export type FakeBridge = { [K in keyof TearsheetApi]: Mock<TearsheetApi[K]> }
 
@@ -180,6 +181,7 @@ function makeBridge(): FakeBridge {
     searchCompanies: vi.fn<TearsheetApi['searchCompanies']>(async (query: string) => ok(search(query))),
     getChart: vi.fn<TearsheetApi['getChart']>(async () => ok(chart())),
     getReportNumbers: vi.fn<TearsheetApi['getReportNumbers']>(async (reportId: string) => ok(numbers(reportId))),
+    getAnalysts: vi.fn<TearsheetApi['getAnalysts']>(async (reportId: string) => ok(analysts(reportId))),
     fetchHistory: vi.fn<TearsheetApi['fetchHistory']>(async () => ok({ first_date: '2021-11-08', days: 1260 })),
     checkKey: vi.fn<TearsheetApi['checkKey']>(async (service: 'massive' | 'fred') => ok({ proof: service === 'massive' ? 'Works: AAPL closed at $230.10 on Nov 6' : 'Works: inflation was 2.9% in September' })),
     runSafetyCheck: vi.fn<TearsheetApi['runSafetyCheck']>(async () => ok({ started: true })),

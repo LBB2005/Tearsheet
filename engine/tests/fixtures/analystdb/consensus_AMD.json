@@ -1,0 +1,694 @@
+{
+ "data": {
+  "ticker": "AMD",
+  "n_firms": 38,
+  "counts": {
+   "strong_buy": 1,
+   "buy": 31,
+   "hold": 6,
+   "sell": 0,
+   "strong_sell": 0
+  },
+  "sides": {
+   "buy": 32,
+   "hold": 6,
+   "sell": 0
+  },
+  "target": {
+   "mean": 587.92,
+   "median": 625.0,
+   "high": 800.0,
+   "low": 265.0,
+   "n": 38
+  },
+  "price": {
+   "date": "2026-11-06",
+   "close": 449.04
+  },
+  "unmapped_labels": [],
+  "removed_firms": [],
+  "firms": [
+   {
+    "firm": "UBS",
+    "firm_slug": "ubs",
+    "label": "Buy",
+    "score": 2,
+    "target": 700.0,
+    "target_as_published": 700.0,
+    "target_rebased": false,
+    "published_at": "2026-11-04T22:46:32Z",
+    "target_published_at": "2026-11-04T22:46:32Z",
+    "sources": [
+     "alpaca",
+     "fmp",
+     "yahoo"
+    ],
+    "confirmed": true
+   },
+   {
+    "firm": "JP Morgan",
+    "firm_slug": "jp-morgan",
+    "label": "Neutral",
+    "score": 3,
+    "target": 575.0,
+    "target_as_published": 575.0,
+    "target_rebased": false,
+    "published_at": "2026-11-04T19:22:37Z",
+    "target_published_at": "2026-11-04T19:22:37Z",
+    "sources": [
+     "alpaca",
+     "fmp",
+     "yahoo"
+    ],
+    "confirmed": true
+   },
+   {
+    "firm": "Morgan Stanley",
+    "firm_slug": "morgan-stanley",
+    "label": "Equal-Weight",
+    "score": 3,
+    "target": 550.0,
+    "target_as_published": 550.0,
+    "target_rebased": false,
+    "published_at": "2026-11-04T17:29:57Z",
+    "target_published_at": "2026-11-04T17:29:57Z",
+    "sources": [
+     "alpaca",
+     "fmp",
+     "yahoo"
+    ],
+    "confirmed": true
+   },
+   {
+    "firm": "Piper Sandler",
+    "firm_slug": "piper-sandler",
+    "label": "Overweight",
+    "score": 2,
+    "target": 650.0,
+    "target_as_published": 650.0,
+    "target_rebased": false,
+    "published_at": "2026-11-04T17:06:25Z",
+    "target_published_at": "2026-11-04T17:06:25Z",
+    "sources": [
+     "alpaca",
+     "fmp",
+     "yahoo"
+    ],
+    "confirmed": true
+   },
+   {
+    "firm": "Wells Fargo",
+    "firm_slug": "wells-fargo",
+    "label": "Overweight",
+    "score": 2,
+    "target": 650.0,
+    "target_as_published": 650.0,
+    "target_rebased": false,
+    "published_at": "2026-11-04T16:44:49Z",
+    "target_published_at": "2026-11-04T16:44:49Z",
+    "sources": [
+     "alpaca",
+     "fmp",
+     "yahoo"
+    ],
+    "confirmed": true
+   },
+   {
+    "firm": "RBC Capital",
+    "firm_slug": "rbc-capital",
+    "label": "Sector Perform",
+    "score": 3,
+    "target": 540.0,
+    "target_as_published": 540.0,
+    "target_rebased": false,
+    "published_at": "2026-11-04T16:02:01Z",
+    "target_published_at": "2026-11-04T16:02:01Z",
+    "sources": [
+     "alpaca",
+     "fmp",
+     "yahoo"
+    ],
+    "confirmed": true
+   },
+   {
+    "firm": "Truist Securities",
+    "firm_slug": "truist-securities",
+    "label": "Buy",
+    "score": 2,
+    "target": 605.0,
+    "target_as_published": 605.0,
+    "target_rebased": false,
+    "published_at": "2026-11-04T15:44:26Z",
+    "target_published_at": "2026-11-04T15:44:26Z",
+    "sources": [
+     "alpaca",
+     "fmp",
+     "yahoo"
+    ],
+    "confirmed": true
+   },
+   {
+    "firm": "Wedbush",
+    "firm_slug": "wedbush",
+    "label": "Outperform",
+    "score": 2,
+    "target": 600.0,
+    "target_as_published": 600.0,
+    "target_rebased": false,
+    "published_at": "2026-11-04T14:33:59Z",
+    "target_published_at": "2026-11-04T14:33:59Z",
+    "sources": [
+     "alpaca",
+     "fmp",
+     "yahoo"
+    ],
+    "confirmed": true
+   },
+   {
+    "firm": "StoneX",
+    "firm_slug": "stonex",
+    "label": "Buy",
+    "score": 2,
+    "target": 685.0,
+    "target_as_published": 685.0,
+    "target_rebased": false,
+    "published_at": "2026-11-04T14:18:38Z",
+    "target_published_at": "2026-11-04T14:18:38Z",
+    "sources": [
+     "alpaca",
+     "fmp",
+     "yahoo"
+    ],
+    "confirmed": true
+   },
+   {
+    "firm": "DA Davidson",
+    "firm_slug": "da-davidson",
+    "label": "Buy",
+    "score": 2,
+    "target": 600.0,
+    "target_as_published": 600.0,
+    "target_rebased": false,
+    "published_at": "2026-11-04T13:28:59Z",
+    "target_published_at": "2026-11-04T13:28:59Z",
+    "sources": [
+     "alpaca",
+     "fmp",
+     "yahoo"
+    ],
+    "confirmed": true
+   },
+   {
+    "firm": "Keybanc",
+    "firm_slug": "keybanc",
+    "label": "Overweight",
+    "score": 2,
+    "target": 725.0,
+    "target_as_published": 725.0,
+    "target_rebased": false,
+    "published_at": "2026-11-04T13:19:08Z",
+    "target_published_at": "2026-11-04T13:19:08Z",
+    "sources": [
+     "alpaca",
+     "fmp",
+     "yahoo"
+    ],
+    "confirmed": true
+   },
+   {
+    "firm": "Rosenblatt",
+    "firm_slug": "rosenblatt",
+    "label": "Buy",
+    "score": 2,
+    "target": 700.0,
+    "target_as_published": 700.0,
+    "target_rebased": false,
+    "published_at": "2026-11-04T12:41:56Z",
+    "target_published_at": "2026-11-04T12:41:56Z",
+    "sources": [
+     "fmp",
+     "yahoo"
+    ],
+    "confirmed": true
+   },
+   {
+    "firm": "Mizuho",
+    "firm_slug": "mizuho",
+    "label": "Outperform",
+    "score": 2,
+    "target": 610.0,
+    "target_as_published": 610.0,
+    "target_rebased": false,
+    "published_at": "2026-11-04T12:26:36Z",
+    "target_published_at": "2026-11-04T12:26:36Z",
+    "sources": [
+     "alpaca",
+     "fmp",
+     "yahoo"
+    ],
+    "confirmed": true
+   },
+   {
+    "firm": "Cantor Fitzgerald",
+    "firm_slug": "cantor-fitzgerald",
+    "label": "Overweight",
+    "score": 2,
+    "target": 700.0,
+    "target_as_published": 700.0,
+    "target_rebased": false,
+    "published_at": "2026-11-04T11:58:28Z",
+    "target_published_at": "2026-11-04T11:58:28Z",
+    "sources": [
+     "alpaca",
+     "fmp",
+     "yahoo"
+    ],
+    "confirmed": true
+   },
+   {
+    "firm": "Stifel",
+    "firm_slug": "stifel",
+    "label": "Buy",
+    "score": 2,
+    "target": 725.0,
+    "target_as_published": 725.0,
+    "target_rebased": false,
+    "published_at": "2026-11-04T11:51:08Z",
+    "target_published_at": "2026-11-04T11:51:08Z",
+    "sources": [
+     "alpaca",
+     "fmp",
+     "yahoo"
+    ],
+    "confirmed": true
+   },
+   {
+    "firm": "B of A Securities",
+    "firm_slug": "b-of-a-securities",
+    "label": "Buy",
+    "score": 2,
+    "target": 650.0,
+    "target_as_published": 650.0,
+    "target_rebased": false,
+    "published_at": "2026-11-04T11:28:13Z",
+    "target_published_at": "2026-11-04T11:28:13Z",
+    "sources": [
+     "alpaca",
+     "fmp",
+     "yahoo"
+    ],
+    "confirmed": true
+   },
+   {
+    "firm": "Susquehanna",
+    "firm_slug": "susquehanna",
+    "label": "Positive",
+    "score": 2,
+    "target": 650.0,
+    "target_as_published": 650.0,
+    "target_rebased": false,
+    "published_at": "2026-10-28T12:19:01Z",
+    "target_published_at": "2026-10-28T12:19:01Z",
+    "sources": [
+     "alpaca",
+     "fmp",
+     "yahoo"
+    ],
+    "confirmed": true
+   },
+   {
+    "firm": "Citigroup",
+    "firm_slug": "citigroup",
+    "label": "Buy",
+    "score": 2,
+    "target": 800.0,
+    "target_as_published": 800.0,
+    "target_rebased": false,
+    "published_at": "2026-10-06T18:00:15Z",
+    "target_published_at": "2026-10-06T18:00:15Z",
+    "sources": [
+     "alpaca",
+     "fmp",
+     "yahoo"
+    ],
+    "confirmed": true
+   },
+   {
+    "firm": "Raymond James",
+    "firm_slug": "raymond-james",
+    "label": "Strong Buy",
+    "score": 1,
+    "target": 641.0,
+    "target_as_published": 641.0,
+    "target_rebased": false,
+    "published_at": "2026-08-25T09:53:23Z",
+    "target_published_at": "2026-08-25T09:53:23Z",
+    "sources": [
+     "alpaca",
+     "fmp",
+     "yahoo"
+    ],
+    "confirmed": true
+   },
+   {
+    "firm": "BMO Capital",
+    "firm_slug": "bmo-capital",
+    "label": "Outperform",
+    "score": 2,
+    "target": 550.0,
+    "target_as_published": 550.0,
+    "target_rebased": false,
+    "published_at": "2026-08-21T09:52:16Z",
+    "target_published_at": "2026-08-21T09:52:16Z",
+    "sources": [
+     "alpaca",
+     "fmp",
+     "yahoo"
+    ],
+    "confirmed": true
+   },
+   {
+    "firm": "Argus Research",
+    "firm_slug": "argus-research",
+    "label": "Buy",
+    "score": 2,
+    "target": 625.0,
+    "target_as_published": 625.0,
+    "target_rebased": false,
+    "published_at": "2026-08-06T16:15:05Z",
+    "target_published_at": "2026-08-06T16:15:05Z",
+    "sources": [
+     "fmp",
+     "yahoo"
+    ],
+    "confirmed": true
+   },
+   {
+    "firm": "Evercore ISI Group",
+    "firm_slug": "evercore-isi-group",
+    "label": "Outperform",
+    "score": 2,
+    "target": 579.0,
+    "target_as_published": 579.0,
+    "target_rebased": false,
+    "published_at": "2026-08-05T12:01:54Z",
+    "target_published_at": "2026-08-05T12:01:54Z",
+    "sources": [
+     "fmp",
+     "yahoo"
+    ],
+    "confirmed": true
+   },
+   {
+    "firm": "Barclays",
+    "firm_slug": "barclays",
+    "label": "Overweight",
+    "score": 2,
+    "target": 665.0,
+    "target_as_published": 665.0,
+    "target_rebased": false,
+    "published_at": "2026-08-05T11:47:22Z",
+    "target_published_at": "2026-08-05T11:47:22Z",
+    "sources": [
+     "fmp",
+     "yahoo"
+    ],
+    "confirmed": true
+   },
+   {
+    "firm": "Northland Capital Markets",
+    "firm_slug": "northland-capital-markets",
+    "label": "Market Perform",
+    "score": 3,
+    "target": 320.0,
+    "target_as_published": 320.0,
+    "target_rebased": false,
+    "published_at": "2026-08-05T10:45:57Z",
+    "target_published_at": "2026-05-06T10:04:16Z",
+    "sources": [
+     "fmp",
+     "yahoo"
+    ],
+    "confirmed": true
+   },
+   {
+    "firm": "Jefferies",
+    "firm_slug": "jefferies",
+    "label": "Buy",
+    "score": 2,
+    "target": 640.0,
+    "target_as_published": 640.0,
+    "target_rebased": false,
+    "published_at": "2026-07-25T00:53:19Z",
+    "target_published_at": "2026-07-25T00:53:19Z",
+    "sources": [
+     "fmp",
+     "yahoo"
+    ],
+    "confirmed": true
+   },
+   {
+    "firm": "Roth Capital",
+    "firm_slug": "roth-capital",
+    "label": "Buy",
+    "score": 2,
+    "target": 650.0,
+    "target_as_published": 650.0,
+    "target_rebased": false,
+    "published_at": "2026-07-24T17:45:22Z",
+    "target_published_at": "2026-07-24T17:45:22Z",
+    "sources": [
+     "fmp",
+     "yahoo"
+    ],
+    "confirmed": true
+   },
+   {
+    "firm": "Benchmark",
+    "firm_slug": "benchmark",
+    "label": "Buy",
+    "score": 2,
+    "target": 685.0,
+    "target_as_published": 685.0,
+    "target_rebased": false,
+    "published_at": "2026-07-23T14:31:37Z",
+    "target_published_at": "2026-07-23T14:31:37Z",
+    "sources": [
+     "fmp",
+     "yahoo"
+    ],
+    "confirmed": true
+   },
+   {
+    "firm": "TD Cowen",
+    "firm_slug": "td-cowen",
+    "label": "Buy",
+    "score": 2,
+    "target": 675.0,
+    "target_as_published": 675.0,
+    "target_rebased": false,
+    "published_at": "2026-07-13T18:02:21Z",
+    "target_published_at": "2026-07-13T18:02:21Z",
+    "sources": [
+     "fmp",
+     "yahoo"
+    ],
+    "confirmed": true
+   },
+   {
+    "firm": "Goldman Sachs",
+    "firm_slug": "goldman-sachs",
+    "label": "Buy",
+    "score": 2,
+    "target": 640.0,
+    "target_as_published": 640.0,
+    "target_rebased": false,
+    "published_at": "2026-07-06T14:59:21Z",
+    "target_published_at": "2026-07-06T14:59:21Z",
+    "sources": [
+     "fmp",
+     "yahoo"
+    ],
+    "confirmed": true
+   },
+   {
+    "firm": "Bernstein",
+    "firm_slug": "bernstein",
+    "label": "Outperform",
+    "score": 2,
+    "target": 600.0,
+    "target_as_published": 600.0,
+    "target_rebased": false,
+    "published_at": "2026-06-17T09:31:43Z",
+    "target_published_at": "2026-06-17T09:31:43Z",
+    "sources": [
+     "fmp",
+     "yahoo"
+    ],
+    "confirmed": true
+   },
+   {
+    "firm": "Melius Research",
+    "firm_slug": "melius-research",
+    "label": "Buy",
+    "score": 2,
+    "target": 540.0,
+    "target_as_published": 540.0,
+    "target_rebased": false,
+    "published_at": "2026-05-18T09:45:03Z",
+    "target_published_at": "2026-05-18T09:45:03Z",
+    "sources": [
+     "fmp",
+     "yahoo"
+    ],
+    "confirmed": true
+   },
+   {
+    "firm": "Daiwa Capital",
+    "firm_slug": "daiwa-capital",
+    "label": "Outperform",
+    "score": 2,
+    "target": 500.0,
+    "target_as_published": 500.0,
+    "target_rebased": false,
+    "published_at": "2026-05-13T18:25:34Z",
+    "target_published_at": "2026-05-13T18:25:34Z",
+    "sources": [
+     "fmp",
+     "yahoo"
+    ],
+    "confirmed": true
+   },
+   {
+    "firm": "Seaport Global",
+    "firm_slug": "seaport-global",
+    "label": "Buy",
+    "score": 2,
+    "target": 430.0,
+    "target_as_published": 430.0,
+    "target_rebased": false,
+    "published_at": "2026-05-06T12:25:56Z",
+    "target_published_at": "2026-05-06T12:25:56Z",
+    "sources": [
+     "fmp",
+     "yahoo"
+    ],
+    "confirmed": true
+   },
+   {
+    "firm": "Deutsche Bank",
+    "firm_slug": "deutsche-bank",
+    "label": "Hold",
+    "score": 3,
+    "target": 365.0,
+    "target_as_published": 365.0,
+    "target_rebased": false,
+    "published_at": "2026-05-06T10:25:18Z",
+    "target_published_at": "2026-05-06T10:25:18Z",
+    "sources": [
+     "fmp",
+     "yahoo"
+    ],
+    "confirmed": true
+   },
+   {
+    "firm": "Baird",
+    "firm_slug": "baird",
+    "label": "Outperform",
+    "score": 2,
+    "target": 625.0,
+    "target_as_published": 625.0,
+    "target_rebased": false,
+    "published_at": "2026-05-06T10:12:12Z",
+    "target_published_at": "2026-05-06T10:12:12Z",
+    "sources": [
+     "fmp",
+     "yahoo"
+    ],
+    "confirmed": true
+   },
+   {
+    "firm": "HSBC",
+    "firm_slug": "hsbc",
+    "label": "Hold",
+    "score": 3,
+    "target": 340.0,
+    "target_as_published": 340.0,
+    "target_rebased": false,
+    "published_at": "2026-05-04T17:04:41Z",
+    "target_published_at": "2026-05-04T17:04:41Z",
+    "sources": [
+     "fmp",
+     "yahoo"
+    ],
+    "confirmed": true
+   },
+   {
+    "firm": "China Renaissance",
+    "firm_slug": "china-renaissance",
+    "label": "Buy",
+    "score": 2,
+    "target": 291.0,
+    "target_as_published": 291.0,
+    "target_rebased": false,
+    "published_at": "2026-01-13T12:45:55Z",
+    "target_published_at": "2026-01-13T12:45:55Z",
+    "sources": [
+     "yahoo"
+    ],
+    "confirmed": false
+   },
+   {
+    "firm": "CICC",
+    "firm_slug": "cicc",
+    "label": "Outperform",
+    "score": 2,
+    "target": 265.0,
+    "target_as_published": 265.0,
+    "target_rebased": false,
+    "published_at": "2025-11-07T12:02:37Z",
+    "target_published_at": "2025-11-07T12:02:37Z",
+    "sources": [
+     "fmp",
+     "yahoo"
+    ],
+    "confirmed": true
+   }
+  ]
+ },
+ "asof": "2026-11-06",
+ "generated_at": "2026-11-08T04:28:23Z",
+ "rebuilt": false,
+ "rules": {
+  "version": "consensus-1",
+  "window_days": 365,
+  "label_map_version": 14
+ },
+ "sources": [
+  {
+   "name": "yahoo",
+   "last_success_at": "2026-11-06T23:07:22Z",
+   "stale": false
+  },
+  {
+   "name": "finnhub",
+   "last_success_at": "2026-11-06T23:24:18Z",
+   "stale": false
+  },
+  {
+   "name": "fmp",
+   "last_success_at": "2026-11-06T23:33:07Z",
+   "stale": false
+  },
+  {
+   "name": "alpaca",
+   "last_success_at": "2026-11-06T23:33:43Z",
+   "stale": false
+  },
+  {
+   "name": "massive",
+   "last_success_at": "2026-11-06T23:34:20Z",
+   "stale": false
+  }
+ ]
+}

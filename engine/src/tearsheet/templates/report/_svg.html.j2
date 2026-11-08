@@ -33,7 +33,7 @@
     the other slices. A slice starts where the last one's share ended and stops 2 px short of
     its own, so neighbours are told apart; one slice that holds every count is the whole ring.
     pathLength="1" is for the draw-in alone (the motion rules); the slices have no dash. -#}
-{%- macro donut(size, stroke, parts, label) -%}
+{%- macro donut(size, stroke, parts, label, view="rings") -%}
 {%- set rad = (size - stroke) / 2 - 1 -%}
 {%- set c = TAU * rad -%}
 {%- set m = size / 2 -%}
@@ -44,7 +44,7 @@
 {%- for count, key in parts if count > 0 -%}
 {%- set share = c * count / ns.total -%}
 {%- set end = 1 if count == ns.total else (ns.off + [share - 2, 0.5]|max) / c -%}
-{%- set link = open_link("rings", key) if mode == "app" else none -%}
+{%- set link = open_link(view, key) if mode == "app" else none -%}
 {% if link %}<a href="{{ link }}" tabindex="-1">{% endif %}<path class="dn-seg dn-{{ key }}" d="{{ arc(m, rad, ns.off / c, end) }}" stroke-width="{{ stroke }}" pathLength="1"/>{% if link %}</a>{% endif %}
 {%- set ns.off = ns.off + share -%}
 {%- endfor -%}

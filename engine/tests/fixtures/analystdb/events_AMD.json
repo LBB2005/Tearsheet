@@ -1,0 +1,381 @@
+{
+ "data": {
+  "items": [
+   {
+    "published_at": "2026-11-04T22:46:32Z",
+    "date_only": false,
+    "firm": "UBS",
+    "firm_slug": "ubs",
+    "action": "main",
+    "from_label": "Buy",
+    "to_label": "Buy",
+    "target_prior": 730.0,
+    "target_current": 700.0,
+    "sources": [
+     "alpaca",
+     "fmp",
+     "yahoo"
+    ],
+    "confirmed": true
+   },
+   {
+    "published_at": "2026-11-04T19:22:37Z",
+    "date_only": false,
+    "firm": "JP Morgan",
+    "firm_slug": "jp-morgan",
+    "action": "main",
+    "from_label": "Neutral",
+    "to_label": "Neutral",
+    "target_prior": 550.0,
+    "target_current": 575.0,
+    "sources": [
+     "alpaca",
+     "fmp",
+     "yahoo"
+    ],
+    "confirmed": true
+   },
+   {
+    "published_at": "2026-11-04T17:29:57Z",
+    "date_only": false,
+    "firm": "Morgan Stanley",
+    "firm_slug": "morgan-stanley",
+    "action": "main",
+    "from_label": "Equal-Weight",
+    "to_label": "Equal-Weight",
+    "target_prior": 510.0,
+    "target_current": 550.0,
+    "sources": [
+     "alpaca",
+     "fmp",
+     "yahoo"
+    ],
+    "confirmed": true
+   },
+   {
+    "published_at": "2026-11-04T17:06:25Z",
+    "date_only": false,
+    "firm": "Piper Sandler",
+    "firm_slug": "piper-sandler",
+    "action": "main",
+    "from_label": "Overweight",
+    "to_label": "Overweight",
+    "target_prior": 600.0,
+    "target_current": 650.0,
+    "sources": [
+     "alpaca",
+     "fmp",
+     "yahoo"
+    ],
+    "confirmed": true
+   },
+   {
+    "published_at": "2026-11-04T16:44:49Z",
+    "date_only": false,
+    "firm": "Wells Fargo",
+    "firm_slug": "wells-fargo",
+    "action": "main",
+    "from_label": "Overweight",
+    "to_label": "Overweight",
+    "target_prior": 700.0,
+    "target_current": 650.0,
+    "sources": [
+     "alpaca",
+     "fmp",
+     "yahoo"
+    ],
+    "confirmed": true
+   },
+   {
+    "published_at": "2026-11-04T16:02:01Z",
+    "date_only": false,
+    "firm": "RBC Capital",
+    "firm_slug": "rbc-capital",
+    "action": "reit",
+    "from_label": "Sector Perform",
+    "to_label": "Sector Perform",
+    "target_prior": 540.0,
+    "target_current": 540.0,
+    "sources": [
+     "alpaca",
+     "fmp",
+     "yahoo"
+    ],
+    "confirmed": true
+   },
+   {
+    "published_at": "2026-11-04T15:44:26Z",
+    "date_only": false,
+    "firm": "Truist Securities",
+    "firm_slug": "truist-securities",
+    "action": "main",
+    "from_label": "Buy",
+    "to_label": "Buy",
+    "target_prior": 594.0,
+    "target_current": 605.0,
+    "sources": [
+     "alpaca",
+     "fmp",
+     "yahoo"
+    ],
+    "confirmed": true
+   },
+   {
+    "published_at": "2026-11-04T14:33:59Z",
+    "date_only": false,
+    "firm": "Wedbush",
+    "firm_slug": "wedbush",
+    "action": "reit",
+    "from_label": "Outperform",
+    "to_label": "Outperform",
+    "target_prior": 600.0,
+    "target_current": 600.0,
+    "sources": [
+     "alpaca",
+     "fmp",
+     "yahoo"
+    ],
+    "confirmed": true
+   },
+   {
+    "published_at": "2026-11-04T14:18:38Z",
+    "date_only": false,
+    "firm": "StoneX",
+    "firm_slug": "stonex",
+    "action": "reit",
+    "from_label": "Buy",
+    "to_label": "Buy",
+    "target_prior": 685.0,
+    "target_current": 685.0,
+    "sources": [
+     "alpaca",
+     "fmp",
+     "yahoo"
+    ],
+    "confirmed": true
+   },
+   {
+    "published_at": "2026-11-04T13:28:59Z",
+    "date_only": false,
+    "firm": "DA Davidson",
+    "firm_slug": "da-davidson",
+    "action": "main",
+    "from_label": "Buy",
+    "to_label": "Buy",
+    "target_prior": 550.0,
+    "target_current": 600.0,
+    "sources": [
+     "alpaca",
+     "fmp",
+     "yahoo"
+    ],
+    "confirmed": true
+   },
+   {
+    "published_at": "2026-11-04T13:19:08Z",
+    "date_only": false,
+    "firm": "Keybanc",
+    "firm_slug": "keybanc",
+    "action": "reit",
+    "from_label": "Overweight",
+    "to_label": "Overweight",
+    "target_prior": 725.0,
+    "target_current": 725.0,
+    "sources": [
+     "alpaca",
+     "fmp",
+     "yahoo"
+    ],
+    "confirmed": true
+   },
+   {
+    "published_at": "2026-11-04T12:41:56Z",
+    "date_only": false,
+    "firm": "Rosenblatt",
+    "firm_slug": "rosenblatt",
+    "action": "main",
+    "from_label": "Buy",
+    "to_label": "Buy",
+    "target_prior": 700.0,
+    "target_current": 700.0,
+    "sources": [
+     "fmp",
+     "yahoo"
+    ],
+    "confirmed": true
+   },
+   {
+    "published_at": "2026-11-04T12:26:36Z",
+    "date_only": false,
+    "firm": "Mizuho",
+    "firm_slug": "mizuho",
+    "action": "main",
+    "from_label": "Outperform",
+    "to_label": "Outperform",
+    "target_prior": 705.0,
+    "target_current": 610.0,
+    "sources": [
+     "alpaca",
+     "fmp",
+     "yahoo"
+    ],
+    "confirmed": true
+   },
+   {
+    "published_at": "2026-11-04T11:58:28Z",
+    "date_only": false,
+    "firm": "Cantor Fitzgerald",
+    "firm_slug": "cantor-fitzgerald",
+    "action": "reit",
+    "from_label": "Overweight",
+    "to_label": "Overweight",
+    "target_prior": 700.0,
+    "target_current": 700.0,
+    "sources": [
+     "alpaca",
+     "fmp",
+     "yahoo"
+    ],
+    "confirmed": true
+   },
+   {
+    "published_at": "2026-11-04T11:51:08Z",
+    "date_only": false,
+    "firm": "Stifel",
+    "firm_slug": "stifel",
+    "action": "main",
+    "from_label": "Buy",
+    "to_label": "Buy",
+    "target_prior": 700.0,
+    "target_current": 725.0,
+    "sources": [
+     "alpaca",
+     "fmp",
+     "yahoo"
+    ],
+    "confirmed": true
+   },
+   {
+    "published_at": "2026-11-04T11:28:13Z",
+    "date_only": false,
+    "firm": "B of A Securities",
+    "firm_slug": "b-of-a-securities",
+    "action": "main",
+    "from_label": "Buy",
+    "to_label": "Buy",
+    "target_prior": 720.0,
+    "target_current": 650.0,
+    "sources": [
+     "alpaca",
+     "fmp",
+     "yahoo"
+    ],
+    "confirmed": true
+   },
+   {
+    "published_at": "2026-11-02T17:26:20Z",
+    "date_only": false,
+    "firm": "Morgan Stanley",
+    "firm_slug": "morgan-stanley",
+    "action": "main",
+    "from_label": "Equal-Weight",
+    "to_label": "Equal-Weight",
+    "target_prior": 465.0,
+    "target_current": 510.0,
+    "sources": [
+     "alpaca",
+     "fmp",
+     "yahoo"
+    ],
+    "confirmed": true
+   },
+   {
+    "published_at": "2026-10-28T12:19:01Z",
+    "date_only": false,
+    "firm": "Susquehanna",
+    "firm_slug": "susquehanna",
+    "action": "main",
+    "from_label": "Positive",
+    "to_label": "Positive",
+    "target_prior": 620.0,
+    "target_current": 650.0,
+    "sources": [
+     "alpaca",
+     "fmp",
+     "yahoo"
+    ],
+    "confirmed": true
+   },
+   {
+    "published_at": "2026-10-21T12:41:06Z",
+    "date_only": false,
+    "firm": "Susquehanna",
+    "firm_slug": "susquehanna",
+    "action": "main",
+    "from_label": "Positive",
+    "to_label": "Positive",
+    "target_prior": 550.0,
+    "target_current": 620.0,
+    "sources": [
+     "alpaca",
+     "fmp",
+     "yahoo"
+    ],
+    "confirmed": true
+   },
+   {
+    "published_at": "2026-10-20T12:36:25Z",
+    "date_only": false,
+    "firm": "Wedbush",
+    "firm_slug": "wedbush",
+    "action": "reit",
+    "from_label": "Outperform",
+    "to_label": "Outperform",
+    "target_prior": 600.0,
+    "target_current": 600.0,
+    "sources": [
+     "alpaca",
+     "fmp",
+     "yahoo"
+    ],
+    "confirmed": true
+   }
+  ],
+  "next_cursor": "WyIyMDI2LTEwLTIwVDEyOjM2OjI1WiIsIDEyMTUxXQ"
+ },
+ "asof": "2026-11-06",
+ "generated_at": "2026-11-08T04:28:23Z",
+ "rebuilt": false,
+ "rules": {
+  "version": "consensus-1",
+  "window_days": 365,
+  "label_map_version": 14
+ },
+ "sources": [
+  {
+   "name": "yahoo",
+   "last_success_at": "2026-11-06T23:07:22Z",
+   "stale": false
+  },
+  {
+   "name": "finnhub",
+   "last_success_at": "2026-11-06T23:24:18Z",
+   "stale": false
+  },
+  {
+   "name": "fmp",
+   "last_success_at": "2026-11-06T23:33:07Z",
+   "stale": false
+  },
+  {
+   "name": "alpaca",
+   "last_success_at": "2026-11-06T23:33:43Z",
+   "stale": false
+  },
+  {
+   "name": "massive",
+   "last_success_at": "2026-11-06T23:34:20Z",
+   "stale": false
+  }
+ ]
+}
