@@ -7,7 +7,7 @@ import { useState, type ReactElement } from 'react'
 import type { EconomyItem, Ring, Slice } from '../../shared/protocol'
 import { ViewFrame, type ViewProps } from '../panel/ViewFrame'
 import { viewTitle } from '../panel/titles'
-import { NO_PEER_LIST, ringArcs } from './figures'
+import { NO_PEER_LIST, ringArcs, SLICE_COLOUR } from './figures'
 import { pickKey } from './pick'
 
 import './views.css'
@@ -88,15 +88,6 @@ export function Economy({ chrome, numbers, ticker, item }: ViewProps<null>): Rea
       </div>
     </ViewFrame>
   )
-}
-
-// Each slice's colour is a token, so the ring follows the app's theme.
-const SLICE_COLOUR: Record<Slice['key'], string> = {
-  buy: 'var(--up)',
-  hold: 'var(--hold)',
-  sell: 'var(--down)',
-  kept: 'var(--accent)',
-  removed: 'var(--muted)'
 }
 
 const SIZE = 160

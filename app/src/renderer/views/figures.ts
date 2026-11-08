@@ -6,6 +6,16 @@ import type { Ring, Slice } from '../../shared/protocol'
 // Peer ratings keep only how many peers are Buy, Hold or Sell, so there is nothing to list.
 export const NO_PEER_LIST = 'Which peers are Buy, Hold or Sell isn’t stored for this report.'
 
+// Each slice's colour is a token, so the ring follows the app's theme. The ring and its lists'
+// dots both take it.
+export const SLICE_COLOUR: Record<Slice['key'], string> = {
+  buy: 'var(--up)',
+  hold: 'var(--hold)',
+  sell: 'var(--down)',
+  kept: 'var(--accent)',
+  removed: 'var(--down)'
+}
+
 // A slice never shrinks to nothing, or a small one would vanish from the ring.
 const MIN_ARC = 0.005
 

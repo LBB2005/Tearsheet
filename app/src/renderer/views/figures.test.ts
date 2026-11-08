@@ -1,7 +1,9 @@
+import { readFileSync } from 'node:fs'
+
 import { describe, expect, it } from 'vitest'
 
 import type { Ring, Slice } from '../../shared/protocol'
-import { NO_PEER_LIST, ringArcs } from './figures'
+import { NO_PEER_LIST, ringArcs, SLICE_COLOUR } from './figures'
 
 const slice = (key: Slice['key'], count: number): Slice => ({ key, label: key, count, readout: '', items: null })
 const ring = (counts: [Slice['key'], number][]): Ring => ({
@@ -45,5 +47,22 @@ describe('ringArcs', () => {
 describe('NO_PEER_LIST', () => {
   it('says plainly that the peers are not stored', () => {
     expect(NO_PEER_LIST).toBe('Which peers are Buy, Hold or Sell isn’t stored for this report.')
+  })
+})
+
+// The report draws the same rings small (engine report.html.j2, one .dn-<key> rule per slice), and
+// opening one bigger must not change what colour a slice is.
+describe('SLICE_COLOUR', () => {
+  it('gives each slice the colour the report’s ring gives it', () => {
+    const page = readFileSync(new URL('../../../../engine/src/tearsheet/templates/report.html.j2', import.meta.url), 'utf8')
+    const report: Record<string, string> = {}
+    for (const [, selectors, colour] of page.matchAll(/([^{}]+)\{\s*stroke:\s*(var\(--[\w-]+\))\s*;?\s*\}/g)) {
+      for (const part of selectors.split(',')) {
+        const key = part.trim().match(/^\.dn-([a-z]+)$/)
+        if (key) report[key[1]] = colour
+      }
+    }
+    expect(Object.keys(report).sort()).toEqual(Object.keys(SLICE_COLOUR).sort())
+    expect(SLICE_COLOUR).toEqual(report)
   })
 })
