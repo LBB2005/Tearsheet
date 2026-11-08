@@ -3,12 +3,14 @@
 // on and Node integration off. The window never navigates; clicks inside the report frame go
 // through navigationAction and are always cancelled.
 
+import { existsSync as fileExists } from 'node:fs'
 import { join } from 'node:path'
 
-import { app, BrowserWindow, Menu, powerSaveBlocker, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, Menu, powerSaveBlocker, shell } from 'electron'
 
 import { keepAwakeDuringLine } from './awake'
 import { dockUpdate, NO_RUN } from './dockProgress'
+import { Downloads, printHtmlToPdf, writeNew } from './downloads'
 import { Engine, engineCommand, type Notification } from './engine'
 import { registerIpc } from './ipc'
 import { readWindowLook, registerLookIpc } from './look'
@@ -105,6 +107,24 @@ async function createWindow(): Promise<void> {
   })
   mainWindow = window
   registerIpc(window, engine, fixedPath)
+  // The downloads at the end of a report (downloads.ts): straight to ~/Downloads. A hidden check
+  // run points them at a scratch folder instead.
+  const running = engine
+  const downloads = new Downloads({
+    request: (method, params) => running.request(method, params),
+    dir: process.env.TEARSHEET_DOWNLOADS_DIR || app.getPath('downloads'),
+    exists: fileExists,
+    write: writeNew,
+    printPdf: printHtmlToPdf,
+    notify: (note) => {
+      if (!window.isDestroyed() && !window.webContents.isDestroyed()) window.webContents.send('tearsheet:download', note)
+    }
+  })
+  ipcMain.handle('tearsheet:showDownload', (_event, path: unknown) => {
+    if (!downloads.isSaved(path)) return false
+    shell.showItemInFolder(path)
+    return true
+  })
   registerLookIpc(window, lookFile)
   Menu.setApplicationMenu(Menu.buildFromTemplate(menuTemplate((command) => {
         if (window.isDestroyed() || window.webContents.isDestroyed()) return
@@ -139,6 +159,7 @@ async function createWindow(): Promise<void> {
     const action = navigationAction(event.url)
     if (action.kind === 'flag') window.webContents.send('tearsheet:flag-requested', { claimId: action.claimId })
     else if (action.kind === 'open') window.webContents.send('tearsheet:open-view', { view: action.view, item: action.item })
+    else if (action.kind === 'download') void downloads.start(action.format, action.reportId)
     else if (action.kind === 'reread') {
       engine
         ?.request('reread_filing', { accession: action.accession })

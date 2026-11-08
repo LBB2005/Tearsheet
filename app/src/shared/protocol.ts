@@ -29,6 +29,8 @@ export type ReportId1 = string;
 export type ReportId2 = string;
 export type ReportId3 = string;
 export type ReportId4 = string;
+export type ReportId5 = string;
+export type Kind = "pdf" | "pptx" | "xlsx";
 /**
  * @minItems 1
  * @maxItems 1000
@@ -56,7 +58,7 @@ export type Capped = boolean;
 export type RedFlags = string[];
 export type Percentile = number | null;
 export type Peers = number | null;
-export type ReportId5 = string;
+export type ReportId6 = string;
 export type RunId2 = string;
 export type Ticker2 = string;
 export type Cik2 = number | null;
@@ -68,7 +70,7 @@ export type Html = string;
 export type Cik3 = number;
 export type Ticker3 = string;
 export type Name3 = string;
-export type ReportId6 = string;
+export type ReportId7 = string;
 export type ReportDate = string;
 export type CreatedAt1 = string;
 export type Reports = number;
@@ -84,7 +86,7 @@ export type Ticker4 = string;
 export type Name4 = string;
 export type Sector1 = string | null;
 export type Cik4 = number;
-export type ReportId7 = string | null;
+export type ReportId8 = string | null;
 export type ReportDate1 = string | null;
 export type PeerRule = string | null;
 export type Date = string;
@@ -151,7 +153,7 @@ export type Slices = Slice[];
 export type Key4 = string;
 export type Title = string;
 export type Rows = string[][];
-export type ReportId8 = string;
+export type ReportId9 = string;
 export type Ticker6 = string;
 export type ScoreReadout = string | null;
 export type Factors = FactorItem[] | null;
@@ -211,7 +213,7 @@ export type Supplier = string;
 export type Fetched = string;
 export type FetchedText = string;
 export type Rows1 = AnalystCheckRow[];
-export type ReportId9 = string;
+export type ReportId10 = string;
 export type Ticker7 = string;
 export type State = "ok" | "down" | "missing";
 export type Note1 = string | null;
@@ -227,7 +229,13 @@ export type TracksAsofText = string | null;
 export type Changes = AnalystChange[] | null;
 export type ChangesNote = string | null;
 export type CheckNote = string | null;
-export type ReportId10 = string;
+export type ReportId11 = string;
+export type Kind1 = "pdf" | "pptx" | "xlsx";
+export type FileName = string;
+export type Html1 = string | null;
+export type DataBase64 = string | null;
+export type Footer = string;
+export type ReportId12 = string;
 export type RunId3 = string;
 export type Cik5 = number | null;
 export type Ticker8 = string | null;
@@ -337,7 +345,7 @@ export type ClaimsRemoved = number | null;
 export type Now = string[] | null;
 export type RunId5 = string;
 export type RunId6 = string;
-export type ReportId11 = string;
+export type ReportId13 = string;
 export type RunId7 = string;
 export type Step1 = string | null;
 export type Message = string;
@@ -360,7 +368,7 @@ export type Name11 = string;
 export type Official1 = boolean;
 export type RunId8 = string | null;
 export type Outcome = ("ready" | "stopped" | "failed" | "cancelled") | null;
-export type ReportId12 = string | null;
+export type ReportId14 = string | null;
 export type Code2 = string | null;
 export type Message1 = string | null;
 export type Query2 = string;
@@ -377,7 +385,7 @@ export type Items1 = LineItem[];
 export type Skipped = LineSkip[];
 
 /**
- * App-engine protocol, version 2.
+ * App-engine protocol, version 3.
  */
 export interface TearsheetProtocol {
   [k: string]: unknown;
@@ -507,6 +515,14 @@ export interface AnalystsParams {
 }
 /**
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "ExportParams".
+ */
+export interface ExportParams {
+  report_id: ReportId5;
+  kind: Kind;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
  * via the `definition` "ReportIdsParams".
  */
 export interface ReportIdsParams {
@@ -592,7 +608,7 @@ export interface ReportBar {
  * via the `definition` "ReportResult".
  */
 export interface ReportResult {
-  report_id: ReportId5;
+  report_id: ReportId6;
   run_id: RunId2;
   ticker: Ticker2;
   cik: Cik2;
@@ -611,7 +627,7 @@ export interface CompanyRow {
   cik: Cik3;
   ticker: Ticker3;
   name: Name3;
-  report_id: ReportId6;
+  report_id: ReportId7;
   report_date: ReportDate;
   created_at: CreatedAt1;
   reports: Reports;
@@ -633,7 +649,7 @@ export interface SearchHit {
   name: Name4;
   sector: Sector1;
   cik: Cik4;
-  report_id: ReportId7;
+  report_id: ReportId8;
   report_date: ReportDate1;
   peer_rule?: PeerRule;
 }
@@ -810,7 +826,7 @@ export interface ReportTable {
  * via the `definition` "ReportNumbers".
  */
 export interface ReportNumbers {
-  report_id: ReportId8;
+  report_id: ReportId9;
   ticker: Ticker6;
   score_readout: ScoreReadout;
   factors: Factors;
@@ -922,7 +938,7 @@ export interface AnalystCheck {
  * via the `definition` "ReportAnalysts".
  */
 export interface ReportAnalysts {
-  report_id: ReportId9;
+  report_id: ReportId10;
   ticker: Ticker7;
   state: State;
   note: Note1;
@@ -943,11 +959,26 @@ export interface ReportAnalysts {
   check_note: CheckNote;
 }
 /**
+ * export_report's answer: the file's name, and either the print page (pdf: the app prints
+ * it to PDF, with `footer` on every page) or the finished file in base64 (pptx, xlsx).
+ *
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "ExportResult".
+ */
+export interface ExportResult {
+  report_id: ReportId11;
+  kind: Kind1;
+  file_name: FileName;
+  html: Html1;
+  data_base64: DataBase64;
+  footer: Footer;
+}
+/**
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
  * via the `definition` "ReportSummary".
  */
 export interface ReportSummary {
-  report_id: ReportId10;
+  report_id: ReportId12;
   run_id: RunId3;
   cik: Cik5;
   ticker: Ticker8;
@@ -1211,7 +1242,7 @@ export interface RunTally {
  */
 export interface ReportReady {
   run_id: RunId6;
-  report_id: ReportId11;
+  report_id: ReportId13;
 }
 /**
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
@@ -1237,7 +1268,7 @@ export interface LineItem {
   official: Official1;
   run_id?: RunId8;
   outcome?: Outcome;
-  report_id?: ReportId12;
+  report_id?: ReportId14;
   code?: Code2;
   message?: Message1;
 }
@@ -1290,4 +1321,4 @@ export interface LinePlan {
   line: LineState;
 }
 
-export const PROTOCOL_VERSION = 2
+export const PROTOCOL_VERSION = 3

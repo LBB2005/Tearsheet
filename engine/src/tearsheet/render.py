@@ -125,6 +125,8 @@ OPEN_VIEWS = (
     "analysts",
 )
 _TABLE_VIEW = re.compile(r"table-[a-z_]{1,32}")
+# A saved report's id, as the download links carry it (app main/navigation.ts checks the same).
+_REPORT_ID = re.compile(r"[A-Za-z0-9._-]{1,80}")
 _OPEN_ITEM = re.compile(r"[A-Za-z0-9_.\-]{1,64}")
 
 
@@ -203,6 +205,7 @@ def render_html(
     motion: bool = True,
     numbers: dict[str, Any] | None = None,
     analysts: dict[str, Any] | None = None,
+    report_id: str | None = None,
 ) -> str:
     """`mode` is "app" (with flag and re-read links) or "file" (terminal mode: claim IDs shown,
     no tearsheet: links). `view` is the text view shown first ("summary" or "full"); `column` is
@@ -262,4 +265,5 @@ def render_html(
         ro=readouts,
         open_link=open_link,
         arc=_ring_arc,
+        report_id=report_id if mode == "app" and _REPORT_ID.fullmatch(report_id or "") else None,
     )

@@ -57,5 +57,8 @@ contextBridge.exposeInMainWorld('tearsheet', {
   onNotification: listen('tearsheet:notification'),
   onFlagRequested: listen('tearsheet:flag-requested'),
   onOpenView: listen('tearsheet:open-view'),
+  // How a download from the end of the report went (main/downloads.ts), and Show in Finder.
+  onDownload: listen('tearsheet:download'),
+  showDownload: (path: string) => ipcRenderer.invoke('tearsheet:showDownload', path),
   onMenu: listen('tearsheet:menu')
 })

@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="{{ csp | safe }}">
+<title>{{ d.name }} ({{ d.ticker }}): Tearsheet report</title>
+{#- The PDF download (export/pdf.py): Look 2, "Modern research". Charter body, Avenir Next labels,
+    navy rules, the Tearsheet signature (logo, spaced capitals, the cyan price line). US Letter;
+    the app's printToPDF adds the footer and page numbers in the bottom margin. All report text is
+    escaped; the SVG charts are built from numbers in export/pdf.py. #}
+<style>
+@page { size: 8.5in 11in; margin: 0.5in 0.6in 0.72in 0.6in; }
+* { box-sizing: border-box; }
+html, body { margin: 0; background: #fff; }
+body { color: var(--ink); font: 9.5pt/1.38 Charter, "Iowan Old Style", Georgia, serif; font-variant-numeric: tabular-nums; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+:root { --navy: #0B2D5B; --ink: #1A1A1A; --grey: #595959; --rule: #BFBFBF; --grid: #D9D9D9; --tint: #DCE6F2; --fill: #F2F2F2; --bear: #D55E00; --bull: #0072B2; --ui: "Avenir Next", "Helvetica Neue", Arial, sans-serif; }
+a { color: var(--bull); text-decoration: none; }
+.top { display: flex; justify-content: space-between; align-items: center; font: 7.5pt/1 var(--ui); color: var(--grey); border-bottom: 1pt solid var(--navy); padding-bottom: 6pt; margin-bottom: 11pt; }
+.brandline { display: flex; align-items: center; gap: 6pt; }
+.brandline img { width: 18pt; height: 18pt; }
+.wordmark { font: 600 7.5pt/1 var(--ui); color: var(--navy); letter-spacing: .14em; }
+.kicker { font: 600 7.5pt/1 var(--ui); text-transform: uppercase; letter-spacing: .08em; color: var(--grey); margin-bottom: 5pt; }
+h1 { font: 700 20pt/1.1 var(--ui); color: var(--navy); margin: 0 0 5pt; }
+h1 .tk { font-weight: 400; color: var(--grey); }
+.headline { font: 500 12.5pt/1.25 var(--ui); margin: 0 0 7pt; }
+.pl { height: 3pt; width: 1.6in; background: linear-gradient(90deg, #0E7490, #7FE3F7); border-radius: 2pt; margin: 2pt 0 8pt; }
+.sum { font-weight: 700; margin: 0 0 4pt; }
+h3, .h { font: 700 8.5pt/1.2 var(--ui); color: var(--navy); text-transform: uppercase; letter-spacing: .05em; margin: 10pt 0 4pt; }
+.kp { margin: 0; padding-left: 1.1em; }
+.kp li { margin: 0 0 4pt; }
+sup { font: 6pt/0 var(--ui); color: var(--navy); }
+.ex { margin-top: 10pt; break-inside: avoid; }
+.ext { font: 700 8pt/1.2 var(--ui); }
+.exu { font: 7pt/1.3 var(--ui); color: var(--grey); margin-bottom: 2pt; }
+.src { font: italic 6.5pt/1.3 var(--ui); color: var(--grey); margin-top: 3pt; }
+.twin { display: grid; grid-template-columns: 1fr 1fr; gap: 0.18in; }
+.t { width: 100%; border-collapse: collapse; font: 7.5pt/1.35 var(--ui); border-top: 1pt solid var(--navy); border-bottom: 1pt solid var(--navy); margin-top: 3pt; }
+.t th { text-align: left; font-weight: 700; background: var(--tint); padding: 2pt 4pt; border-bottom: 1pt solid var(--navy); }
+.t td { padding: 2pt 4pt; border-bottom: .5pt solid var(--rule); vertical-align: top; }
+.t tr:last-child td { border-bottom: 0; }
+.t .n { text-align: right; white-space: nowrap; }
+.t .tot td { font-weight: 700; border-top: 1pt solid var(--ink); }
+.t tr { break-inside: avoid; }
+svg text { font-family: var(--ui); }
+.grid { stroke: var(--grid); stroke-width: .6; }
+.line { fill: none; stroke: var(--navy); stroke-width: 1.4; stroke-linejoin: round; }
+.ax { fill: var(--grey); font-size: 7px; }
+.band { fill: var(--tint); }
+.bear { fill: var(--bear); } .base { fill: var(--navy); } .bull { fill: var(--bull); }
+.rl { font-size: 7px; font-weight: 700; fill: var(--ink); }
+.px { stroke: var(--ink); stroke-width: 1.2; }
+/* Page 1 */
+.front { display: grid; grid-template-columns: 1fr 2.2in; gap: 0.22in; break-after: page; }
+.side { background: var(--fill); padding: 9pt 10pt; font: 8pt/1.35 var(--ui); align-self: start; }
+.rbox { border: 1pt solid var(--navy); padding: 6pt 8pt; display: grid; grid-template-columns: 1fr auto; align-items: baseline; background: #fff; }
+.rl0 { font: 600 7pt/1 var(--ui); text-transform: uppercase; letter-spacing: .08em; color: var(--grey); }
+.rv { font: 700 15pt/1 var(--ui); color: var(--navy); letter-spacing: .04em; grid-row: span 2; }
+.rn { font: 7pt/1.2 var(--ui); color: var(--grey); }
+.kv { display: grid; grid-template-columns: 1fr auto; gap: 2pt 6pt; margin: 8pt 0 0; }
+.kv dt { color: var(--grey); }
+.kv dd { margin: 0; text-align: right; font-weight: 600; }
+.asof { font-size: 7pt; color: var(--grey); margin: 0; }
+.capnote { font: 7pt/1.3 var(--ui); color: var(--bear); margin-top: 6pt; }
+/* The pages after */
+.part { break-before: page; }
+.part > h2 { font: 700 13pt/1.2 var(--ui); color: var(--navy); margin: 0 0 3pt; }
+.part > .lede { font: 8pt/1.3 var(--ui); color: var(--grey); margin: 0 0 8pt; }
+.rsec { margin: 12pt 0 0; }
+.rsec h3 { border-bottom: .5pt solid var(--rule); padding-bottom: 2pt; text-transform: none; letter-spacing: 0; font-size: 10.5pt; }
+.code { margin: 0 0 4pt; color: var(--ink); }
+.rf { margin: 4pt 0; padding: 4pt 7pt; background: #FBE9E1; font: 8.5pt/1.35 var(--ui); }
+.rf b { color: var(--bear); }
+.cl { margin: 0 0 5pt; }
+.cnote { font: italic 7.5pt/1.3 var(--ui); color: var(--grey); margin: -2pt 0 5pt 0; }
+.cols2 { columns: 2; column-gap: 0.25in; }
+.notes { font: 7.5pt/1.35 var(--ui); }
+.notes li { margin: 0 0 5pt; break-inside: avoid; }
+.notes .q { color: var(--ink); font-family: Charter, Georgia, serif; font-size: 8pt; }
+.notes .lab { font-weight: 700; color: var(--navy); }
+.imp p { font: 8pt/1.4 var(--ui); margin: 0 0 6pt; }
+.analyst .quiet { font: 8pt/1.3 var(--ui); color: var(--grey); }
+</style>
+</head>
+<body>
+{#- ===== Page 1: the summary ===== #}
+<header class="top"><div class="brandline"><img src="{{ mark }}" alt=""><span class="wordmark">{{ brand }}</span></div><span>{{ d.ticker }} · {{ day_text(d.made_on) }}</span></header>
+<div class="front">
+<section class="main">
+<div class="kicker">Company note · {{ day_text(d.made_on) }}</div>
+<h1>{{ d.name }} <span class="tk">({{ d.ticker }})</span></h1>
+<p class="headline">{{ headline }}</p>
+<div class="pl"></div>
+{%- if call_line %}
+<p class="sum">{{ call_line }}</p>
+{%- endif %}
+<h3>Key points</h3>
+<ol class="kp">
+{%- for s in d.sections if s.claims %}
+{%- set c = s.claims[0] %}
+<li><b>{{ s.title }}.</b> {{ c.text }}{% if c.notes %}<sup>{{ c.notes|join(",") }}</sup>{% endif %}</li>
+{%- else %}
+<li>No claim passed the checks in this report.</li>
+{%- endfor %}
+</ol>
+{%- if price_svg %}
+<div class="ex">
+<div class="ext">Exhibit 1: {{ d.ticker }} share price, past 12 months</div>
+<div class="exu">US$ per share, weekly closes</div>
+{{ price_svg | safe }}
+<div class="src">Source: Tearsheet price store (Massive), prices to {{ n.price.date if n.price else "the report date" }}.</div>
+</div>
+{%- endif %}
+<div class="twin">
+<div class="ex">
+<div class="ext">Exhibit 2: Value per share by method</div>
+<table class="t"><tr><th>Method</th><th class="n">US$</th></tr>
+{%- for m in d.methods %}<tr><td>{{ m.label.split(" (")[0] }}</td><td class="n">{% if m.value is not none %}{{ money(m.value) }}{% else %}not used{% endif %}</td></tr>{% endfor %}
+<tr class="tot"><td>Estimated value (median)</td><td class="n">{{ money(n.estimate.value) if n.estimate else "n/a" }}</td></tr></table>
+<div class="src">Source: SEC filings, Tearsheet calculations.</div>
+</div>
+<div class="ex">
+<div class="ext">Exhibit 3: Score factors vs peers</div>
+<table class="t"><tr><th>Factor</th><th class="n">Percentile</th><th class="n">Weight</th></tr>
+{%- for f in n.factors or [] %}<tr><td>{{ f.name|capitalize }}</td><td class="n">{{ f.percentile }}</td><td class="n">{{ "%.1f%%"|format(f.weight * 100) }}</td></tr>{% else %}<tr><td colspan="3">No score is stored for this report.</td></tr>{% endfor %}
+</table>
+<div class="src">Source: Tearsheet calculations{% if d.peer_count %}, {{ d.peer_count }}-company peer group{% endif %}.</div>
+</div>
+</div>
+</section>
+<aside class="side">
+<div class="rbox"><span class="rl0">Rating</span><span class="rv">{{ (n.rating.call if n.rating else "n/a")|upper }}</span><span class="rn">vs peers, 12 months</span></div>
+<dl class="kv">
+<dt>Base case{% if horizon %}, {{ horizon }}{% endif %}</dt><dd>{{ money(n.range.base) if n.range else "n/a" }}</dd>
+<dt>Price{% if n.price %} ({{ n.price.date }}){% endif %}</dt><dd>{{ money(n.price.value) if n.price else "n/a" }}</dd>
+<dt>Upside to base case</dt><dd>{% if upside is not none %}{{ "%+.1f%%"|format(upside * 100) }}{% else %}n/a{% endif %}</dd>
+<dt>Estimated value</dt><dd>{{ money(n.estimate.value) if n.estimate else "n/a" }}</dd>
+<dt>Uncertainty</dt><dd>{{ (n.rating.uncertainty if n.rating else "n/a")|capitalize }}</dd>
+</dl>
+{%- if range_svg %}
+<div class="h">12-month range</div>
+{{ range_svg | safe }}
+{%- endif %}
+{%- if n.rating and n.rating.capped %}<div class="capnote">Capped at Hold by a red flag.</div>{% endif %}
+<dl class="kv">
+<dt>Ticker</dt><dd>{{ d.ticker }}</dd>
+<dt>Sector</dt><dd>{{ sector }}</dd>
+<dt>Score</dt><dd>{% if n.score %}{{ ordinal(n.score.percentile) }} percentile{% else %}n/a{% endif %}</dd>
+{%- set pr = v.peer_ratings %}
+{%- if pr and pr.slices %}<dt>Peer ratings</dt><dd>{% for s in pr.slices %}{{ s.count }} {{ s.label }}{% if not loop.last %} · {% endif %}{% endfor %}</dd>{% endif %}
+{%- if low52 is not none %}<dt>12-month low–high</dt><dd>{{ money(low52) }}–{{ money(high52) }}</dd>{% endif %}
+</dl>
+{%- if one_year %}
+<div class="h">Total return, past 12 months</div>
+<table class="t">
+{%- for key in ("company", "peers", "spy") %}{% set cell = one_year[key] %}{% if cell %}<tr><td>{{ cell.name }}</td><td class="n">{% if cell.value is number %}{{ "%.1f%%"|format(cell.value) }}{% else %}n/a{% endif %}</td></tr>{% endif %}{% endfor %}
+</table>
+{%- endif %}
+<div class="h">As of</div>
+<p class="asof">Report made {{ day_text(d.made_on) }}.{% if d.price_day %} Prices as of {{ day_text(d.price_day) }}, in that day's shares.{% endif %}{% if d.split_factor != 1 %} The stock has split {{ "%g"|format(d.split_factor) }}-for-1 since.{% endif %}{% if d.prediction %} Official prediction {{ d.prediction.prediction_id }}.{% else %} Not an official prediction.{% endif %}</p>
+</aside>
+</div>
+
+{#- ===== The full report ===== #}
+<section class="part">
+<h2>The full report</h2>
+<p class="lede">Every section as the app shows it. Lines without note numbers are written by code from the numbers; claims carry note numbers for their sources (see Sources). Every claim here passed the {{ d.checks|join(", ") if d.checks else "checks" }}.</p>
+{%- for s in sections %}
+<div class="rsec">
+<h3>{{ s.title }}</h3>
+{%- for p in s.lines %}
+{%- if p.startswith("Red flag:") %}<div class="rf"><b>Red flag:</b>{{ p[9:] }}</div>{% else %}<p class="code">{{ p }}</p>{% endif %}
+{%- endfor %}
+{%- if s.table %}
+<div class="ex">
+<div class="ext">Exhibit {{ s.table.n }}: {{ s.title.split(". ", 1)[-1] }}</div>
+<table class="t">
+<tr>{% for cell in s.table.rows[0] %}<th{% if s.table.right[loop.index0] %} class="n"{% endif %}>{{ cell }}</th>{% endfor %}</tr>
+{%- for row in s.table.rows[1:] %}<tr>{% for cell in row %}<td{% if s.table.right[loop.index0] %} class="n"{% endif %}>{{ cell }}</td>{% endfor %}</tr>{% endfor %}
+</table>
+<div class="src">Source: SEC filings and prices, Tearsheet calculations.</div>
+</div>
+{%- endif %}
+{%- for c in s.claims %}
+<p class="cl">{{ c.text }}{% if c.notes %}<sup>{{ c.notes|join(",") }}</sup>{% endif %}</p>
+{%- if c.checker_note %}<p class="cnote">Checker's note: {{ c.checker_note }}</p>{% endif %}
+{%- endfor %}
+</div>
+{%- endfor %}
+</section>
+
+{#- ===== The numbers ===== #}
+<section class="part">
+<h2>The numbers</h2>
+<p class="lede">Key figures behind the rating, as the report saved them.</p>
+{%- if metrics %}
+<div class="ex">
+<div class="ext">Key metrics against the peer median</div>
+<table class="t"><tr><th>Metric</th><th class="n">{{ d.ticker }}</th><th class="n">Peer median</th><th class="n">Percentile</th></tr>
+{%- for label, val, med, pct in metrics %}<tr><td>{{ label }}</td><td class="n">{{ val }}</td><td class="n">{{ med }}</td><td class="n">{{ pct }}</td></tr>{% endfor %}
+</table>
+<div class="src">Source: SEC filings, Tearsheet calculations. Percentile: the share of peers below {{ d.ticker }}.</div>
+</div>
+{%- endif %}
+<div class="twin">
+{%- if v.returns %}
+<div class="ex">
+<div class="ext">Total return, with dividends</div>
+<table class="t"><tr><th>Period</th><th class="n">{{ d.ticker }}</th><th class="n">Peers</th><th class="n">S&amp;P 500</th></tr>
+{%- for r in v.returns %}<tr><td>Past {{ r.years }} year{% if r.years != 1 %}s{% endif %}</td>{% for key in ("company", "peers", "spy") %}<td class="n">{% if r[key] and r[key].value is number %}{{ "%.1f%%"|format(r[key].value) }}{% else %}n/a{% endif %}</td>{% endfor %}</tr>{% endfor %}
+</table>
+<div class="src">Source: Tearsheet price store. Peers weighted equally.</div>
+</div>
+{%- endif %}
+{%- if v.red_flags %}
+<div class="ex">
+<div class="ext">Red-flag checks</div>
+<table class="t"><tr><th>Check</th><th class="n">Result</th></tr>
+{%- for f in v.red_flags %}<tr><td>{{ f.label }}</td><td class="n">{{ "Found" if f.found else "Clear" }}</td></tr>{% endfor %}
+</table>
+<div class="src">Source: SEC filings, Tearsheet checks. Any red flag caps the rating at Hold.</div>
+</div>
+{%- endif %}
+</div>
+<div class="twin">
+{%- if v.economy %}
+<div class="ex">
+<div class="ext">The economy when the report was made</div>
+<table class="t"><tr><th>Series</th><th class="n">Value</th><th class="n">As of</th></tr>
+{%- for e in v.economy %}<tr><td>{{ e.label }}</td><td class="n">{{ e.value }}</td><td class="n">{{ e.date }}</td></tr>{% endfor %}
+</table>
+<div class="src">Source: FRED, Federal Reserve Bank of St. Louis.</div>
+</div>
+{%- endif %}
+{%- if analysts %}
+<div class="ex analyst">
+<div class="ext">The street's view</div>
+{%- if analysts.state == "ok" %}
+<table class="t"><tr><th>Analyst ratings</th><th class="n">Firms</th></tr>
+{%- for label, count in analysts.sides %}<tr><td>{{ label }}</td><td class="n">{{ count }}</td></tr>{% endfor %}
+{%- for label, val in analysts.targets %}<tr><td>{{ label }}</td><td class="n">{{ val }}</td></tr>{% endfor %}
+</table>
+<div class="src">Source: analystdb, {{ analysts.firms }} firms, as of {{ analysts.asof }}. Never part of Tearsheet's rating, score or range.</div>
+{%- else %}
+<p class="quiet">{{ analysts.note }}</p>
+{%- endif %}
+</div>
+{%- endif %}
+</div>
+</section>
+
+{#- ===== How it was checked, and the method ===== #}
+<section class="part">
+<h2>How the report was checked, and the method</h2>
+{%- set cl = v.claims %}
+{%- if cl and cl.slices %}
+<p class="lede">{% for s in cl.slices %}{{ s.readout }}{% if not loop.last %} {% endif %}{% endfor %}{% if d.skeptic %} The skeptic step was {{ d.skeptic }}.{% endif %}</p>
+{%- endif %}
+<ul class="kp">
+{%- for line in d.methodology %}<li>{{ line }}</li>{% endfor %}
+</ul>
+</section>
+
+{#- ===== Sources ===== #}
+<section class="part">
+<h2>Sources</h2>
+<p class="lede">Each note is one citation: the source, the passage it quotes, and a link. Note numbers are the same in the slide deck and the Excel workbook.</p>
+<ol class="notes cols2">
+{%- for note in notes %}
+<li value="{{ note.number }}"><span class="lab">{{ note.label }}</span> · {{ note.section }}{% if note.url %} · <a href="{{ note.url }}">{{ "sec.gov" if "sec.gov" in note.url else "article" }}</a>{% endif %}<br><span class="q">{% if note.quote %}“{{ note.quote }}”{% else %}The quoted passage is not stored for this report.{% endif %}</span></li>
+{%- endfor %}
+</ol>
+</section>
+
+{#- ===== Important information ===== #}
+<section class="part imp">
+<h2>Important information</h2>
+<p><b>{{ label }}</b> {{ disclaimer[label|length:] }}</p>
+<p>Tearsheet is not a broker, an investment adviser or a bank. This report was made by software on the reader's own computer from public SEC filings, market prices, economic data and news, with an AI tool writing the claims and separate checks removing any claim its sources don't support.</p>
+<p>{% if d.prediction %}This report is logged as an official prediction ({{ d.prediction.prediction_id }}), graded at 3, 6 and 12 months against its peer group; it can't be changed.{% else %}This report is not logged as an official prediction: only a company's first rated report in 30 days is.{% endif %}</p>
+{%- if d.price_day %}<p>Prices are as of {{ day_text(d.price_day) }}, in that day's shares.{% if d.split_factor != 1 %} The stock has split {{ "%g"|format(d.split_factor) }}-for-1 since; divide these prices by {{ "%g"|format(d.split_factor) }} to compare with today's.{% endif %}</p>{% endif %}
+<p>{{ d.mode_note }} Report {{ d.report_id }}, run {{ d.run_id }}, engine {{ d.engine_version }}, method code version {{ d.method_code_version }}.</p>
+</section>
+</body>
+</html>
