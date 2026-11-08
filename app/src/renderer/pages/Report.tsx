@@ -256,9 +256,17 @@ export function Report({ page, wide }: { page: ReportPage; wide: boolean }) {
   )
 }
 
+const REFRESH_ICON = (
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M20 12a8 8 0 1 1-2.34-5.66" />
+    <path d="M20 4v5h-5" />
+  </svg>
+)
+
 // The toolbar's right side on the report page: the Numbers / Text switch while the chart is open
-// beside the report, and the Chart button.
-export function ReportTools({ page, wide }: { page: ReportPage; wide: boolean }) {
+// beside the report, Refresh (a new report on this company, after a confirm: shell/refresh.ts)
+// and the Chart button.
+export function ReportTools({ page, wide, onRefresh }: { page: ReportPage; wide: boolean; onRefresh?: () => void }) {
   const pick = (side: 'numbers' | 'text') => () => page.setSide(side)
   return (
     <>
@@ -274,6 +282,12 @@ export function ReportTools({ page, wide }: { page: ReportPage; wide: boolean })
             </button>
           </span>
         </span>
+      )}
+      {onRefresh && (
+        <button className="cbtn" aria-label="Refresh" title="Write a new report on this company. You’re asked first." onClick={onRefresh}>
+          {REFRESH_ICON}
+          {wide && 'Refresh'}
+        </button>
       )}
       <button className={page.chartOpen ? 'cbtn on' : 'cbtn'} aria-pressed={page.chartOpen} title="Open or close the chart (⌘3)" onClick={page.toggleChart}>
         {CHART_ICON}Chart{wide && <kbd>⌘3</kbd>}

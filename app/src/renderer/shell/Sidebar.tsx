@@ -6,9 +6,10 @@
 // A row is its ticker, a tick for an official prediction, the last close and a rating tag (look 3
 // of the sidebar mockups, 2026-11-07). Pinned companies come first, then the date groups
 // (reportList.ts). Each row has a "…" menu, also on right-click: Pin, Show in Prediction log,
-// Select and Delete. ⌘-click or ⇧-click selects several. In the list, ↑ ↓ Home End move,
-// Return opens, ⌘⌫ deletes and Esc ends a selection or the search. Deleting is App's
-// (useMarks.ts): it hides at once and offers Undo.
+// Refresh, Select and Delete. ⌘-click or ⇧-click selects several, and the menu then refreshes or
+// deletes them all. In the list, ↑ ↓ Home End move, Return opens, ⌘⌫ deletes and Esc ends a
+// selection or the search. Deleting is App's (useMarks.ts): it hides at once and offers Undo.
+// Refresh is App's too: a confirm (overlays/RefreshSheet.tsx), then the line.
 
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactElement } from 'react'
 
@@ -104,6 +105,8 @@ export interface SidebarProps {
   onCompany: (row: CompanyRow) => void
   onPage: (page: 'log' | 'settings') => void
   onDelete: (rows: CompanyRow[]) => void
+  // Refresh: write these companies' reports again, after a confirm (refresh.ts).
+  onRefresh: (rows: CompanyRow[]) => void
   onPin: (row: CompanyRow, pinned: boolean) => void
   onShowHidden: (on: boolean) => void
   onOpenHidden: (report: ReportSummary) => void
@@ -119,7 +122,7 @@ const cikKey = (cik: number) => `c:${cik}`
 const hiddenKey = (id: string) => `h:${id}`
 
 export function Sidebar(props: SidebarProps) {
-  const { page, companies, openReport, writing, status, hidden, onNew, onWriting, onLookUp, onCompany, onPage, onDelete, onPin, onOpenHidden, onBringBack, onDeleteHidden } = props
+  const { page, companies, openReport, writing, status, hidden, onNew, onWriting, onLookUp, onCompany, onPage, onDelete, onRefresh, onPin, onOpenHidden, onBringBack, onDeleteHidden } = props
   const row = (on: boolean) => (on ? 'row4 on' : 'row4')
   const newOn = page === 'home' && !writing?.on
 
@@ -243,6 +246,15 @@ export function Sidebar(props: SidebarProps) {
   const companyEntries = (c: CompanyRow): MenuEntry[] => {
     if (selectedRows.length > 1 && selected.includes(c.cik)) {
       return [
+        {
+          kind: 'item',
+          label: `Refresh ${selectedRows.length} selected…`,
+          onSelect: () => {
+            onRefresh(selectedRows)
+            clearSelection()
+          }
+        },
+        { kind: 'separator' },
         { kind: 'item', label: `Delete ${selectedRows.length} selected`, shortcut: '⌘⌫', danger: true, onSelect: () => remove(selectedRows) },
         { kind: 'item', label: 'Cancel selection', onSelect: clearSelection }
       ]
@@ -250,6 +262,7 @@ export function Sidebar(props: SidebarProps) {
     return [
       { kind: 'item', label: c.pinned ? 'Unpin' : 'Pin to top', onSelect: () => onPin(c, !c.pinned) },
       ...(c.official ? [{ kind: 'item', label: 'Show in Prediction log', onSelect: () => onPage('log') } as MenuEntry] : []),
+      { kind: 'item', label: 'Refresh report…', onSelect: () => onRefresh([c]) },
       {
         kind: 'item',
         label: 'Select',
