@@ -122,6 +122,16 @@ class SafetyParams(Strict):
     tool: Literal["claude", "codex"]
 
 
+class QueriesParams(Strict):
+    # Tickers or names, one company each (the line: batch.py).
+    queries: list[str]
+
+
+class TickerParams(Strict):
+    # Its own title, so the generated TypeScript names of the other `ticker` fields stay put.
+    ticker: str = Field(title="LineTicker")
+
+
 METHODS: dict[str, type[Strict]] = {
     "run_report": RunReportParams,
     "cancel": RunIdParams,
@@ -142,6 +152,13 @@ METHODS: dict[str, type[Strict]] = {
     "get_chart": ChartParams,
     "fetch_history": HistoryParams,
     "get_report_numbers": NumbersParams,
+    # The line: several reports, one after another (batch.py).
+    "plan_line": QueriesParams,
+    "add_to_line": QueriesParams,
+    "get_line": NoParams,
+    "remove_from_line": TickerParams,
+    "clear_line": NoParams,
+    "carry_on_line": NoParams,
 }
 
 
@@ -617,6 +634,60 @@ class RunFailedNote(Strict):
     fix_command: str | None = None
 
 
+class LineItem(Strict):
+    """One company in the line."""
+
+    ticker: str
+    name: str
+    # Whether a rated report would be its official prediction (none in the last 30 days).
+    official: bool
+    run_id: str | None = None
+    # Once finished: ready, stopped (the report so far was saved), failed or cancelled.
+    outcome: Literal["ready", "stopped", "failed", "cancelled"] | None = None
+    report_id: str | None = None
+    code: str | None = None
+    message: str | None = None
+
+
+class LineSkip(Strict):
+    """A company left out of the line, and why."""
+
+    query: str
+    reason: str
+
+
+class LinePause(Strict):
+    """Why the line waits: a problem that would stop every report after it, or REOPENED when
+    Tearsheet opened again with reports waiting."""
+
+    code: str
+    message: str
+    reset_at: str | None = None
+    fix_command: str | None = None
+    # The stopped report that Resume carries on with, if there is one.
+    run_id: str | None = None
+
+
+class LineState(Strict):
+    """The line now; also the `line_changed` notification."""
+
+    waiting: list[LineItem]
+    writing: LineItem | None
+    # What this line has finished so far, in order, for its Done list.
+    finished: list[LineItem]
+    paused: LinePause | None
+    # The most companies waiting at a time.
+    limit: int
+
+
+class LinePlan(Strict):
+    """plan_line's and add_to_line's answer: the companies found, those left out, and the line."""
+
+    items: list[LineItem]
+    skipped: list[LineSkip]
+    line: LineState
+
+
 ALL_MODELS: tuple[type[BaseModel], ...] = (
     *METHODS.values(),
     Candidate,
@@ -664,6 +735,11 @@ ALL_MODELS: tuple[type[BaseModel], ...] = (
     RunTally,
     ReportReady,
     RunFailedNote,
+    LineItem,
+    LineSkip,
+    LinePause,
+    LineState,
+    LinePlan,
 )
 
 
