@@ -29,7 +29,7 @@ describe('the look’s block', () => {
   test('only the report’s names, each with a safe value', () => {
     const css = reportCss(resolve({ ...DEFAULT_APPEARANCE, colours: { 'chart-company': '#FFFFFF' } }))
     for (const [, name, value] of css.slice(6, -1).matchAll(/(--[\w-]+):([^;]+)/g)) {
-      expect(name).toMatch(/^--(base|ink|shade|shade-k|panel-a|line-a|panel|text|muted|accent|accent2|accent-lo|hold|up|down|readout|g1|g2|g3|glow|wt|round|frost|ui|num)$/)
+      expect(name).toMatch(/^--(base|ink|shade|shade-k|panel-a|line-a|panel|text|muted|accent|accent2|accent-lo|hold|up|down|readout|g1|g2|g3|glow|wt|round|frost|ui|num|(base|text|accent|accent2|up|hold|down)-rgb)$/)
       expect(value).not.toMatch(/[<>{}]|url\(|;/)
     }
   })

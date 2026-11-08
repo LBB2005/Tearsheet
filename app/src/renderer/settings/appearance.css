@@ -35,7 +35,7 @@
 .setv .thumb.add { align-items: center; justify-content: center; box-shadow: none; border: 1.5px dashed rgb(var(--ink) / .25); color: var(--muted); font-size: 22px; }
 .setv .lcard:hover .thumb.add { border-color: rgb(var(--ink) / .45); box-shadow: none; }
 .setv .lookline { margin-top: 12px; min-height: 28px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 12.5px; color: var(--muted); }
-.setv .lookline input.sin { width: 240px; padding: 5px 10px; border-radius: calc(8px * var(--round)); border: 1px solid var(--chipline); background: rgb(var(--shade) / calc(.25 * var(--shade-k))); color: var(--text); font: 13px var(--ui); font-weight: calc(400 + var(--wt)); outline: none; box-shadow: 0 0 0 3px rgb(from var(--accent) r g b / .12); }
+.setv .lookline input.sin { width: 240px; padding: 5px 10px; border-radius: calc(8px * var(--round)); border: 1px solid var(--chipline); background: rgb(var(--shade) / calc(.25 * var(--shade-k))); color: var(--text); font: 13px var(--ui); font-weight: calc(400 + var(--wt)); outline: none; box-shadow: 0 0 0 3px rgb(var(--accent-rgb) / .12); }
 .setv .lookline + .fine { margin-top: 6px; }
 
 /* ---------- rows ---------- */
@@ -55,7 +55,7 @@
 .setv .sline > .lk { flex: none; }
 
 /* Hard to read: amber, like the other notes that need you. */
-.setv .apwarn { margin-top: 14px; padding: 10px 14px; border-radius: var(--r); background: rgb(from var(--hold) r g b / .07); border: 1px solid rgb(from var(--hold) r g b / .3); font-size: 12.5px; color: var(--text2); }
+.setv .apwarn { margin-top: 14px; padding: 10px 14px; border-radius: var(--r); background: rgb(var(--hold-rgb) / .07); border: 1px solid rgb(var(--hold-rgb) / .3); font-size: 12.5px; color: var(--text2); }
 .setv .apwarn b { color: var(--hold); font-weight: calc(600 + var(--wt)); }
 
 /* ---------- the sample ---------- */

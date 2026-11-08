@@ -58,7 +58,7 @@ export function AppearancePage({ onNotify }: { onNotify?: Notify }) {
       <div className="aphead">
         <div>
           <h2 className="sh2">Appearance</h2>
-          <p className="slead">Pick a look, then make it yours. Changes show at once.</p>
+          <p className="slead">Pick a look, then make it yours.</p>
         </div>
         <Segmented label="Light or dark" value={now.look.mode} options={[['dark', 'Dark'], ['light', 'Light'], ['auto', 'Match the Mac']]} onChange={(mode: Mode) => change({ mode })} />
       </div>
@@ -178,7 +178,7 @@ function LookLine({ now, notify }: { now: AppearanceNow; notify: Notify }) {
       <div className="lookline">
         {naming === null ? (
           <>
-            <span aria-live="polite">{lookName(now)}</span>
+            {(saved || canSave(now)) && <span aria-live="polite">{lookName(now)}</span>}
             {canSave(now) && (
               <button className="pb" onClick={() => setNaming(saved ? saved.name : 'My look')}>
                 Save as a look…
@@ -253,7 +253,7 @@ function Swatches({ now, change }: { now: AppearanceNow; change: (part: Partial<
   }
   return (
     <span className="apsw" role="group" aria-labelledby="ap-accent">
-      {ACCENTS.map((a) => {
+      {ACCENTS.filter((a) => a.id === 'look' || (shade === 'dark' ? a.dark : a.light) !== own).map((a) => {
         const on = !custom && now.look.accent === a.id
         return <button key={a.id} className={on ? 'sw on' : 'sw'} aria-pressed={on} aria-label={a.name} title={a.name} style={{ background: a.id === 'look' ? own : shade === 'dark' ? a.dark : a.light }} onClick={() => pick(a.id)} />
       })}

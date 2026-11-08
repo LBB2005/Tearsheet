@@ -27,7 +27,8 @@ Over six rounds of mockups, Liam settled on:
     buttons sit where macOS puts them, at the top-left corner, with a sidebar button beside them.
 5.  **A Summary view that opens first.** It is built only from claims that passed the checks.
     The full report is one click (or ⌘2) away.
-6.  **Dark only** for now.
+6.  **Dark by default.** Since Nov 8, Settings → Appearance also offers light looks and Match the
+    Mac (below).
 7.  **Mac menus and shortcuts.** They work only while Tearsheet is the app in front.
 
 ## The window
@@ -122,10 +123,19 @@ Over six rounds of mockups, Liam settled on:
     anywhere, and the app never shows the prototype's example rows.
 4.  **Settings.** Liam picked this layout on Nov 6, from two rounds of mockups: "Sidebar list",
     in the "Outline" style.
-    *   A list of six topics on the left, each with the app sidebar's own line icons. There is
+    *   A list of seven topics on the left, each with the app sidebar's own line icons. There is
         one short page per topic, and the toolbar names the topic.
     *   **General:** the main AI tool and "The chart opens on" (below), as Mac pop-up menus, and the
         SEC email. A note at the top, with a button, for each thing that needs you.
+    *   **Appearance** (Nov 8, Liam's version B of three, "Look gallery"): six looks as pictures
+        (Tearsheet, Graphite, Evergreen, Amber, Dusk, High contrast), each dark and light, with
+        Dark / Light / Match the Mac beside the title. Then the accent colour, text size (the
+        window's zoom), the glow (40% by default), the Buy/Hold/Sell colours from tested sets only
+        (Standard, Colour-blind friendly, High contrast), Animations, and a row kept for the home
+        background. Customize… opens every colour, the font and boldness, corners, glass and the
+        chart's lines, with a warning when text gets hard to read. Theme files (Import…, Export…,
+        a `.tearsheet-theme` file read as untrusted), Save as a look, and Reset, each with Undo. The
+        report's frame follows the look; a report file keeps the dark look at full glow.
     *   **AI tools:** each tool's job and version, its safety check, and "Look for AI tools
         again". The paths and the lock-down details are behind "Show details".
     *   **Data keys:** Massive, FRED and Alpha Vantage.

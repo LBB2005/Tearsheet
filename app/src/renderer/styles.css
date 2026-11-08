@@ -12,8 +12,11 @@
   /* Grounds: the sidebar and window, and the main area under its glow (and the report frame). */
   --bg: #0A0D14;
   --base: #070B14;
+  --base-rgb: 7 11 20;
   /* What thin lines, panels, hovers and shadows are made of, as r g b. A light look uses a dark
-     ink, and shadows at a third of their strength (--shade-k). */
+     ink, and shadows at a third of their strength (--shade-k). A colour used see-through at many
+     strengths also has an r g b twin (--accent-rgb and so on): rgb(var(--accent-rgb) / .12)
+     blends exactly as rgba() did, where rgb(from var(--accent) …) is a step off in places. */
   --ink: 255 255 255;
   --shade: 0 0 0;
   --shade-k: 1;
@@ -36,6 +39,7 @@
   /* Text, brightest first. */
   --hi: #FFFFFF;
   --text: #EAF1F7;
+  --text-rgb: 234 241 247;
   --text3: #D5DEE7;
   --text2: #C3CDD8;
   --soft2: #BAC7D4;
@@ -50,17 +54,22 @@
   --edge: #5D6B7D;
   /* The accent, the text on it, and the second accent. */
   --accent: #7FE3F7;
+  --accent-rgb: 127 227 247;
   --accent-text: #D6F6FD;
   --accent-hover: #A6EDFA;
   --on-accent: #062029;
   --on-accent2: #05222B;
-  --chipline: rgb(from var(--accent) r g b / .30);
+  --chipline: rgb(var(--accent-rgb) / .30);
   --accent2: #8FA2FF;
+  --accent2-rgb: 143 162 255;
   --accent2-text: #B9C4FF;
   /* Buy, Hold and Sell, up and down; red text for what went wrong. */
   --up: #63DFA5;
   --hold: #FFC56B;
   --down: #FF7F8A;
+  --up-rgb: 99 223 165;
+  --hold-rgb: 255 197 107;
+  --down-rgb: 255 127 138;
   --bad-text: #FFB3BA;
   --bad-text2: #FFC2C8;
   --bad-text3: #FF9AA3;
@@ -91,7 +100,7 @@
 html, body, #root { height: 100%; margin: 0; }
 body { overflow: hidden; background: var(--bg); color: var(--text); font: 13.5px/1.5 var(--ui); font-weight: calc(400 + var(--wt)); font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; }
 button, input, textarea, select { font: inherit; color: inherit; }
-::selection { background: rgb(from var(--accent) r g b / .28); }
+::selection { background: rgb(var(--accent-rgb) / .28); }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 ::placeholder { color: var(--dim); }
 ::-webkit-scrollbar { width: 10px; height: 10px; }
@@ -132,7 +141,7 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .ib4 svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.6; }
 .ib4 .dot4 { position: absolute; top: 3px; right: 3px; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
 .find4 { display: flex; align-items: center; gap: 8px; margin: 2px 0 4px; padding: 5px 10px; border-radius: calc(8px * var(--round)); background: rgb(var(--ink) / .05); color: var(--faint); font-size: 12.5px; }
-.find4:focus-within { box-shadow: inset 0 0 0 1px rgb(from var(--accent) r g b / .45); }
+.find4:focus-within { box-shadow: inset 0 0 0 1px rgb(var(--accent-rgb) / .45); }
 .find4 svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.6; flex: none; }
 .find4 input { all: unset; flex: 1; min-width: 0; color: var(--text); }
 .find4 input::placeholder { color: var(--faint); }
@@ -146,9 +155,9 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .ri4 .row4 { gap: 8px; }
 .ri4 .row4 .off4 { width: 12px; height: 12px; stroke: var(--accent); stroke-width: 2; opacity: .9; }
 .tag4 { width: 38px; flex: none; text-align: center; padding: 1px 0; border-radius: calc(5px * var(--round)); font-size: 9.5px; font-weight: calc(700 + var(--wt)); letter-spacing: .6px; text-transform: uppercase; }
-.tag4.buy { color: var(--up); background: rgb(from var(--up) r g b / .13); }
-.tag4.hold { color: var(--hold); background: rgb(from var(--hold) r g b / .12); }
-.tag4.sell { color: var(--down); background: rgb(from var(--down) r g b / .14); }
+.tag4.buy { color: var(--up); background: rgb(var(--up-rgb) / .13); }
+.tag4.hold { color: var(--hold); background: rgb(var(--hold-rgb) / .12); }
+.tag4.sell { color: var(--down); background: rgb(var(--down-rgb) / .14); }
 .ri4 .px + .tag4 { margin-left: 0; }
 .ri4 .row4 b + .tag4, .ri4 .row4 .off4 + .tag4 { margin-left: auto; }
 .more4 { all: unset; position: absolute; top: 50%; right: 56px; width: 22px; height: 20px; margin-top: -10px; border-radius: calc(6px * var(--round)); display: grid; place-items: center; background: rgb(var(--ink) / .09); color: var(--text); cursor: pointer; opacity: 0; pointer-events: none; transition: opacity .12s; }
@@ -158,7 +167,7 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .ri4:hover .px, .ri4:focus-within .px, .ri4.menu .px { visibility: hidden; }
 .ri4.menu .row4 { background: rgb(var(--ink) / .045); color: var(--text); }
 .ck4 { width: 13px; height: 13px; flex: none; border-radius: calc(4px * var(--round)); border: 1.5px solid var(--edge); box-sizing: border-box; }
-.ri4.sel .row4 { background: rgb(from var(--accent) r g b / .12); color: var(--text); }
+.ri4.sel .row4 { background: rgb(var(--accent-rgb) / .12); color: var(--text); }
 .ri4.sel .ck4 { background: var(--accent); border-color: var(--accent); }
 .hid4 .row4 { color: var(--faint); }
 .hid4 .row4 b { font-weight: calc(500 + var(--wt)); }
@@ -167,7 +176,7 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .selbar4 { display: flex; align-items: center; gap: 6px; margin: 6px 0 4px; padding: 6px 6px 6px 12px; border-radius: calc(9px * var(--round)); background: rgb(var(--surface) / .94); border: 1px solid rgb(var(--ink) / .12); font-size: 12.5px; }
 .selbar4 span { flex: 1; color: var(--text2); }
 .selbar4 button { all: unset; padding: 3px 9px; border-radius: calc(6px * var(--round)); cursor: pointer; color: var(--text3); background: rgb(var(--ink) / .07); }
-.selbar4 button.danger { background: rgb(from var(--down) r g b / .18); color: var(--bad-text); }
+.selbar4 button.danger { background: rgb(var(--down-rgb) / .18); color: var(--bad-text); }
 .selbar4 button:focus-visible { outline: 2px solid var(--accent); }
 
 /* The sidebar's menus (shell/Menu.tsx): the "…" and right-click menu, and sort and filter. */
@@ -175,7 +184,7 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .menu4 { position: fixed; z-index: 61; min-width: 210px; max-width: 280px; padding: 5px; display: flex; flex-direction: column; border-radius: calc(10px * var(--round)); background: var(--menu-bg); border: 1px solid rgb(var(--ink) / .12);
   box-shadow: 0 14px 36px rgb(var(--shade) / calc(.5 * var(--shade-k))); font-size: 13px; -webkit-app-region: no-drag; animation: fade .12s ease-out both; }
 .menu4 button { all: unset; display: flex; align-items: center; gap: 8px; padding: 5px 10px; border-radius: calc(6px * var(--round)); color: var(--text3); cursor: pointer; white-space: nowrap; }
-.menu4 button:hover, .menu4 button:focus-visible { background: rgb(from var(--accent) r g b / .16); color: var(--hi); outline: none; }
+.menu4 button:hover, .menu4 button:focus-visible { background: rgb(var(--accent-rgb) / .16); color: var(--hi); outline: none; }
 .menu4 button.danger { color: var(--bad-text3); }
 .menu4 button kbd { margin-left: auto; padding-left: 18px; font: 11px var(--ui); font-weight: calc(400 + var(--wt)); color: var(--faint); }
 .menu4 .ck { width: 12px; color: var(--accent); }
@@ -317,7 +326,7 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .palette .pin input::placeholder { color: var(--muted); }
 .palette ul { list-style: none; margin: 0; padding: 6px; }
 .palette li button { all: unset; box-sizing: border-box; width: 100%; display: grid; grid-template-columns: 58px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 9px 10px; border-radius: calc(10px * var(--round)); cursor: pointer; }
-.palette li button.on { background: rgb(from var(--accent) r g b / .12); }
+.palette li button.on { background: rgb(var(--accent-rgb) / .12); }
 .palette li b { font: 13px var(--mono); font-weight: calc(600 + var(--wt)); color: var(--accent); }
 .palette li span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .palette li small { color: var(--muted); font-size: 12px; white-space: nowrap; }
@@ -328,14 +337,14 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .toasts { position: absolute; z-index: 50; right: 18px; bottom: 18px; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; pointer-events: none; }
 .toast4 { max-width: 380px; padding: 11px 14px; border-radius: calc(12px * var(--round)); background: rgb(var(--surface) / .9); border: 1px solid rgb(var(--ink) / .14); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
   box-shadow: 0 16px 40px rgb(var(--shade) / calc(.45 * var(--shade-k))); font-size: 13.5px; pointer-events: auto; animation: rise .3s var(--slide) both; }
-.toast4.stop { border-color: rgb(from var(--down) r g b / .35); }
+.toast4.stop { border-color: rgb(var(--down-rgb) / .35); }
 .toast4.leave { animation: settle-out .24s ease-in forwards; }
 .toast4 b { display: block; font-weight: calc(600 + var(--wt)); }
 .toast4 span { color: var(--muted); font-size: 12.5px; }
 /* A notice with an action (Undo, after a delete). */
 .toast4.act { display: flex; align-items: center; gap: 16px; }
 .toast4 > button { all: unset; flex: none; padding: 4px 10px; border-radius: calc(7px * var(--round)); color: var(--accent); font-weight: calc(600 + var(--wt)); cursor: pointer; }
-.toast4 > button:hover, .toast4 > button:focus-visible { background: rgb(from var(--accent) r g b / .14); }
+.toast4 > button:hover, .toast4 > button:focus-visible { background: rgb(var(--accent-rgb) / .14); }
 
 /* ---------- small shared parts: notices, plain and primary buttons, fields ---------- */
 .pagebody p { margin: 0 0 12px; }
@@ -344,7 +353,7 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .row { display: flex; gap: 8px; align-items: center; }
 code { font: 12.5px var(--mono); font-weight: calc(400 + var(--wt)); background: rgb(var(--ink) / .06); border: 1px solid var(--line); border-radius: calc(6px * var(--round)); padding: 1px 6px; }
 .pagebody input[type="text"], .pagebody input[type="password"], textarea { padding: 8px 11px; border-radius: calc(9px * var(--round)); border: 1px solid var(--line); background: rgb(var(--ink) / .06); color: var(--text); outline: none; transition: border-color .15s, box-shadow .15s; }
-.pagebody input[type="text"]:focus, .pagebody input[type="password"]:focus, textarea:focus { border-color: var(--chipline); box-shadow: 0 0 0 3px rgb(from var(--accent) r g b / .12); }
+.pagebody input[type="text"]:focus, .pagebody input[type="password"]:focus, textarea:focus { border-color: var(--chipline); box-shadow: 0 0 0 3px rgb(var(--accent-rgb) / .12); }
 button.primary, button.plain { padding: 7px 14px; border-radius: calc(8px * var(--round)); border: 1px solid var(--line); background: rgb(var(--ink) / .04); color: var(--text); cursor: pointer; transition: background .15s, border-color .15s; }
 button.plain:hover { background: rgb(var(--ink) / .08); }
 button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: calc(600 + var(--wt)); }
@@ -352,7 +361,7 @@ button.primary:hover { background: var(--accent-hover); }
 button:disabled, button:disabled:hover { opacity: .45; cursor: default; }
 button.plain + button.plain { margin-left: 6px; }
 .notice { margin: 12px 0; padding: 11px 14px; border-radius: var(--r); background: var(--panel); border: 1px solid var(--line); backdrop-filter: blur(calc(18px * var(--frost))); -webkit-backdrop-filter: blur(calc(18px * var(--frost))); box-shadow: inset 0 1px 0 rgb(var(--ink) / .05); }
-.notice.error { background: rgb(from var(--down) r g b / .08); border-color: rgb(from var(--down) r g b / .3); }
+.notice.error { background: rgb(var(--down-rgb) / .08); border-color: rgb(var(--down-rgb) / .3); }
 .notice p:last-child { margin-bottom: 0; }
 
 /* ---------- panels: the Settings and Prediction log pages (class panels on their root) ----------
@@ -368,17 +377,17 @@ button.plain + button.plain { margin-left: 6px; }
 .panels .p h4 em { font-style: normal; }
 .panels .notice { margin: 0; padding: 10px 14px; border-radius: calc(12px * var(--round)); background: rgb(var(--ink) / .03); color: var(--muted); font-size: 13.5px; backdrop-filter: none; -webkit-backdrop-filter: none; box-shadow: none; }
 .panels .notice b { color: var(--text); font-weight: calc(600 + var(--wt)); }
-.panels .notice.error { color: var(--bad-text); background: rgb(from var(--down) r g b / .08); }
+.panels .notice.error { color: var(--bad-text); background: rgb(var(--down-rgb) / .08); }
 .panels .loading { color: var(--muted); }
 .panels .fine { font-size: 12.5px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
 .panels .fine.bad { color: var(--bad-text); }
 .panels .fine.hold { color: var(--hold); }
 .panels .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .panels .pill { display: inline-block; font-size: 11.5px; line-height: 1.6; border-radius: 999px; padding: 0 9px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
-.panels .pill.ok { color: var(--up); border-color: rgb(from var(--up) r g b / .4); background: rgb(from var(--up) r g b / .07); }
-.panels .pill.bad { color: var(--down); border-color: rgb(from var(--down) r g b / .4); background: rgb(from var(--down) r g b / .07); }
-.panels .pill.hold { color: var(--hold); border-color: rgb(from var(--hold) r g b / .4); background: rgb(from var(--hold) r g b / .07); }
-.panels .pill.run { color: var(--accent); border-color: var(--chipline); background: rgb(from var(--accent) r g b / .07); }
+.panels .pill.ok { color: var(--up); border-color: rgb(var(--up-rgb) / .4); background: rgb(var(--up-rgb) / .07); }
+.panels .pill.bad { color: var(--down); border-color: rgb(var(--down-rgb) / .4); background: rgb(var(--down-rgb) / .07); }
+.panels .pill.hold { color: var(--hold); border-color: rgb(var(--hold-rgb) / .4); background: rgb(var(--hold-rgb) / .07); }
+.panels .pill.run { color: var(--accent); border-color: var(--chipline); background: rgb(var(--accent-rgb) / .07); }
 .panels .dot { display: inline-block; flex: none; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; background: var(--edge); }
 .panels .dot.ok { background: var(--up); }
 .panels .dot.bad { background: var(--down); }
@@ -397,7 +406,7 @@ button.plain + button.plain { margin-left: 6px; }
 .panels .st.ok { color: var(--up); }
 .panels .st.bad { color: var(--bad-text); }
 .panels .st svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 2.4; flex: none; }
-.panels .sp { flex: none; display: inline-block; width: 13px; height: 13px; border-radius: 50%; border: 2px solid rgb(from var(--accent) r g b / .25); border-top-color: var(--accent); animation: spin .9s linear infinite; }
+.panels .sp { flex: none; display: inline-block; width: 13px; height: 13px; border-radius: 50%; border: 2px solid rgb(var(--accent-rgb) / .25); border-top-color: var(--accent); animation: spin .9s linear infinite; }
 .panels .chg { animation: settle-in .4s var(--settle) backwards; }
 @keyframes spin { to { transform: rotate(360deg); } }
 

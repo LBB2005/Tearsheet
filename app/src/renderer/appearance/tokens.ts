@@ -125,6 +125,7 @@ export interface Resolved {
 // Every name the window's look can set, so a name left over from an earlier look is taken off.
 export const TOKEN_NAMES = [
   '--bg', '--base', '--ink', '--text', '--muted', '--accent', '--accent2', '--up', '--hold', '--down', '--g1', '--g2', '--g3',
+  '--base-rgb', '--text-rgb', '--accent-rgb', '--accent2-rgb', '--up-rgb', '--hold-rgb', '--down-rgb',
   ...Object.keys(RULES),
   '--glow', '--wt', '--round', '--frost', '--panel-a', '--line-a', '--panel', '--ui', '--c-co', '--c-peer'
 ]
@@ -168,7 +169,15 @@ export function resolve(look: Appearance, systemDark = true): Resolved {
     '--down': c.down,
     '--g1': triple(c.g1),
     '--g2': triple(c.g2),
-    '--g3': triple(c.g3)
+    '--g3': triple(c.g3),
+    // The r g b twins of the colours used see-through (styles.css says why).
+    '--base-rgb': triple(c.base),
+    '--text-rgb': triple(c.text),
+    '--accent-rgb': triple(c.accent),
+    '--accent2-rgb': triple(c.accent2),
+    '--up-rgb': triple(c.up),
+    '--hold-rgb': triple(c.hold),
+    '--down-rgb': triple(c.down)
   }
   for (const [name, rule] of Object.entries(RULES)) {
     const same = rule.deps.every((d) => c[d].toUpperCase() === own[d].toUpperCase())

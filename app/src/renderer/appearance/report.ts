@@ -33,7 +33,14 @@ const REPORT: [string, 'hex' | 'rgb' | 'num' | 'font'][] = [
   ['--wt', 'num'],
   ['--round', 'num'],
   ['--frost', 'num'],
-  ['--ui', 'font']
+  ['--ui', 'font'],
+  ['--base-rgb', 'rgb'],
+  ['--text-rgb', 'rgb'],
+  ['--accent-rgb', 'rgb'],
+  ['--accent2-rgb', 'rgb'],
+  ['--up-rgb', 'rgb'],
+  ['--hold-rgb', 'rgb'],
+  ['--down-rgb', 'rgb']
 ]
 
 const STACKS = new Set(FONTS.map((f) => f.stack))

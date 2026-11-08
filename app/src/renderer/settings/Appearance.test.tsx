@@ -44,7 +44,8 @@ describe('the looks', () => {
     await user.click(card('Graphite'))
     expect(card('Graphite')).toHaveAttribute('aria-pressed', 'true')
     expect(token('--bg')).toBe('#0F1012')
-    expect(screen.getByText('Graphite', { selector: '.lookline span' })).toBeInTheDocument()
+    // A look as it comes needs no name under the cards; a changed one does.
+    expect(document.querySelector('.lookline')).toHaveTextContent(/^$/)
     expect(JSON.parse(localStorage.getItem('appearance.look')!)['based-on']).toBe('graphite')
   })
 
@@ -77,6 +78,14 @@ describe('the common choices', () => {
     expect(screen.getByText('70%')).toBeInTheDocument()
     fireEvent.change(slider('Text size'), { target: { value: '120' } })
     expect(bridge.setLook).toHaveBeenLastCalledWith({ zoom: 1.2, background: '#0A0D14' })
+  })
+
+  test('a swatch the same as the look’s own accent isn’t shown twice', async () => {
+    const { user } = await openAppearance()
+    expect(screen.queryByRole('button', { name: 'Teal' })).toBeNull()
+    expect(button('The look’s own')).toHaveAttribute('aria-pressed', 'true')
+    await user.click(card('Graphite'))
+    expect(button('Teal')).toBeInTheDocument()
   })
 
   test('an accent swatch, or any colour; then Save as a look… names it', async () => {

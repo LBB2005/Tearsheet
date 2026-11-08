@@ -942,7 +942,7 @@ export function ChartPane({ reportId, cik, ticker, name, width, wide, size, onCl
             {toggle('fan', '12-month range', 'var(--accent2)', !series?.range, 'This report has no 12-month range.')}
             {toggle('peers', 'Peers', 'var(--c-peer)', noPeers, 'No peer prices are stored for this report.')}
             {toggle('spy', 'S&P 500', 'var(--c-spy)', noSpy, 'No S&P 500 prices are stored.')}
-            {toggle('volume', 'Volume', 'rgb(from var(--accent) r g b / .45)', false, '')}
+            {toggle('volume', 'Volume', 'rgb(var(--accent-rgb) / .45)', false, '')}
             <PanelSize wide={wide} size={size} onSize={onSize} onClose={onClose} />
           </div>
         </div>
