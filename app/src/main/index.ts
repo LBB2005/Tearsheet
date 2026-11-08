@@ -5,8 +5,9 @@
 
 import { join } from 'node:path'
 
-import { app, BrowserWindow, Menu, shell } from 'electron'
+import { app, BrowserWindow, Menu, powerSaveBlocker, shell } from 'electron'
 
+import { keepAwakeDuringLine } from './awake'
 import { dockUpdate, NO_RUN } from './dockProgress'
 import { Engine, engineCommand, type Notification } from './engine'
 import { registerIpc } from './ipc'
@@ -106,6 +107,8 @@ async function createWindow(): Promise<void> {
         window.webContents.send('tearsheet:menu', command)
       }, !app.isPackaged)))
   showProgressInDock(window, engine)
+  // The Mac stays awake while the line has reports to write (awake.ts).
+  keepAwakeDuringLine(engine, powerSaveBlocker)
   engine.start()
 
   // ⌘W and the red button hide the window while Tearsheet keeps running (lifecycle.ts). A

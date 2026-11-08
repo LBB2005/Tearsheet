@@ -9,10 +9,12 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 import type { MenuCommand } from '../main/menu'
 import type { CallResult, EngineNotification, ToolStatus } from '../preload/api'
-import { leftText, pace } from '../shared/pace'
+import { leftText, pace, usualTimes } from '../shared/pace'
 import type { CompanyRow, GradeResult, SearchHit, SettingsResult } from '../shared/protocol'
 import { bootView, GIVE_UP_AFTER_MS, STARTING_AFTER_MS } from './boot'
 import { forgetOldChartPrefs, setSidebarHidden, sidebarHidden } from './chart/prefs'
+import { usualReport } from './home/line'
+import { LinePaused, LineStrip } from './home/LineParts'
 import { runTitle } from './home/run'
 import { RunView } from './home/RunView'
 import { useRun } from './home/useRun'
@@ -70,6 +72,8 @@ export function App() {
   useEffect(() => forgetOldChartPrefs(), [])
   const [sideOver, setSideOver] = useState(false)
   const [lookUp, setLookUp] = useState(false)
+  // The look-up box opened from the line's Add a company: a pick joins the line.
+  const lookUpAdds = useRef(false)
   const [finding, setFinding] = useState(false)
   const [findFocus, setFindFocus] = useState(0)
   const [notice, setNotice] = useState<Notice | null>(null)
@@ -220,7 +224,7 @@ export function App() {
   // The one listener for the engine's notes. The run's notes go to useRun.
   useEffect(() => {
     return window.tearsheet.onNotification((note: EngineNotification) => {
-      if (note.method === 'progress' || note.method === 'run_tally') onNote(note)
+      if (note.method === 'progress' || note.method === 'run_tally' || note.method === 'line_changed') onNote(note)
       else if (note.method === 'report_ready' || note.method === 'run_failed') {
         onNote(note)
         // A run may have found a key that stopped working, or one that works again.
@@ -286,7 +290,7 @@ export function App() {
 
   // The look-up box opens a company's report, or starts a new one.
   const pick = async (hit: SearchHit) => {
-    if (hit.report_id) {
+    if (hit.report_id && !lookUpAdds.current) {
       setOpenReport(hit.report_id)
       go('report')
       return
@@ -439,6 +443,26 @@ export function App() {
         onResume={() => void report.resume()}
         onRecheck={() => void recheck().then((problem) => problem && notify('The safety check didn’t start', problem, 'stop'))}
         onOpen={report.openReady}
+        strip={
+          report.line && (
+            <LineStrip
+              line={report.line}
+              runId={runView.runId}
+              perReport={usualReport(usualTimes(runView.tally))}
+              onRemove={(ticker) => void report.removeFromLine(ticker)}
+              onAdd={() => {
+                lookUpAdds.current = true
+                setLookUp(true)
+              }}
+              onCancelAll={() => void report.cancelAll()}
+              onCarryOn={() => void report.carryOn()}
+              onOpen={(reportId) => {
+                setOpenReport(reportId)
+                go('report')
+              }}
+            />
+          )
+        }
       />
     ) : (
       <Home
@@ -447,6 +471,8 @@ export function App() {
         fieldRef={homeField}
         refresh={graded}
         onStart={report.start}
+        onStartLine={report.startLine}
+        notice={report.line?.paused && report.line.waiting.length > 0 ? <LinePaused line={report.line} onCarryOn={() => void report.carryOn()} onClear={() => void report.clearLine()} /> : undefined}
         onOpen={openCompany}
         onKeys={() => {
           setSettingsTopic('keys')
@@ -526,7 +552,7 @@ export function App() {
         page={page}
         companies={companies}
         openReport={openRow?.report_id ?? openReport}
-        writing={report.running ? { ticker: runLabel, on: runView !== null } : null}
+        writing={report.running ? { ticker: runLabel, on: runView !== null, waiting: report.line?.waiting.length ?? 0 } : null}
         status={status}
         onNew={newReport}
         onWriting={() => {
@@ -587,7 +613,15 @@ export function App() {
         {page === 'report' && reportPage.flag && (
           <FlagSheet key={`${reportPage.flag.reportId}:${reportPage.flag.claimId}`} claim={reportPage.flag.text} onSave={reportPage.saveFlag} onClose={reportPage.closeFlag} />
         )}
-        {lookUp && <LookUp onPick={(hit) => void pick(hit)} onClose={() => setLookUp(false)} />}
+        {lookUp && (
+          <LookUp
+            onPick={(hit) => void pick(hit)}
+            onClose={() => {
+              lookUpAdds.current = false
+              setLookUp(false)
+            }}
+          />
+        )}
       </div>
       {/* After the sidebar and the toolbar, whose top strips drag the window under it: where drag
           areas overlap, the later one in the page wins (shell/sidebar.test.ts). */}

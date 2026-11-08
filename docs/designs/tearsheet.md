@@ -300,6 +300,7 @@ The engine can also run from the terminal (`tearsheet-engine run GOOGL`) and wri
 *   The official prediction is saved as soon as step 8 finishes. If a later step fails, the report is saved and marked "narrative incomplete."
 *   Each step's output is saved, so a run can resume.
 *   Only one run or grading job happens at a time. The price backfill (§5) pauses while either runs.
+*   **Several reports, one after another (the line, 7 Nov 2026, Liam's pick):** several companies typed with commas are written one at a time, never side by side, because two runs would break SEC's 10-a-second limit, share one database connection and use the AI plan faster. The engine checks each company first (`plan_line`) and says which would make a new official prediction: a line's reports follow the same 30-day rule as single ones, so a batch can't be used to pick which ratings count. At most 10 wait at a time (about 400 AI calls). A usage limit, sign-out, SEC block, failed safety check or missing AI tool pauses the line, and Resume of the stopped report carries on with the rest; a problem with one company marks it and the line moves on. Cancel run stops one report; Cancel all stops it and empties the line. The line is kept in the settings table (`report_line`) and comes back paused when Tearsheet opens again, starting only when Liam says carry on. The app keeps the Mac awake while the line has reports to write (Electron's `powerSaveBlocker`, `prevent-app-suspension`).
 
 ### 4. How the engine uses Claude Code and Codex
 
@@ -1890,12 +1891,19 @@ Phase 1 runs in three parts:
         | `set_key` | `service`, `key` | `{ok}`; the key is never echoed or logged |
         | `get_settings` | none | `{keys: {<service>: "set" or "missing"}, raw_bytes, raw_cap, backup_dir, backup_in_icloud, primary_tool, sec_contact_email, services}` |
         | `set_setting` | `key`, `value` | `{ok}`; allowed keys: `raw_cap`, `backup_dir`, `primary_tool`, `sec_contact_email`, `goal1_round` |
+        | `plan_line` | `queries` | `{items: [{ticker, name, official, …}], skipped: [{query, reason}], line}`; changes nothing |
+        | `add_to_line` | `queries` | the same, after adding the companies found; the line starts if it was idle |
+        | `get_line` | none | `{waiting, writing, finished, paused, limit}` |
+        | `remove_from_line` | `ticker` | the line; only a waiting company is taken out |
+        | `clear_line` | none | the line, empty; the report being written is cancelled |
+        | `carry_on_line` | none | the line; goes on with the companies waiting, past a stopped report or after Tearsheet opened again |
 
     *   **Notifications:**
         *   `hello`: `{engine_version, protocol_version, methodology_hash, method_code_version}`;
         *   `progress`: `{run_id, step, step_name, state}`, where `state` is `started`, `done`, `skipped`, `retrying` or `failed`;
         *   `report_ready`: `{run_id, report_id}`;
-        *   `run_failed`: `{run_id, step, message, code, reset_at, fix_command}`.
+        *   `run_failed`: `{run_id, step, message, code, reset_at, fix_command}`;
+        *   `line_changed`: the line, as `get_line` gives it, whenever it changes (protocol version 2).
     *   **Error codes:** sent in `run_failed`, and as JSON-RPC errors with code -32000 and the engine's code in `data.code`: `NOT_COVERED`, `RUN_IN_PROGRESS`, `NO_TOOL`, `NOT_RESUMABLE`, `USAGE_LIMIT` (with `reset_at`), `AUTH_EXPIRED` (with `fix_command`), `LOCKDOWN_FAILED`, `AI_UNAVAILABLE`, `BUDGET_EXHAUSTED`, `SEC_BLOCKED` and `ENGINE_ERROR`.
     *   **`server.py`:**
         *   reads one JSON object per line from standard input;

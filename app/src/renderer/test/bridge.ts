@@ -11,7 +11,7 @@ import { vi, type Mock } from 'vitest'
 import type { MenuCommand } from '../../main/menu'
 import type { ViewId } from '../../main/navigation'
 import type { CallResult, EngineNotification, TearsheetApi, ToolStatus } from '../../preload/api'
-import type { ChartSeries, CompanyRow, PredictionSummary, ReportBar, ReportNumbers, ReportResult, ReportSummary, SearchHit, SettingsResult } from '../../shared/protocol'
+import type { ChartSeries, CompanyRow, LineItem, LinePlan, LineState, PredictionSummary, ReportBar, ReportNumbers, ReportResult, ReportSummary, SearchHit, SettingsResult } from '../../shared/protocol'
 import { analysts } from './analysts'
 
 export type FakeBridge = { [K in keyof TearsheetApi]: Mock<TearsheetApi[K]> }
@@ -135,6 +135,32 @@ export function numbers(reportId: string): ReportNumbers {
   }
 }
 
+// The line (several reports one after another): empty until a test adds to it. The engine says
+// how the line changes in line_changed notes, which a test sends with emit.
+export const EMPTY_LINE: LineState = { waiting: [], writing: null, finished: [], paused: null, limit: 10 }
+
+export function lineItem(ticker: string, over: Partial<LineItem> = {}): LineItem {
+  const hit = HITS.find((h) => h.ticker === ticker)
+  return { ticker, name: hit?.name ?? `${ticker} Inc.`, official: true, run_id: null, outcome: null, report_id: null, code: null, message: null, ...over }
+}
+
+export function line(over: Partial<LineState> = {}): LineState {
+  return { ...EMPTY_LINE, ...over }
+}
+
+// The engine's check of a typed list: the look-up list's companies are found (MSFT was rated in
+// the last 30 days, so it would not be a new official prediction); anything else is left out.
+export function linePlan(queries: string[], waiting: LineItem[] = []): LinePlan {
+  const items: LineItem[] = []
+  const skipped: LinePlan['skipped'] = []
+  for (const query of queries) {
+    const hit = HITS.find((h) => h.ticker === query.trim().toUpperCase())
+    if (hit) items.push(lineItem(hit.ticker, { official: hit.ticker !== 'MSFT' }))
+    else skipped.push({ query, reason: `No S&P 500 company matches '${query}'.` })
+  }
+  return { items, skipped, line: line({ waiting: [...waiting, ...items] }) }
+}
+
 // ---------- the fake itself ----------
 
 const listeners = {
@@ -221,6 +247,12 @@ function makeBridge(): FakeBridge {
     getSettings: vi.fn<TearsheetApi['getSettings']>(async () => ok(settings())),
     setSetting: vi.fn<TearsheetApi['setSetting']>(async () => ok({ ok: true })),
     gradeDue: vi.fn<TearsheetApi['gradeDue']>(async () => ok({ graded: 0 })),
+    planLine: vi.fn<TearsheetApi['planLine']>(async (queries: string[]) => ok(linePlan(queries))),
+    addToLine: vi.fn<TearsheetApi['addToLine']>(async (queries: string[]) => ok(linePlan(queries))),
+    getLine: vi.fn<TearsheetApi['getLine']>(async () => ok(EMPTY_LINE)),
+    removeFromLine: vi.fn<TearsheetApi['removeFromLine']>(async () => ok(EMPTY_LINE)),
+    clearLine: vi.fn<TearsheetApi['clearLine']>(async () => ok(EMPTY_LINE)),
+    carryOnLine: vi.fn<TearsheetApi['carryOnLine']>(async () => ok(EMPTY_LINE)),
     onNotification: vi.fn<TearsheetApi['onNotification']>(listen(listeners.note)),
     onFlagRequested: vi.fn<TearsheetApi['onFlagRequested']>(listen(listeners.flag)),
     onOpenView: vi.fn<TearsheetApi['onOpenView']>(listen(listeners.open))
@@ -241,9 +273,9 @@ export function installBridge(): FakeBridge {
 }
 
 // The engine sends a note (progress, report_ready, safety_done, engine_restarted…).
-export function emit(method: string, params: Record<string, unknown> = {}): void {
+export function emit(method: string, params: object = {}): void {
   act(() => {
-    for (const fn of listeners.note) fn({ method, params })
+    for (const fn of listeners.note) fn({ method, params: params as Record<string, unknown> })
   })
 }
 
