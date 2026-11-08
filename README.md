@@ -52,7 +52,15 @@ A plain window for the same engine (Phase 1c): New report, Progress, Reports (wi
 cd app && npm install && npm run build && npm start
 ```
 
-It starts the engine with `uv run tearsheet-engine serve` from this repository, and uses the same data folder as terminal mode. `npm run dev` runs it with hot reload. A signed app you can double-click comes in Phase 3.
+It starts the engine with `uv run tearsheet-engine serve` from this repository, and uses the same data folder as terminal mode. `npm run dev` runs it with hot reload.
+
+To build a `Tearsheet.app` you can double-click:
+
+```bash
+cd app && npm run package
+```
+
+It makes `app/dist/mac-arm64/Tearsheet.app` (about 760 MB), with the engine and its own Python 3.12 inside (`scripts/build-engine.sh`), so it needs no `uv` or Python to run. Drag it to Applications. It uses the same data folder and Keychain entries as `npm run dev`; run one or the other, not both. This build is signed ad hoc, so it is for the Mac it was built on. Signing with an Apple Developer ID, notarization and auto-update come in Phase 3.
 
 ## What leaves your Mac
 

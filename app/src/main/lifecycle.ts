@@ -7,6 +7,14 @@ export function closeHides(platform: NodeJS.Platform, quitting: boolean): boolea
   return platform === 'darwin' && !quitting
 }
 
+// For checks only: TEARSHEET_HIDDEN_WINDOW=1 opens Tearsheet with its window never shown, so a
+// check can drive it (over the debugger, on a copy of the data) while Liam works in other apps.
+// Nothing then shows the window or brings Tearsheet to the front: not starting up, not the menu,
+// not a second copy. Nothing in the app sets it.
+export function hiddenForChecks(env: NodeJS.ProcessEnv): boolean {
+  return env.TEARSHEET_HIDDEN_WINDOW === '1'
+}
+
 // One Tearsheet at a time for a data folder. A second copy would run a second engine on the same
 // reports, so starting Tearsheet again quits the new copy and brings the open window back to the
 // front instead. The lock is Electron's, kept in the window's own folder under the data folder,

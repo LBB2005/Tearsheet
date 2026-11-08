@@ -1,6 +1,12 @@
 import { expect, test } from 'vitest'
 
-import { bringBack, claimOnlyCopy, closeHides } from './lifecycle'
+import { bringBack, claimOnlyCopy, closeHides, hiddenForChecks } from './lifecycle'
+
+test('the window stays hidden only when a check asks for it', () => {
+  expect(hiddenForChecks({ TEARSHEET_HIDDEN_WINDOW: '1' })).toBe(true)
+  expect(hiddenForChecks({})).toBe(false)
+  expect(hiddenForChecks({ TEARSHEET_HIDDEN_WINDOW: '0' })).toBe(false)
+})
 
 test('on a Mac, closing the window hides it until Tearsheet quits', () => {
   expect(closeHides('darwin', false)).toBe(true)

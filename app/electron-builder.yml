@@ -1,0 +1,35 @@
+# Builds Tearsheet.app for Liam's own Mac (design item 50, the local part): `npm run package`
+# makes app/dist/mac-arm64/Tearsheet.app. The engine and its own Python come from
+# scripts/build-engine.sh (app/engine-bundle) and go in Contents/Resources/engine.
+#
+# This build is signed ad hoc, not with an Apple Developer ID, so it is for the Mac it was built
+# on. Phase 3 adds Developer ID signing, the hardened runtime, notarization and electron-updater.
+appId: com.liamblackshawbrown.tearsheet
+productName: Tearsheet
+copyright: Copyright © 2026 Liam Blackshaw-Brown
+directories:
+  output: dist
+  buildResources: build
+# The app has no runtime packages (everything it needs is bundled into out/ by electron-vite).
+files:
+  - out/**/*
+  - package.json
+npmRebuild: false
+# Electron as installed by npm, so the build needs no download.
+electronDist: node_modules/electron/dist
+extraResources:
+  - from: engine-bundle
+    to: engine
+    filter:
+      - "**/*"
+mac:
+  target:
+    - target: dir
+      arch: arm64
+  icon: build/icon.icns
+  category: public.app-category.finance
+  # "-" signs ad hoc, which Apple silicon needs for the renamed app to run. The hardened runtime
+  # waits for Developer ID signing: with ad-hoc signing it would refuse Electron's own frameworks.
+  identity: "-"
+  hardenedRuntime: false
+  notarize: false
