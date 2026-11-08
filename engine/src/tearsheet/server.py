@@ -1132,8 +1132,44 @@ class Server:
                 motion=p.motion,
                 numbers=numbers,
                 analysts=analysts,
+                report_id=row["report_id"],
             ),
         }
+
+    async def m_export_report(self, p) -> dict[str, Any]:
+        """A download of a saved report (export/), made from what is stored, read-only, with no
+        AI: the PDF's print page for the app to print, or the deck or workbook's bytes. The PDF
+        asks analystdb for its figures as of the report's price date, as the report page does."""
+        import base64
+
+        from tearsheet.export import data as export_data
+        from tearsheet.export import deck, pdf, workbook
+
+        try:
+            d = export_data.load(self.db.conn, p.report_id, raw_dir=self.paths.raw)
+        except export_data.NotFound as exc:
+            raise EngineError("ENGINE_ERROR", f"No report {p.report_id}.") from exc
+        stem = re.sub(
+            r"[^A-Za-z0-9.\- ]", "", f"{d.ticker} Tearsheet {d.made_on.day} {d.made_on:%b %Y}"
+        )
+        answer: dict[str, Any] = {
+            "report_id": d.report_id,
+            "kind": p.kind,
+            "file_name": f"{stem.strip() or 'Tearsheet report'}.{p.kind}",
+            "html": None,
+            "data_base64": None,
+            "footer": "",
+        }
+        if p.kind == "pdf":
+            analysts = await self._analyst_panel(
+                {"ticker": d.ticker}, d.run_id, d.created_at.isoformat()
+            )
+            answer["html"] = pdf.render(d, analysts)
+            answer["footer"] = pdf.footer_text(d)
+        else:
+            blob = workbook.build(d) if p.kind == "xlsx" else deck.build(d)
+            answer["data_base64"] = base64.b64encode(blob).decode("ascii")
+        return answer
 
     def _report_day(self, run_id: str, created_at: str):
         """The day a report is as of: its price date, else the Eastern day it was made."""

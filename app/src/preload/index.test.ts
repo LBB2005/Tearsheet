@@ -75,7 +75,8 @@ describe('the calls', () => {
     ['setKey', ['fred', 'k'], ['tearsheet:call', 'setKey', { service: 'fred', key: 'k' }]],
     ['getSettings', [], ['tearsheet:call', 'getSettings', {}]],
     ['setSetting', ['raw_cap', '20'], ['tearsheet:call', 'setSetting', { key: 'raw_cap', value: '20' }]],
-    ['gradeDue', [], ['tearsheet:call', 'gradeDue', {}]]
+    ['gradeDue', [], ['tearsheet:call', 'gradeDue', {}]],
+    ['showDownload', ['/Users/x/Downloads/JPM Tearsheet 7 Nov 2026.pdf'], ['tearsheet:showDownload', '/Users/x/Downloads/JPM Tearsheet 7 Nov 2026.pdf']]
   ])('%s(%j) goes to the main process as it should', async (name, args, sent) => {
     await api[name](...args)
     expect(invoke).toHaveBeenCalledWith(...sent)
@@ -87,7 +88,8 @@ describe('the listeners', () => {
     ['onNotification', 'tearsheet:notification', { method: 'progress', params: {} }],
     ['onFlagRequested', 'tearsheet:flag-requested', { claimId: 'c1' }],
     ['onOpenView', 'tearsheet:open-view', { view: 'factors', item: null }],
-    ['onMenu', 'tearsheet:menu', 'chart']
+    ['onMenu', 'tearsheet:menu', 'chart'],
+    ['onDownload', 'tearsheet:download', { state: 'saving', kind: 'pdf', reportId: 'rep-1' }]
   ])('%s hears %s until it is taken off', (name, channel, payload) => {
     const fn = vi.fn()
     const off = api[name](fn) as () => void
@@ -100,6 +102,6 @@ describe('the listeners', () => {
 
 test('the window gets nothing but these calls and listeners', () => {
   expect(Object.keys(api).sort()).toEqual(
-    ['addToLine', 'cancel', 'carryOnLine', 'checkKey', 'clearLine', 'getLine', 'planLine', 'removeFromLine', 'fetchHistory', 'find', 'flagClaim', 'getAnalysts', 'getChart', 'getReport', 'getReportNumbers', 'eraseReports', 'getSettings', 'getTools', 'gradeDue', 'hideReports', 'listCompanies', 'listPredictions', 'listReports', 'onFlagRequested', 'onMenu', 'onNotification', 'onOpenView', 'openExternal', 'openTerminal', 'pinCompany', 'rereadFiling', 'resume', 'runReport', 'runSafetyCheck', 'searchCompanies', 'setKey', 'setSetting', 'showReports', 'stopFind', 'setLook', 'openTheme', 'saveTheme'].sort()
+    ['addToLine', 'cancel', 'carryOnLine', 'checkKey', 'clearLine', 'getLine', 'planLine', 'removeFromLine', 'fetchHistory', 'find', 'flagClaim', 'getAnalysts', 'getChart', 'getReport', 'getReportNumbers', 'eraseReports', 'getSettings', 'getTools', 'gradeDue', 'hideReports', 'listCompanies', 'listPredictions', 'listReports', 'onFlagRequested', 'onMenu', 'onNotification', 'onOpenView', 'openExternal', 'openTerminal', 'pinCompany', 'rereadFiling', 'resume', 'runReport', 'runSafetyCheck', 'searchCompanies', 'setKey', 'setSetting', 'showReports', 'stopFind', 'setLook', 'openTheme', 'saveTheme', 'onDownload', 'showDownload'].sort()
   )
 })

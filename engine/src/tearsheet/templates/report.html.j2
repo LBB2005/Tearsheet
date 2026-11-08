@@ -89,6 +89,10 @@ a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outli
 .rhead h1 { margin: 0 0 4px; font: 26px/1.2 var(--ui); font-weight: calc(600 + var(--wt)); }
 .rhead p, .foot { margin: 0 0 4px; color: var(--muted); font-size: 12.5px; }
 .foot { margin: 0 14px 28px; padding: 0 22px; }
+/* The downloads at the end of the report (export/): made from this saved report when clicked. */
+.dl { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 14px 14px; padding: 0 22px; }
+.dlb { font: 12.5px var(--ui); font-weight: calc(500 + var(--wt)); color: var(--accent); background: var(--panel); border: 1px solid var(--chipline); border-radius: calc(8px * var(--round)); padding: 6px 13px; transition: background .2s; }
+.dlb:hover { background: rgb(var(--accent-rgb) / .16); text-decoration: none; }
 
 /* Numbers column */
 .span2 { grid-column: span 2; }
@@ -400,6 +404,13 @@ table.t .hot:hover { background: none; }
 <div class="tscroll">
 {{ summary_view() }}
 {{ full_view() }}
+{%- if mode == "app" and report_id %}
+<nav class="dl" aria-label="Download this report">
+<a class="dlb" href="tearsheet://download/pdf/{{ report_id }}">Download PDF</a>
+<a class="dlb" href="tearsheet://download/pptx/{{ report_id }}">Download slide deck</a>
+<a class="dlb" href="tearsheet://download/xlsx/{{ report_id }}">Download Excel</a>
+</nav>
+{%- endif %}
 {%- if mode == "app" %}
 <footer class="foot">Report run {{ r.run_at }}.{% if r.mode_note %} {{ r.mode_note }}{% endif %} General research, not personalised investment advice. Check the sources and make your own decisions.</footer>
 {%- endif %}

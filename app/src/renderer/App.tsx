@@ -25,6 +25,7 @@ import { FlagSheet } from './overlays/FlagSheet'
 import { LookUp } from './overlays/LookUp'
 import { RefreshSheet } from './overlays/RefreshSheet'
 import { Toast, type Notice } from './overlays/Toast'
+import { downloadToast } from './report/downloads'
 import { Home } from './pages/Home'
 import { Log } from './pages/Log'
 import { Report, ReportSubtitle, ReportTools } from './pages/Report'
@@ -383,6 +384,15 @@ export function App() {
   const menu = useRef(onMenu)
   menu.current = onMenu
   useEffect(() => window.tearsheet.onMenu((c) => menu.current(c)), [])
+  // A download from the end of the report (main/downloads.ts): its progress as a toast.
+  useEffect(
+    () =>
+      window.tearsheet.onDownload((note) => {
+        const { title, text, tone, action, ms } = downloadToast(note, (path) => void window.tearsheet.showDownload(path))
+        notify(title, text, tone, { action, ms })
+      }),
+    [notify]
+  )
 
   const tool = tools.find((t) => t.kind === (primaryTool ?? 'claude')) ?? tools.find((t) => t.available) ?? tools[0]
   const toolKind: ToolKind = tool?.kind ?? 'claude'

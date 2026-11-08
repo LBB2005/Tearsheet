@@ -50,6 +50,10 @@ export interface TearsheetApi {
   openTheme(): Promise<import('../main/look').OpenedTheme>
   saveTheme(name: string, text: string): Promise<import('../main/look').SavedTheme>
   onMenu(fn: (c: import('../main/menu').MenuCommand) => void): () => void
+  // A download from the end of the report: saving, then saved (with its path) or failed (with
+  // why). Show in Finder works only for a file saved this session.
+  onDownload(fn: (note: import('../main/downloads').DownloadNote) => void): () => void
+  showDownload(path: string): Promise<boolean>
   // Newest first; `limit` defaults to the engine's 50. `hidden`: only the reports hidden from
   // the sidebar, for its Hidden group; otherwise those are left out.
   listReports(limit?: number, hidden?: boolean): Promise<CallResult<import('../shared/protocol').ReportSummary[]>>

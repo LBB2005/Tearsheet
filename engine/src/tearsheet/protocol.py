@@ -81,6 +81,12 @@ class AnalystsParams(Strict):
     report_id: str
 
 
+class ExportParams(Strict):
+    # A download of a saved report (export/): the PDF's print page, the deck or the workbook.
+    report_id: str
+    kind: Literal["pdf", "pptx", "xlsx"]
+
+
 class ListReportsParams(Strict):
     limit: int = 50
     offset: int = 0
@@ -168,6 +174,7 @@ METHODS: dict[str, type[Strict]] = {
     "fetch_history": HistoryParams,
     "get_report_numbers": NumbersParams,
     "get_analysts": AnalystsParams,
+    "export_report": ExportParams,
     "hide_reports": ReportIdsParams,
     "show_reports": ReportIdsParams,
     "erase_reports": ReportIdsParams,
@@ -514,6 +521,18 @@ class AnalystCheck(Strict):
     fetched: str
     fetched_text: str
     rows: list[AnalystCheckRow]
+
+
+class ExportResult(Strict):
+    """export_report's answer: the file's name, and either the print page (pdf: the app prints
+    it to PDF, with `footer` on every page) or the finished file in base64 (pptx, xlsx)."""
+
+    report_id: str
+    kind: Literal["pdf", "pptx", "xlsx"]
+    file_name: str
+    html: str | None
+    data_base64: str | None
+    footer: str
 
 
 class ReportAnalysts(Strict):
@@ -881,6 +900,7 @@ ALL_MODELS: tuple[type[BaseModel], ...] = (
     AnalystCheckRow,
     AnalystCheck,
     ReportAnalysts,
+    ExportResult,
     ReportSummary,
     HideResult,
     ShowResult,

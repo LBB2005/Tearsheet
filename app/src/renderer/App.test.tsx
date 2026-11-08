@@ -7,7 +7,7 @@ import { describe, expect, test, vi } from 'vitest'
 
 import { App } from './App'
 import { openReport, renderApp, win } from './test/app'
-import { bridge, emit, fail, flag, menu, ok, PREDICTIONS, settings } from './test/bridge'
+import { bridge, download, emit, fail, flag, menu, ok, PREDICTIONS, settings } from './test/bridge'
 import { setWindowWidth } from './test/screen'
 
 const sidebar = () => within(screen.getByRole('complementary', { name: 'Sidebar' }))
@@ -301,5 +301,25 @@ describe('the engine’s notes', () => {
     bridge.getSettings.mockResolvedValue(ok(settings({ rejected_keys: ['massive'] })))
     emit('run_failed', { run_id: 'someone-else', message: 'x', code: 'ENGINE_ERROR' })
     expect(await screen.findByText('Massive key not accepted')).toBeInTheDocument()
+  })
+})
+
+describe('downloads from the end of the report', () => {
+  test('a saved file shows as a toast whose Show in Finder asks for that file', async () => {
+    const { user } = await renderApp()
+    download({ state: 'saving', kind: 'pdf', reportId: 'rep-1' })
+    expect(await screen.findByText('Making the PDF…')).toBeInTheDocument()
+    download({ state: 'saved', kind: 'pdf', reportId: 'rep-1', name: 'JPM Tearsheet 7 Nov 2026.pdf', path: '/d/JPM Tearsheet 7 Nov 2026.pdf' })
+    expect(await screen.findByText('Saved to Downloads')).toBeInTheDocument()
+    expect(screen.getByText('JPM Tearsheet 7 Nov 2026.pdf')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Show in Finder' }))
+    expect(bridge.showDownload).toHaveBeenCalledWith('/d/JPM Tearsheet 7 Nov 2026.pdf')
+  })
+
+  test('a failure says why', async () => {
+    await renderApp()
+    download({ state: 'failed', kind: 'xlsx', reportId: 'rep-1', message: 'Tearsheet isn’t allowed to save in Downloads.' })
+    expect(await screen.findByText('The Excel workbook wasn’t saved')).toBeInTheDocument()
+    expect(screen.getByText('Tearsheet isn’t allowed to save in Downloads.')).toBeInTheDocument()
   })
 })
