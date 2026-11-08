@@ -154,9 +154,11 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .boot h1 { margin: 0; font: 600 30px/1.15 var(--ui); }
 .boot .why { color: #FFB3BA; font-size: 14px; overflow-wrap: anywhere; }
 
-/* ---------- the main area: painted dark glass ---------- */
+/* ---------- the main area: painted dark glass ----------
+   The three glows (teal top left, purple right, teal at the bottom) are at 55% of their first
+   strength (.20 / .18 / .16), Liam's pick B of four for a calmer window (7 Nov 2026). */
 .mainarea { flex: 1; min-width: 0; display: flex; flex-direction: column; position: relative; overflow: hidden;
-  background: radial-gradient(620px 440px at 20% 0%, rgba(32, 120, 150, .20), transparent 70%), radial-gradient(720px 520px at 92% 30%, rgba(70, 60, 170, .18), transparent 70%), radial-gradient(520px 420px at 55% 112%, rgba(20, 90, 120, .16), transparent 70%), #070B14; }
+  background: radial-gradient(620px 440px at 20% 0%, rgba(32, 120, 150, .11), transparent 70%), radial-gradient(720px 520px at 92% 30%, rgba(70, 60, 170, .099), transparent 70%), radial-gradient(520px 420px at 55% 112%, rgba(20, 90, 120, .088), transparent 70%), #070B14; }
 
 /* ---------- the toolbar: 52 px, and it drags the window ---------- */
 .top { height: 52px; flex: none; display: flex; align-items: center; gap: 12px; padding: 0 14px 0 20px; border-bottom: 1px solid var(--line); position: relative; z-index: 4; user-select: none; -webkit-app-region: drag; transition: padding-left .34s var(--slide); }
