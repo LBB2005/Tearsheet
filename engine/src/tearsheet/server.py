@@ -9,7 +9,9 @@ prices, and no run, resume, safety check or history download starts until it is 
 (GRADING_IN_PROGRESS). A company's full price history (`fetch_history`) is a job too: answered
 off the loop, shared by every ask for that company, and no run or resume starts while one goes
 (HISTORY_DOWNLOADING). Key checks are answered off the loop as well, since a Massive check waits
-its turn at the plan's pace. Only the engine writes to the database.
+its turn at the plan's pace. Several reports are written one after another through the line
+(batch.py, `line_changed`): it starts each one as `run_report` would, once nothing else is
+running. Only the engine writes to the database.
 """
 
 from __future__ import annotations
@@ -24,7 +26,7 @@ from collections.abc import Callable
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ValidationError
 
@@ -47,6 +49,9 @@ from tearsheet.protocol import (
     Tally,
 )
 from tearsheet.rawstore import RawStore
+
+if TYPE_CHECKING:
+    from tearsheet.batch import Entry, Skip
 
 log = logging.getLogger(__name__)
 
@@ -96,6 +101,9 @@ OFF_LOOP = frozenset({"grade_due", "fetch_history", "check_key"})
 # How often the price backfill looks again while a report, grading, a history download or the
 # safety check is under way (it never makes them wait).
 BACKFILL_POLL_S = 2.0
+# How often the line looks again while something else runs (a single report, grading, a history
+# download or the safety check): its next report starts once they are done.
+LINE_POLL_S = 1.0
 # How often the open app checks for a newly closed session to add to the stored prices.
 KEEP_CURRENT_EVERY_S = 1800.0
 
@@ -246,6 +254,14 @@ class Server:
         self.backfill_job: asyncio.Task | None = None
         # None makes the price job one pass (tests); the app checks every half hour.
         self.keep_current_every_s: float | None = KEEP_CURRENT_EVERY_S
+        # How the last run ended (run id, how), for the line (batch.py).
+        self.last_end: tuple[str, dict[str, Any]] | None = None
+        from tearsheet.batch import SETTING, ReportLine
+
+        # The line as Tearsheet left it: paused, if anything was waiting.
+        self.line = ReportLine.loads(config.Settings(self.db.conn).get(SETTING))
+        self.line_job: asyncio.Task | None = None
+        self.line_poll_s = LINE_POLL_S
         mark_interrupted(self.db.conn)
 
     # --- the defaults: live data and the user's AI tool -----------------------------------------
@@ -700,15 +716,20 @@ class Server:
         from tearsheet.pipeline import RunCancelled
 
         run = None
+        # How the run ended, for the line (batch.py): ready, stopped, failed or cancelled.
+        ended: dict[str, Any] = {"how": "failed", "code": "ENGINE_ERROR"}
         try:
             async with self.data_factory(run_id, self.db.conn, self.rawstore) as data:
                 run, query, resume = make_run(data)
                 self.active = run
                 result = await run.run(query, resume=resume)
+            ended = {"how": "stopped" if result.status == "stopped" else "ready"}
+            ended["report_id"] = result.report_id
             # A stopped run says so before its report so far, so the app never takes the
             # partial report for a finished one.
             if result.status == "stopped" and run.stop_error is not None:
                 code, data_ = error_code(run.stop_error)
+                ended.update(code=code, message=str(run.stop_error), **data_)
                 self.notify(
                     "run_failed",
                     RunFailedNote(
@@ -724,10 +745,11 @@ class Server:
             if result.report_id:
                 self.notify("report_ready", ReportReady(run_id=run_id, report_id=result.report_id))
         except RunCancelled:
-            pass
+            ended = {"how": "cancelled"}
         except Exception as exc:  # noqa: BLE001 - reported to the app, logged to standard error
             log.exception("run %s failed", run_id)
             code, data_ = error_code(exc)
+            ended = {"how": "failed", "code": code, "message": str(exc), **data_}
             if not resolved.is_set():
                 outcome["error"] = exc
             else:
@@ -743,6 +765,10 @@ class Server:
                     ),
                 )
         finally:
+            # A cancelled run that saved its report anyway still counts as cancelled.
+            if run is not None and run.cancel_requested:
+                ended["how"] = "cancelled"
+            self.last_end = (run_id, ended)
             self.active = None
             resolved.set()
             from tearsheet.ai import close_connector
@@ -793,8 +819,6 @@ class Server:
             resolved.set()
 
     async def m_run_report(self, p) -> dict[str, Any]:
-        from tearsheet.pipeline import Run, new_run_id
-
         self._refuse_during_safety_check()
         if self._busy():
             raise EngineError(
@@ -802,7 +826,14 @@ class Server:
             )
         self._refuse_during_grading()
         self._refuse_during_history()
-        ai = self.ai_factory(self.db.conn, p.tool)
+        return await self._begin_report(p.query, p.tool)
+
+    async def _begin_report(self, query: str, tool: str | None) -> dict[str, Any]:
+        """Start a full report and answer once step 1 has found the company. The caller has
+        checked that nothing else is running (run_report, or the line)."""
+        from tearsheet.pipeline import Run, new_run_id
+
+        ai = self.ai_factory(self.db.conn, tool)
         checker = self.checker_factory(self.db.conn, ai) if ai is not None else None
         now = self.now()
         run_id = new_run_id(now)
@@ -824,7 +855,7 @@ class Server:
                 log_predictions=self.log_predictions,
                 backup_dir=self._backup_dir(),
             )
-            return run, p.query, False
+            return run, query, False
 
         await self._start_job(run_id, make_run, wait_for_resolve=True)
         return {"run_id": run_id, **self._run_company(run_id)}
@@ -870,6 +901,10 @@ class Server:
             )
         finally:
             self.data_factory = factory
+        # Resume of the report that paused the line carries on with the line after it.
+        if self.line.resume(p.run_id) is not None:
+            self._line_changed()
+            self._kick_line()
         return {"run_id": p.run_id, **self._run_company(p.run_id)}
 
     def _run_company(self, run_id: str) -> dict[str, str | None]:
@@ -884,9 +919,139 @@ class Server:
             return {"ok": True}
         return {"ok": False}
 
+    # --- the line: several reports, one after another (batch.py) ----------------------------
+
+    def _line_changed(self) -> None:
+        from tearsheet.batch import SETTING
+        from tearsheet.protocol import LineState
+
+        config.Settings(self.db.conn).set_internal(SETTING, self.line.dumps())
+        self.notify("line_changed", LineState(**self.line.state()))
+
+    def _kick_line(self) -> None:
+        if self.line_job is None or self.line_job.done():
+            self.line_job = asyncio.create_task(self._run_line())
+
+    def _something_running(self) -> bool:
+        return self._busy() or self._grading() or self._downloading() or self._safety_running()
+
+    async def _run_line(self) -> None:
+        """Write the line's reports one at a time, each once nothing else is running."""
+        line = self.line
+        while True:
+            entry = line.writing  # a resumed report, already started
+            round_ = line.round
+            if entry is None:
+                while self._something_running() and line.waiting and line.paused is None:
+                    await asyncio.sleep(self.line_poll_s)
+                if line.writing is not None:
+                    continue
+                if not line.waiting or line.paused is not None:
+                    return
+                entry = line.take_next()
+                self._line_changed()
+                try:
+                    started = await self._begin_report(entry.ticker, None)
+                except Exception as exc:  # noqa: BLE001 - that company is marked stopped
+                    if isinstance(exc, EngineError):
+                        code, data = exc.code, exc.data
+                    else:
+                        log.exception("the line's report on %s didn't start", entry.ticker)
+                        code, data = error_code(exc)
+                    if line.round == round_:
+                        line.end(
+                            entry, {"how": "failed", "code": code, "message": str(exc), **data}
+                        )
+                        self._line_changed()
+                    continue
+                if line.round != round_:  # Cancel all while step 1 ran
+                    if self.active is not None and self.active.run_id == started["run_id"]:
+                        self.active.cancel()
+                else:
+                    entry.run_id = started["run_id"]
+                    if started.get("name"):
+                        entry.name = started["name"]
+                    self._line_changed()
+            if self.job is not None:
+                await asyncio.wait({self.job})  # wait, not gather: cancelling this never stops it
+            if line.round != round_:
+                continue
+            ended = self.last_end[1] if self.last_end and self.last_end[0] == entry.run_id else {}
+            line.end(entry, ended or {"how": "failed", "code": "ENGINE_ERROR"})
+            self._line_changed()
+
+    def _line_plan(self, queries: list[str]) -> tuple[list[Entry], list[Skip]]:
+        from tearsheet.companies import _aliases
+        from tearsheet.data import membership
+
+        holdings = membership.load_bundled()
+        return self.line.plan(
+            queries,
+            holdings=holdings,
+            tickers={row.ticker: row.cik for row in holdings.rows},
+            aliases=_aliases(),
+            conn=self.db.conn,
+            now=self.now(),
+        )
+
+    def _plan_answer(self, entries: list[Entry], skipped: list[Skip]) -> dict[str, Any]:
+        return {
+            "items": [e.item() for e in entries],
+            "skipped": [{"query": s.query, "reason": s.reason} for s in skipped],
+            "line": self.line.state(),
+        }
+
+    async def m_plan_line(self, p) -> dict[str, Any]:
+        """What add_to_line would add, and which companies would make a new official
+        prediction. Nothing changes."""
+        return self._plan_answer(*self._line_plan(p.queries))
+
+    async def m_add_to_line(self, p) -> dict[str, Any]:
+        from tearsheet.batch import REOPENED
+
+        entries, skipped = self._line_plan(p.queries)
+        if entries:
+            # Starting a new list carries on a line left from last time; a pause for a problem
+            # (a usage limit, say) stays until Resume or carry on.
+            if self.line.paused is not None and self.line.paused.code == REOPENED:
+                self.line.carry_on()
+            self.line.add(entries)
+            self._line_changed()
+            self._kick_line()
+        return self._plan_answer(entries, skipped)
+
+    async def m_get_line(self, p) -> dict[str, Any]:
+        return self.line.state()
+
+    async def m_remove_from_line(self, p) -> dict[str, Any]:
+        if self.line.remove(p.ticker):
+            self._line_changed()
+        return self.line.state()
+
+    async def m_clear_line(self, p) -> dict[str, Any]:
+        """Cancel all: the report being written stops, and nothing is left waiting."""
+        writing = self.line.writing
+        self.line.clear()
+        if writing and self.active is not None and self.active.run_id == writing.run_id:
+            self.active.cancel()
+        self._line_changed()
+        return self.line.state()
+
+    async def m_carry_on_line(self, p) -> dict[str, Any]:
+        """Go on with the companies still waiting, without resuming a stopped report."""
+        self.line.carry_on()
+        self._line_changed()
+        self._kick_line()
+        return self.line.state()
+
     async def wait_for_job(self) -> None:
         if self.job is not None:
             await self.job
+
+    async def wait_for_line(self) -> None:
+        """Until the line has nothing more to start (it is empty or paused)."""
+        while self.line_job is not None and not self.line_job.done():
+            await asyncio.wait({self.line_job})
 
     async def wait_for_safety_check(self) -> None:
         if self.safety_job is not None:
@@ -1400,6 +1565,10 @@ async def serve(paths: config.Paths) -> int:
                 break
             if line.strip():
                 await server.handle(line)
+        # The line stops first, so it neither counts the cancelled report nor starts the next;
+        # it is kept as it is, and comes back paused next time.
+        if server.line_job is not None:
+            server.line_job.cancel()
         if server.active is not None:
             server.active.cancel()
         if server.job is not None:

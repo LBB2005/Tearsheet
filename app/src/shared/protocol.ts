@@ -35,6 +35,8 @@ export type ReportId3 = string;
 export type ReportIds = [string, ...string[]];
 export type Cik = number;
 export type Pinned = boolean;
+export type Queries = string[];
+export type LineTicker = string;
 export type Cik1 = number;
 export type Name = string;
 export type Ticker = string;
@@ -287,9 +289,29 @@ export type Code1 =
   | "ENGINE_ERROR";
 export type ResetAt = string | null;
 export type FixCommand = string | null;
+export type Ticker9 = string;
+export type Name11 = string;
+export type Official1 = boolean;
+export type RunId8 = string | null;
+export type Outcome = ("ready" | "stopped" | "failed" | "cancelled") | null;
+export type ReportId10 = string | null;
+export type Code2 = string | null;
+export type Message1 = string | null;
+export type Query2 = string;
+export type Reason1 = string;
+export type Code3 = string;
+export type Message2 = string;
+export type ResetAt1 = string | null;
+export type FixCommand1 = string | null;
+export type RunId9 = string | null;
+export type Waiting = LineItem[];
+export type Finished1 = LineItem[];
+export type Limit2 = number;
+export type Items1 = LineItem[];
+export type Skipped = LineSkip[];
 
 /**
- * App-engine protocol, version 1.
+ * App-engine protocol, version 2.
  */
 export interface TearsheetProtocol {
   [k: string]: unknown;
@@ -424,6 +446,20 @@ export interface ReportIdsParams {
 export interface PinParams {
   cik: Cik;
   pinned: Pinned;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "QueriesParams".
+ */
+export interface QueriesParams {
+  queries: Queries;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "TickerParams".
+ */
+export interface TickerParams {
+  ticker: LineTicker;
 }
 /**
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
@@ -1001,5 +1037,69 @@ export interface RunFailedNote {
   reset_at?: ResetAt;
   fix_command?: FixCommand;
 }
+/**
+ * One company in the line.
+ *
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "LineItem".
+ */
+export interface LineItem {
+  ticker: Ticker9;
+  name: Name11;
+  official: Official1;
+  run_id?: RunId8;
+  outcome?: Outcome;
+  report_id?: ReportId10;
+  code?: Code2;
+  message?: Message1;
+}
+/**
+ * A company left out of the line, and why.
+ *
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "LineSkip".
+ */
+export interface LineSkip {
+  query: Query2;
+  reason: Reason1;
+}
+/**
+ * Why the line waits: a problem that would stop every report after it, or REOPENED when
+ * Tearsheet opened again with reports waiting.
+ *
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "LinePause".
+ */
+export interface LinePause {
+  code: Code3;
+  message: Message2;
+  reset_at?: ResetAt1;
+  fix_command?: FixCommand1;
+  run_id?: RunId9;
+}
+/**
+ * The line now; also the `line_changed` notification.
+ *
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "LineState".
+ */
+export interface LineState {
+  waiting: Waiting;
+  writing: LineItem | null;
+  finished: Finished1;
+  paused: LinePause | null;
+  limit: Limit2;
+}
+/**
+ * plan_line's and add_to_line's answer: the companies found, those left out, and the line.
+ *
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "LinePlan".
+ */
+export interface LinePlan {
+  items: Items1;
+  skipped: Skipped;
+  line: LineState;
+}
 
-export const PROTOCOL_VERSION = 1
+export const PROTOCOL_VERSION = 2

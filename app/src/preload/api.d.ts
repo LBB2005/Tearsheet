@@ -50,6 +50,16 @@ export interface TearsheetApi {
   showReports(reportIds: string[]): Promise<CallResult<import('../shared/protocol').ShowResult>>
   eraseReports(reportIds: string[]): Promise<CallResult<import('../shared/protocol').EraseResult>>
   pinCompany(cik: number, pinned: boolean): Promise<CallResult<{ ok: boolean }>>
+  // The line: several reports written one after another. planLine changes nothing; it says which
+  // companies were found and which would make a new official prediction.
+  planLine(queries: string[]): Promise<CallResult<import('../shared/protocol').LinePlan>>
+  addToLine(queries: string[]): Promise<CallResult<import('../shared/protocol').LinePlan>>
+  getLine(): Promise<CallResult<import('../shared/protocol').LineState>>
+  removeFromLine(ticker: string): Promise<CallResult<import('../shared/protocol').LineState>>
+  // Cancel all: stops the report being written and empties the line.
+  clearLine(): Promise<CallResult<import('../shared/protocol').LineState>>
+  // Goes on with the companies waiting, past a stopped report or after Tearsheet opened again.
+  carryOnLine(): Promise<CallResult<import('../shared/protocol').LineState>>
   listPredictions(): Promise<CallResult<import('../shared/protocol').PredictionSummary[]>>
   flagClaim(claimId: string, note: string): Promise<CallResult<{ review_id: string }>>
   rereadFiling(accession: string): Promise<CallResult<{ deleted: number }>>

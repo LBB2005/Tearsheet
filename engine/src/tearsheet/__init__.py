@@ -8,6 +8,6 @@ ENGINE_VERSION = "0.0.1"
 METHOD_CODE_VERSION = 3
 
 # Raised whenever an app-engine message changes (item 37).
-PROTOCOL_VERSION = 1
+PROTOCOL_VERSION = 2
 
 __version__ = ENGINE_VERSION

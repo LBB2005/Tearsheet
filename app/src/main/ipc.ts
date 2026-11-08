@@ -33,7 +33,14 @@ export const CALLS: Record<string, string> = {
   hideReports: 'hide_reports',
   showReports: 'show_reports',
   eraseReports: 'erase_reports',
-  pinCompany: 'pin_company'
+  pinCompany: 'pin_company',
+  // The line: several reports, one after another.
+  planLine: 'plan_line',
+  addToLine: 'add_to_line',
+  getLine: 'get_line',
+  removeFromLine: 'remove_from_line',
+  clearLine: 'clear_line',
+  carryOnLine: 'carry_on_line'
 }
 
 // The closed allowlist: only the names above, never inherited object properties.
