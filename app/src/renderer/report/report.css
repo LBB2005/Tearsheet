@@ -110,3 +110,12 @@ iframe.report-frame.fadein { animation: fade .15s ease-out both; background: tra
 .sheet textarea { min-height: 78px; resize: vertical; font-size: 13.5px; }
 .sheet .why { margin: 0; color: var(--bad-text); font-size: 13px; }
 .sheet .row { display: flex; gap: 8px; justify-content: flex-end; }
+
+/* The Refresh confirm (overlays/RefreshSheet.tsx) drops the same way. */
+.sheet.refresh:focus { outline: none; }
+.sheet.refresh p { margin: 0; color: var(--muted); font-size: 13.5px; line-height: 1.5; }
+.sheet.refresh ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 3px; font-size: 13.5px; line-height: 1.5; }
+.sheet.refresh ul b { font-size: 13.5px; }
+.sheet.refresh .ages { color: var(--muted); }
+.sheet.refresh .ages b { color: var(--text); margin-right: 4px; }
+.sheet.refresh .left li { color: var(--bad-text); }

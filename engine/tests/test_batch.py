@@ -68,6 +68,23 @@ def test_plan_looks_each_company_up_and_says_why_one_is_left_out(tmp_path):
     db.close()
 
 
+def test_plan_says_a_refresh_is_official_again_once_30_days_have_passed(tmp_path):
+    """The app's Refresh asks plan before writing a company again (8 Nov 2026): an official
+    prediction over 30 days old leaves room for a new one; a younger one doesn't."""
+    from datetime import timedelta
+
+    from tearsheet.predictions import log_if_official
+    from tests.test_predictions import prediction
+
+    db = open_database(tmp_path / "t.sqlite")
+    for run_id, cik, days in (("old", 1001, 31), ("young", 1002, 10)):
+        p = prediction(NOW - timedelta(days=days), run_id=run_id, cik=cik)
+        assert log_if_official(db.conn, p, backup_dir=tmp_path / "b") is not None
+    entries, _ = plan(ReportLine(), ["T1", "T2", "T3"], db.conn)
+    assert [(e.ticker, e.official) for e in entries] == [("T1", True), ("T2", False), ("T3", True)]
+    db.close()
+
+
 def test_plan_keeps_to_the_limit(tmp_path):
     db = open_database(tmp_path / "t.sqlite")
     line = ReportLine()

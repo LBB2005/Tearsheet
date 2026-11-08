@@ -23,6 +23,7 @@ import { leaveMs, pageEntrance, pageLeaveMs } from './motion'
 import { nextCompany, safetyFailed, safetyUnfinished, shortDate, statusLine, type Page } from './nav'
 import { FlagSheet } from './overlays/FlagSheet'
 import { LookUp } from './overlays/LookUp'
+import { RefreshSheet } from './overlays/RefreshSheet'
 import { Toast, type Notice } from './overlays/Toast'
 import { Home } from './pages/Home'
 import { Log } from './pages/Log'
@@ -35,6 +36,7 @@ import { useReport } from './report/useReport'
 import { topicName, type Topic } from './settings/topics'
 import { nextView, reportSubtitle } from './report/view'
 import { applySafetyNote, SAFETY_CALLS, safetyStarted, type SafetyState, type ToolKind } from './setup/steps'
+import type { Refreshing } from './shell/refresh'
 import { Sidebar, SidebarButton } from './shell/Sidebar'
 import { SidebarSizer } from './shell/SidebarSizer'
 import { Toolbar } from './shell/Toolbar'
@@ -75,6 +77,8 @@ export function App() {
   // True while a drag on the sidebar's edge would close it (shell/SidebarSizer.tsx).
   const [sideClosing, setSideClosing] = useState(false)
   const [lookUp, setLookUp] = useState(false)
+  // The Refresh confirm's companies, while it shows (shell/refresh.ts).
+  const [refreshing, setRefreshing] = useState<Refreshing[] | null>(null)
   // The look-up box opened from the line's Add a company: a pick joins the line.
   const lookUpAdds = useRef(false)
   const [finding, setFinding] = useState(false)
@@ -200,6 +204,10 @@ export function App() {
   // The sidebar's row for the report on show, which may be one of the company's older reports.
   const shownCik = reportPage.report?.cik ?? reportPage.listed?.cik ?? null
   const openRow = companies.find((c) => c.report_id === openReport) ?? (shownCik === null ? undefined : companies.find((c) => c.cik === shownCik))
+  // Refresh on the report page: the company on show, with the date of its latest report.
+  const shownTicker = reportPage.report?.ticker || reportPage.listed?.ticker || openRow?.ticker || null
+  const shownDate = openRow?.created_at ?? reportPage.report?.created_at ?? reportPage.listed?.created_at ?? null
+  const refreshShown: Refreshing | null = shownTicker && shownDate ? { ticker: shownTicker, created_at: shownDate } : null
 
   // The sidebar's own order (its sort, filters and search), for ⌘[ and ⌘].
   const shownOrder = useRef<CompanyRow[] | null>(null)
@@ -585,6 +593,10 @@ export function App() {
         }}
         hidden={marks.hidden}
         onDelete={marks.remove}
+        onRefresh={(rows) => {
+          setSideOver(false)
+          setRefreshing(rows.map((r) => ({ ticker: r.ticker, created_at: r.created_at })))
+        }}
         onPin={(row, pinned) => void marks.pin(row, pinned)}
         onShowHidden={marks.setWantHidden}
         onOpenHidden={(r) => {
@@ -622,7 +634,7 @@ export function App() {
                   Cancel run
                 </button>
               )}
-              {page === 'report' && <ReportTools page={reportPage} wide={wide} />}
+              {page === 'report' && <ReportTools page={reportPage} wide={wide} onRefresh={refreshShown ? () => setRefreshing([refreshShown]) : undefined} />}
             </Toolbar>
             {fatalNotice}
             <main key={shownKey} className={frameClass} data-page={page}>
@@ -630,6 +642,7 @@ export function App() {
             </main>
           </>
         )}
+        {refreshing && <RefreshSheet asked={refreshing} busy={report.busy} onStart={report.refresh} onClose={() => setRefreshing(null)} />}
         {page === 'report' && reportPage.flag && (
           <FlagSheet key={`${reportPage.flag.reportId}:${reportPage.flag.claimId}`} claim={reportPage.flag.text} onSave={reportPage.saveFlag} onClose={reportPage.closeFlag} />
         )}

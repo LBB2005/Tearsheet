@@ -21,6 +21,7 @@ const FULL: Appearance = {
   size: 110,
   boldness: 100,
   glow: 30,
+  sidebarContrast: 70,
   corners: 8,
   glass: 'solid',
   lines: 'strong',
@@ -37,7 +38,7 @@ describe('a good file', () => {
 
   test('is small, readable JSON with every setting named', () => {
     const data = themeData(DEFAULT_APPEARANCE, 'Mine')
-    expect(Object.keys(data)).toEqual(['tearsheet-theme', 'name', 'based-on', 'mode', 'accent', 'text', 'glow', 'corners', 'glass', 'lines', 'ratings'])
+    expect(Object.keys(data)).toEqual(['tearsheet-theme', 'name', 'based-on', 'mode', 'accent', 'text', 'glow', 'sidebar-contrast', 'corners', 'glass', 'lines', 'ratings'])
     expect(themeText(DEFAULT_APPEARANCE, 'Mine').length).toBeLessThan(400)
     expect(themeData(DEFAULT_APPEARANCE, '').name).toBe('My look')
   })
@@ -47,13 +48,23 @@ describe('a good file', () => {
     expect(r.look).toEqual({ ...DEFAULT_APPEARANCE, basedOn: 'graphite' })
   })
 
+  test('may name one of the More looks, and carries the sidebar contrast', () => {
+    const r = ok(theme({ 'based-on': 'aurora', 'sidebar-contrast': 80 }))
+    expect(r.look).toEqual({ ...DEFAULT_APPEARANCE, basedOn: 'aurora', sidebarContrast: 80 })
+    expect(r.skipped).toBe(0)
+  })
+
+  test('an older file, from before Sidebar contrast, gets today’s Raised sidebar', () => {
+    expect(ok(theme({ glow: 20 })).look.sidebarContrast).toBe(50)
+  })
+
   test('may start with a byte-order mark, as some editors save', () => {
     expect(ok('﻿' + theme({ glow: 20 })).look.glow).toBe(20)
   })
 
   test('numbers between steps round to the nearest step', () => {
-    const r = ok(theme({ glow: 42, text: { size: 103 }, corners: 7.6 }))
-    expect([r.look.glow, r.look.size, r.look.corners]).toEqual([40, 105, 8])
+    const r = ok(theme({ glow: 42, text: { size: 103 }, corners: 7.6, 'sidebar-contrast': 57 }))
+    expect([r.look.glow, r.look.size, r.look.corners, r.look.sidebarContrast]).toEqual([40, 105, 8, 55])
   })
 
   test('sameLook compares every setting', () => {
@@ -129,9 +140,11 @@ describe('a hostile file gets nothing but safe values in', () => {
   })
 
   test('numbers must be numbers, in range', () => {
-    const r = ok(theme({ glow: 900, corners: -4, text: { size: '120', boldness: '100' } }))
+    const r = ok(theme({ glow: 900, corners: -4, 'sidebar-contrast': '100; background: red', text: { size: '120', boldness: '100' } }))
     expect(r.look).toEqual(DEFAULT_APPEARANCE)
-    expect(r.skipped).toBe(4)
+    expect(r.skipped).toBe(5)
+    expect(ok(theme({ 'sidebar-contrast': 101 })).look.sidebarContrast).toBe(50)
+    expect(ok(theme({ 'sidebar-contrast': -5 })).look.sidebarContrast).toBe(50)
     // JSON has no NaN, but 1e400 reads as Infinity.
     expect(ok('{"tearsheet-theme": 1, "glow": 1e400}').look.glow).toBe(DEFAULT_APPEARANCE.glow)
   })

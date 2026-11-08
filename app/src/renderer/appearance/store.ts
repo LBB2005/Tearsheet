@@ -12,7 +12,7 @@
 
 import { useSyncExternalStore } from 'react'
 
-import { LOOKS, lookById, type LookId } from './looks'
+import { LOOKS, lookById, styleOf, type LookId } from './looks'
 import { cleanName, DEFAULT_APPEARANCE, parseTheme, readTheme, sameLook, themeData, THEME_MARK, type Appearance } from './themeFile'
 import { resolve, TOKEN_NAMES, type Resolved } from './tokens'
 
@@ -177,8 +177,9 @@ export function setLook(look: Appearance): void {
   commit({ ...now, look })
 }
 
-// A card: a ready-made look keeps the person's text size, glow, glass, corners, ratings and mode,
-// and drops colours set by hand; a saved look comes back exactly as it was saved.
+// A card: a ready-made look brings its own font, corners and glow, apart from any of the three the
+// person changed from the last look's, and keeps their text size, boldness, glass, ratings, sidebar
+// contrast and mode; colours set by hand are dropped. A saved look comes back exactly as saved.
 export function pickLook(id: string): void {
   const saved = now.saved.find((s) => `saved:${s.id}` === id)
   if (saved) return commit({ ...now, look: saved.look, picked: id })
@@ -186,7 +187,12 @@ export function pickLook(id: string): void {
   if (!look) return
   const was = lookById(now.look.basedOn)
   const lines = look.contrast ? 'strong' : was?.contrast && now.look.lines === 'strong' ? 'standard' : now.look.lines
-  commit({ ...now, look: { ...now.look, basedOn: look.id, accent: 'look', colours: {}, lines }, picked: look.id })
+  const from = styleOf(was)
+  const to = styleOf(look)
+  const font = now.look.font === from.font ? to.font : now.look.font
+  const corners = now.look.corners === from.corners ? to.corners : now.look.corners
+  const glow = now.look.glow === from.glow ? to.glow : now.look.glow
+  commit({ ...now, look: { ...now.look, basedOn: look.id, accent: 'look', colours: {}, lines, font, corners, glow }, picked: look.id })
 }
 
 // What the picked card is called now.

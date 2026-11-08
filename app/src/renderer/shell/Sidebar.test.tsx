@@ -322,6 +322,8 @@ describe('the keys', () => {
     await user.keyboard('{Shift>}{F10}{/Shift}')
     const rowMenu = screen.getByRole('menu', { name: 'MSFT report' })
     await user.keyboard('{ArrowDown}')
+    expect(within(rowMenu).getByRole('menuitem', { name: 'Refresh report…' })).toHaveFocus()
+    await user.keyboard('{ArrowDown}')
     expect(within(rowMenu).getByRole('menuitem', { name: 'Select' })).toHaveFocus()
     await user.keyboard('{ArrowUp}{End}')
     expect(within(rowMenu).getByRole('menuitem', { name: /Delete report/ })).toHaveFocus()

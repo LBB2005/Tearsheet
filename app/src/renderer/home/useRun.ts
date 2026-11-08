@@ -20,7 +20,8 @@ import type { LineState, RunStarted } from '../../shared/protocol'
 import { pageLeaveMs } from '../motion'
 import type { Page } from '../nav'
 import type { Notice } from '../overlays/Toast'
-import { lineGoing, newlyUnstarted, PAUSES } from './line'
+import { refreshNote } from '../shell/refresh'
+import { lineGoing, newlyUnstarted, PAUSES, REOPENED } from './line'
 import { freshNotes, refusal, withNote, type RunNotes, type RunState } from './run'
 
 // A cancelled run stops at its next step, and the engine says nothing when it has, so for a
@@ -170,11 +171,16 @@ export function useRun({ page, target, go, notify, loadCompanies, loadTools, ope
     [go, loadCompanies, loadTools, notify, onLockdownFailed, openReport, takeLine, target, track]
   )
 
+  // Whether a new company would wait its turn: a report is being written, or the line has more.
+  const isBusy = () => {
+    const r = current.current
+    return (r !== null && !r.reportId && !r.failure) || lineGoing(lineNow.current)
+  }
+
   // Start a report for a ticker or name. Gives what went wrong, or null once it has started.
   // While a report is being written (or the line has more to come), it joins the line instead.
   const start = async (query: string): Promise<string | null> => {
-    const r = current.current
-    if ((r !== null && !r.reportId && !r.failure) || lineGoing(lineNow.current)) return addOne(query)
+    if (isBusy()) return addOne(query)
     const reply = await window.tearsheet.runReport(query)
     if (reply.ok && reply.result) {
       begin(reply.result)
@@ -202,6 +208,20 @@ export function useRun({ page, target, go, notify, loadCompanies, loadTools, ope
     // A stopped run waiting for Resume is put away, as New report does.
     if (current.current?.failure) track(null)
     setReadyHold(false)
+    return null
+  }
+
+  // Refresh (shell/refresh.ts): companies written again through the line, after the confirm.
+  // You stay on the page you're on; a note says they started, or are waiting their turn.
+  const refresh = async (tickers: string[]): Promise<string | null> => {
+    const busy = isBusy()
+    const reply = await window.tearsheet.addToLine(tickers)
+    if (!reply.ok || !reply.result) return reply.error?.message || 'The reports didn’t start.'
+    const added = reply.result.items
+    if (added.length === 0) return reply.result.skipped[0]?.reason ?? 'None of these could be added.'
+    const paused = reply.result.line.paused
+    const note = refreshNote(added, { busy, paused: paused !== null && paused.code !== REOPENED })
+    notify(note.title, note.text)
     return null
   }
 
@@ -344,6 +364,9 @@ export function useRun({ page, target, go, notify, loadCompanies, loadTools, ope
     onNote,
     start,
     startLine,
+    // Whether a company added now would wait its turn.
+    busy: running || lineGoing(line),
+    refresh,
     removeFromLine,
     cancelAll,
     carryOn,
