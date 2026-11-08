@@ -37,7 +37,12 @@ def price_to_ffo(
     rules = settings["multiples"]
     ratios = [price / per_share for price, per_share in reit_peers if per_share and per_share > 0]
     mean, kept = harmonic_trimmed(ratios, trim_share=float(rules["trim_share"]))
-    details = {"reit_peers": len(kept), "note": FFO_NOTE}
+    details = {
+        "reit_peers": len(kept),
+        "note": FFO_NOTE,
+        "ffo_multiple": mean,
+        "ffo_per_share": ffo_per_share,
+    }
     if mean is None or len(kept) < int(rules["min_peers"]):
         return MethodValue(
             "price_to_ffo",

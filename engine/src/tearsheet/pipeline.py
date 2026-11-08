@@ -60,6 +60,7 @@ from tearsheet.scoring import (
 from tearsheet.sources import DataSource, Doc
 from tearsheet.text.compare import change_score
 from tearsheet.text.parse import Paragraph, filing_sections, split_paragraphs
+from tearsheet.valuation import saved as saved_valuation
 from tearsheet.valuation.combine import Combined, combine
 from tearsheet.valuation.common import (
     GroupStats,
@@ -652,6 +653,7 @@ class Run:
                     "gap_percentile": rating.gap_percentile,
                 },
             )
+            self._save_valuation_inputs(rng)
             step = "news"
             self._step(step)
             news_paragraphs = await self.news(resolved, paragraphs)
@@ -1277,6 +1279,27 @@ class Run:
             m.valuation = combine(methods, settings, terminal_share=dcf_share)
         return self.risk_free
 
+    def _save_valuation_inputs(self, rng: Range | None) -> None:
+        """Each method's assumptions and the range inputs for the rated company, for the
+        Excel download (`valuation.saved`; replay leaves this row out)."""
+        company = self.members[self.cik]
+        saved_valuation.save(
+            self.conn,
+            self.run_id,
+            saved_valuation.record(
+                cik=self.cik,
+                financial_class=company.financial_class,
+                risk_free=self.risk_free,
+                inputs=company.valuation_inputs,
+                stats=self.stats,
+                valuation=company.valuation,
+                range_inputs=self.range_inputs,
+                rng=rng,
+                settings=self.method.valuation,
+                lines=self.method.rating_lines,
+            ),
+        )
+
     def _full_methods(
         self, m: MemberData, dcf_value: MethodValue, all_inputs, settings
     ) -> list[MethodValue]:
@@ -1458,18 +1481,17 @@ class Run:
         }
         level = self._uncertainty(company) or "very_high"
         rng = None
+        self.range_inputs: RangeInputs | None = None
         if company.valuation and company.valuation.valid and company.price:
-            rng = twelve_month_range(
-                RangeInputs(
-                    company.price[1],
-                    company.valuation.value,
-                    cost_of_equity(company.volatility, self.method.valuation),
-                    company.dividend_yield,
-                    company.volatility or 0.3,
-                    self.stats.median_volatility,
-                ),
-                lines,
+            self.range_inputs = RangeInputs(
+                company.price[1],
+                company.valuation.value,
+                cost_of_equity(company.volatility, self.method.valuation),
+                company.dividend_yield,
+                company.volatility or 0.3,
+                self.stats.median_volatility,
             )
+            rng = twelve_month_range(self.range_inputs, lines)
         peer_gaps = [PeerGap(cik, g) for cik, g in gaps.items() if cik != self.cik]
         rating = rate(
             RatingInputs(
