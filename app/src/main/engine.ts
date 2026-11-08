@@ -1,16 +1,52 @@
-// The engine process (design item 44). Starts `tearsheet-engine serve`, speaks JSON-RPC over
-// its standard input and output, writes its standard error to the log file, checks the hello
-// line's protocol version, relays notifications, and restarts the engine if it crashes. A call
+// The engine process (design item 44). Starts `tearsheet-engine serve` (engineCommand says from
+// where), speaks JSON-RPC over its standard input and output, writes its standard error to the
+// log file, checks the hello line's protocol version, relays notifications, and restarts the
+// engine if it crashes. A call
 // never hangs: when the engine can't start, stops, or doesn't match, every waiting call and
 // every later one is answered with why (fatalMessage, or "The engine stopped.").
 
 import { spawn, type ChildProcess } from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import { createWriteStream, mkdirSync, type WriteStream } from 'node:fs'
-import { dirname } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { createInterface } from 'node:readline'
 
 import { PROTOCOL_VERSION, type Hello } from '../shared/protocol'
+
+export interface EngineCommand {
+  command: string
+  args: string[]
+  cwd: string
+}
+
+export interface EngineHome {
+  packaged: boolean
+  // Tearsheet.app/Contents/Resources (process.resourcesPath) and the app's own folder
+  // (app.getAppPath()): app/ in development.
+  resourcesPath: string
+  appPath: string
+  dataDir: string
+  // TEARSHEET_REPO, to run another checkout's engine in development.
+  repo?: string
+}
+
+// Where the engine comes from. The packaged app runs its own copy, which
+// scripts/build-engine.sh builds (a standalone Python with the engine installed in it) and
+// electron-builder puts in Contents/Resources/engine. Development runs this repository's engine
+// through uv. Both use the same data folder, which the engine is told through TEARSHEET_DATA_DIR.
+export function engineCommand(home: EngineHome): EngineCommand {
+  if (home.packaged) {
+    return {
+      command: join(home.resourcesPath, 'engine', 'bin', 'Tearsheet Engine'),
+      // -I: only the app's own packages (no PYTHONPATH, no packages from the user's folder).
+      // -B: never write compiled files inside the app; they were compiled when it was built.
+      args: ['-I', '-B', '-m', 'tearsheet.cli', 'serve'],
+      cwd: home.dataDir
+    }
+  }
+  const repo = home.repo || resolve(home.appPath, '..')
+  return { command: 'uv', args: ['run', '--project', join(repo, 'engine'), 'tearsheet-engine', 'serve'], cwd: repo }
+}
 
 export interface EngineOptions {
   command: string

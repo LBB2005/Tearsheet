@@ -16,6 +16,8 @@ htmlcov/
 node_modules/
 app/out/
 app/dist/
+# The packaged app's engine, made by scripts/build-engine.sh
+app/engine-bundle/
 
 # Local data and secrets. Keys live in the macOS Keychain, never in files.
 .env
