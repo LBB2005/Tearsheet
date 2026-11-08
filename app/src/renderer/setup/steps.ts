@@ -3,7 +3,7 @@
 // AI tool. The screens are in pages/Setup.tsx and the other files in this folder.
 
 import type { ToolStatus } from '../../preload/api'
-import type { LockdownState } from '../../shared/protocol'
+import type { Keys, LockdownState } from '../../shared/protocol'
 
 // The one-click install and sign-in (step 4's other version) is built but stays off until
 // Anthropic approves it. While this is false, everyone sees the two Terminal steps.
@@ -25,7 +25,7 @@ export interface ResumeInput {
   setupDone: boolean
   // The AI tool being set up (the primary tool, or Claude Code), as the probe found it.
   tool: ToolStatus | undefined
-  keys: Record<string, 'set' | 'missing'>
+  keys: Keys
   fredSkipped: boolean
   email: string | null
   // Whether anything in setup has been done yet (hasProgress).
@@ -65,7 +65,7 @@ export function nextLabel(next: SetupStep): string {
 // Whether setup has been started: a key saved, FRED skipped, an email given, or an AI tool
 // chosen. Finding Claude Code already on the Mac doesn't count, so a new person still sees the
 // welcome screen.
-export function hasProgress(s: { keys: Record<string, 'set' | 'missing'>; fred_skipped: boolean; sec_contact_email: string | null; primary_tool: string | null }): boolean {
+export function hasProgress(s: { keys: Keys; fred_skipped: boolean; sec_contact_email: string | null; primary_tool: string | null }): boolean {
   return s.keys.massive === 'set' || s.keys.fred === 'set' || s.fred_skipped || Boolean(s.sec_contact_email) || Boolean(s.primary_tool)
 }
 

@@ -59,7 +59,8 @@ export function problems(h: HealthInput): Problem[] {
   const out: Problem[] = []
   if (ai.tone === 'bad') out.push({ topic: 'ai', title: ai.text, detail: 'New reports can’t be written until this is fixed.', action: 'Open AI tools', tone: 'bad' })
   for (const [service, name, missing, tone] of KEY_NAMES) {
-    if (h.keys[service] !== 'set') out.push({ topic: 'keys', title: `${name} key not added`, detail: missing, action: 'Add key', tone })
+    if (h.keys[service] === 'locked') out.push({ topic: 'keys', title: `${name} key locked in the Keychain`, detail: 'macOS didn’t let Tearsheet open it. Quit Tearsheet, open it again, and click Always Allow when macOS asks.', action: 'Open data keys', tone })
+    else if (h.keys[service] !== 'set') out.push({ topic: 'keys', title: `${name} key not added`, detail: missing, action: 'Add key', tone })
     else if (h.rejected?.includes(service)) out.push({ topic: 'keys', title: `${name} key not accepted`, detail: `${name} turned it down on its last call.`, action: 'Replace key', tone })
   }
   const space = storage(h.rawBytes, h.rawCap)

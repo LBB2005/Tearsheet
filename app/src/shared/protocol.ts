@@ -880,7 +880,7 @@ export interface SettingsResult {
   lockdown?: Lockdown;
 }
 export interface Keys {
-  [k: string]: "set" | "missing";
+  [k: string]: "set" | "missing" | "locked";
 }
 export interface Lockdown {
   [k: string]: LockdownState;
