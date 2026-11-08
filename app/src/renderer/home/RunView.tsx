@@ -5,12 +5,12 @@
 // report is ready it waits on a Done card until Open the report. If the run stops (the plan's
 // usage limit, a sign-out, the engine restarting), a red box shows the engine's message and the
 // reset time, with Resume (or, when the safety check stopped it, the check). Cancel run sits in
-// the toolbar (App.tsx). Its only motion is the working stage's small spinner and the bars
+// the toolbar (App.tsx). Under the receipt, the line's strip says what is up next. Its only motion is the working stage's small spinner and the bars
 // sliding, none of it under Reduce motion (styles.css). The logic is in run.ts.
 
 import './home.css'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 
 import { about, clock, leftText, pace, usualTimes } from '../../shared/pace'
 import { REPORT_STEPS } from '../../shared/steps'
@@ -48,9 +48,11 @@ export interface RunViewProps {
   onResume: () => void
   onRecheck: () => void
   onOpen: () => void
+  // The line's strip (home/LineParts.tsx): what is up next, or how each of its reports went.
+  strip?: ReactNode
 }
 
-export function RunView({ run, ready, resuming, safety, onResume, onRecheck, onOpen }: RunViewProps) {
+export function RunView({ run, ready, resuming, safety, onResume, onRecheck, onOpen, strip }: RunViewProps) {
   const done = runStep(run, ready) === TOTAL
   const failure = run.failure
   const now = useNow(!done && !failure)
@@ -165,6 +167,7 @@ export function RunView({ run, ready, resuming, safety, onResume, onRecheck, onO
           )
         )}
       </section>
+      {strip}
       {!failure && !done && (
         <p className="fine mv" style={at(1)}>
           Usually {about(usual)}. Keep using your Mac; Tearsheet tells you when it’s ready.

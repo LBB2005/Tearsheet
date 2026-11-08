@@ -1007,8 +1007,14 @@ class Server:
         return self._plan_answer(*self._line_plan(p.queries))
 
     async def m_add_to_line(self, p) -> dict[str, Any]:
+        from tearsheet.batch import REOPENED
+
         entries, skipped = self._line_plan(p.queries)
         if entries:
+            # Starting a new list carries on a line left from last time; a pause for a problem
+            # (a usage limit, say) stays until Resume or carry on.
+            if self.line.paused is not None and self.line.paused.code == REOPENED:
+                self.line.carry_on()
             self.line.add(entries)
             self._line_changed()
             self._kick_line()

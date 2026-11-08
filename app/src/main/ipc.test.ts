@@ -19,6 +19,12 @@ test('the sidebar’s delete and pin calls reach the engine', () => {
   expect(engineMethod('showReports')).toBe('show_reports')
   expect(engineMethod('eraseReports')).toBe('erase_reports')
   expect(engineMethod('pinCompany')).toBe('pin_company')
+  expect(engineMethod('planLine')).toBe('plan_line')
+  expect(engineMethod('addToLine')).toBe('add_to_line')
+  expect(engineMethod('getLine')).toBe('get_line')
+  expect(engineMethod('removeFromLine')).toBe('remove_from_line')
+  expect(engineMethod('clearLine')).toBe('clear_line')
+  expect(engineMethod('carryOnLine')).toBe('carry_on_line')
 })
 
 test('a new or changed query starts a find session, and the same query steps through it', () => {

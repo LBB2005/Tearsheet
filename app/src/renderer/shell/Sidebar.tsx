@@ -83,10 +83,11 @@ export function SidebarButton({ shown, onClick }: { shown: boolean; onClick: () 
 }
 
 // The report being written, at the top of the list as "writing…". `on` while the home page
-// shows its run view.
+// shows its run view; `waiting`, how many more are in the line after it.
 export interface WritingRow {
   ticker: string
   on: boolean
+  waiting?: number
 }
 
 export interface SidebarProps {
@@ -476,7 +477,7 @@ export function Sidebar(props: SidebarProps) {
               <div role="listitem">
                 <button ref={keep('w')} data-key="w" tabIndex={tabKey === 'w' ? 0 : -1} className={row(writing.on)} aria-current={writing.on ? 'page' : undefined} onClick={onWriting} onFocus={() => setFocusKey('w')}>
                   <b>{writing.ticker}</b>
-                  <span className="px">writing…</span>
+                  <span className="px">{writing.waiting ? `writing… · ${writing.waiting} waiting` : 'writing…'}</span>
                 </button>
               </div>
             </div>

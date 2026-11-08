@@ -57,6 +57,12 @@ describe('the calls', () => {
     ['showReports', [['r1']], ['tearsheet:call', 'showReports', { report_ids: ['r1'] }]],
     ['eraseReports', [['r1']], ['tearsheet:call', 'eraseReports', { report_ids: ['r1'] }]],
     ['pinCompany', [320193, true], ['tearsheet:call', 'pinCompany', { cik: 320193, pinned: true }]],
+    ['planLine', [['JPM', 'O']], ['tearsheet:call', 'planLine', { queries: ['JPM', 'O'] }]],
+    ['addToLine', [['JPM']], ['tearsheet:call', 'addToLine', { queries: ['JPM'] }]],
+    ['getLine', [], ['tearsheet:call', 'getLine', {}]],
+    ['removeFromLine', ['O'], ['tearsheet:call', 'removeFromLine', { ticker: 'O' }]],
+    ['clearLine', [], ['tearsheet:call', 'clearLine', {}]],
+    ['carryOnLine', [], ['tearsheet:call', 'carryOnLine', {}]],
     ['listPredictions', [], ['tearsheet:call', 'listPredictions', {}]],
     ['flagClaim', ['r-1:c1', 'wrong'], ['tearsheet:call', 'flagClaim', { claim_id: 'r-1:c1', note: 'wrong' }]],
     ['rereadFiling', ['0001'], ['tearsheet:call', 'rereadFiling', { accession: '0001' }]],
@@ -90,6 +96,6 @@ describe('the listeners', () => {
 
 test('the window gets nothing but these calls and listeners', () => {
   expect(Object.keys(api).sort()).toEqual(
-    ['cancel', 'checkKey', 'fetchHistory', 'find', 'flagClaim', 'getChart', 'getReport', 'getReportNumbers', 'eraseReports', 'getSettings', 'getTools', 'gradeDue', 'hideReports', 'listCompanies', 'listPredictions', 'listReports', 'onFlagRequested', 'onMenu', 'onNotification', 'onOpenView', 'openExternal', 'openTerminal', 'pinCompany', 'rereadFiling', 'resume', 'runReport', 'runSafetyCheck', 'searchCompanies', 'setKey', 'setSetting', 'showReports', 'stopFind'].sort()
+    ['addToLine', 'cancel', 'carryOnLine', 'checkKey', 'clearLine', 'getLine', 'planLine', 'removeFromLine', 'fetchHistory', 'find', 'flagClaim', 'getChart', 'getReport', 'getReportNumbers', 'eraseReports', 'getSettings', 'getTools', 'gradeDue', 'hideReports', 'listCompanies', 'listPredictions', 'listReports', 'onFlagRequested', 'onMenu', 'onNotification', 'onOpenView', 'openExternal', 'openTerminal', 'pinCompany', 'rereadFiling', 'resume', 'runReport', 'runSafetyCheck', 'searchCompanies', 'setKey', 'setSetting', 'showReports', 'stopFind'].sort()
   )
 })

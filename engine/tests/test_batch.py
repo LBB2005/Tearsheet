@@ -403,6 +403,51 @@ def test_a_line_left_when_tearsheet_closed_waits_to_be_carried_on(tmp_path, fake
     h.server.close()
 
 
+def test_a_new_list_carries_on_a_line_left_from_last_time(tmp_path, fake_list):
+    first = Harness(tmp_path)
+    left = ReportLine()
+    left.add([Entry("T1", "Company 1", 1001, True)])
+    config.Settings(first.server.db.conn).set_internal(SETTING, left.dumps())
+    first.server.close()
+    h = Harness(tmp_path)
+
+    async def go():
+        await h.server.start()
+        await h.call("add_to_line", {"queries": ["T2"]})
+        await h.server.wait_for_line()
+
+    run(go())
+    final = _line_notes(h)[-1]
+    assert [(i["ticker"], i["outcome"]) for i in final["finished"]] == [
+        ("T1", "ready"),
+        ("T2", "ready"),
+    ]
+    h.server.close()
+
+
+def test_a_new_list_waits_behind_a_usage_limit(tmp_path, fake_list):
+    def limited(request):
+        if request.task == "narrate":
+            return AIUsageLimit("You've hit your limit. Resets 3am")
+        return clean_ai(request)
+
+    h = Harness(tmp_path, ai_default=limited)
+
+    async def go():
+        await h.server.start()
+        await h.call("add_to_line", {"queries": ["T0"]})
+        await h.server.wait_for_line()
+        await h.call("add_to_line", {"queries": ["T1"]}, id_=2)
+        await h.server.wait_for_line()
+
+    run(go())
+    final = _line_notes(h)[-1]
+    assert final["paused"]["code"] == "USAGE_LIMIT"
+    assert [i["ticker"] for i in final["waiting"]] == ["T1"]
+    assert len(h.notes("report_ready")) == 1  # T0's report so far; T1 never started
+    h.server.close()
+
+
 def test_no_ai_tool_pauses_the_line(tmp_path, fake_list):
     from tearsheet.server import EngineError
 
