@@ -1,7 +1,7 @@
 # Report downloads: PDF, slide deck and Excel
 
 * **Date:** 2026-11-08
-* **Status:** draft for Liam's OK.
+* **Status:** approved by Liam and built on branch `claude/report-downloads-5a7309` (8 Nov 2026). The Excel became a classic bank model with a Financials tab (see the decisions below); the PDF includes analystdb's ratings and targets, never S&P Global's figures.
 * **Research behind it:** `reports/Bank style equity research templates.md`; sample looks in
   `docs/designs/download-looks/` (Liam picked **Look 2, Modern research**).
 
@@ -210,6 +210,21 @@ an Official call box beside every what-if).
 * The Download row's styling in the app's report (match the report's current look tokens).
 * Error wording, in plain language.
 
-## Open questions for Liam
+## Changes after Liam saw the samples (8 Nov 2026)
 
-None. Next: a reviewer reads this note as a builder would, then Liam OKs it.
+* **Excel restyled** as a classic bank model: white, Arial, thin grey rules, bold totals, blue for
+  typed figures and black for formulas; five tabs (Summary, Financials, Valuation, Peers, Sources &
+  checks); four charts (share price, revenue and margin, valuation range, 1-year return vs peers);
+  a hover note on every typed figure saying where it came from.
+* **Financials tab:** the last three fiscal years and the last 12 months, rebuilt read-only from
+  the run's stored SEC company facts the engine's way (`normalize.Financials`). Checks tie its LTM
+  figures to the report's metric inputs and each peer median formula to the report's own.
+* **Analyst ratings:** in the PDF only ("The street's view"), analystdb's ratings and targets as of
+  the report's price date; S&P Global's trust-check figures are left out.
+* **Deck:** sources grouped by passage fit one slide, so the appendix is 5 slides (17 in all).
+
+## Next (agreed, not built)
+
+* Save each valuation method's assumptions when a report is written (a step row replay doesn't
+  compare), so later workbooks can show them and support what-ifs.
+* The live valuation model (Option B), after that; see `docs/designs/downloads-excel-review.md`.
