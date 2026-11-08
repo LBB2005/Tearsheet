@@ -9,6 +9,7 @@ text, and the page carries its own content-security policy.
 
 from __future__ import annotations
 
+import math
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -132,6 +133,23 @@ def open_link(view: str, item: object = None) -> str | None:
         return None
 
 
+def _ring_arc(centre: float, radius: float, start: float, end: float) -> str:
+    """The path of one slice of a ring, from `start` to `end` as fractions of the way round,
+    clockwise from where a circle's stroke starts (the donut macro turns the ring so that is
+    the top). Jinja has no trigonometry, so the points are worked out here. An arc can't end
+    where it starts, so a slice that goes the whole way round is drawn as two halves, closed."""
+
+    def point(at: float) -> str:
+        angle = math.tau * at
+        return f"{centre + radius * math.cos(angle):.2f} {centre + radius * math.sin(angle):.2f}"
+
+    r = f"{radius:g} {radius:g}"
+    if end - start >= 1:
+        return f"M {point(start)} A {r} 0 0 1 {point(start + 0.5)} A {r} 0 0 1 {point(start)} Z"
+    large = 1 if end - start > 0.5 else 0
+    return f"M {point(start)} A {r} 0 {large} 1 {point(end)}"
+
+
 def _metric_text(name: str, value: float | None) -> str:
     return format_value(METRIC_KINDS.get(name, "percent"), value)
 
@@ -220,4 +238,5 @@ def render_html(
         red_flag_labels=RED_FLAG_LABELS,
         ro=readouts,
         open_link=open_link,
+        arc=_ring_arc,
     )

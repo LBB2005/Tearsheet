@@ -26,7 +26,13 @@
 
 {#- A ring split into parts: `parts` is a list of [count, key], drawn with the class dn-<key>. In
     the app each slice opens the rings view on itself. The slice is left out of the tab order:
-    the legend beside the ring is the keyboard's way to the same links and readouts. -#}
+    the legend beside the ring is the keyboard's way to the same links and readouts.
+
+    Each slice is an arc of its own (render._ring_arc), stroked along its own span only: a
+    pointer takes a stroke's whole shape, so a full circle with a dash would catch points over
+    the other slices. A slice starts where the last one's share ended and stops 2 px short of
+    its own, so neighbours are told apart; one slice that holds every count is the whole ring.
+    pathLength="1" is for the draw-in alone (the motion rules); the slices have no dash. -#}
 {%- macro donut(size, stroke, parts, label) -%}
 {%- set rad = (size - stroke) / 2 - 1 -%}
 {%- set c = TAU * rad -%}
@@ -37,8 +43,9 @@
 {%- if ns.total > 0 -%}
 {%- for count, key in parts if count > 0 -%}
 {%- set share = c * count / ns.total -%}
+{%- set end = 1 if count == ns.total else (ns.off + [share - 2, 0.5]|max) / c -%}
 {%- set link = open_link("rings", key) if mode == "app" else none -%}
-{% if link %}<a href="{{ link }}" tabindex="-1">{% endif %}<circle class="dn-seg dn-{{ key }}" cx="{{ m }}" cy="{{ m }}" r="{{ f1(rad) }}" stroke-width="{{ stroke }}" stroke-dasharray="{{ f1([share - 2, 0.5]|max) }} {{ f1(c) }}" stroke-dashoffset="{{ f1(-ns.off) }}"/>{% if link %}</a>{% endif %}
+{% if link %}<a href="{{ link }}" tabindex="-1">{% endif %}<path class="dn-seg dn-{{ key }}" d="{{ arc(m, rad, ns.off / c, end) }}" stroke-width="{{ stroke }}" pathLength="1"/>{% if link %}</a>{% endif %}
 {%- set ns.off = ns.off + share -%}
 {%- endfor -%}
 {%- endif -%}
@@ -101,8 +108,13 @@
 {%- set y_base = [y_base, y_bear - 26]|min -%}
 {%- set y_bull = [y_bull, y_base - 26]|min -%}
 {%- for name, y, target in (("Bull", y_bull, rng.bull), ("Base", y_base, rng.base), ("Bear", y_bear, rng.bear)) -%}
+<text class="ch-val" x="{{ right + 6 }}" y="{{ f1(y + 2) }}"><tspan class="ch-{{ name|lower }}n">{{ name }}</tspan> {{ "${:,.2f}".format(target) }}</text>
+{#- A move needs a price above 0 to be measured from, as in readouts._percent_move; without
+    one, the case keeps its name and price and leaves the move out. -#}
+{%- if today > 0 -%}
 {%- set move = (target / today - 1) * 100 -%}
-<text class="ch-val" x="{{ right + 6 }}" y="{{ f1(y + 2) }}"><tspan class="ch-{{ name|lower }}n">{{ name }}</tspan> {{ "${:,.2f}".format(target) }}</text><text class="ch-lab" x="{{ right + 6 }}" y="{{ f1(y + 15) }}">{{ ("+" if move >= 0 else "−") ~ "%.0f"|format(move|abs) }}%</text>
+<text class="ch-lab" x="{{ right + 6 }}" y="{{ f1(y + 15) }}">{{ ("+" if move >= 0 else "−") ~ "%.0f"|format(move|abs) }}%</text>
+{%- endif -%}
 {%- endfor -%}
 {%- endif -%}
 <text class="ch-lab" x="{{ left }}" y="{{ h - 6 }}">{{ start }}</text><text class="ch-lab" x="{{ f1(mid) }}" y="{{ h - 6 }}" text-anchor="middle">{{ middle }}</text><text class="ch-lab" x="{{ right }}" y="{{ h - 6 }}" text-anchor="end">{{ end }}</text>

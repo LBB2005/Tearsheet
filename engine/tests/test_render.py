@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import math
 import re
 from datetime import date, timedelta
 from html import unescape
+from html.parser import HTMLParser
 
 import pytest
 
@@ -364,6 +366,21 @@ def test_the_12_month_range_is_three_straight_labelled_lines():
         assert text in svg, text
 
 
+def test_a_stored_price_of_0_still_opens_the_report():
+    """A move from today's price can't be worked out from a price of 0. The range still shows
+    its three cases with their prices, and leaves out the move under each."""
+    n = numbers()
+    n["price"]["value"] = 0
+    for column, narrow in (("both", False), ("auto", True)):
+        html = render_html(
+            report("Plain sentence."), mode="app", column=column, narrow=narrow, numbers=n
+        )
+        svg = _range_chart(html)
+        for text in ("Bull", "$419.62", "Base", "$233.70", "Bear", "$130.16"):
+            assert text in svg, text
+        assert not re.search(r"[+−]\d+%</text>", svg)
+
+
 def test_open_link():
     assert open_link("metrics", "operating_margin") == "tearsheet://open/metrics/operating_margin"
     assert open_link("table-valuation", 2) == "tearsheet://open/table-valuation/2"
@@ -567,6 +584,283 @@ def test_key_tile_readouts_span_the_strip_once_the_tiles_have_risen():
     rising = [body for selector, body in css_rules(motion) if selector == ".keys > *"]
     assert rising and re.search(r"animation:.*\brise\b", rising[0])
     assert not re.search(r"\b(forwards|both)\b", rising[0]), rising[0]
+
+
+class _Node:
+    def __init__(self, tag: str, attrs: list[tuple[str, str | None]], parent: _Node | None):
+        self.tag, self.parent = tag, parent
+        self.attrs = {k: v or "" for k, v in attrs}
+        self.classes = set(self.attrs.get("class", "").split())
+        self.children: list[_Node] = []
+
+    def walk(self):
+        for child in self.children:
+            yield child
+            yield from child.walk()
+
+    def ancestors(self):
+        node = self.parent
+        while node is not None:
+            yield node
+            node = node.parent
+
+
+class _Tree(HTMLParser):
+    """The page's elements as a tree, enough to follow which box holds which."""
+
+    VOID = {"br", "hr", "img", "input", "link", "meta", "source", "wbr"}
+
+    def __init__(self, html: str):
+        super().__init__()
+        self.root = self.at = _Node("#root", [], None)
+        self.feed(html)
+
+    def handle_starttag(self, tag, attrs):
+        node = _Node(tag, attrs, self.at)
+        self.at.children.append(node)
+        if tag not in self.VOID:
+            self.at = node
+
+    def handle_startendtag(self, tag, attrs):
+        self.at.children.append(_Node(tag, attrs, self.at))
+
+    def handle_endtag(self, tag):
+        node = self.at
+        while node.parent is not None and node.tag != tag:
+            node = node.parent
+        if node.parent is not None:
+            self.at = node.parent
+
+
+def _compound(node: _Node, part: str) -> bool:
+    part = re.sub(r":[\w-]+(\([^)]*\))?", "", part)
+    tag = re.match(r"[a-z][a-z0-9]*", part)
+    return (not tag or node.tag == tag.group(0)) and set(
+        re.findall(r"\.([\w-]+)", part)
+    ) <= node.classes
+
+
+def _matches(node: _Node | None, tokens: list[str]) -> bool:
+    """A selector of tags, classes, descendant, child (>) and next-sibling (+) combinators, read
+    from the right, as the browser does."""
+    if node is None or not _compound(node, tokens[-1]):
+        return False
+    rest = tokens[:-1]
+    if not rest:
+        return True
+    if rest[-1] == ">":
+        return _matches(node.parent, rest[:-1])
+    if rest[-1] == "+":
+        siblings = node.parent.children if node.parent else []
+        at = siblings.index(node)
+        return at > 0 and _matches(siblings[at - 1], rest[:-1])
+    return any(_matches(up, rest) for up in node.ancestors())
+
+
+def _positioned(css: str):
+    """Whether the stylesheet positions an element, so that it holds the readouts inside it."""
+    selectors = [
+        re.findall(r"[>+~]|[^\s>+~]+", part)
+        for selector, body in css_rules(css)
+        if re.search(r"position:\s*(relative|absolute|fixed|sticky)", body)
+        for part in selector.split(",")
+        if not names_readout(part)
+    ]
+    return lambda node: any(_matches(node, tokens) for tokens in selectors)
+
+
+def _first_or_last(node: _Node) -> str:
+    """Whether a readout comes before all of its item's content, or after it. A ring's readouts
+    come one after another, before the ring."""
+    siblings = node.parent.children
+    at = siblings.index(node)
+    if all("ro" in s.classes for s in siblings[:at]):
+        return "first"
+    return "last" if all("ro" in s.classes for s in siblings[at + 1 :]) else "middle"
+
+
+def test_a_panels_readouts_show_by_the_item_pointed_at():
+    """The numbers column scrolls, and a tall panel's heading is often out of view while its bars
+    and tiles are in it; a readout at the heading was then out of view too. Each item's readout
+    shows by the item instead.
+
+    A bar or red-flag row is as wide as its panel, so it holds its readout itself: the readout
+    shows just above it, or below the first one under the heading, where above would leave the
+    panel. A tile, figure, ring or legend entry is far narrower than its panel, and a readout
+    held by it would wrap to many lines, so its panel holds the readout and keeps it panel-wide;
+    the readout, with no top or bottom, stays at its place in the item (the start of the item,
+    its first child) and is lifted by its own height to sit just above it. One marked below is
+    the item's last child, at its bottom edge, and is not lifted."""
+    html = render_html(report("Plain sentence."), mode="app", numbers=numbers())
+    css = style_of(html)
+    positioned = _positioned(css)
+    tree = _Tree(html[html.index("<body") :])
+    panels = [node for node in tree.root.walk() if node.tag == "section" and "p" in node.classes]
+    assert len(panels) == 9
+    held, lifted, below = [], [], []
+    for panel in panels:
+        for ro in (node for node in panel.walk() if "ro" in node.classes):
+            box = next(up for up in ro.ancestors() if positioned(up))
+            if any("cw" in up.classes for up in ro.ancestors()):
+                continue  # a chart's readouts: test_a_charts_readouts_show_on_its_top_edge
+            item = ro.parent
+            if box is item:
+                assert item.parent is panel and "hot" in item.classes, item.classes
+                held.append(item)
+            else:
+                assert box is panel, (box.tag, box.classes, item.classes)
+                assert _first_or_last(ro) == ("last" if "below" in ro.classes else "first")
+                (below if "below" in ro.classes else lifted).append(item)
+    held_kinds = {kind for item in held for kind in ("bar", "kv") if kind in item.classes}
+    assert held_kinds == {"bar", "kv"} and len(held) == 3 + 3 + 4 + 1  # and the red-flag meter
+    assert {"tile"} <= {c for item in below for c in item.classes}  # the first row of tiles
+    assert len(lifted) + len(below) == 1 + 4 + 2 + 2 + 3 + 3 + 2 + 2  # with each ring's slices
+
+    rules = css_rules(css)
+
+    def rule(selector: str) -> str:
+        found = [body for s, body in rules if selector in [p.strip() for p in s.split(",")]]
+        assert found, selector
+        return found[-1]
+
+    def inset(body: str, side: str) -> str | None:
+        found = re.search(rf"(?<![-\w]){side}:\s*([^;]+)", body)
+        return found.group(1).strip() if found else None
+
+    above, under = rule(".p > .hot > .ro"), rule(".p > h4 + .hot > .ro")
+    assert inset(above, "bottom") not in (None, "auto") and inset(above, "top") is None
+    assert inset(under, "top") not in (None, "auto") and inset(under, "bottom") == "auto"
+    panel_wide = rule(".p .ro")
+    assert inset(panel_wide, "top") is None and inset(panel_wide, "bottom") is None
+    assert re.search(r"transform:\s*translateY\(-100%\)", panel_wide)
+    assert re.search(r"transform:\s*none", rule(".p .ro.below"))
+
+
+def test_the_panel_pointed_at_is_drawn_over_the_others():
+    """A readout may reach past its panel's edge, over the next panel's glass, which would blur
+    it and draw over it; the panel pointed at or focused comes to the front."""
+    css = style_of(render_html(report("Plain sentence."), mode="app", numbers=numbers()))
+    raised = [
+        part.strip()
+        for selector, body in css_rules(css)
+        if re.search(r"z-index:\s*[1-9]", body)
+        for part in selector.split(",")
+    ]
+    assert ".p:hover" in raised and ".p:focus-within" in raised
+
+
+def test_a_charts_readouts_show_on_its_top_edge():
+    """A chart's own readout, a week's and a case's show on the chart's top edge, as before; a
+    method's row in the value-per-share chart is its own readout box, so its readout shows just
+    above the row pointed at."""
+    html = render_html(report("Plain sentence."), mode="app", numbers=numbers())
+    css = style_of(html)
+    positioned = _positioned(css)
+    tree = _Tree(html[html.index("<body") :])
+    boxes = {}
+    for chart in (node for node in tree.root.walk() if "cw" in node.classes):
+        for ro in (node for node in chart.walk() if "ro" in node.classes):
+            box = next(up for up in ro.ancestors() if positioned(up))
+            kind = "row" if "col" in ro.parent.parent.classes else "chart"
+            held = "chart" if box is chart or "hits" in box.classes else "?"
+            boxes.setdefault(kind, set()).add("item" if box is ro.parent else held)
+    assert boxes == {"chart": {"chart"}, "row": {"item"}}, boxes
+    tops = [body for selector, body in css_rules(css) if selector == ".cw .ro"]
+    assert tops and re.search(r"bottom:\s*100%", tops[0])
+    assert re.search(r"transform:\s*none", tops[0])
+
+
+def _ring(html: str, label: str) -> str:
+    start = html.index(f'aria-label="{label}')
+    return html[start : html.index("</svg>", start)]
+
+
+ARC = re.compile(r"A ([\d.]+) ([\d.]+) 0 ([01]) ([01]) (-?[\d.]+) (-?[\d.]+)")
+
+
+def _slices(svg: str) -> list[tuple[str, str]]:
+    """Each slice of a ring as (key, the path's d)."""
+    return re.findall(r'<path class="dn-seg dn-([a-z]+)" d="([^"]+)"', svg)
+
+
+def _turn(x: float, y: float, centre: float) -> float:
+    """How far round the ring a point is, as a fraction, the way the slices run."""
+    return (math.atan2(y - centre, x - centre) / math.tau) % 1
+
+
+def test_each_ring_slice_is_an_arc_of_its_own():
+    """A slice drawn as a whole circle with a dash still takes the pointer all the way round, so
+    the top one caught points over the others. Each is its own arc, stroked along its span only,
+    from where the last one's share ended to its own share less a 2 px gap, as the dashes ran."""
+    html = render_html(report("Plain sentence."), mode="app", numbers=numbers())
+    size, stroke = 80, 10
+    rad = (size - stroke) / 2 - 1
+    centre, around = size / 2, math.tau * rad
+    for label, counts in (
+        ("Peer ratings: 8 Buy, 26 Hold, 7 Sell", (("buy", 8), ("hold", 26), ("sell", 7))),
+        ("41 claims kept, 12 removed", (("kept", 41), ("removed", 12))),
+    ):
+        svg = _ring(html, label)
+        assert "stroke-dasharray" not in svg and '<circle class="dn-seg' not in svg
+        slices = _slices(svg)
+        assert [key for key, _ in slices] == [key for key, _ in counts]
+        total, done = sum(count for _, count in counts), 0.0
+        for (key, d), (_, count) in zip(slices, counts, strict=True):
+            start = re.match(r"M (-?[\d.]+) (-?[\d.]+) ", d)
+            arcs = ARC.findall(d)
+            assert start and len(arcs) == 1, (key, d)
+            rx, ry, large, sweep, x1, y1 = arcs[0]
+            x0, y0 = float(start.group(1)), float(start.group(2))
+            assert float(rx) == float(ry) == rad and sweep == "1", (key, d)
+            for x, y in ((x0, y0), (float(x1), float(y1))):
+                assert math.hypot(x - centre, y - centre) == pytest.approx(rad, abs=0.01), key
+            share = count / total
+            span = max(share * around - 2, 0.5) / around
+            assert _turn(x0, y0, centre) == pytest.approx(done % 1, abs=1e-3), key
+            assert _turn(float(x1), float(y1), centre) == pytest.approx(done + span, abs=1e-3), key
+            assert large == ("1" if span > 0.5 else "0"), key
+            done += share
+
+
+def test_a_ring_with_one_slice_draws_the_whole_circle():
+    """An arc from a point back to itself draws nothing, so a slice that holds every count is
+    drawn as two halves, closed, the whole way round."""
+    n = numbers()
+    n["peer_ratings"] = {"Buy": 5, "Hold": 0, "Sell": 0}
+    html = render_html(report("Plain sentence."), mode="app", numbers=n)
+    slices = _slices(_ring(html, "Peer ratings: 5 Buy, 0 Hold, 0 Sell"))
+    assert [key for key, _ in slices] == ["buy"]
+    d = slices[0][1]
+    start = re.match(r"M (-?[\d.]+) (-?[\d.]+) ", d)
+    arcs = ARC.findall(d)
+    assert start and len(arcs) == 2 and d.rstrip().endswith("Z"), d
+    centre, rad = 40, 34
+    first = (float(start.group(1)), float(start.group(2)))
+    assert first == pytest.approx((centre + rad, centre))
+    assert (float(arcs[0][4]), float(arcs[0][5])) == pytest.approx((centre - rad, centre))
+    assert (float(arcs[1][4]), float(arcs[1][5])) == pytest.approx(first)
+    assert all(arc[3] == "1" for arc in arcs)
+
+
+def test_a_ring_slice_can_be_pointed_at():
+    """The count in the ring's middle covers the whole ring; it lets the pointer through to the
+    slices, and pointing at a slice still shows its readout."""
+    css = style_of(render_html(report("Plain sentence."), mode="app", numbers=numbers()))
+    count = [body for selector, body in css_rules(css) if selector == ".dn b"]
+    assert count and re.search(r"pointer-events:\s*none", count[0])
+    shown = [
+        part.strip()
+        for selector, body in css_rules(css)
+        if re.search(r"display:\s*block", body)
+        for part in selector.split(",")
+    ]
+    for key in ("buy", "hold", "sell", "kept", "removed"):
+        assert f".donut:has(.dn-{key}:hover) > .ro-{key}" in shown, key
+    # The slices' draw-in is the only dash they ever have, and only while it plays.
+    still = re.sub(r"@media \(prefers-reduced-motion[^{]*\{.*", "", css, flags=re.S)
+    for selector, body in css_rules(still):
+        if "dn-seg" in selector:
+            assert "dasharray" not in body, selector
 
 
 def test_the_key_strip_can_narrow_with_the_frame():

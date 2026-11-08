@@ -89,7 +89,9 @@
 {%- if n.rating or n.score %}
 <div class="callrow">
 {%- if n.score %}
-{% call hot("factors", none, ro.score(n.score.percentile)) %}<div class="ring">{{ gauge(84, 7, n.score.percentile / 100) }}<div><b>{{ n.score.percentile }}</b><span>score</span></div></div>{% endcall %}
+{#- The ring is the panel's first row under the ticker, so its readout shows below it, over the
+    tiles. #}
+{% call hot("factors", none, ro.score(n.score.percentile), below=true) %}<div class="ring">{{ gauge(84, 7, n.score.percentile / 100) }}<div><b>{{ n.score.percentile }}</b><span>score</span></div></div>{% endcall %}
 {%- endif %}
 <div>{% if n.rating %}<div class="call {{ n.rating.call|lower }}">{{ n.rating.call }}</div><span>next 12 months, against its peers</span>{% else %}{{ gap("The rating is") }}{% endif %}</div>
 </div>
@@ -153,10 +155,13 @@
 <section class="p glass span2">
 <h4><span>Key metrics against the peer median</span><em>dot: share of peers below {{ r.ticker }}</em></h4>
 {%- if n.metrics %}
+{#- The first row's readouts show below it, where above would leave the panel. The row's length
+    follows the panel's width; five tiles is the most that fit, at the column's widest, and in a
+    narrower panel the second row's first tiles show theirs below too, over the row under them. #}
 <div class="tiles">
 {%- for m in n.metrics %}
 {%- set median = metric_text(m.name, m.peer_median) if m.peer_median is number else none %}
-{% call hot("metrics", m.name, ro.metric(m.label, metric_text(m.name, m.value), median, m.percentile if m.percentile is number else none, r.ticker), "tile") %}<span>{{ m.label }}</span><b>{{ metric_text(m.name, m.value) }}</b><small>{% if median is not none %}peers {{ median }}{% else %}no peer median{% endif %}</small><div class="rk">{% if m.percentile is number %}<i style="left:{{ [[m.percentile, 0]|max, 100]|min }}%"></i>{% endif %}</div>{% endcall %}
+{% call hot("metrics", m.name, ro.metric(m.label, metric_text(m.name, m.value), median, m.percentile if m.percentile is number else none, r.ticker), "tile", below=loop.index0 < 5) %}<span>{{ m.label }}</span><b>{{ metric_text(m.name, m.value) }}</b><small>{% if median is not none %}peers {{ median }}{% else %}no peer median{% endif %}</small><div class="rk">{% if m.percentile is number %}<i style="left:{{ [[m.percentile, 0]|max, 100]|min }}%"></i>{% endif %}</div>{% endcall %}
 {%- endfor %}
 </div>
 {%- else %}
@@ -217,9 +222,10 @@
 <section class="p glass span2">
 <h4><span>Economy</span><em>FRED</em></h4>
 {%- if n.economy %}
+{#- The figures are the panel's one row, so their readouts show below them. #}
 <div class="macro">
 {%- for e in n.economy %}
-{% call hot("economy", e.series, ro.economy(e.label, e.value, e.date)) %}<div><b>{{ e.value }}</b><span>{{ e.label }}</span><small>{{ e.date }}</small></div>{% endcall %}
+{% call hot("economy", e.series, ro.economy(e.label, e.value, e.date), below=true) %}<div><b>{{ e.value }}</b><span>{{ e.label }}</span><small>{{ e.date }}</small></div>{% endcall %}
 {%- endfor %}
 </div>
 {%- else %}
@@ -235,8 +241,11 @@
 {%- set pr = n.peer_ratings %}
 {%- set rated = pr.Buy + pr.Hold + pr.Sell %}
 {%- set slices = [("buy", "Buy", pr.Buy), ("hold", "Hold", pr.Hold), ("sell", "Sell", pr.Sell)] %}
-<div class="donut"><div class="dn">{{ donut(80, 10, [[pr.Buy, "buy"], [pr.Hold, "hold"], [pr.Sell, "sell"]], "Peer ratings: " ~ pr.Buy ~ " Buy, " ~ pr.Hold ~ " Hold, " ~ pr.Sell ~ " Sell") }}<b>{{ rated }}</b></div>
+{#- The slices' readouts come before the ring, so each stays at the ring's top edge and shows
+    just above it. #}
+<div class="donut">
 {%- for key, call, count in slices if count > 0 %}<span class="ro ro-{{ key }}" aria-hidden="true">{{ ro.peer_rating(call, count, rated) }}</span>{% endfor -%}
+<div class="dn">{{ donut(80, 10, [[pr.Buy, "buy"], [pr.Hold, "hold"], [pr.Sell, "sell"]], "Peer ratings: " ~ pr.Buy ~ " Buy, " ~ pr.Hold ~ " Hold, " ~ pr.Sell ~ " Sell") }}<b>{{ rated }}</b></div>
 </div>
 <div class="legend">
 {%- for key, call, count in slices %}{% call hot("rings", key, ro.peer_rating(call, count, rated)) %}<i class="{{ key }}"></i>{{ count }} {{ call }}{% endcall %}{% endfor -%}
@@ -247,8 +256,9 @@
 {%- if n.claims %}
 {%- set cl = n.claims %}
 {%- set claimed = cl.kept + cl.removed %}
-<div class="donut"><div class="dn">{{ donut(80, 10, [[cl.kept, "kept"], [cl.removed, "removed"]], cl.kept ~ " claims kept, " ~ cl.removed ~ " removed") }}<b>{{ claimed }}</b></div>
+<div class="donut">
 {%- for key, count in (("kept", cl.kept), ("removed", cl.removed)) if count > 0 %}<span class="ro ro-{{ key }}" aria-hidden="true">{{ ro.claims(key, count, claimed) }}</span>{% endfor -%}
+<div class="dn">{{ donut(80, 10, [[cl.kept, "kept"], [cl.removed, "removed"]], cl.kept ~ " claims kept, " ~ cl.removed ~ " removed") }}<b>{{ claimed }}</b></div>
 </div>
 <div class="legend">{% call hot("rings", "kept", ro.claims("kept", cl.kept, claimed)) %}<i class="kept"></i>{{ cl.kept }} claims kept{% endcall %}{% call hot("rings", "removed", ro.claims("removed", cl.removed, claimed)) %}<i class="sell"></i>{{ cl.removed }} removed{% endcall %}{% if r.direction_split %}<span class="sub">{% for k, v in r.direction_split.items() %}{{ v }} {{ k }}{% if not loop.last %}, {% endif %}{% endfor %}</span>{% endif %}</div>
 {%- else %}

@@ -83,13 +83,27 @@ a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outli
 /* Numbers column */
 .span2 { grid-column: span 2; }
 @media (max-width: 560px) { .span2 { grid-column: 1 / -1; } .col-numbers .nums, .col-auto.side-numbers .nums { grid-template-columns: minmax(0, 1fr); } }
-/* Each numbers panel is a readout box: a readout covers the panel's heading line and grows
-   upward over the gap. Later panels paint over earlier ones, so it is never hidden. */
+/* A readout in a numbers panel shows by the item pointed at, not at the panel's heading: the
+   column scrolls, and a tall panel's heading is often out of view while its bars and tiles are
+   in it. A tile, figure, ring or legend entry is far narrower than its panel, and a readout
+   held by it would wrap to many lines, so the panel holds the readout (nothing between them is
+   positioned) and keeps it panel-wide. With no top or bottom, the readout stays where it starts
+   in the item, its top edge (report/_hot.html.j2 makes it the first child), and is lifted by
+   its own height to sit just above. One marked below is the last child, at the item's bottom
+   edge, and stays there. A tile's padding is stepped over. */
 .p { position: relative; padding: 12px 14px; min-width: 0; }
-.p .ro { left: 10px; right: 10px; bottom: calc(100% - 30px); }
-/* Nothing sits above the first panel, and the column's top edge would cut a readout off there,
-   so its readouts grow downward over its own top lines instead. */
-.nums > .p:first-child .ro { top: 4px; bottom: auto; }
+.p .ro { left: 10px; right: 10px; transform: translateY(-100%); margin-top: -3px; }
+.p .ro.below { transform: none; margin-top: 3px; }
+.p .tile > .ro { margin-top: -12px; }
+.p .tile > .ro.below { margin-top: 12px; }
+/* A bar or red-flag row is as wide as its panel, so it holds its own readout: just above it, or
+   below the first one under the heading, where above would leave the panel. */
+.p > .hot { position: relative; }
+.p > .hot > .ro { left: -4px; right: -4px; bottom: calc(100% + 3px); transform: none; margin: 0; }
+.p > h4 + .hot > .ro { top: calc(100% + 3px); bottom: auto; }
+/* A readout may reach past its panel's edge, where the next panel's glass would blur it and draw
+   over it, so the panel pointed at or focused is drawn over the others. */
+.p:hover, .p:focus-within { z-index: 1; }
 .p h4 { margin: 0 0 8px; display: flex; justify-content: space-between; gap: 8px; font: 500 12px var(--ui); color: var(--muted); }
 .p h4 em { font-style: normal; text-align: right; }
 .gap { margin: 4px 0 2px; color: var(--muted); font-size: 12.5px; }
@@ -115,10 +129,13 @@ a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outli
 .chart { display: block; width: 100%; height: auto; overflow: visible; }
 /* A chart is a readout box: its readouts show on its top edge. Pointer targets laid over it
    (.hits) have a readout each: a column per week over the price line and a cell per case over
-   the range's labels, or a row per method. The targets aren't positioned, so their readouts
-   sit against .hits, which covers the chart. */
+   the range's labels, or a row per method. A week's column and a case's cell aren't
+   positioned, so their readouts sit against .hits, which covers the chart. A method's row is
+   as wide as the chart, so it holds its own readout, which shows just above the row pointed
+   at; the first row's top is the chart's. */
 .cw { position: relative; }
-.cw .ro { left: 0; right: 0; bottom: 100%; }
+.cw .ro { left: 0; right: 0; bottom: 100%; transform: none; margin: 0; }
+.hits.col > .hit { position: relative; }
 .hits { position: absolute; inset: 0; display: flex; }
 .hits.col { flex-direction: column; }
 .wk { flex: none; display: flex; }
@@ -156,10 +173,12 @@ a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outli
 .macro span:not(.ro) { font-size: 11px; color: var(--muted); line-height: 1.25; display: block; }
 .macro small { font-size: 10.5px; color: var(--muted); opacity: .8; }
 .donutrow { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-/* A ring's slices show their readouts in the panel's readout place, as the legend's do; the
-   count in the middle sits in its own box (.dn). The legend is the keyboard's way in. */
+/* A ring's slices show their readouts just above the ring, as the legend's show just above
+   their lines; the count in the middle sits in its own box (.dn). The legend is the keyboard's
+   way in. The count's box covers the whole ring, so it lets the pointer through to the slices
+   under it. */
 .dn { position: relative; }
-.dn b { position: absolute; inset: 0; display: grid; place-content: center; font: 600 15px var(--num); }
+.dn b { position: absolute; inset: 0; display: grid; place-content: center; font: 600 15px var(--num); pointer-events: none; }
 .donut:has(.dn-buy:hover) > .ro-buy, .donut:has(.dn-hold:hover) > .ro-hold, .donut:has(.dn-sell:hover) > .ro-sell,
 .donut:has(.dn-kept:hover) > .ro-kept, .donut:has(.dn-removed:hover) > .ro-removed { display: block; }
 .legend { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); margin-right: 8px; }
@@ -284,6 +303,9 @@ table.t .hot:hover { background: none; }
   @keyframes rise { from { opacity: 0; transform: translateY(10px); } }
   @keyframes grow { from { transform: scaleX(0); } }
   @keyframes draw { from { stroke-dasharray: 0 2000; } }
+  /* A ring's slice has no dash of its own to grow from, so its draw-in names both ends, along
+     the slice's pathLength of 1, and fills backwards only: once drawn, the slice has no dash. */
+  @keyframes draw-arc { from { stroke-dasharray: 0 1; } to { stroke-dasharray: 1 0; } }
   @keyframes trace { from { stroke-dashoffset: 1; } }
   @keyframes fade { from { opacity: 0; } }
   .nums > * { animation: rise .5s cubic-bezier(.2,.7,.2,1) both; }
@@ -297,7 +319,8 @@ table.t .hot:hover { background: none; }
   .keys > :nth-child(2) { animation-delay: .07s; } .keys > :nth-child(3) { animation-delay: .14s; }
   .keys > :nth-child(4) { animation-delay: .21s; } .keys > :nth-child(5) { animation-delay: .28s; }
   .bar .tr i, .flags i { animation: grow .9s .25s cubic-bezier(.2,.7,.2,1) both; }
-  .g-fill, .dn-seg { animation: draw 1.4s .2s cubic-bezier(.2,.7,.2,1) both; }
+  .g-fill { animation: draw 1.4s .2s cubic-bezier(.2,.7,.2,1) both; }
+  .dn-seg { animation: draw-arc 1.4s .2s cubic-bezier(.2,.7,.2,1) backwards; }
   .ch-line { stroke-dasharray: 1; animation: trace 1.6s .25s cubic-bezier(.4,.1,.2,1) both; }
   .ch-area { animation: fade .8s .9s both; }
   .ch-fan, .ch-bull, .ch-base, .ch-bear { animation: fade .9s 1.5s both; }
