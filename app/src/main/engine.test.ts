@@ -4,7 +4,34 @@ import { join } from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { Engine } from './engine'
+import { Engine, engineCommand } from './engine'
+
+describe('where the engine comes from', () => {
+  const home = { resourcesPath: '/Applications/Tearsheet.app/Contents/Resources', appPath: '/repo/app', dataDir: '/data' }
+
+  it('is the app’s own copy once Tearsheet is packaged, run on only its own packages', () => {
+    expect(engineCommand({ ...home, packaged: true, repo: '/elsewhere' })).toEqual({
+      command: '/Applications/Tearsheet.app/Contents/Resources/engine/bin/Tearsheet Engine',
+      args: ['-I', '-B', '-m', 'tearsheet.cli', 'serve'],
+      cwd: '/data'
+    })
+  })
+
+  it('is this repository’s engine through uv in development', () => {
+    expect(engineCommand({ ...home, packaged: false })).toEqual({
+      command: 'uv',
+      args: ['run', '--project', '/repo/engine', 'tearsheet-engine', 'serve'],
+      cwd: '/repo'
+    })
+  })
+
+  it('is another checkout’s engine when TEARSHEET_REPO names one', () => {
+    expect(engineCommand({ ...home, packaged: false, repo: '/other' })).toMatchObject({
+      args: ['run', '--project', '/other/engine', 'tearsheet-engine', 'serve'],
+      cwd: '/other'
+    })
+  })
+})
 
 // Real child processes stand in for the engine: a command that doesn't exist, and small Node
 // scripts (this test's own Node) that answer like a broken engine would.

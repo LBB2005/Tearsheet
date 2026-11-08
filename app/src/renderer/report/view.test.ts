@@ -13,7 +13,8 @@ const summary = (report_id: string, created_at: string, cik: number | null = 104
   name: cik === 1045810 ? 'NVIDIA CORP' : 'Apple Inc.',
   created_at,
   rating,
-  narrative_complete: true
+  narrative_complete: true,
+  kept_because: null
 })
 
 describe('reportSubtitle', () => {

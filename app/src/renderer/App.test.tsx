@@ -74,7 +74,7 @@ describe('moving between pages', () => {
     expect(win()).toHaveClass('on-settings')
     await openReport(user, 'MSFT')
     expect(win()).toHaveClass('on-report')
-    expect(sidebar().getByRole('button', { name: /MSFT/ })).toHaveAttribute('aria-current', 'page')
+    expect(sidebar().getByRole('button', { name: /^MSFT/ })).toHaveAttribute('aria-current', 'page')
     await user.click(sidebar().getByRole('button', { name: /New report/ }))
     expect(win()).toHaveClass('on-home')
   })
@@ -93,7 +93,7 @@ describe('moving between pages', () => {
     await waitFor(() => expect(bridge.getReport).toHaveBeenLastCalledWith('r-aapl-2', expect.anything()))
     menu('prev')
     await waitFor(() => expect(bridge.getReport).toHaveBeenLastCalledWith('r-msft-1', expect.anything()))
-    expect(sidebar().getByRole('button', { name: /MSFT/ })).toHaveAttribute('aria-current', 'page')
+    expect(sidebar().getByRole('button', { name: /^MSFT/ })).toHaveAttribute('aria-current', 'page')
     await user.click(sidebar().getByRole('button', { name: /Settings/ }))
     menu('prev')
     await waitFor(() => expect(win()).toHaveClass('on-report'))
@@ -158,7 +158,7 @@ describe('the report page', () => {
   test('a report that doesn’t open says why, and Try again asks again', async () => {
     const { user } = await renderApp()
     bridge.getReport.mockResolvedValueOnce(fail('The report file is missing.'))
-    await user.click(sidebar().getByRole('button', { name: /AAPL/ }))
+    await user.click(sidebar().getByRole('button', { name: /^AAPL/ }))
     expect(await screen.findByRole('alert')).toHaveTextContent('The report didn’t open. The report file is missing.')
     // The toolbar names the report from the sidebar's row while it can't load.
     expect(screen.getByRole('heading', { name: 'AAPL, Apple Inc.' })).toBeInTheDocument()

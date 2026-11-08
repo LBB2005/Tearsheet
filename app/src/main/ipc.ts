@@ -29,7 +29,11 @@ export const CALLS: Record<string, string> = {
   getReportNumbers: 'get_report_numbers',
   fetchHistory: 'fetch_history',
   checkKey: 'check_key',
-  runSafetyCheck: 'run_safety_check'
+  runSafetyCheck: 'run_safety_check',
+  hideReports: 'hide_reports',
+  showReports: 'show_reports',
+  eraseReports: 'erase_reports',
+  pinCompany: 'pin_company'
 }
 
 // The closed allowlist: only the names above, never inherited object properties.

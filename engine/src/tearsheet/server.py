@@ -191,6 +191,17 @@ def backfill_stop_reason(exc: BaseException) -> str:
     return "Massive sent an unreadable answer"
 
 
+# A key macOS wouldn't hand over (config.key_locked), and what to do about it.
+KEY_LOCKED_FIX = "Quit Tearsheet, open it again, and click Always Allow when macOS asks."
+
+
+def _key_state(service: str) -> str:
+    """Settings' word for one data key: set, missing, or locked (in the Keychain this session)."""
+    if config.get_key(service):
+        return "set"
+    return "locked" if config.key_locked(service) else "missing"
+
+
 # The background price job's progress line, as _backfill writes it.
 _BACKFILL_PROGRESS = re.compile(r"^(\d+) of (\d+) sessions")
 
@@ -1186,6 +1197,11 @@ class Server:
         if not ticker:
             raise EngineError("ENGINE_ERROR", "This report's company has no ticker to look up.")
         if not config.get_key("massive"):
+            if config.key_locked("massive"):
+                raise EngineError(
+                    "ENGINE_ERROR",
+                    f"macOS didn’t let Tearsheet open your Massive key. {KEY_LOCKED_FIX}",
+                )
             raise EngineError(
                 "ENGINE_ERROR", "It needs a Massive key. Add yours in Settings, then try again."
             )
@@ -1244,9 +1260,13 @@ class Server:
         return {"first_date": first or "", "days": days}
 
     async def m_list_reports(self, p) -> list[dict[str, Any]]:
+        from tearsheet.report_marks import kept_because
+
+        which = "IN" if p.hidden else "NOT IN"
         rows = self.db.conn.execute(
             "SELECT r.report_id, r.run_id, r.created_at, r.narrative_complete, u.cik, c.name FROM reports r"
             " JOIN runs u ON u.run_id = r.run_id LEFT JOIN companies c ON c.cik = u.cik"
+            f" WHERE r.report_id {which} (SELECT report_id FROM hidden_reports)"
             " ORDER BY r.created_at DESC LIMIT ? OFFSET ?",
             (p.limit, p.offset),
         ).fetchall()
@@ -1269,9 +1289,37 @@ class Server:
                     "created_at": r["created_at"],
                     "rating": steps.get("rate", {}).get("rating"),
                     "narrative_complete": bool(r["narrative_complete"]),
+                    "kept_because": kept_because(self.db.conn, r["report_id"]),
                 }
             )
         return out
+
+    # --- the sidebar's marks (report_marks.py) ------------------------------------------------
+
+    async def m_hide_reports(self, p) -> dict[str, Any]:
+        from tearsheet.report_marks import hide
+
+        return hide(self.db.conn, p.report_ids)
+
+    async def m_show_reports(self, p) -> dict[str, Any]:
+        from tearsheet.report_marks import show
+
+        return {"shown": show(self.db.conn, p.report_ids)}
+
+    async def m_erase_reports(self, p) -> dict[str, Any]:
+        """Erase hidden reports whose undo has passed. Official and reviewed ones stay hidden."""
+        from tearsheet.report_marks import erase
+
+        result = erase(self.db.conn, p.report_ids)
+        if result["erased"]:
+            log.info("erased %d deleted report(s)", len(result["erased"]))
+        return result
+
+    async def m_pin_company(self, p) -> dict[str, Any]:
+        from tearsheet.report_marks import set_pinned
+
+        set_pinned(self.db.conn, p.cik, p.pinned)
+        return {"ok": True}
 
     async def m_list_predictions(self, p) -> list[dict[str, Any]]:
         out = []
@@ -1449,7 +1497,7 @@ class Server:
         home = Path.home()
         in_icloud = any(backup == home / f or home / f in backup.parents for f in ICLOUD_FOLDERS)
         round_ = settings.get("goal1_round")
-        keys = {s: ("set" if config.get_key(s) else "missing") for s in config.KEY_SERVICES}
+        keys = {s: _key_state(s) for s in config.KEY_SERVICES}
         setup_done = settings.get("setup_done")
         if setup_done is None and self.db.conn.execute("SELECT 1 FROM reports LIMIT 1").fetchone():
             # Reports written before the app had a setup (the terminal, or the first app) mean

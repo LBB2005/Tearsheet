@@ -10,6 +10,7 @@ import pytest
 from tearsheet import config
 from tearsheet.data.prices import PriceStore, fetch_history_bars
 from tearsheet.http import DailyLimitReached, HTTPFailure, InvalidResponse
+from tearsheet.protocol import CompanyRow
 from tests.test_charts import DAYS, seed
 from tests.test_protocol import Harness, run
 
@@ -19,9 +20,16 @@ COMPANY_KEYS = {
     "name",
     "report_id",
     "report_date",
+    "created_at",
     "reports",
+    "report_ids",
     "price",
     "price_date",
+    "since_report",
+    "rating",
+    "official",
+    "sector",
+    "pinned",
 }
 
 
@@ -42,7 +50,9 @@ def test_list_companies_method(tmp_path):
     ready, reply = run(go())
     rows = reply["result"]
     assert rows and set(rows[0]) == COMPANY_KEYS
+    CompanyRow.model_validate(rows[0])
     assert rows[0]["report_id"] == ready["report_id"]
+    assert rows[0]["report_ids"] == [ready["report_id"]] and rows[0]["pinned"] is False
     h.server.close()
 
 

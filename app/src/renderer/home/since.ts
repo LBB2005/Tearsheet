@@ -2,7 +2,7 @@
 // the greeting, and the lines under the field. Lines with the tone 'down' are problems, shown in
 // the red box at the top of the page; the others are "Since you were last here".
 
-import type { CompanyRow, PredictionSummary } from '../../shared/protocol'
+import type { CompanyRow, Keys, PredictionSummary } from '../../shared/protocol'
 import { shortDate } from '../nav'
 
 // 'down' is a problem (the red box); 'muted' is a note in the same place, without alarm.
@@ -23,7 +23,8 @@ export interface SinceLine {
 export interface SinceInput {
   companies: CompanyRow[]
   predictions: PredictionSummary[]
-  keys: Record<string, 'set' | 'missing'>
+  // A key is set, missing, or locked: macOS didn't let Tearsheet open it this session.
+  keys: Keys
   // Stored keys their service refused on the last call that used them (rejected_keys).
   rejected?: string[]
   // Skipped in setup or not, a missing FRED key reads the same: reports leave the figures out.
@@ -133,6 +134,13 @@ export function sinceLines(s: SinceInput): SinceLine[] {
       action: 'addMassive'
     })
   }
+  if (s.keys.massive === 'locked') {
+    lines.push({
+      tone: 'down',
+      text: 'macOS didn’t let Tearsheet open your Massive key',
+      detail: 'New reports can’t be rated until it does. Quit Tearsheet, open it again, and click Always Allow when macOS asks.'
+    })
+  }
   if (s.keys.massive === 'set' && s.rejected?.includes('massive')) {
     lines.push({
       tone: 'down',
@@ -145,7 +153,8 @@ export function sinceLines(s: SinceInput): SinceLine[] {
   if (prices) lines.push(prices)
   const grade = gradeLine(s.predictions, s.companies, now)
   if (grade) lines.push(grade)
-  if (s.keys.fred !== 'set') lines.push({ tone: 'hold', text: 'Economic figures aren’t connected, so reports leave them out.', action: 'addFred' })
+  if (s.keys.fred === 'locked') lines.push({ tone: 'hold', text: 'macOS didn’t let Tearsheet open your FRED key, so reports leave the economic figures out. Quit Tearsheet, open it again, and click Always Allow.' })
+  else if (s.keys.fred !== 'set') lines.push({ tone: 'hold', text: 'Economic figures aren’t connected, so reports leave them out.', action: 'addFred' })
   else if (s.rejected?.includes('fred')) lines.push({ tone: 'hold', text: 'FRED stopped accepting your key, so reports leave the economic figures out.', action: 'addFred' })
   return lines
 }

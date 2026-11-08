@@ -54,14 +54,14 @@ export function freshSettings(over: Partial<SettingsResult> = {}): SettingsResul
 }
 
 export const COMPANIES: CompanyRow[] = [
-  { cik: 320193, ticker: 'AAPL', name: 'Apple Inc.', report_id: 'r-aapl-2', report_date: '2026-11-05', reports: 2, price: 230.1, price_date: '2026-11-06' },
-  { cik: 789019, ticker: 'MSFT', name: 'Microsoft Corp', report_id: 'r-msft-1', report_date: '2026-11-03', reports: 1, price: 420.5, price_date: '2026-11-06' }
+  { cik: 320193, ticker: 'AAPL', name: 'Apple Inc.', report_id: 'r-aapl-2', report_date: '2026-11-05', created_at: '2026-11-05T14:00:00Z', reports: 2, report_ids: ['r-aapl-2', 'r-aapl-1'], price: 230.1, price_date: '2026-11-06', since_report: 0.012, rating: 'Buy', official: true, sector: 'Information Technology', pinned: false },
+  { cik: 789019, ticker: 'MSFT', name: 'Microsoft Corp', report_id: 'r-msft-1', report_date: '2026-11-03', created_at: '2026-11-03T14:00:00Z', reports: 1, report_ids: ['r-msft-1'], price: 420.5, price_date: '2026-11-06', since_report: -0.03, rating: 'Hold', official: false, sector: 'Information Technology', pinned: false }
 ]
 
 export const REPORTS: ReportSummary[] = [
-  { report_id: 'r-aapl-2', run_id: 'run-a2', cik: 320193, ticker: 'AAPL', name: 'Apple Inc.', created_at: '2026-11-05T14:00:00Z', rating: 'Buy', narrative_complete: true },
-  { report_id: 'r-msft-1', run_id: 'run-m1', cik: 789019, ticker: 'MSFT', name: 'Microsoft Corp', created_at: '2026-11-03T14:00:00Z', rating: 'Hold', narrative_complete: true },
-  { report_id: 'r-aapl-1', run_id: 'run-a1', cik: 320193, ticker: 'AAPL', name: 'Apple Inc.', created_at: '2026-10-01T14:00:00Z', rating: 'Hold', narrative_complete: true }
+  { report_id: 'r-aapl-2', run_id: 'run-a2', cik: 320193, ticker: 'AAPL', name: 'Apple Inc.', created_at: '2026-11-05T14:00:00Z', rating: 'Buy', narrative_complete: true, kept_because: 'official' },
+  { report_id: 'r-msft-1', run_id: 'run-m1', cik: 789019, ticker: 'MSFT', name: 'Microsoft Corp', created_at: '2026-11-03T14:00:00Z', rating: 'Hold', narrative_complete: true, kept_because: null },
+  { report_id: 'r-aapl-1', run_id: 'run-a1', cik: 320193, ticker: 'AAPL', name: 'Apple Inc.', created_at: '2026-10-01T14:00:00Z', rating: 'Hold', narrative_complete: true, kept_because: null }
 ]
 
 export const BAR: ReportBar = { close: 230.1, close_date: '2026-11-06', previous_close: 228.4, rating: 'Buy', capped: false, red_flags: [], range: { bear: 190, base: 250, bull: 290 }, percentile: 72, peers: 38 }
@@ -150,13 +150,33 @@ const listen = <T>(set: Set<(x: T) => void>) => (fn: (x: T) => void) => {
   }
 }
 
+// The sidebar's marks, kept like the engine keeps them (report_marks.py): hidden reports leave
+// the company list and the list of reports, an erased one is gone, and pins stick.
+function marks() {
+  const hidden = new Set<string>()
+  const erased = new Set<string>()
+  const pinned = new Set<number>()
+  const companies = (): CompanyRow[] =>
+    COMPANIES.flatMap((c) => {
+      const ids = c.report_ids.filter((id) => !hidden.has(id) && !erased.has(id))
+      if (ids.length === 0) return []
+      const newest = REPORTS.find((r) => r.report_id === ids[0])
+      const at = newest?.created_at ?? c.created_at
+      return [{ ...c, report_id: ids[0], report_ids: ids, reports: ids.length, created_at: at, report_date: at.slice(0, 10), pinned: pinned.has(c.cik) }]
+    })
+  const reports = (wantHidden: boolean) => REPORTS.filter((r) => !erased.has(r.report_id) && hidden.has(r.report_id) === wantHidden)
+  const keeps = (id: string) => REPORTS.find((r) => r.report_id === id)?.kept_because ?? null
+  return { hidden, erased, pinned, companies, reports, keeps }
+}
+
 function makeBridge(): FakeBridge {
+  const m = marks()
   return {
     runReport: vi.fn<TearsheetApi['runReport']>(async (query: string) => ok({ run_id: 'run-new', ticker: query.toUpperCase(), name: search(query)[0]?.name ?? null })),
     cancel: vi.fn<TearsheetApi['cancel']>(async () => ok({ ok: true })),
     resume: vi.fn<TearsheetApi['resume']>(async () => ok({ run_id: 'run-new', ticker: null, name: null })),
     getReport: vi.fn<TearsheetApi['getReport']>(async (reportId: string, opts?: { view?: string; side?: string }) => ok(report(reportId, opts))),
-    listCompanies: vi.fn<TearsheetApi['listCompanies']>(async () => ok(COMPANIES)),
+    listCompanies: vi.fn<TearsheetApi['listCompanies']>(async () => ok(m.companies())),
     searchCompanies: vi.fn<TearsheetApi['searchCompanies']>(async (query: string) => ok(search(query))),
     getChart: vi.fn<TearsheetApi['getChart']>(async () => ok(chart())),
     getReportNumbers: vi.fn<TearsheetApi['getReportNumbers']>(async (reportId: string) => ok(numbers(reportId))),
@@ -168,7 +188,29 @@ function makeBridge(): FakeBridge {
     find: vi.fn<TearsheetApi['find']>(async () => undefined),
     stopFind: vi.fn<TearsheetApi['stopFind']>(async () => undefined),
     onMenu: vi.fn<TearsheetApi['onMenu']>(listen(listeners.menu)),
-    listReports: vi.fn<TearsheetApi['listReports']>(async () => ok(REPORTS)),
+    listReports: vi.fn<TearsheetApi['listReports']>(async (_limit?: number, hidden?: boolean) => ok(m.reports(Boolean(hidden)))),
+    hideReports: vi.fn<TearsheetApi['hideReports']>(async (ids: string[]) => {
+      const found = ids.filter((id) => REPORTS.some((r) => r.report_id === id) && !m.erased.has(id))
+      found.forEach((id) => m.hidden.add(id))
+      return ok({ hidden: found, erasable: found.filter((id) => m.keeps(id) === null) })
+    }),
+    showReports: vi.fn<TearsheetApi['showReports']>(async (ids: string[]) => {
+      const shown = ids.filter((id) => m.hidden.delete(id))
+      return ok({ shown })
+    }),
+    eraseReports: vi.fn<TearsheetApi['eraseReports']>(async (ids: string[]) => {
+      const erased = ids.filter((id) => m.hidden.has(id) && m.keeps(id) === null)
+      erased.forEach((id) => {
+        m.hidden.delete(id)
+        m.erased.add(id)
+      })
+      return ok({ erased, kept: ids.filter((id) => !erased.includes(id)) })
+    }),
+    pinCompany: vi.fn<TearsheetApi['pinCompany']>(async (cik: number, pin: boolean) => {
+      if (pin) m.pinned.add(cik)
+      else m.pinned.delete(cik)
+      return ok({ ok: true })
+    }),
     listPredictions: vi.fn<TearsheetApi['listPredictions']>(async () => ok(PREDICTIONS)),
     flagClaim: vi.fn<TearsheetApi['flagClaim']>(async () => ok({ review_id: 'rv-1' })),
     rereadFiling: vi.fn<TearsheetApi['rereadFiling']>(async () => ok({ deleted: 3 })),

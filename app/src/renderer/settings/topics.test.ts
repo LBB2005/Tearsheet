@@ -83,6 +83,12 @@ describe('problems', () => {
     expect(p).toMatchObject({ topic: 'keys', title: 'Massive key not accepted', action: 'Replace key', tone: 'bad' })
   })
 
+  it('says a key macOS kept locked needs Always Allow, not adding', () => {
+    expect(problems(health({ keys: { massive: 'locked', fred: 'set' } }))).toEqual([
+      { topic: 'keys', title: 'Massive key locked in the Keychain', detail: 'macOS didn’t let Tearsheet open it. Quit Tearsheet, open it again, and click Always Allow when macOS asks.', action: 'Open data keys', tone: 'bad' }
+    ])
+  })
+
   it('leaves Alpha Vantage out: it isn’t used yet', () => {
     expect(problems(health({ keys: { massive: 'set', fred: 'set', alphavantage: 'missing' } }))).toEqual([])
   })

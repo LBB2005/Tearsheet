@@ -41,8 +41,15 @@ export interface TearsheetApi {
   find(text: string, forward: boolean): Promise<void>
   stopFind(): Promise<void>
   onMenu(fn: (c: import('../main/menu').MenuCommand) => void): () => void
-  // Newest first; `limit` defaults to the engine's 50.
-  listReports(limit?: number): Promise<CallResult<import('../shared/protocol').ReportSummary[]>>
+  // Newest first; `limit` defaults to the engine's 50. `hidden`: only the reports hidden from
+  // the sidebar, for its Hidden group; otherwise those are left out.
+  listReports(limit?: number, hidden?: boolean): Promise<CallResult<import('../shared/protocol').ReportSummary[]>>
+  // Deleting from the sidebar (engine report_marks.py): hide at once, bring back on Undo, and
+  // erase once the undo has passed. Official and reviewed reports are only ever hidden.
+  hideReports(reportIds: string[]): Promise<CallResult<import('../shared/protocol').HideResult>>
+  showReports(reportIds: string[]): Promise<CallResult<import('../shared/protocol').ShowResult>>
+  eraseReports(reportIds: string[]): Promise<CallResult<import('../shared/protocol').EraseResult>>
+  pinCompany(cik: number, pinned: boolean): Promise<CallResult<{ ok: boolean }>>
   listPredictions(): Promise<CallResult<import('../shared/protocol').PredictionSummary[]>>
   flagClaim(claimId: string, note: string): Promise<CallResult<{ review_id: string }>>
   rereadFiling(accession: string): Promise<CallResult<{ deleted: number }>>

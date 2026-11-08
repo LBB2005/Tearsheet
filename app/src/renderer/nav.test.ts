@@ -13,7 +13,14 @@ const row = (ticker: string): CompanyRow => ({
   report_date: '2026-11-05',
   reports: 1,
   price: 100,
-  price_date: '2026-11-05'
+  price_date: '2026-11-05',
+  created_at: '2026-11-05T14:00:00Z',
+  report_ids: [`r-${ticker}`],
+  since_report: null,
+  rating: null,
+  official: false,
+  sector: null,
+  pinned: false
 })
 
 const LIST = [row('NVDA'), row('AAPL'), row('JPM')]

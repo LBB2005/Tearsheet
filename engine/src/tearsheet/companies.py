@@ -1,22 +1,25 @@
 """The company list and the look-up box (the sidebar of the app).
 
-`list_companies` is every company that has a stored report. `search_companies` looks the S&P 500
-list up by ticker, by brand alias, then by name, and says which results already have a report
-and, in plain words, which companies each would be compared with (the peer-group rule).
+`list_companies` is every company that has a stored report on show (hidden reports are left
+out). `search_companies` looks the S&P 500 list up by ticker, by brand alias, then by name, and
+says which results already have a report on show and, in plain words, which companies each
+would be compared with (the peer-group rule).
 """
 
 from __future__ import annotations
 
 import json
 import sqlite3
+from datetime import UTC, date, datetime
 from importlib import resources
 from typing import Any
 
 import yaml
 
 from tearsheet.data import membership
-from tearsheet.data.prices import PriceStore
+from tearsheet.data.prices import PriceStore, last_completed_session
 from tearsheet.peers import build_peer_group
+from tearsheet.report_marks import pinned_ciks
 
 
 def normalise_ticker(text: str) -> str:
@@ -55,17 +58,52 @@ def peer_rule(holdings: membership.Holdings, cik: int, cap: int) -> str | None:
     return f"Compared with the other {peers} {where} companies"
 
 
-def _report_rows(conn: sqlite3.Connection) -> list[sqlite3.Row]:
-    """Every stored report with its company and ticker, newest first."""
+def _report_rows(conn: sqlite3.Connection, *, hidden: bool = False) -> list[sqlite3.Row]:
+    """Every stored report with its company and ticker, newest first: the ones on show, or with
+    `hidden` the ones hidden from the sidebar (report_marks.py)."""
+    which = "IN" if hidden else "NOT IN"
     rows = conn.execute(
-        "SELECT r.report_id, r.created_at, u.cik, u.run_id, c.name,"
+        "SELECT r.report_id, r.created_at, u.cik, u.run_id, u.started_at, c.name,"
         " (SELECT json FROM step_outputs s WHERE s.run_id = r.run_id AND s.step = 'resolve')"
-        "   AS resolve"
+        "   AS resolve,"
+        " (SELECT json FROM step_outputs s WHERE s.run_id = r.run_id AND s.step = 'rate')"
+        "   AS rate,"
+        " EXISTS (SELECT 1 FROM predictions p WHERE p.run_id = r.run_id) AS official"
         " FROM reports r JOIN runs u ON u.run_id = r.run_id"
         " LEFT JOIN companies c ON c.cik = u.cik"
-        " WHERE u.cik IS NOT NULL ORDER BY r.created_at DESC, r.rowid DESC"
+        f" WHERE u.cik IS NOT NULL AND r.report_id {which} (SELECT report_id FROM hidden_reports)"
+        " ORDER BY r.created_at DESC, r.rowid DESC"
     ).fetchall()
     return rows
+
+
+def rating_of(row: sqlite3.Row) -> str | None:
+    """The report's rating from its rate step; None when it was withheld or isn't stored."""
+    try:
+        rating = json.loads(row["rate"] or "{}").get("rating")
+    except (ValueError, AttributeError):
+        return None
+    return str(rating) if rating else None
+
+
+def since_report(
+    prices: PriceStore, cik: int, started_at: str, latest: tuple[date, float] | None
+) -> float | None:
+    """How far the price has moved since the close the report was priced at (the last close
+    when its run started), with any split since then taken out. None without both closes."""
+    if latest is None:
+        return None
+    try:
+        started = datetime.fromisoformat(started_at)
+    except ValueError:
+        return None
+    if started.tzinfo is None:
+        started = started.replace(tzinfo=UTC)
+    then = prices.latest_close(cik, up_to=last_completed_session(started))
+    if then is None or then[1] <= 0:
+        return None
+    factor = prices.split_factor(cik, after=then[0], up_to=latest[0])
+    return round(latest[1] * factor / then[1] - 1, 4)
 
 
 def _ticker_of(row: sqlite3.Row, holdings: membership.Holdings) -> str:
@@ -103,13 +141,18 @@ def run_company(conn: sqlite3.Connection, run_id: str) -> dict[str, str | None]:
 
 
 def list_companies(conn: sqlite3.Connection) -> list[dict[str, Any]]:
+    """One row per company with a report on show, from its newest such report: newest first.
+    Hidden reports are left out (report_marks.py); a company whose reports are all hidden has
+    no row."""
     holdings = membership.load_bundled()
     prices = PriceStore(conn)
+    pinned = pinned_ciks(conn)
     out: dict[int, dict[str, Any]] = {}
     for row in _report_rows(conn):
         cik = row["cik"]
         if cik in out:
             out[cik]["reports"] += 1
+            out[cik]["report_ids"].append(row["report_id"])
             continue
         ticker = _ticker_of(row, holdings)
         name = row["name"] or (holdings.company(cik).name if holdings.has(cik) else ticker)
@@ -120,9 +163,16 @@ def list_companies(conn: sqlite3.Connection) -> list[dict[str, Any]]:
             "name": name,
             "report_id": row["report_id"],
             "report_date": row["created_at"][:10],
+            "created_at": row["created_at"],
             "reports": 1,
+            "report_ids": [row["report_id"]],
             "price": latest[1] if latest else None,
             "price_date": latest[0].isoformat() if latest else None,
+            "since_report": since_report(prices, cik, row["started_at"], latest),
+            "rating": rating_of(row),
+            "official": bool(row["official"]),
+            "sector": (holdings.company(cik).sector or None) if holdings.has(cik) else None,
+            "pinned": cik in pinned,
         }
     return list(out.values())  # already newest report first
 

@@ -277,20 +277,22 @@ export function ReportTools({ page, wide }: { page: ReportPage; wide: boolean })
 }
 
 // The toolbar's subtitle. When the company has other reports, it is a small menu of them, newest
-// first; picking one opens it. Beside the report's top bar it shows `label` (the report's date)
+// first; picking one opens it. Its last item deletes the report on show (`onDelete`). Beside the report's top bar it shows `label` (the report's date)
 // instead of `text`, and `text` becomes what pointing at it says.
 export function ReportSubtitle({
   text,
   others,
   onOpen,
   label,
-  className
+  className,
+  onDelete
 }: {
   text: string
   others: ReportSummary[]
   onOpen: (reportId: string) => void
   label?: ReactNode
   className?: string
+  onDelete?: () => void
 }) {
   const [open, setOpen] = useState(false)
   const [at, setAt] = useState<{ left: number; top: number }>({ left: 0, top: 0 })
@@ -371,6 +373,24 @@ export function ReportSubtitle({
                 </button>
               )
             })}
+            {onDelete && (
+              <>
+                <span className="rmenu-sep" role="separator" />
+                <button
+                  ref={(b) => {
+                    items.current[others.length] = b
+                  }}
+                  role="menuitem"
+                  className="danger"
+                  onClick={() => {
+                    setOpen(false)
+                    onDelete()
+                  }}
+                >
+                  <span>Delete this report</span>
+                </button>
+              </>
+            )}
           </span>
         </>
       )}

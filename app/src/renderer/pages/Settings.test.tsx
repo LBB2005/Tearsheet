@@ -227,6 +227,15 @@ describe('Data keys', () => {
     expect(screen.getByLabelText('Your Massive key')).toBeInTheDocument()
   })
 
+  test('a key macOS kept locked says so, and its form stays closed until asked for', async () => {
+    const { user } = await openSettings({ keys: { massive: 'locked', fred: 'set', alphavantage: 'missing' } })
+    await user.click(topic('Data keys'))
+    expect(screen.getByText('Locked in Keychain')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Your Massive key')).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Replace key: Massive' }))
+    expect(screen.getByLabelText('Your Massive key')).toBeInTheDocument()
+  })
+
   test('the Alpha Vantage key is saved as it is, with no check', async () => {
     const { user } = await openSettings()
     await user.click(topic('Data keys'))

@@ -102,6 +102,12 @@ describe('healthTiles', () => {
     expect(tiles({ rejected: ['massive', 'fred'] })[1]).toEqual({ name: 'Data keys', tone: 'bad', text: 'Massive’s and FRED’s keys aren’t accepted' })
   })
 
+  it('says when macOS kept a key locked, rather than calling it missing', () => {
+    expect(tiles({ keys: { massive: 'locked', fred: 'set', alphavantage: 'missing' } })[1]).toEqual({ name: 'Data keys', tone: 'bad', text: 'Massive’s key is locked in the Keychain' })
+    expect(tiles({ keys: { massive: 'set', fred: 'locked', alphavantage: 'missing' } })[1]).toEqual({ name: 'Data keys', tone: 'hold', text: 'FRED’s key is locked in the Keychain' })
+    expect(tiles({ keys: { massive: 'locked', fred: 'locked', alphavantage: 'missing' } })[1]).toEqual({ name: 'Data keys', tone: 'bad', text: 'Massive’s and FRED’s keys are locked in the Keychain' })
+  })
+
   it('counts the two keys reports use; Alpha Vantage is not used yet', () => {
     expect(tiles({ keys: { massive: 'set', fred: 'missing', alphavantage: 'set' } })[1]).toEqual({ name: 'Data keys', tone: 'hold', text: '1 of 2 set, FRED missing' })
     expect(tiles({ keys: { massive: 'missing', fred: 'set', alphavantage: 'set' } })[1]).toMatchObject({ tone: 'bad', text: '1 of 2 set, Massive missing' })

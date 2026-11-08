@@ -246,6 +246,7 @@ The engine can also run from the terminal (`tearsheet-engine run GOOGL`) and wri
     *   `resume` (run ID);
     *   `get_report` (report ID);
     *   `list_reports`;
+    *   `hide_reports`, `show_reports` and `erase_reports` (report IDs), and `pin_company`, for the sidebar's delete and pin (see Deleting reports below);
     *   `list_predictions`;
     *   `grade_due` (added in Phase 2);
     *   `flag_claim` (claim ID, note);
@@ -1509,6 +1510,13 @@ Phase 1 runs in three parts:
             *   **Can be empty:** `previous_rating` and `previous_rating_at` (no earlier rating), and `probability`, `bear`, `base` and `bull` (no valid valuation; Technical Plan §10). Every other column is required.
             *   **Write-once:** triggers reject every UPDATE and DELETE on `predictions`.
         *   `grades(prediction_id, horizon_months, graded_at, grading_version, start_price, results_json)`: a rule change adds new rows
+    *   **The sidebar's marks** (migration 0004, `report_marks.py`):
+        *   `hidden_reports(report_id PK, hidden_at)`: reports deleted from the sidebar, waiting for their undo, or kept hidden for good;
+        *   `pinned_companies(cik PK, pinned_at)`.
+    *   **Deleting reports.** Delete hides a report at once and offers Undo for 8 seconds; after that the app asks the engine to erase it.
+        *   **Never erased, only hidden:** an official prediction's report (`predictions` is write-once, grading reads the run's `peer_groups`) and a report with `claim_reviews` (add-only). A hidden official report stays in the prediction log, and the 30-day rule still counts it, because `slot_open` reads `predictions` alone.
+        *   **Erasing** removes the report's `reports`, `sections` and `claims` rows and the run's `step_outputs`, `metrics`, `peer_groups` and `runs` rows. It keeps the shared caches: `fetch_log` (later runs reuse its downloads), `raw_objects`, `evidence_cache` and `article_skips`.
+        *   Hidden reports leave the company list, the look-up box's report marks and `list_reports`, and can be brought back from the sidebar's Hidden reports.
     *   **Saved AI evidence:** `evidence_cache(cache_key PK, items_json, created_at)`.
 
 #### 18. `engine/src/tearsheet/data/membership.py`, `engine/src/tearsheet/data/sp500_bundled.csv` and `scripts/build_sp500_bundled.py` (Create)
@@ -1864,7 +1872,11 @@ Phase 1 runs in three parts:
         | `cancel` | `run_id` | `{ok}` |
         | `resume` | `run_id` | `{run_id}` |
         | `get_report` | `report_id` | `{report_id, run_id, ticker, created_at, narrative_complete, html}` |
-        | `list_reports` | optional `limit`, `offset` | `[{report_id, run_id, cik, ticker, name, created_at, rating, narrative_complete}]` |
+        | `list_reports` | optional `limit`, `offset`, `hidden` | `[{report_id, run_id, cik, ticker, name, created_at, rating, narrative_complete, kept_because}]`; hidden reports are left out, or with `hidden` only they are listed |
+        | `hide_reports` | `report_ids` | `{hidden, erasable}` |
+        | `show_reports` | `report_ids` | `{shown}` |
+        | `erase_reports` | `report_ids` | `{erased, kept}`; only hidden reports that are neither official nor reviewed are erased |
+        | `pin_company` | `cik`, `pinned` | `{ok}` |
         | `list_predictions` | none | `[{prediction_id, cik, ticker, run_at, rating, bear, base, bull, grades}]` |
         | `grade_due` (Phase 2) | none | `{graded}` |
         | `flag_claim` | `claim_id`, `note` | `{review_id}` |

@@ -5,6 +5,7 @@
 
 import { useState } from 'react'
 
+import type { Keys } from '../../shared/protocol'
 import { KEY_TEXT, KeyCard } from '../setup/KeyCard'
 import { at, Changes, ExternalIcon, Spinner } from '../setup/parts'
 import type { KeyService } from '../setup/steps'
@@ -16,13 +17,15 @@ const KEYS: { service: KeyService | 'alphavantage'; name: string; what: string }
   { service: 'alphavantage', name: 'Alpha Vantage', what: 'Not used yet' }
 ]
 
-// A key is set, missing, or set but refused by its service on the last call that used it.
-type KeyState = 'set' | 'missing' | 'refused'
+// A key is set, missing, set but refused by its service on the last call that used it, or locked:
+// macOS didn't let Tearsheet open it this session (Settings' list of what needs you says how).
+type KeyState = 'set' | 'missing' | 'refused' | 'locked'
 
-const STATE_TEXT: Record<KeyState, string> = { set: 'Added', missing: 'Not added', refused: 'Not accepted' }
+const STATE_TEXT: Record<KeyState, string> = { set: 'Added', missing: 'Not added', refused: 'Not accepted', locked: 'Locked in Keychain' }
 
-export function KeysPanel({ keys, rejected, onSaved }: { keys: Record<string, 'set' | 'missing'>; rejected: string[]; onSaved: () => Promise<void> }) {
-  const state = (service: string): KeyState => (keys[service] !== 'set' ? 'missing' : rejected.includes(service) ? 'refused' : 'set')
+export function KeysPanel({ keys, rejected, onSaved }: { keys: Keys; rejected: string[]; onSaved: () => Promise<void> }) {
+  const state = (service: string): KeyState =>
+    keys[service] === 'locked' ? 'locked' : keys[service] !== 'set' ? 'missing' : rejected.includes(service) ? 'refused' : 'set'
   return (
     <div className="sgrp keys">
       {KEYS.map(({ service, name, what }) =>
@@ -42,7 +45,7 @@ function KeyHead({ name, what, state, tone, open, action, onToggle }: { name: st
   return (
     <div className="sline">
       <Label title={name} help={what} />
-      <span className={`pill ${state === 'set' ? 'ok' : state === 'refused' ? 'bad' : tone}`}>{STATE_TEXT[state]}</span>
+      <span className={`pill ${state === 'set' ? 'ok' : state === 'refused' || state === 'locked' ? 'bad' : tone}`}>{STATE_TEXT[state]}</span>
       <button className={urgent ? 'pb go' : 'pb'} aria-expanded={open} aria-label={`${action}: ${name}`} onClick={onToggle}>
         {action}
       </button>
@@ -53,8 +56,9 @@ function KeyHead({ name, what, state, tone, open, action, onToggle }: { name: st
 // Massive and FRED: setup's Paste it here card, which checks the key with one call before the
 // engine saves it. A missing key opens with the card showing.
 function KeyRow({ service, name, what, state, onSaved }: { service: KeyService; name: string; what: string; state: KeyState; onSaved: () => Promise<void> }) {
-  // A missing key, or one its service stopped accepting, opens with the card showing.
-  const [open, setOpen] = useState(state !== 'set')
+  // A missing key, or one its service stopped accepting, opens with the card showing. A locked
+  // one doesn't: the key is fine, and the fix is macOS's Always Allow.
+  const [open, setOpen] = useState(state === 'missing' || state === 'refused')
   const [proof, setProof] = useState<string | null>(null)
   const text = KEY_TEXT[service]
   const toggle = () => {

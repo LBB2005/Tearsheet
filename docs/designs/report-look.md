@@ -35,8 +35,16 @@ Over six rounds of mockups, Liam settled on:
 *   **Sidebar** (232 px, flat dark at about `#0A0D14`). It has no boxes, pills or borders, and
     no desktop color shows through. From top to bottom:
     *   New report (⌘N) and Look up (⌘K) as plain rows;
-    *   a small "Reports" label, then one row per company: the ticker on the left and the price,
-        muted, on the right, newest first. Older reports of a company open from inside it.
+    *   a small "Reports" label with Search and a sort and filter button, then one row per
+        company (look 3 of the sidebar mockups, picked by Liam on Nov 7): the ticker, a tick for
+        an official prediction, the last close, muted, and a Buy / Hold / Sell tag. Pinned
+        companies come first, then Today, Yesterday, Previous 7 days, Previous 30 days and Older.
+        The sort and filter menu sorts by newest, A to Z, rating or the move since the report, and
+        filters by rating, official prediction and sector; it also shows Hidden reports. Each row
+        has a "…" menu, also on right-click: Pin to top, Show in Prediction log, Select, Delete.
+        ⌘-click and ⇧-click select several. ↑ ↓ move, ⌘⌫ deletes, Esc ends a selection or the
+        search. Delete hides at once with Undo; an official prediction's report is only ever
+        hidden. Older reports of a company open from inside it, where its menu can delete one.
     *   Prediction log, Settings (⌘,), and a status line. The status line says "● Claude Code
         ready"; during a run it shows "Writing JPM, step 9 of 14" with a thin progress bar.
 
