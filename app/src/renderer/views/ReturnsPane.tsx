@@ -108,7 +108,7 @@ export function Returns({ chrome, numbers, ticker, item, state, setState }: View
               <span className="mval">{returnText(v)}</span>
               <span className="mtrack rtrack">
                 <i className="rzero" style={{ left: `${zero}%` }} />
-                {v !== null && <i className="rbar" style={{ left: `${Math.min(zero, end)}%`, width: `${Math.abs(end - zero)}%`, background: colour }} />}
+                {v !== null && <i className="retbar" style={{ left: `${Math.min(zero, end)}%`, width: `${Math.abs(end - zero)}%`, background: colour }} />}
               </span>
             </div>
           )
