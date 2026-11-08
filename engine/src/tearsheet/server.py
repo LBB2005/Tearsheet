@@ -1085,9 +1085,13 @@ class Server:
         return {"first_date": first or "", "days": days}
 
     async def m_list_reports(self, p) -> list[dict[str, Any]]:
+        from tearsheet.report_marks import kept_because
+
+        which = "IN" if p.hidden else "NOT IN"
         rows = self.db.conn.execute(
             "SELECT r.report_id, r.run_id, r.created_at, r.narrative_complete, u.cik, c.name FROM reports r"
             " JOIN runs u ON u.run_id = r.run_id LEFT JOIN companies c ON c.cik = u.cik"
+            f" WHERE r.report_id {which} (SELECT report_id FROM hidden_reports)"
             " ORDER BY r.created_at DESC LIMIT ? OFFSET ?",
             (p.limit, p.offset),
         ).fetchall()
@@ -1110,9 +1114,37 @@ class Server:
                     "created_at": r["created_at"],
                     "rating": steps.get("rate", {}).get("rating"),
                     "narrative_complete": bool(r["narrative_complete"]),
+                    "kept_because": kept_because(self.db.conn, r["report_id"]),
                 }
             )
         return out
+
+    # --- the sidebar's marks (report_marks.py) ------------------------------------------------
+
+    async def m_hide_reports(self, p) -> dict[str, Any]:
+        from tearsheet.report_marks import hide
+
+        return hide(self.db.conn, p.report_ids)
+
+    async def m_show_reports(self, p) -> dict[str, Any]:
+        from tearsheet.report_marks import show
+
+        return {"shown": show(self.db.conn, p.report_ids)}
+
+    async def m_erase_reports(self, p) -> dict[str, Any]:
+        """Erase hidden reports whose undo has passed. Official and reviewed ones stay hidden."""
+        from tearsheet.report_marks import erase
+
+        result = erase(self.db.conn, p.report_ids)
+        if result["erased"]:
+            log.info("erased %d deleted report(s)", len(result["erased"]))
+        return result
+
+    async def m_pin_company(self, p) -> dict[str, Any]:
+        from tearsheet.report_marks import set_pinned
+
+        set_pinned(self.db.conn, p.cik, p.pinned)
+        return {"ok": True}
 
     async def m_list_predictions(self, p) -> list[dict[str, Any]]:
         out = []

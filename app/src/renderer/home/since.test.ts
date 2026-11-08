@@ -13,7 +13,14 @@ const company = (ticker: string, name: string, cik: number, priceDate: string | 
   report_date: '2026-11-05',
   reports: 1,
   price: priceDate ? 100 : null,
-  price_date: priceDate
+  price_date: priceDate,
+  created_at: '2026-11-05T14:00:00Z',
+  report_ids: [`rep-${ticker}`],
+  since_report: null,
+  rating: null,
+  official: false,
+  sector: null,
+  pinned: false
 })
 
 const grade = (months: number): Grade => ({

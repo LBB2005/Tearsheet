@@ -11,6 +11,7 @@ export type Side = "text" | "numbers";
 export type Motion = boolean;
 export type Limit = number;
 export type Offset = number;
+export type Hidden = boolean;
 export type ClaimId = string;
 export type Note = string | null;
 export type Accession = string;
@@ -27,7 +28,14 @@ export type Limit1 = number;
 export type ReportId1 = string;
 export type ReportId2 = string;
 export type ReportId3 = string;
+/**
+ * @minItems 1
+ * @maxItems 1000
+ */
+export type ReportIds = [string, ...string[]];
 export type Cik = number;
+export type Pinned = boolean;
+export type Cik1 = number;
 export type Name = string;
 export type Ticker = string;
 export type RunId1 = string;
@@ -48,24 +56,31 @@ export type Peers = number | null;
 export type ReportId4 = string;
 export type RunId2 = string;
 export type Ticker2 = string;
-export type Cik1 = number | null;
+export type Cik2 = number | null;
 export type Name2 = string | null;
 export type CreatedAt = string;
 export type NarrativeComplete = boolean;
 export type Kept = number | null;
 export type Html = string;
-export type Cik2 = number;
+export type Cik3 = number;
 export type Ticker3 = string;
 export type Name3 = string;
 export type ReportId5 = string;
 export type ReportDate = string;
+export type CreatedAt1 = string;
 export type Reports = number;
+export type ReportIds1 = string[];
 export type Price = number | null;
 export type PriceDate = string | null;
+export type SinceReport = number | null;
+export type Rating1 = string | null;
+export type Official = boolean;
+export type Sector = string | null;
+export type Pinned1 = boolean;
 export type Ticker4 = string;
 export type Name4 = string;
-export type Sector = string | null;
-export type Cik3 = number;
+export type Sector1 = string | null;
+export type Cik4 = number;
 export type ReportId6 = string | null;
 export type ReportDate1 = string | null;
 export type PeerRule = string | null;
@@ -146,12 +161,18 @@ export type Economy = EconomyItem[] | null;
 export type Tables = ReportTable[];
 export type ReportId8 = string;
 export type RunId3 = string;
-export type Cik4 = number | null;
+export type Cik5 = number | null;
 export type Ticker7 = string | null;
 export type Name8 = string | null;
-export type CreatedAt1 = string;
-export type Rating1 = string | null;
+export type CreatedAt2 = string;
+export type Rating2 = string | null;
 export type NarrativeComplete1 = boolean;
+export type KeptBecause = ("official" | "reviewed") | null;
+export type Hidden1 = string[];
+export type Erasable = string[];
+export type Shown = string[];
+export type Erased = string[];
+export type Kept1 = string[];
 export type HorizonMonths = number;
 export type GradedAt = string;
 export type GradingVersion = number;
@@ -162,10 +183,10 @@ export type CompanyReturn = number | null;
 export type EndDate = string | null;
 export type InsideRange = boolean | null;
 export type PredictionId = string;
-export type Cik5 = number;
+export type Cik6 = number;
 export type Ticker8 = string;
 export type RunAt = string;
-export type Rating2 = string;
+export type Rating3 = string;
 export type Bear2 = number | null;
 export type Base2 = number | null;
 export type Bull2 = number | null;
@@ -234,7 +255,7 @@ export type Filings1 = number | null;
 export type Rates = boolean | null;
 export type Insider = number | null;
 export type Score = number | null;
-export type Rating3 = string | null;
+export type Rating4 = string | null;
 export type Articles = number | null;
 export type ReadsDone = number | null;
 export type ReadsTotal = number | null;
@@ -307,6 +328,7 @@ export interface GetReportParams {
 export interface ListReportsParams {
   limit?: Limit;
   offset?: Offset;
+  hidden?: Hidden;
 }
 /**
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
@@ -390,10 +412,25 @@ export interface NumbersParams {
 }
 /**
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "ReportIdsParams".
+ */
+export interface ReportIdsParams {
+  report_ids: ReportIds;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "PinParams".
+ */
+export interface PinParams {
+  cik: Cik;
+  pinned: Pinned;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
  * via the `definition` "Candidate".
  */
 export interface Candidate {
-  cik: Cik;
+  cik: Cik1;
   name: Name;
   ticker: Ticker;
 }
@@ -449,7 +486,7 @@ export interface ReportResult {
   report_id: ReportId4;
   run_id: RunId2;
   ticker: Ticker2;
-  cik: Cik1;
+  cik: Cik2;
   name: Name2;
   created_at: CreatedAt;
   narrative_complete: NarrativeComplete;
@@ -462,14 +499,21 @@ export interface ReportResult {
  * via the `definition` "CompanyRow".
  */
 export interface CompanyRow {
-  cik: Cik2;
+  cik: Cik3;
   ticker: Ticker3;
   name: Name3;
   report_id: ReportId5;
   report_date: ReportDate;
+  created_at: CreatedAt1;
   reports: Reports;
+  report_ids: ReportIds1;
   price: Price;
   price_date: PriceDate;
+  since_report: SinceReport;
+  rating: Rating1;
+  official: Official;
+  sector: Sector;
+  pinned: Pinned1;
 }
 /**
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
@@ -478,8 +522,8 @@ export interface CompanyRow {
 export interface SearchHit {
   ticker: Ticker4;
   name: Name4;
-  sector: Sector;
-  cik: Cik3;
+  sector: Sector1;
+  cik: Cik4;
   report_id: ReportId6;
   report_date: ReportDate1;
   peer_rule?: PeerRule;
@@ -681,12 +725,36 @@ export interface ReportNumbers {
 export interface ReportSummary {
   report_id: ReportId8;
   run_id: RunId3;
-  cik: Cik4;
+  cik: Cik5;
   ticker: Ticker7;
   name: Name8;
-  created_at: CreatedAt1;
-  rating: Rating1;
+  created_at: CreatedAt2;
+  rating: Rating2;
   narrative_complete: NarrativeComplete1;
+  kept_because: KeptBecause;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "HideResult".
+ */
+export interface HideResult {
+  hidden: Hidden1;
+  erasable: Erasable;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "ShowResult".
+ */
+export interface ShowResult {
+  shown: Shown;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "EraseResult".
+ */
+export interface EraseResult {
+  erased: Erased;
+  kept: Kept1;
 }
 /**
  * One horizon's grade under one version of the grading rules (item 48).
@@ -711,10 +779,10 @@ export interface Grade {
  */
 export interface PredictionSummary {
   prediction_id: PredictionId;
-  cik: Cik5;
+  cik: Cik6;
   ticker: Ticker8;
   run_at: RunAt;
-  rating: Rating2;
+  rating: Rating3;
   bear: Bear2;
   base: Base2;
   bull: Bull2;
@@ -892,7 +960,7 @@ export interface Tally {
   rates?: Rates;
   insider?: Insider;
   score?: Score;
-  rating?: Rating3;
+  rating?: Rating4;
   articles?: Articles;
   reads_done?: ReadsDone;
   reads_total?: ReadsTotal;

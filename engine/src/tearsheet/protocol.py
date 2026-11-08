@@ -80,6 +80,8 @@ class NumbersParams(Strict):
 class ListReportsParams(Strict):
     limit: int = 50
     offset: int = 0
+    # True: only the reports hidden from the sidebar (report_marks.py), for its Hidden group.
+    hidden: bool = False
 
 
 class NoParams(Strict):
@@ -122,6 +124,15 @@ class SafetyParams(Strict):
     tool: Literal["claude", "codex"]
 
 
+class ReportIdsParams(Strict):
+    report_ids: list[str] = Field(min_length=1, max_length=1000)
+
+
+class PinParams(Strict):
+    cik: int
+    pinned: bool
+
+
 METHODS: dict[str, type[Strict]] = {
     "run_report": RunReportParams,
     "cancel": RunIdParams,
@@ -142,6 +153,10 @@ METHODS: dict[str, type[Strict]] = {
     "get_chart": ChartParams,
     "fetch_history": HistoryParams,
     "get_report_numbers": NumbersParams,
+    "hide_reports": ReportIdsParams,
+    "show_reports": ReportIdsParams,
+    "erase_reports": ReportIdsParams,
+    "pin_company": PinParams,
 }
 
 
@@ -212,11 +227,23 @@ class CompanyRow(Strict):
     cik: int
     ticker: str
     name: str
+    # The company's newest report on show; hidden reports are left out of every field.
     report_id: str
     report_date: str
+    created_at: str
     reports: int
+    # Every report on show, newest first, for deleting the row.
+    report_ids: list[str]
     price: float | None
     price_date: str | None
+    # The move from the close the report was priced at to `price` (0.05 is 5% up), splits
+    # taken out; None without both closes.
+    since_report: float | None
+    rating: str | None
+    # The report is an official prediction's (predictions.py).
+    official: bool
+    sector: str | None
+    pinned: bool
 
 
 class SearchHit(Strict):
@@ -397,6 +424,24 @@ class ReportSummary(Strict):
     created_at: str
     rating: str | None
     narrative_complete: bool
+    # Why the report can only be hidden, never erased (report_marks.py); None when it can be.
+    kept_because: Literal["official", "reviewed"] | None
+
+
+class HideResult(Strict):
+    hidden: list[str]
+    # Those of them that may be erased once the undo has passed.
+    erasable: list[str]
+
+
+class ShowResult(Strict):
+    shown: list[str]
+
+
+class EraseResult(Strict):
+    erased: list[str]
+    # Asked for, but left as they are: official, reviewed or not hidden.
+    kept: list[str]
 
 
 class Grade(Strict):
@@ -645,6 +690,9 @@ ALL_MODELS: tuple[type[BaseModel], ...] = (
     ReportTable,
     ReportNumbers,
     ReportSummary,
+    HideResult,
+    ShowResult,
+    EraseResult,
     Grade,
     PredictionSummary,
     ReviewResult,

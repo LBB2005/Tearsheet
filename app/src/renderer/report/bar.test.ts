@@ -165,7 +165,7 @@ describe('the bar', () => {
 })
 
 describe('listBar', () => {
-  const row: CompanyRow = { cik: 1045810, ticker: 'NVDA', name: 'NVIDIA CORP', report_id: 'rep-1', report_date: '2026-11-05', reports: 1, price: 186.64, price_date: '2026-11-06' }
+  const row: CompanyRow = { cik: 1045810, ticker: 'NVDA', name: 'NVIDIA CORP', report_id: 'rep-1', report_date: '2026-11-05', reports: 1, price: 186.64, price_date: '2026-11-06', created_at: '2026-11-05T14:00:00Z', report_ids: ['rep-1'], since_report: null, rating: 'Hold', official: false, sector: null, pinned: false }
 
   it('starts from the sidebar’s last close and the list’s rating while the report loads', () => {
     expect(listBar(row, 'Hold')).toEqual({ ...NVDA, previous_close: null, capped: false, red_flags: [], range: null, percentile: null, peers: null })
