@@ -50,6 +50,18 @@ export function findRequest(last: string | null, text: unknown, forward: unknown
   return { text: query, forward: forward !== false, findNext: query !== last }
 }
 
+// Whether the window is still there to talk to. Once it has closed, Electron throws on any use of
+// it, even reading its webContents, and a throw in the main process opens Electron's error box,
+// which holds everything up. Quitting while a report runs closes the window while the engine is
+// still stopping, and the report's last progress notes arrive after it.
+function isOpen(window: BrowserWindow): boolean {
+  return !window.isDestroyed() && !window.webContents.isDestroyed()
+}
+
+function notify(window: BrowserWindow, note: unknown): void {
+  if (isOpen(window)) window.webContents.send('tearsheet:notification', note)
+}
+
 export interface CallResult {
   ok: boolean
   result?: unknown
@@ -94,7 +106,7 @@ export function registerIpc(window: BrowserWindow, engine: Engine, pathValue: st
     return new Promise<void>((resolve) => {
       const finish = () => {
         clearTimeout(timer)
-        if (!window.webContents.isDestroyed()) window.webContents.removeListener('found-in-page', onResult)
+        if (isOpen(window)) window.webContents.removeListener('found-in-page', onResult)
         resolve()
       }
       const onResult = (_e: unknown, result: Electron.Result) => {
@@ -111,9 +123,9 @@ export function registerIpc(window: BrowserWindow, engine: Engine, pathValue: st
   window.webContents.on('did-frame-navigate', () => {
     lastFind = null
   })
-  engine.on('notification', (note) => window.webContents.send('tearsheet:notification', note))
-  engine.on('crashed', (runId) => window.webContents.send('tearsheet:notification', { method: 'engine_restarted', params: { run_id: runId } }))
-  engine.on('fatal', (message) => window.webContents.send('tearsheet:notification', { method: 'engine_fatal', params: { message } }))
+  engine.on('notification', (note) => notify(window, note))
+  engine.on('crashed', (runId) => notify(window, { method: 'engine_restarted', params: { run_id: runId } }))
+  engine.on('fatal', (message) => notify(window, { method: 'engine_fatal', params: { message } }))
   // An engine that failed before the window loaded is never lost: every call answers with
   // engine.fatalMessage, and the note is sent again once the page has loaded.
   window.webContents.on('did-finish-load', () => {
