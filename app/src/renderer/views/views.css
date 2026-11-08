@@ -70,7 +70,7 @@
 .rrows { display: flex; flex-direction: column; gap: 4px; padding: 4px 0 12px; }
 .rtrack::before { display: none; }
 .rzero { position: absolute; top: 0; height: 14px; width: 0; border-left: 1px dashed var(--muted); }
-.rbar { position: absolute; top: 3px; height: 8px; border-radius: 2px; min-width: 2px; }
+.retbar { position: absolute; top: 3px; height: 8px; border-radius: 2px; min-width: 2px; }
 
 /* A Full-report table: the filter and its count above, then the table, whose header cells sort. */
 .tctl { display: flex; align-items: center; gap: 12px; padding: 4px 0 10px; }
