@@ -36,6 +36,7 @@ import { topicName, type Topic } from './settings/topics'
 import { nextView, reportSubtitle } from './report/view'
 import { applySafetyNote, SAFETY_CALLS, safetyStarted, type SafetyState, type ToolKind } from './setup/steps'
 import { Sidebar, SidebarButton } from './shell/Sidebar'
+import { SidebarSizer } from './shell/SidebarSizer'
 import { Toolbar } from './shell/Toolbar'
 import { useMarks } from './shell/useMarks'
 import { useWide } from './shell/useWide'
@@ -581,6 +582,8 @@ export function App() {
           shownOrder.current = rows
         }}
       />
+      {/* The sidebar's right edge, which sets its width, while the sidebar shows. */}
+      {sideShown && <SidebarSizer />}
       {!wide && sideOver && <div className="sidescrim" onMouseDown={() => setSideOver(false)} />}
       <div className="mainarea">
         {page === 'setup' ? (
