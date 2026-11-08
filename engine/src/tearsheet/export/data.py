@@ -8,11 +8,13 @@ is the same source in the PDF, the deck and the workbook.
 
 from __future__ import annotations
 
+import gzip
 import json
 import re
 import sqlite3
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
+from pathlib import Path
 from typing import Any
 
 LABEL = "Research data, not investment advice."
@@ -30,6 +32,48 @@ _MONEY = re.compile(r"^-?\$[\d,]+(\.\d+)?$")
 
 class NotFound(LookupError):
     """No saved report with that id, or one with no stored text."""
+
+
+# The workbook's Financials tab: fiscal-year items, then items read at each year's end.
+FLOW_ITEMS = (
+    "revenue",
+    "cost_of_revenue",
+    "operating_income",
+    "pretax_income",
+    "income_tax",
+    "net_income",
+    "diluted_eps",
+    "depreciation_amortization",
+    "operating_cash_flow",
+    "capital_spending",
+    "dividends_paid",
+    "stock_based_pay",
+)
+POINT_ITEMS = ("diluted_shares", "total_assets", "total_equity", "cash", "total_debt")
+
+
+@dataclass(frozen=True)
+class Figure:
+    """One filed figure, with where it came from, for the workbook's hover notes."""
+
+    value: float
+    tag: str
+    end: date
+    filed: date
+    accn: str
+    start: date | None = None
+
+
+@dataclass
+class History:
+    """The company's last three fiscal years and the last 12 months, rebuilt read-only from the
+    SEC company facts the run stored, the way the engine reads them (normalize.Financials)."""
+
+    year_ends: list[date]
+    annual: dict[str, list[Figure | None]]
+    ltm: dict[str, Figure | None]
+    ltm_end: date | None
+    report_inputs: dict[str, float]  # what the report's metrics used (metrics.inputs_json)
 
 
 @dataclass(frozen=True)
@@ -93,6 +137,7 @@ class ExportData:
     methodology_hash: str
     ai_tool: str | None
     split_factor: float  # splits since the price day: 2.0 after a 2-for-1
+    history: History | None = None
     methodology: list[str] = field(default_factory=list)
     checks: list[str] = field(default_factory=list)
     skeptic: str | None = None
@@ -216,8 +261,101 @@ def _split_factor(conn: sqlite3.Connection, cik: int, price_day: date | None) ->
         return 1.0
 
 
-def load(conn: sqlite3.Connection, report_id: str) -> ExportData:
-    """Read one saved report for a download. Reads only; raises NotFound for an unknown id."""
+def _figure(v: Any) -> Figure | None:
+    if v is None:
+        return None
+    return Figure(
+        value=float(v.value),
+        tag=str(v.tag),
+        end=v.end,
+        filed=v.filed,
+        accn=str(v.accn or ""),
+        start=v.start,
+    )
+
+
+def _history(
+    conn: sqlite3.Connection, raw_dir: Path | None, run_id: str, cik: int
+) -> History | None:
+    """The run's own stored SEC company facts, read the engine's way. None when the file isn't
+    in the raw store (a report from a copy of the data without its raw folder, say)."""
+    from tearsheet.data.prices import PriceStore
+    from tearsheet.normalize import Financials
+
+    if raw_dir is None:
+        return None
+    row = conn.execute(
+        "SELECT f.raw_hash, u.started_at FROM fetch_log f JOIN runs u ON u.run_id = f.run_id"
+        " WHERE f.run_id = ? AND f.request_key LIKE ? ORDER BY f.fetch_id DESC LIMIT 1",
+        (run_id, f"%/companyfacts/CIK{cik:010d}.json"),
+    ).fetchone()
+    if row is None:
+        return None
+    path = Path(raw_dir) / row[0][:2] / f"{row[0]}.gz"
+    try:
+        facts = json.loads(gzip.decompress(path.read_bytes()))
+    except (OSError, ValueError):
+        return None
+    started = datetime.fromisoformat(str(row[1]))
+    if started.tzinfo is None:
+        started = started.replace(tzinfo=UTC)
+    store = PriceStore(conn)
+    fin = Financials(
+        facts,
+        as_of=started.astimezone(UTC).date(),
+        split_factor=lambda after, up_to: store.split_factor(cik, after=after, up_to=up_to),
+    )
+    years = [v.end for v in (fin.annual("revenue") or fin.annual("net_income"))][-3:]
+    annual: dict[str, list[Figure | None]] = {}
+    for item in FLOW_ITEMS:
+        try:
+            found = {v.end: v for v in fin.annual(item)}
+        except KeyError:
+            found = {}
+        annual[item] = [
+            _figure(next((v for end, v in found.items() if abs((end - y).days) <= 7), None))
+            for y in years
+        ]
+    for item in POINT_ITEMS:
+        try:
+            annual[item] = [_figure(fin.latest(item, near=y)) for y in years]
+        except KeyError:
+            annual[item] = [None for _ in years]
+    ltm: dict[str, Figure | None] = {}
+    for item in FLOW_ITEMS:
+        try:
+            ltm[item] = _figure(fin.ttm(item))
+        except KeyError:
+            ltm[item] = None
+    for item in POINT_ITEMS:
+        try:
+            ltm[item] = _figure(fin.latest(item))
+        except KeyError:
+            ltm[item] = None
+    ends = [f.end for f in ltm.values() if f is not None]
+    inputs: dict[str, float] = {}
+    for (text,) in conn.execute(
+        "SELECT inputs_json FROM metrics WHERE run_id = ? AND cik = ?", (run_id, cik)
+    ):
+        try:
+            for key, value in json.loads(text or "{}").items():
+                if isinstance(value, int | float):
+                    inputs.setdefault(key, float(value))
+        except ValueError:
+            continue
+    return History(
+        year_ends=years,
+        annual=annual,
+        ltm=ltm,
+        ltm_end=max(ends) if ends else None,
+        report_inputs=inputs,
+    )
+
+
+def load(conn: sqlite3.Connection, report_id: str, *, raw_dir: Path | None = None) -> ExportData:
+    """Read one saved report for a download. Reads only; raises NotFound for an unknown id.
+    With `raw_dir` (the data folder's raw store), it also rebuilds the company's last three
+    fiscal years for the workbook."""
     from tearsheet.companies import run_company
     from tearsheet.report_numbers import numbers_for, run_price_date
     from tearsheet.report_views import views_for
@@ -284,6 +422,7 @@ def load(conn: sqlite3.Connection, report_id: str) -> ExportData:
         methodology_hash=str(row[7] or ""),
         ai_tool=row[8],
         split_factor=_split_factor(conn, cik, price_day),
+        history=_history(conn, raw_dir, run_id, cik),
         methodology=[str(x) for x in report.get("methodology") or []],
         checks=[str(x) for x in report.get("checks") or []],
         skeptic=report.get("skeptic") or None,

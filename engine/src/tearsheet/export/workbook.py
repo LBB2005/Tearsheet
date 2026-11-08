@@ -1,50 +1,41 @@
-"""The Excel download (Option A, Liam's pick on 8 Nov 2026): the saved report's numbers in a
-bank-style workbook. Nothing in it recalculates the report; the only formulas are the upside,
-a few sums and the Checks, which can fail if a copied figure is wrong.
+"""The Excel download, styled as a classic bank model (Liam's picks on 8 Nov 2026): white, Arial,
+thin grey rules, bold totals, navy only for titles; figures typed in from the filings or the
+saved report in blue, formulas in black. Five tabs: Summary · Financials · Valuation · Peers ·
+Sources & checks. Every typed figure carries a hover note saying where it came from.
 
-Bank conventions (research: reports/Bank style equity research templates.md): Arial 10,
-gridlines off, navy header bands, units rows, figures copied from the report in blue, formulas
-in black, links to other sheets in green, and a master check in row 1 of every sheet. The key
-results have workbook names (Price, Value, Bear, Base, Bull, ...) so a later live model can
-replace one cell rather than many.
+Nothing recalculates the report or its rating. The formulas are the working a model shows:
+growth, margins, free cash flow, the median of the valuation methods, upside, peer medians, and
+checks that fail if a figure was copied wrong. Each formula's cached result is written with it,
+so Quick Look and previews show the numbers before Excel recalculates.
 """
 
 from __future__ import annotations
 
 import io
-from datetime import date
+import statistics
+from datetime import date, datetime
 from typing import Any
 
 import xlsxwriter
+from xlsxwriter.utility import xl_col_to_name, xl_rowcol_to_cell
 
 from tearsheet.export import style
-from tearsheet.export.data import LABEL, ExportData, day_text
+from tearsheet.export.data import LABEL, ExportData, Figure, day_text
 from tearsheet.render import METRIC_KINDS
 
 BLUE = "#0000FF"
-GREEN = "#008000"
+NUM = '#,##0_);(#,##0);"–"_)'
+NUM1 = '#,##0.0_);(#,##0.0);"–"_)'
 MONEY = "$#,##0.00_);($#,##0.00)"
-PCT = "0.0%_);(0.0%)"
+PCT = '0.0%_);(0.0%);"–"_)'
 MULT = '0.0"x"'
 INT = "#,##0"
-SHEETS = (
-    ("Cover", "The official call, what this file holds, and how to read it"),
-    ("Summary", "The call and the key points, with their source notes"),
-    ("Valuation", "Value per share by method, the estimated value and the 12-month range"),
-    ("Score and metrics", "The score's factors, key metrics against peer medians, red-flag checks"),
-    ("Returns and peers", "Total returns, weekly closes and each peer's figures"),
-    ("Economy", "The economic series the report cites"),
-    ("Sources", "Every numbered note: the source, the quoted passage and the link"),
-    ("Checks", "Checks that fail if a copied figure is wrong"),
-)
-LAST_COL = 7  # columns B..H hold the content
+CHECKS = "'Sources & checks'"
 
 
 class _Book:
-    """The workbook, its formats, and the cells the Checks tab reads."""
-
     def __init__(self, data: ExportData) -> None:
-        self.data = data
+        self.d = data
         self.out = io.BytesIO()
         self.wb = xlsxwriter.Workbook(self.out, {"in_memory": True})
         self.wb.set_properties(
@@ -54,514 +45,973 @@ class _Book:
                 "comments": LABEL,
             }
         )
-        self.wb.set_size(1500, 1000)
+        self.wb.set_size(1600, 1000)
         self.f: dict[str, Any] = {}
         self.checks: list[dict[str, Any]] = []
-        base = {"font_name": "Arial", "font_size": 10, "valign": "top"}
+        base = {"font_name": "Arial", "font_size": 10, "valign": "vcenter"}
 
         def fmt(name: str, **kw: Any) -> None:
             self.f[name] = self.wb.add_format({**base, **kw})
 
-        fmt("text")
-        fmt("wrap", text_wrap=True)
+        fmt("label")
+        fmt("wrap", text_wrap=True, valign="top")
         fmt("muted", font_color=style.GREY)
-        fmt("muted_wrap", font_color=style.GREY, text_wrap=True)
-        fmt("bold", bold=True)
-        fmt("brand", bold=True, font_color=style.NAVY, font_size=9)
-        fmt("rule", bg_color=style.SIGNATURE_FROM)
-        fmt("rule2", bg_color=style.SIGNATURE_TO)
-        fmt("title", bold=True, font_size=12, font_color=style.NAVY)
-        fmt("name", bold=True, font_size=20, font_color=style.NAVY, valign="vcenter")
-        fmt("headline", font_size=12)
-        fmt("band", bold=True, font_color="#FFFFFF", bg_color=style.NAVY, text_wrap=True)
+        fmt("muted_r", font_color=style.GREY, align="right")
+        fmt("muted_wrap", font_color=style.GREY, text_wrap=True, valign="top")
+        fmt("small", font_size=8, font_color=style.GREY)
+        fmt("small_r", font_size=8, font_color=style.GREY, align="right")
         fmt(
-            "band_r",
-            bold=True,
-            font_color="#FFFFFF",
-            bg_color=style.NAVY,
+            "small_wrap_r",
+            font_size=8,
+            font_color=style.GREY,
             align="right",
             text_wrap=True,
+            valign="top",
         )
-        fmt("units", italic=True, font_color=style.GREY, bg_color=style.FILL)
-        fmt("label", font_color=style.INK)
-        fmt("total", bold=True, top=1)
-        for kind, num in (("money", MONEY), ("pct", PCT), ("mult", MULT), ("int", INT)):
-            fmt(f"in_{kind}", font_color=BLUE, num_format=num)
-            fmt(f"calc_{kind}", num_format=num)
-            fmt(f"link_{kind}", font_color=GREEN, num_format=num)
-            fmt(f"total_{kind}", font_color=BLUE, num_format=num, bold=True, top=1)
+        fmt("small_date", font_size=8, font_color=BLUE, num_format="d mmm yyyy")
+        fmt("title", bold=True, font_size=14, font_color=style.NAVY)
+        fmt("headline", font_size=12)
+        fmt("subtitle", italic=True, font_size=9, font_color=style.GREY)
+        fmt("brand", bold=True, font_size=8, font_color=style.NAVY, align="right")
+        fmt("rule", bottom=2, bottom_color=style.NAVY)
+        fmt("section", bold=True, bg_color=style.FILL, bottom=1, bottom_color=style.RULE)
+        fmt(
+            "section_r",
+            bold=True,
+            bg_color=style.FILL,
+            bottom=1,
+            bottom_color=style.RULE,
+            align="right",
+        )
+        fmt(
+            "section_wrap",
+            bold=True,
+            bg_color=style.FILL,
+            bottom=1,
+            bottom_color=style.RULE,
+            align="right",
+            text_wrap=True,
+            valign="bottom",
+        )
+        fmt("head", bold=True, bottom=1, align="right")
+        fmt("head_l", bold=True, bottom=1)
+        fmt("sub", font_size=8, font_color=style.GREY, align="right")
+        fmt("indent", indent=1, italic=True, font_color=style.GREY)
+        fmt("bold", bold=True)
+        fmt("total_label", bold=True, top=1)
+        fmt("na", font_color=style.GREY, align="right")
+        for name, num in (
+            ("num", NUM),
+            ("num1", NUM1),
+            ("money", MONEY),
+            ("pct", PCT),
+            ("mult", MULT),
+            ("int", INT),
+        ):
+            fmt(f"in_{name}", font_color=BLUE, num_format=num)
+            fmt(f"f_{name}", num_format=num)
+            fmt(f"fi_{name}", num_format=num, italic=True, font_color=style.GREY)
+            fmt(f"tot_{name}", num_format=num, bold=True, top=1)
+            fmt(f"hi_{name}", num_format=num, font_color=BLUE, bold=True, bg_color=style.TINT)
         fmt("in_text", font_color=BLUE)
-        fmt("in_wrap", font_color=BLUE, text_wrap=True)
-        fmt("in_date", font_color=BLUE, num_format="d mmm yyyy", align="left")
-        fmt("link_text", font_color=GREEN)
-        fmt("link_text_r", font_color=GREEN, align="right")
-        fmt("in_int_l", font_color=BLUE, num_format=INT, align="left")
-        fmt("calc_text", align="center", bold=True)
+        fmt("in_text_r", font_color=BLUE, align="right")
+        fmt("in_wrap", font_color=BLUE, text_wrap=True, valign="top")
+        fmt("f_text_r", align="right")
+        fmt("hi_text", bold=True, bg_color=style.TINT)
+        fmt("call", bold=True, font_size=16, font_color=style.NAVY, align="right")
         fmt("url", font_color=style.BULL, underline=1)
-        fmt("box_label", font_color=style.GREY, left=1, left_color=style.NAVY)
-        fmt("call", bold=True, font_size=16, font_color=style.NAVY)
         fmt("ok", bold=True, align="center", font_color="#006100", bg_color="#C6EFCE")
         fmt("bad", bold=True, align="center", font_color="#9C0006", bg_color="#FFC7CE")
-        fmt("key_blue", font_color=BLUE)
-        fmt("key_black")
-        fmt("key_green", font_color=GREEN)
-        fmt("note", font_size=8, font_color=style.GREY, text_wrap=True)
 
-    # --- sheet scaffolding ------------------------------------------------------------------
+    # --- scaffolding -------------------------------------------------------------------------
 
-    def sheet(
-        self, name: str, subtitle: str, widths: dict[str, float] | None = None, title: bool = True
-    ):
+    def sheet(self, name: str, subtitle: str, widths: dict[str, float], last_col: int):
+        d = self.d
         ws = self.wb.add_worksheet(name)
         ws.hide_gridlines(2)
-        ws.set_column("A:A", 2)
-        ws.set_column("B:B", 34)
-        ws.set_column("C:H", 15)
-        for cols, width in (widths or {}).items():
+        ws.set_column(0, 0, 2)
+        for cols, width in widths.items():
             ws.set_column(cols, width)
-        ws.set_default_row(15)
-        ws.set_row(1, 4)
-        # Row 1: the brand and the master check; row 2: the cyan "price line" rule.
-        ws.write("B1", style.BRAND, self.f["brand"])
-        ws.write("G1", "Checks", self.f["muted"])
-        master = self.master_value()
+        ws.set_row(0, 22)
+        ws.write(0, 1, f"{d.name} ({d.ticker})", self.f["title"])
+        ws.write(1, 1, subtitle, self.f["subtitle"])
+        ws.write(0, last_col, "TEARSHEET RESEARCH", self.f["brand"])
+        ws.write(1, last_col - 1, "Checks", self.f["muted_r"])
+        master = self.master()
         ws.write_formula(
-            "H1", "=Checks!$C$4", self.f["ok"] if master == "OK" else self.f["bad"], master
+            1, last_col, f"={CHECKS}!$C$4", self.f["ok" if master == "OK" else "bad"], master
         )
-        for col in range(1, LAST_COL + 1):
-            ws.write_blank(1, col, None, self.f["rule"] if col <= 3 else self.f["rule2"])
-        if title:
-            ws.write("B3", f"{name}: {self.data.name} ({self.data.ticker})", self.f["title"])
-            ws.write("B4", subtitle, self.f["muted"])
+        for col in range(1, last_col + 1):
+            ws.write_blank(2, col, None, self.f["rule"])
+        ws.set_row(2, 6)
         ws.set_landscape()
         ws.set_paper(1)
         ws.fit_to_pages(1, 0)
-        ws.set_margins(left=0.5, right=0.5, top=0.6, bottom=0.6)
+        ws.set_margins(left=0.4, right=0.4, top=0.5, bottom=0.6)
         ws.set_footer("&L&8Tearsheet Research · " + LABEL + "&R&8&A · page &P of &N")
-        ws.freeze_panes(4, 0)
         return ws
 
-    def band(self, ws, row: int, labels: list[str], text_cols: tuple[int, ...] = ()) -> None:
-        """A navy header row. The first label and any in `text_cols` sit left; numbers' sit right."""
-        for i, text in enumerate(labels):
-            ws.write(
-                row, 1 + i, text, self.f["band"] if (i == 0 or i in text_cols) else self.f["band_r"]
-            )
+    def section(
+        self, ws, row: int, first: int, last: int, text: str, right: dict[int, str] | None = None
+    ) -> None:
+        for col in range(first, last + 1):
+            label = (right or {}).get(col)
+            if col == first:
+                ws.write(row, col, text, self.f["section"])
+            elif label is not None:
+                ws.write(row, col, label, self.f["section_r"])
+            else:
+                ws.write_blank(row, col, None, self.f["section"])
 
-    def units(self, ws, row: int, text: str, width: int = LAST_COL) -> None:
-        ws.merge_range(row, 1, row, width, text, self.f["units"])
+    def note(self, ws, row: int, col: int, text: str) -> None:
+        ws.write_comment(
+            row,
+            col,
+            text,
+            {
+                "font_name": "Arial",
+                "font_size": 9,
+                "x_scale": 2.4,
+                "y_scale": 1.4,
+                "author": "Tearsheet",
+            },
+        )
 
     def name(self, label: str, sheet: str, row: int, col: int) -> None:
-        self.wb.define_name(label, f"='{sheet}'!${_col(col)}${row + 1}")
+        self.wb.define_name(label, f"='{sheet}'!${xl_col_to_name(col)}${row + 1}")
 
-    def master_value(self) -> str:
-        return "OK" if all(c["result"] in ("OK", "n/a") for c in self.checks) else "CHECK"
-
-
-def _col(index: int) -> str:
-    return xlsxwriter.utility.xl_col_to_name(index)
+    def master(self) -> str:
+        return "OK" if all(c["result"] == "OK" for c in self.checks) else "CHECK"
 
 
-def _money_or_none(value: Any) -> float | None:
-    return round(float(value), 2) if isinstance(value, int | float) else None
+def _dt(day: date) -> datetime:
+    return datetime(day.year, day.month, day.day)
 
 
-# --- the checks (worked out first, so every sheet's row 1 can show the result) ------------------
+def _num(value: Any) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return None
+    return float(value)
+
+
+def _upside(d: ExportData) -> float | None:
+    base = _num((d.numbers.get("range") or {}).get("base"))
+    price = _num((d.numbers.get("price") or {}).get("value"))
+    return base / price - 1 if base is not None and price else None
+
+
+def _headline(d: ExportData) -> str:
+    """The call and its numbers, written by code, never AI text."""
+    n = d.numbers
+    rating = (n.get("rating") or {}).get("call")
+    base = _num((n.get("range") or {}).get("base"))
+    up = _upside(d)
+    if not rating:
+        return "No rating is stored for this report."
+    text = str(rating)
+    if base is not None and up is not None and d.price_day:
+        horizon = date(d.price_day.year + 1, d.price_day.month, 1)
+        side = "above" if up >= 0 else "below"
+        text += f": base case ${base:,.2f} by {horizon:%b %Y}, {abs(up):.1%} {side} the price"
+    unc = (n.get("rating") or {}).get("uncertainty")
+    return text + (f", with {unc} uncertainty" if unc else "")
+
+
+def _filed_note(d: ExportData, fig: Figure, *, scale: float, unit: str, ltm: bool) -> str:
+    forms = {str(f.get("accession")): str(f.get("form")) for f in d.filings}
+    form = forms.get(fig.accn, "SEC filing")
+    if ltm and fig.start is not None:
+        period = (
+            f"Last 12 months to {day_text(fig.end)}: the latest fiscal year, plus this year to "
+            "date, less the same period a year before (the engine's method)."
+        )
+    elif fig.start is not None:
+        period = f"Fiscal year {day_text(fig.start)} to {day_text(fig.end)}."
+    else:
+        period = f"At {day_text(fig.end)}."
+    exact = f"{fig.value:,.0f}" if abs(fig.value) >= 1000 else f"{fig.value:,.2f}"
+    shown = f" (÷ {scale:,.0f} here)." if scale != 1 else "."
+    return (
+        f"{period}\nFrom the {form} filed {day_text(fig.filed)} (accession {fig.accn}).\n"
+        f"SEC XBRL line: {fig.tag}.\nAs filed: {exact}{unit}{shown}"
+    )
+
+
+def _report_note(where: str, text: str | None = None) -> str:
+    said = f"\nThe report says: “{text}”" if text else ""
+    return f"From the saved report ({where}).{said}"
+
+
+# --- checks: worked out first, so every tab's top corner can show the result -------------------
 
 
 def _plan_checks(d: ExportData) -> list[dict[str, Any]]:
     n, v = d.numbers, d.views
     checks: list[dict[str, Any]] = []
-    valid = [m.value for m in d.methods if m.value is not None]
-    value = _money_or_none((n.get("estimate") or {}).get("value"))
-    if valid and value is not None:
-        ordered = sorted(valid)
-        mid = len(ordered) // 2
-        med = ordered[mid] if len(ordered) % 2 else (ordered[mid - 1] + ordered[mid]) / 2
+
+    def add(what, formula, cached, against, against_value, tol, kind) -> None:
+        ok = abs(cached - against_value) <= tol + 1e-9
         checks.append(
             {
-                "what": "The estimated value is the median of the methods used",
-                "formula": "=MEDIAN("
-                + ",".join(f"Method_{m.code}" for m in d.methods if m.value is not None)
-                + ")",
-                "cached": med,
-                "against": "=Value",
-                "against_value": value,
-                "tol": 0.011,  # the stored values are rounded to the cent
-                "kind": "money",
+                "what": what,
+                "formula": formula,
+                "cached": cached,
+                "against": against,
+                "against_value": against_value,
+                "tol": tol,
+                "kind": kind,
+                "result": "OK" if ok else "CHECK",
             }
+        )
+
+    valid = [m.value for m in d.methods if m.value is not None]
+    value = _num((n.get("estimate") or {}).get("value"))
+    if valid and value is not None:
+        add(
+            "Estimated value: the median of the methods (formula) vs the report's",
+            "=Value",
+            statistics.median(valid),
+            "=ReportValue",
+            value,
+            0.011,
+            "money",
         )
     rng = n.get("range") or {}
-    if all(isinstance(rng.get(k), int | float) for k in ("bear", "base", "bull")):
-        ok = rng["bear"] < rng["base"] < rng["bull"]
-        checks.append(
-            {
-                "what": "Bear < base < bull",
-                "formula": "=AND(Bear<Base,Base<Bull)",
-                "cached": ok,
-                "logical": True,
-            }
+    if all(_num(rng.get(k)) is not None for k in ("bear", "base", "bull")):
+        ordered = 1.0 if rng["bear"] < rng["base"] < rng["bull"] else 0.0
+        add(
+            "Bear < base < bull (1 = true)",
+            "=IF(AND(Bear<Base,Base<Bull),1,0)",
+            ordered,
+            1,
+            1.0,
+            0,
+            "int",
         )
         if d.prediction:
-            for key, title in (("bear", "Bear"), ("base", "Base"), ("bull", "Bull")):
-                logged = d.prediction.get(key)
-                if isinstance(logged, int | float):
-                    checks.append(
-                        {
-                            "what": f"{title} case equals the official prediction's",
-                            "formula": f"={title}",
-                            "cached": rng[key],
-                            "against": round(float(logged), 4),
-                            "against_value": round(float(logged), 4),
-                            "against_typed": True,
-                            "tol": 0.006,
-                            "kind": "money",
-                        }
+            for key in ("bear", "base", "bull"):
+                logged = _num(d.prediction.get(key))
+                if logged is not None:
+                    add(
+                        f"{key.capitalize()} case vs the official prediction's logged figure",
+                        f"={key.capitalize()}",
+                        float(rng[key]),
+                        round(logged, 4),
+                        round(logged, 4),
+                        0.006,
+                        "money",
                     )
     factors = n.get("factors") or []
     if factors:
         total = sum(float(f.get("weight") or 0) for f in factors)
-        checks.append(
-            {
-                "what": "The score's factor weights add up to 100%",
-                "formula": "=SUM(FactorWeights)",
-                "cached": total,
-                "against": 1,
-                "against_value": 1.0,
-                "against_typed": True,
-                "tol": 0.003,
-                "kind": "pct",
-            }
+        add(
+            "Score factor weights add up to 100%",
+            "=SUM(FactorWeights)",
+            total,
+            1,
+            1.0,
+            0.003,
+            "pct",
         )
     ratings = v.get("peer_ratings") or {}
     if ratings.get("slices") and ratings.get("total"):
-        counted = sum(int(s.get("count") or 0) for s in ratings["slices"])
-        checks.append(
-            {
-                "what": "Peer ratings add up to the group",
-                "formula": "=SUM(PeerRatingCounts)",
-                "cached": counted,
-                "against": "=PeerGroupSize",
-                "against_value": int(ratings["total"]),
-                "tol": 0,
-                "kind": "int",
-            }
+        counted = float(sum(int(s.get("count") or 0) for s in ratings["slices"]))
+        total = int(ratings["total"])
+        add(
+            "Peer ratings add up to the peer group",
+            "=SUM(PeerRatingCounts)",
+            counted,
+            total,
+            float(total),
+            0,
+            "int",
         )
     claims = v.get("claims") or {}
     if claims.get("slices") and claims.get("total"):
-        counted = sum(int(s.get("count") or 0) for s in claims["slices"])
-        checks.append(
-            {
-                "what": "Claims kept and removed add up to the claims written",
-                "formula": "=SUM(ClaimCounts)",
-                "cached": counted,
-                "against": "=ClaimsWritten",
-                "against_value": int(claims["total"]),
-                "tol": 0,
-                "kind": "int",
-            }
+        counted = float(sum(int(s.get("count") or 0) for s in claims["slices"]))
+        total = int(claims["total"])
+        add(
+            "Claims kept + removed = claims written",
+            "=SUM(ClaimCounts)",
+            counted,
+            total,
+            float(total),
+            0,
+            "int",
         )
-    for c in checks:
-        if c.get("logical"):
-            c["result"] = "OK" if c["cached"] else "CHECK"
-        else:
-            c["result"] = (
-                "OK"
-                if abs(float(c["cached"]) - float(c["against_value"])) <= c["tol"] + 1e-9
-                else "CHECK"
+    for m in v.get("metrics") or []:
+        found = [_num(p.get("value")) for p in m.get("peers") or []]
+        found = [x for x in found if x is not None]
+        reported = _num(m.get("peer_median"))
+        if found and reported is not None:
+            ratio = METRIC_KINDS.get(m.get("name")) == "ratio"
+            add(
+                f"{m.get('label')}: peer median (formula) vs the report's",
+                f"=PeerMedian_{m['name']}",
+                statistics.median(found),
+                f"=ReportPeerMedian_{m['name']}",
+                reported,
+                0.005 if ratio else 0.0005,
+                "mult" if ratio else "pct",
             )
+    h = d.history
+    if h:
+        ties = (
+            ("revenue", "revenue", 1e6, "num", "Revenue"),
+            ("operating_income", "ebit", 1e6, "num", "Operating income"),
+            ("net_income", "net_income", 1e6, "num", "Net income"),
+            ("operating_cash_flow", "operating_cash_flow", 1e6, "num", "Operating cash flow"),
+            ("capital_spending", "capital_spending", 1e6, "num", "Capital spending"),
+            ("diluted_eps", "diluted_eps", 1, "money", "Diluted EPS"),
+        )
+        for item, key, scale, kind, label in ties:
+            fig, used = h.ltm.get(item), h.report_inputs.get(key)
+            if fig is not None and used is not None:
+                add(
+                    f"{label}, last 12 months, = the figure the report's metrics used",
+                    f"=LTM_{item}",
+                    fig.value / scale,
+                    round(used / scale, 4),
+                    used / scale,
+                    0.5 if scale > 1 else 0.005,
+                    kind,
+                )
     return checks
 
 
-# --- the sheets ---------------------------------------------------------------------------------
-
-
-def _cover(b: _Book) -> None:
-    d, n = b.data, b.data.numbers
-    ws = b.sheet(
-        "Cover", SHEETS[0][1], {"B:B": 30, "C:C": 22, "D:D": 4, "E:E": 18, "F:H": 24}, title=False
-    )
-    ws.set_row(5, 34)
-    ws.insert_image(
-        "B6",
-        "mark.png",
-        {
-            "image_data": io.BytesIO(style.mark_png()),
-            "x_scale": 0.16,
-            "y_scale": 0.16,
-            "x_offset": 0,
-            "y_offset": 2,
-        },
-    )
-    ws.merge_range("C6:H6", f"{d.name} ({d.ticker})", b.f["name"])
-    ws.merge_range("B7:H7", _headline(d), b.f["headline"])
-    made = f"Report made {day_text(d.made_on)}."
-    priced = f" Prices as of {day_text(d.price_day)}, in that day's shares." if d.price_day else ""
-    ws.merge_range("B8:H8", made + priced + _split_text(d), b.f["muted"])
-
-    b.band(ws, 9, ["OFFICIAL CALL", ""])
-    rows = [
-        (
-            "Rating (vs peers, 12 months)",
-            "=Rating",
-            "link_text_r",
-            (n.get("rating") or {}).get("call"),
-        ),
-        (
-            "Score (percentile of peer group)",
-            "=Score",
-            "link_int",
-            (n.get("score") or {}).get("percentile"),
-        ),
-        ("Price", "=Price", "link_money", (n.get("price") or {}).get("value")),
-        ("Estimated value", "=Value", "link_money", (n.get("estimate") or {}).get("value")),
-        ("12-month bear case", "=Bear", "link_money", (n.get("range") or {}).get("bear")),
-        ("12-month base case", "=Base", "link_money", (n.get("range") or {}).get("base")),
-        ("12-month bull case", "=Bull", "link_money", (n.get("range") or {}).get("bull")),
-        ("Upside to the base case", "=Upside", "link_pct", _upside(d)),
-        ("Uncertainty", "=Uncertainty", "link_text_r", (n.get("rating") or {}).get("uncertainty")),
-    ]
-    r = 10
-    for label, formula, fmt, cached in rows:
-        ws.write(r, 1, label, b.f["box_label"])
-        if cached is None:
-            ws.write(r, 2, "not stored for this report", b.f["muted"])
-        else:
-            shown = str(cached).capitalize() if label == "Uncertainty" else cached
-            ws.write_formula(r, 2, formula, b.f[fmt], shown)
-        r += 1
-    ws.write(r, 1, "Official prediction", b.f["box_label"])
-    if d.prediction:
-        ws.write(r, 2, f"Yes: {d.prediction['prediction_id']}", b.f["in_text"])
-        ws.write(r + 1, 1, "", b.f["box_label"])
-        ws.write(r + 1, 2, "Graded at 3, 6 and 12 months.", b.f["muted"])
-    else:
-        ws.write(r, 2, "No: this report was not logged as an official prediction.", b.f["in_text"])
-        ws.write(r + 1, 1, "", b.f["box_label"])
-        ws.write(r + 1, 2, "Only a first rating in 30 days is.", b.f["muted"])
-    ws.write(r + 2, 1, "Checks", b.f["box_label"])
-    master = b.master_value()
-    ws.write_formula(r + 2, 2, "=Checks!$C$4", b.f["ok"] if master == "OK" else b.f["bad"], master)
-
-    # Right-hand side: the colour key and the contents.
-    ws.write(9, 4, "HOW TO READ THIS FILE", b.f["band"])
-    for col in range(5, LAST_COL + 1):
-        ws.write_blank(9, col, None, b.f["band"])
-    key = [
-        ("key_blue", "Blue", "Copied from the saved report."),
-        ("key_black", "Black", "A formula on this sheet."),
-        ("key_green", "Green", "A link to a figure on another sheet."),
-    ]
-    for i, (fmt, word, meaning) in enumerate(key):
-        ws.write(10 + i, 4, word, b.f[fmt])
-        ws.merge_range(10 + i, 5, 10 + i, LAST_COL, meaning, b.f["text"])
-    ws.merge_range(
-        13,
-        4,
-        14,
-        LAST_COL,
-        "Nothing in this file recalculates the report or changes its rating. Editing a figure changes only that cell.",
-        b.f["muted_wrap"],
-    )
-    ws.write(16, 4, "WHAT'S IN THIS FILE", b.f["band"])
-    for col in range(5, LAST_COL + 1):
-        ws.write_blank(16, col, None, b.f["band"])
-    for i, (sheet, what) in enumerate(SHEETS[1:]):
-        ws.write_url(17 + i, 4, f"internal:'{sheet}'!A1", b.f["url"], sheet)
-        ws.merge_range(17 + i, 5, 17 + i, LAST_COL, what, b.f["text"])
-
-    # The run behind the report, and the label.
-    r = 26
-    b.band(ws, r, ["ABOUT THIS REPORT", ""])
-    about = [
-        ("Report id", d.report_id),
-        ("Run id", d.run_id),
-        ("Report type", d.mode_note or d.mode),
-        ("Engine version", d.engine_version),
-        ("Method code version", str(d.method_code_version)),
-        (
-            "Methodology hash",
-            d.methodology_hash[:16] + "…" if len(d.methodology_hash) > 16 else d.methodology_hash,
-        ),
-        ("Narrative checked by", ", ".join(d.checks) + (f" ({d.skeptic})" if d.skeptic else "")),
-    ]
-    for i, (label, value) in enumerate(about):
-        ws.write(r + 1 + i, 1, label, b.f["muted"])
-        ws.merge_range(r + 1 + i, 2, r + 1 + i, LAST_COL, value, b.f["text"])
-    r += len(about) + 2
-    ws.set_row(r, 54)
-    ws.merge_range(r, 1, r, LAST_COL, style.DISCLAIMER, b.f["muted_wrap"])
-    ws.activate()
+# --- Summary -------------------------------------------------------------------------------------
 
 
 def _summary(b: _Book) -> None:
-    d, n, v = b.data, b.data.numbers, b.data.views
-    ws = b.sheet("Summary", SHEETS[1][1], {"B:B": 30, "C:C": 16, "D:D": 90, "E:E": 12})
-    b.band(ws, 5, ["THE CALL", "", ""])
-    b.units(ws, 6, "US$ per share, except where shown", 3)
+    d, n, v = b.d, b.d.numbers, b.d.views
+    sub = f"Summary · company note made {day_text(d.made_on)} · US$ per share"
+    ws = b.sheet("Summary", sub, {"B:B": 32, "C:C": 14, "D:D": 3, "E:J": 12, "K:K": 16}, 10)
+    ws.insert_image(
+        0,
+        8,
+        "mark.png",
+        {
+            "image_data": io.BytesIO(style.mark_png()),
+            "x_scale": 0.11,
+            "y_scale": 0.11,
+            "x_offset": 60,
+            "y_offset": 1,
+        },
+    )
+    ws.set_row(4, 20)
+    ws.merge_range(4, 1, 4, 10, _headline(d), b.f["headline"])
+    status = f"Prices as of {day_text(d.price_day)}, in that day's shares." if d.price_day else ""
+    if d.split_factor and abs(d.split_factor - 1) > 1e-9:
+        status += f" The stock has split {d.split_factor:g}-for-1 since."
+    if d.prediction:
+        status += f" Official prediction {d.prediction['prediction_id']}."
+    else:
+        status += " Not an official prediction (only a company's first rating in 30 days is)."
+    ws.merge_range(5, 1, 5, 10, status.strip(), b.f["muted"])
+
+    b.section(ws, 7, 1, 2, "The call")
     rating = n.get("rating") or {}
+    valid = [m.value for m in d.methods if m.value is not None]
     rows: list[tuple[str, str, Any, str]] = [
-        ("Rating", "Rating", rating.get("call"), "in_text"),
-        ("Capped by a red flag", "Capped", "Yes" if rating.get("capped") else "No", "in_text"),
-        ("Score (percentile)", "Score", (n.get("score") or {}).get("percentile"), "in_int"),
+        ("Rating, vs peers over 12 months", "=Rating", rating.get("call"), "call"),
         (
-            "Uncertainty",
-            "Uncertainty",
-            str(rating.get("uncertainty") or "").capitalize() or None,
-            "in_text",
+            f"Score, percentile of {d.peer_count} peers" if d.peer_count else "Score, percentile",
+            "=Score",
+            (n.get("score") or {}).get("percentile"),
+            "f_int",
         ),
-        ("Price", "Price", (n.get("price") or {}).get("value"), "in_money"),
-        ("Price date", "PriceDate", d.price_day, "in_date"),
-        ("Estimated value", "Value", (n.get("estimate") or {}).get("value"), "in_money"),
-        ("12-month bear case", "Bear", (n.get("range") or {}).get("bear"), "in_money"),
-        ("12-month base case", "Base", (n.get("range") or {}).get("base"), "in_money"),
-        ("12-month bull case", "Bull", (n.get("range") or {}).get("bull"), "in_money"),
+        ("Price", "=Price", _num((n.get("price") or {}).get("value")), "f_money"),
         (
-            "Companies in the peer group",
-            "PeerGroupSize",
-            (v.get("peer_ratings") or {}).get("total"),
-            "in_int",
+            "Estimated value (median of methods)",
+            "=Value",
+            statistics.median(valid) if valid else None,
+            "f_money",
+        ),
+        ("12-month bear case", "=Bear", _num((n.get("range") or {}).get("bear")), "f_money"),
+        ("12-month base case", "=Base", _num((n.get("range") or {}).get("base")), "f_money"),
+        ("12-month bull case", "=Bull", _num((n.get("range") or {}).get("bull")), "f_money"),
+        ("Upside to the base case", "=Base/Price-1", _upside(d), "f_pct"),
+        (
+            "Uncertainty",
+            "=Uncertainty",
+            str(rating.get("uncertainty") or "").capitalize() or None,
+            "f_text_r",
         ),
     ]
-    r = 7
-    for label, name, value, fmt in rows:
-        ws.write(r, 1, label, b.f["label"])
-        if value is None:
-            ws.write(r, 2, "not stored", b.f["muted"])
-        elif isinstance(value, date):
-            ws.write_datetime(r, 2, _dt(value), b.f[fmt])
+    ws.set_row(8, 24)
+    for i, (label, formula, cached, fmt) in enumerate(rows):
+        ws.write(8 + i, 1, label, b.f["label"])
+        if cached is None:
+            ws.write(8 + i, 2, "n/a", b.f["na"])
         else:
-            ws.write(r, 2, value, b.f[fmt])
-        b.name(name, "Summary", r, 2)
-        r += 1
-    ws.write(r, 1, "Upside to the base case", b.f["label"])
-    up = _upside(d)
-    if up is None:
-        ws.write(r, 2, "not stored", b.f["muted"])
-    else:
-        ws.write_formula(r, 2, "=Base/Price-1", b.f["calc_pct"], up)
-    b.name("Upside", "Summary", r, 2)
-    r += 2
-    b.band(ws, r, ["KEY POINTS", "", "", "NOTES"])
-    ws.write(
-        r + 1,
+            ws.write_formula(8 + i, 2, formula, b.f[fmt], cached)
+
+    weekly = n.get("weekly") or []
+    if weekly:
+        first = 60
+        ws.write(first - 1, 1, "Weekly closes, for the chart", b.f["small"])
+        for i, w in enumerate(weekly):
+            ws.write_datetime(
+                first + i, 1, _dt(date.fromisoformat(str(w["date"]))), b.f["small_date"]
+            )
+            ws.write_number(first + i, 2, float(w["close"]), b.f["in_money"])
+        chart = b.wb.add_chart({"type": "line"})
+        chart.add_series(
+            {
+                "name": f"{d.ticker} weekly close",
+                "categories": ["Summary", first, 1, first + len(weekly) - 1, 1],
+                "values": ["Summary", first, 2, first + len(weekly) - 1, 2],
+                "line": {"color": style.NAVY, "width": 2},
+            }
+        )
+        _style_chart(chart, "Share price, past 12 months (US$)")
+        closes = [float(w["close"]) for w in weekly]
+        chart.set_x_axis(
+            {
+                **_axis(),
+                "date_axis": True,
+                "num_format": "mmm yy",
+                "major_unit": 2,
+                "major_unit_type": "months",
+                "line": {"color": style.RULE},
+            }
+        )
+        chart.set_y_axis(
+            {
+                **_axis(),
+                "num_format": "$#,##0",
+                "min": _round_down(min(closes) * 0.92),
+                "max": _round_up(max(closes) * 1.06),
+                "major_gridlines": {"visible": True, "line": {"color": style.GRID}},
+                "line": {"none": True},
+            }
+        )
+        chart.set_size({"width": 600, "height": 250})
+        ws.insert_chart(7, 4, chart, {"x_offset": 4, "y_offset": 2})
+
+    r = 19
+    b.section(
+        ws,
+        r,
         1,
-        "The first claim of each section that passed every check, word for word.",
-        b.f["muted"],
+        10,
+        "Key points: the first checked claim of each section, word for word",
+        {10: "Notes"},
     )
-    r += 2
+    r += 1
     for section, claim in d.key_points():
         ws.write(r, 1, section.title, b.f["bold"])
-        ws.merge_range(r, 2, r, 3, claim.text, b.f["in_wrap"])
-        ws.write(r, 4, ", ".join(str(x) for x in claim.notes), b.f["muted"])
-        ws.set_row(r, 15 * max(1, -(-len(claim.text) // 110)))
+        ws.merge_range(r, 2, r, 9, claim.text, b.f["wrap"])
+        ws.write(r, 10, ", ".join(str(x) for x in claim.notes), b.f["small_wrap_r"])
+        ws.set_row(r, 14 * max(1, -(-len(claim.text) // 115)) + 4)
         r += 1
     if not d.key_points():
         ws.write(r, 1, "No claim passed the checks in this report.", b.f["muted"])
+        r += 1
+    r += 1
+    b.section(ws, r, 1, 2, "Red-flag checks")
+    b.section(ws, r, 4, 10, "The economy when the report was made", {8: "Value", 10: "As of"})
+    flags, econ = v.get("red_flags") or [], v.get("economy") or []
+    for i in range(max(len(flags), len(econ))):
+        row = r + 1 + i
+        if i < len(flags):
+            found = bool(flags[i].get("found"))
+            ws.write(row, 1, flags[i].get("label"), b.f["label"])
+            ws.write(
+                row, 2, "Found" if found else "Clear", b.f["bad"] if found else b.f["in_text_r"]
+            )
+        if i < len(econ):
+            ws.merge_range(row, 4, row, 7, econ[i].get("label"), b.f["label"])
+            ws.write(row, 8, econ[i].get("value"), b.f["in_text_r"])
+            ws.merge_range(row, 9, row, 10, econ[i].get("date"), b.f["in_text_r"])
+    r += max(len(flags), len(econ)) + 2
+    ws.set_row(r, 40)
+    ws.merge_range(r, 1, r, 10, style.DISCLAIMER, b.f["muted_wrap"])
+    ws.print_area(0, 0, r + 1, 10)
+    ws.merge_range(
+        r + 1,
+        1,
+        r + 1,
+        10,
+        "Blue: typed in from the filings or the saved report (point at one to see where it came from). "
+        "Black: a formula. Nothing here recalculates the report or changes its rating.",
+        b.f["small"],
+    )
+    ws.freeze_panes(3, 0)
+    ws.activate()
+
+
+def _round_down(x: float) -> float:
+    step = 10 ** max(0, len(str(int(abs(x)))) - 2)
+    return (x // step) * step
+
+
+def _round_up(x: float) -> float:
+    step = 10 ** max(0, len(str(int(abs(x)))) - 2)
+    return -((-x) // step) * step
+
+
+# --- Financials ----------------------------------------------------------------------------------
+
+# (item or formula, label, flow or point, scale, number format). "§" starts a section.
+FIN_ROWS: list[tuple[str, str, str, float, str]] = [
+    ("§", "Income statement", "", 1, ""),
+    ("revenue", "Revenue", "flow", 1e6, "num"),
+    ("=growth:revenue", "Growth", "", 1, "pct"),
+    ("cost_of_revenue", "Cost of revenue", "flow", 1e6, "num"),
+    ("=gross", "Gross profit", "", 1, "num"),
+    ("=margin:gross", "Gross margin", "", 1, "pct"),
+    ("operating_income", "Operating income (EBIT)", "flow", 1e6, "num"),
+    ("=margin:operating_income", "Operating margin", "", 1, "pct"),
+    ("pretax_income", "Pretax income", "flow", 1e6, "num"),
+    ("income_tax", "Income tax", "flow", 1e6, "num"),
+    ("=taxrate", "Tax rate", "", 1, "pct"),
+    ("net_income", "Net income", "flow", 1e6, "num"),
+    ("=margin:net_income", "Net margin", "", 1, "pct"),
+    ("diluted_eps", "Diluted EPS (US$)", "flow", 1, "money"),
+    ("diluted_shares", "Diluted shares (m)", "point", 1e6, "num1"),
+    ("§", "Cash flow", "", 1, ""),
+    ("operating_cash_flow", "Operating cash flow", "flow", 1e6, "num"),
+    ("capital_spending", "Capital spending", "flow", 1e6, "num"),
+    ("=fcf", "Free cash flow", "", 1, "num"),
+    ("=margin:fcf", "Free cash flow margin", "", 1, "pct"),
+    ("depreciation_amortization", "Depreciation and amortization", "flow", 1e6, "num"),
+    ("stock_based_pay", "Stock-based pay", "flow", 1e6, "num"),
+    ("dividends_paid", "Dividends paid", "flow", 1e6, "num"),
+    ("§", "Balance sheet, at period end", "", 1, ""),
+    ("total_assets", "Total assets", "point", 1e6, "num"),
+    ("total_equity", "Total equity", "point", 1e6, "num"),
+    ("cash", "Cash and short-term investments", "point", 1e6, "num"),
+    ("total_debt", "Total debt", "point", 1e6, "num"),
+    ("=netdebt", "Net debt (debt less cash)", "", 1, "num"),
+    ("=roe", "Return on average equity", "", 1, "pct"),
+]
+SUBTOTALS = ("=gross", "=fcf")
+
+
+def _financials(b: _Book) -> None:
+    d = b.d
+    h = d.history
+    sub = "Financials · US$ in millions, except per share · as filed with the SEC"
+    ws = b.sheet("Financials", sub, {"B:B": 36, "C:F": 13, "G:G": 3}, 5)
+    if h is None or not h.year_ends:
+        ws.write(
+            4,
+            1,
+            "The filings behind this report aren't in this computer's raw store, so its past years can't be shown.",
+            b.f["muted"],
+        )
+        return
+    years = h.year_ends
+    cols = [2 + i for i in range(len(years))] + [2 + len(years)]  # the years, then LTM
+    ltm_col = cols[-1]
+    head = 4
+    ws.write(head, 1, "US$ m", b.f["head_l"])
+    for i, end in enumerate(years):
+        ws.write(head, cols[i], f"FY{end.year}A", b.f["head"])
+        ws.write(head + 1, cols[i], end.strftime("%b-%y"), b.f["sub"])
+    ws.write(head, ltm_col, "LTM", b.f["head"])
+    ws.write(head + 1, ltm_col, h.ltm_end.strftime("%b-%y") if h.ltm_end else "", b.f["sub"])
+    r = head + 2
+    where: dict[str, int] = {}
+    values: dict[str, list[float | None]] = {}
+    label_rows: dict[str, int] = {}
+    for key, label, kind, scale, fmt in FIN_ROWS:
+        if key == "§":
+            r += 1
+            b.section(ws, r, 1, ltm_col, label)
+            r += 1
+            continue
+        if not key.startswith("="):
+            figs = list(h.annual.get(key) or [None] * len(years)) + [h.ltm.get(key)]
+            if all(f is None for f in figs):
+                continue
+            ws.write(r, 1, label, b.f["label"])
+            vals: list[float | None] = []
+            for i, fig in enumerate(figs):
+                if fig is None:
+                    ws.write(r, cols[i], "n/a", b.f["na"])
+                    vals.append(None)
+                    continue
+                shown = fig.value / scale
+                ws.write_number(r, cols[i], shown, b.f[f"in_{fmt}"])
+                unit = "" if key in ("diluted_eps", "diluted_shares") else " US$"
+                is_ltm = i == len(figs) - 1 and kind == "flow"
+                b.note(ws, r, cols[i], _filed_note(d, fig, scale=scale, unit=unit, ltm=is_ltm))
+                vals.append(shown)
+            where[key], values[key], label_rows[label] = r, vals, r
+            b.name(f"LTM_{key}", "Financials", r, ltm_col)
+            r += 1
+            continue
+        found = _fin_formula(key, where, values, cols)
+        if found is None:
+            continue
+        cells, cached = found
+        italic = fmt == "pct"
+        subtotal = key in SUBTOTALS
+        ws.write(r, 1, label, b.f["indent" if italic else "total_label" if subtotal else "label"])
+        prefix = "fi_" if italic else "tot_" if subtotal else "f_"
+        for i, col in enumerate(cols):
+            if cells[i] is None:
+                ws.write_blank(r, col, None, b.f[f"{prefix}{fmt}"])
+            else:
+                ws.write_formula(r, col, cells[i], b.f[f"{prefix}{fmt}"], cached[i] or 0)
+        if key in ("=gross", "=fcf", "=netdebt"):
+            where[key[1:]], values[key[1:]] = r, cached
+        label_rows[label] = r
+        r += 1
+    r += 1
+    ws.merge_range(
+        r,
+        1,
+        r + 1,
+        ltm_col,
+        "Blue figures are as filed with the SEC: point at one for the filing, the XBRL line and the "
+        "exact value. Black rows are formulas. LTM is the last 12 months, the figures the report's "
+        "metrics used (see the checks).",
+        b.f["muted_wrap"],
+    )
+    ws.set_row(r, 15)
+    ws.set_row(r + 1, 15)
+    rev_row = where.get("revenue")
+    # The margin line needs yearly values: a bank's operating margin has only its LTM.
+    yearly = {k: v for k, v in values.items() if any(x is not None for x in v[: len(years)])}
+    margin_label = "Operating margin" if "operating_income" in yearly else "Net margin"
+    if rev_row is not None:
+        cats = ["Financials", head, cols[0], head, cols[len(years) - 1]]
+        chart = b.wb.add_chart({"type": "column"})
+        chart.add_series(
+            {
+                "name": "Revenue (US$ m)",
+                "categories": cats,
+                "values": ["Financials", rev_row, cols[0], rev_row, cols[len(years) - 1]],
+                "fill": {"color": style.NAVY},
+                "gap": 90,
+            }
+        )
+        if margin_label in label_rows:
+            mrow = label_rows[margin_label]
+            line = b.wb.add_chart({"type": "line"})
+            line.add_series(
+                {
+                    "name": margin_label,
+                    "categories": cats,
+                    "values": ["Financials", mrow, cols[0], mrow, cols[len(years) - 1]],
+                    "y2_axis": True,
+                    "line": {"color": style.BEAR, "width": 2.25},
+                    "marker": {
+                        "type": "circle",
+                        "size": 6,
+                        "fill": {"color": style.BEAR},
+                        "border": {"color": style.BEAR},
+                    },
+                }
+            )
+            chart.combine(line)
+            line.set_y2_axis({**_axis(), "num_format": "0%", "min": 0, "line": {"none": True}})
+        _style_chart(chart, f"Revenue and {margin_label.lower()} by fiscal year")
+        chart.set_y_axis(
+            {
+                **_axis(),
+                "num_format": "#,##0",
+                "min": 0,
+                "major_gridlines": {"visible": True, "line": {"color": style.GRID}},
+                "line": {"none": True},
+            }
+        )
+        chart.set_legend(
+            {"position": "bottom", "font": {"name": "Arial", "size": 8, "color": style.GREY}}
+        )
+        chart.set_size({"width": 470, "height": 290})
+        ws.insert_chart(4, ltm_col + 2, chart, {"x_offset": 6})
+    ws.freeze_panes(head + 2, 2)
+
+
+def _fin_formula(
+    key: str, where: dict[str, int], values: dict[str, list[float | None]], cols: list[int]
+):
+    """One formula row's cells and cached values, or None when its inputs aren't shown."""
+    n = len(cols)
+    out: list[str | None] = [None] * n
+    cached: list[float | None] = [None] * n
+
+    def cell(item: str, i: int) -> str:
+        return xl_rowcol_to_cell(where[item], cols[i])
+
+    def have(*items: str) -> bool:
+        return all(item in where for item in items)
+
+    def ok(*vals: float | None) -> bool:
+        return all(x is not None for x in vals)
+
+    if key.startswith("=growth:"):
+        item = key.split(":", 1)[1]
+        if not have(item):
+            return None
+        for i in range(1, n - 1):  # fiscal years only: the LTM can overlap the last year
+            a, z = values[item][i - 1], values[item][i]
+            if ok(a, z) and a:
+                out[i], cached[i] = f"={cell(item, i)}/{cell(item, i - 1)}-1", z / a - 1
+        return out, cached
+    if key.startswith("=margin:"):
+        item = key.split(":", 1)[1]
+        if not have(item, "revenue"):
+            return None
+        for i in range(n):
+            a, rv = values[item][i], values["revenue"][i]
+            if ok(a, rv) and rv:
+                out[i], cached[i] = f"={cell(item, i)}/{cell('revenue', i)}", a / rv
+        return out, cached
+    pairs = {
+        "=gross": ("revenue", "cost_of_revenue"),
+        "=fcf": ("operating_cash_flow", "capital_spending"),
+        "=netdebt": ("total_debt", "cash"),
+    }
+    if key in pairs:
+        first, second = pairs[key]
+        if not have(first, second):
+            return None
+        for i in range(n):
+            a, z = values[first][i], values[second][i]
+            if ok(a, z):
+                out[i], cached[i] = f"={cell(first, i)}-{cell(second, i)}", a - z
+        return out, cached
+    if key == "=taxrate":
+        if not have("income_tax", "pretax_income"):
+            return None
+        for i in range(n):
+            t, p = values["income_tax"][i], values["pretax_income"][i]
+            if ok(t, p) and p:
+                out[i], cached[i] = f"={cell('income_tax', i)}/{cell('pretax_income', i)}", t / p
+        return out, cached
+    if key == "=roe":
+        if not have("net_income", "total_equity"):
+            return None
+        for i in range(1, n - 1):
+            ni, e0, e1 = (
+                values["net_income"][i],
+                values["total_equity"][i - 1],
+                values["total_equity"][i],
+            )
+            if ok(ni, e0, e1) and (e0 + e1):
+                out[i] = (
+                    f"={cell('net_income', i)}/AVERAGE({cell('total_equity', i - 1)},"
+                    f"{cell('total_equity', i)})"
+                )
+                cached[i] = ni / ((e0 + e1) / 2)
+        return out, cached
+    return None
+
+
+# --- Valuation -----------------------------------------------------------------------------------
 
 
 def _valuation(b: _Book) -> None:
-    d, n, v = b.data, b.data.numbers, b.data.views
-    ws = b.sheet("Valuation", SHEETS[2][1], {"B:B": 44, "C:C": 16, "D:D": 16, "E:E": 80})
-    b.band(ws, 5, ["VALUE PER SHARE BY METHOD", "US$", "vs price", "NOTE"], text_cols=(3,))
-    b.units(ws, 6, "US$ per share. A method not used shows why.", 4)
-    r = 7
-    price = (n.get("price") or {}).get("value")
+    d, n, v = b.d, b.d.numbers, b.d.views
+    ws = b.sheet(
+        "Valuation",
+        "Valuation · US$ per share",
+        {"B:B": 40, "C:D": 13, "E:E": 50, "F:F": 3, "G:H": 12},
+        4,
+    )
+    price = _num((n.get("price") or {}).get("value"))
+    r = 4
+    b.section(ws, r, 1, 4, "Value per share by method", {2: "US$", 3: "vs price"})
+    r += 1
+    first = r
     for m in d.methods:
         ws.write(r, 1, m.label, b.f["label"])
         if m.value is None:
             ws.write_blank(r, 2, None, b.f["in_money"])
-            ws.write(r, 3, "", b.f["text"])
+            ws.write(r, 4, f"Not used: {m.note}" if m.note else "Not used", b.f["muted"])
         else:
-            ws.write(r, 2, m.value, b.f["in_money"])
-            if isinstance(price, int | float):
-                ws.write_formula(r, 3, f"=C{r + 1}/Price-1", b.f["calc_pct"], m.value / price - 1)
-        ws.write(r, 4, m.note or "", b.f["muted"])
+            ws.write_number(r, 2, m.value, b.f["in_money"])
+            b.note(
+                ws,
+                r,
+                2,
+                _report_note("Valuation section, method table", f"{m.code}: ${m.value:,.2f}"),
+            )
+            if price:
+                ws.write_formula(r, 3, f"=C{r + 1}/Price-1", b.f["fi_pct"], m.value / price - 1)
+            ws.write(r, 4, m.note or "", b.f["muted"])
         b.name(f"Method_{m.code}", "Valuation", r, 2)
         r += 1
-    if not d.methods:
-        ws.write(r, 1, "No valuation is stored for this report.", b.f["muted"])
-        r += 1
-    value = (n.get("estimate") or {}).get("value")
-    ws.write(r, 1, "Estimated value (median of the methods used)", b.f["total"])
-    if value is not None:
-        ws.write_formula(r, 2, "=Value", b.f["link_money"], value)
-        if isinstance(price, int | float):
-            ws.write_formula(r, 3, f"=C{r + 1}/Price-1", b.f["calc_pct"], value / price - 1)
+    valid = [m for m in d.methods if m.value is not None]
+    ws.write(r, 1, "Estimated value: median of the methods used", b.f["total_label"])
+    if valid:
+        med = statistics.median(m.value for m in valid)
+        ws.write_formula(r, 2, f"=MEDIAN(C{first + 1}:C{r})", b.f["tot_money"], med)
+        if price:
+            ws.write_formula(r, 3, f"=C{r + 1}/Price-1", b.f["tot_pct"], med / price - 1)
+    else:
+        ws.write(r, 2, "n/a", b.f["na"])
+    b.name("Value", "Valuation", r, 2)
+    r += 1
+    ws.write(r, 1, "The report's estimated value", b.f["indent"])
+    reported = _num((n.get("estimate") or {}).get("value"))
+    if reported is not None:
+        ws.write_number(r, 2, reported, b.f["in_money"])
+        b.note(ws, r, 2, _report_note("Valuation section", f"Estimated value: ${reported:,.2f}."))
+    b.name("ReportValue", "Valuation", r, 2)
     r += 2
 
-    b.band(ws, r, ["12-MONTH RANGE", "US$", "vs price", "WHAT IT MEANS"], text_cols=(3,))
+    b.section(ws, r, 1, 4, "Price and the 12-month range", {2: "US$", 3: "vs price"})
+    r += 1
+    ws.write(
+        r, 1, f"Price, close on {day_text(d.price_day)}" if d.price_day else "Price", b.f["label"]
+    )
+    if price is not None:
+        ws.write_number(r, 2, price, b.f["in_money"])
+        when = f" on {day_text(d.price_day)}" if d.price_day else ""
+        b.note(ws, r, 2, _report_note("Valuation section", f"Price: ${price:,.2f}{when}."))
+    b.name("Price", "Valuation", r, 2)
+    r += 1
     rng = n.get("range") or {}
     meaning = {
-        "Bear": "10th percentile of the 12-month spread",
-        "Base": "50th percentile: price grown at the cost of equity less the dividend yield, plus a third of the gap to value",
-        "Bull": "90th percentile of the 12-month spread",
+        "bear": "10th percentile of the 12-month spread",
+        "base": "The price grown at the cost of equity less the dividend yield, plus a third of the gap to value",
+        "bull": "90th percentile of the 12-month spread",
     }
+    for key in ("bear", "base", "bull"):
+        ws.write(r, 1, f"12-month {key} case", b.f["label"])
+        val = _num(rng.get(key))
+        if val is not None:
+            ws.write_number(r, 2, val, b.f["in_money"])
+            said = f"12-month range: bear ${rng['bear']:,.2f}, base ${rng['base']:,.2f}, bull ${rng['bull']:,.2f}."
+            b.note(ws, r, 2, _report_note("Rating section", said))
+            if price:
+                ws.write_formula(r, 3, f"=C{r + 1}/Price-1", b.f["fi_pct"], val / price - 1)
+        ws.write(r, 4, meaning[key], b.f["muted"])
+        b.name(key.capitalize(), "Valuation", r, 2)
+        r += 1
     r += 1
-    for title in ("Bear", "Base", "Bull"):
-        ws.write(r, 1, f"{title} case", b.f["label"])
-        val = rng.get(title.lower())
-        if isinstance(val, int | float):
-            ws.write_formula(r, 2, f"={title}", b.f["link_money"], val)
-            if isinstance(price, int | float):
-                ws.write_formula(r, 3, f"=C{r + 1}/Price-1", b.f["calc_pct"], val / price - 1)
+    b.section(ws, r, 1, 4, "The rating")
+    r += 1
+    rating = n.get("rating") or {}
+    facts = [
+        ("Rating, vs peers over 12 months", "Rating", rating.get("call"), "in_text_r"),
+        (
+            "Score, percentile of the peer group",
+            "Score",
+            (n.get("score") or {}).get("percentile"),
+            "in_int",
+        ),
+        (
+            "Uncertainty",
+            "Uncertainty",
+            str(rating.get("uncertainty") or "").capitalize() or None,
+            "in_text_r",
+        ),
+        (
+            "Value-gap percentile among valued peers",
+            "GapPercentile",
+            (n.get("estimate") or {}).get("gap_percentile"),
+            "in_int",
+        ),
+    ]
+    for label, name, val, fmt in facts:
+        ws.write(r, 1, label, b.f["label"])
+        if val is None:
+            ws.write(r, 2, "n/a", b.f["na"])
         else:
-            ws.write(r, 2, "not stored", b.f["muted"])
-        ws.write(r, 4, meaning[title], b.f["muted"])
+            ws.write(r, 2, val, b.f[fmt])
+            b.note(ws, r, 2, _report_note("Rating section"))
+        b.name(name, "Valuation", r, 2)
         r += 1
-    ws.write(r, 1, "Price", b.f["label"])
-    if isinstance(price, int | float):
-        ws.write_formula(r, 2, "=Price", b.f["link_money"], price)
-    ws.write(r, 4, f"Close on {day_text(d.price_day)}" if d.price_day else "", b.f["muted"])
-    r += 2
-
-    b.band(ws, r, ["PEER GROUP TODAY", "Companies", "", ""])
-    r += 1
-    ratings = (v.get("peer_ratings") or {}).get("slices") or []
-    first = r
-    for s in ratings:
-        ws.write(r, 1, f"Rated {s.get('label')}", b.f["label"])
-        ws.write(r, 2, int(s.get("count") or 0), b.f["in_int"])
-        r += 1
-    if ratings:
-        b.wb.define_name("PeerRatingCounts", f"='Valuation'!$C${first + 1}:$C${r}")
-        ws.write(r, 1, "Before red-flag caps, as the report counts them.", b.f["muted"])
-        r += 1
-    gap = (n.get("estimate") or {}).get("gap_percentile")
-    if gap is not None:
-        ws.write(r, 1, "Gap percentile among valued peers", b.f["label"])
-        ws.write(r, 2, gap, b.f["in_int"])
-        r += 1
-    r += 1
-    b.band(ws, r, ["TRIGGERS", "", "", ""])
-    r += 1
     trig = n.get("triggers") or {}
     for side in ("buy", "sell"):
         ws.write(r, 1, f"{side.capitalize()} trigger", b.f["label"])
-        price_at = trig.get(side)
-        if isinstance(price_at, int | float):
-            ws.write(r, 2, price_at, b.f["in_money"])
+        at = _num(trig.get(side))
+        if at is not None:
+            ws.write_number(r, 2, at, b.f["in_money"])
         else:
-            ws.merge_range(r, 2, r, 4, trig.get(f"{side}_text") or "not stored", b.f["in_text"])
+            ws.merge_range(r, 2, r, 4, trig.get(f"{side}_text") or "n/a", b.f["in_text"])
         r += 1
-    section = d.section("valuation")
-    if section and section.paragraphs:
+    r += 1
+    b.section(ws, r, 1, 4, "The peer group today, before red-flag caps", {2: "Companies"})
+    r += 1
+    first_rating = r
+    for s in (v.get("peer_ratings") or {}).get("slices") or []:
+        ws.write(r, 1, f"Rated {s.get('label')}", b.f["label"])
+        ws.write_number(r, 2, int(s.get("count") or 0), b.f["in_int"])
         r += 1
-        b.band(ws, r, ["THE REPORT'S VALUATION LINES", "", "", ""])
-        for p in section.paragraphs:
-            r += 1
-            ws.merge_range(r, 1, r, 4, p, b.f["in_text"])
+    if r > first_rating:
+        b.wb.define_name("PeerRatingCounts", f"='Valuation'!$C${first_rating + 1}:$C${r}")
+    ws.write(r, 1, "Companies in the peer group", b.f["total_label"])
+    ws.write_number(r, 2, int((v.get("peer_ratings") or {}).get("total") or 0), b.f["tot_int"])
+    ws.print_area(0, 0, max(r, 26), 14)
+
+    bars: list[tuple[str, float, str]] = [
+        (m.label.split(" (")[0], float(m.value), style.NAVY) for m in valid
+    ]
+    if valid:
+        bars.append(
+            ("Estimated value", float(statistics.median(m.value for m in valid)), style.BULL)
+        )
+    for key, color in (("bear", style.BEAR), ("base", style.NAVY), ("bull", style.BULL)):
+        if _num(rng.get(key)) is not None:
+            bars.append((f"12-month {key}", float(rng[key]), color))
+    if price is not None:
+        bars.append(("Price today", price, style.GREY))
+    if bars:
+        top = 60
+        ws.write(top - 1, 6, "Chart data", b.f["small"])
+        for i, (label, val, _) in enumerate(bars):
+            ws.write(top + i, 6, label, b.f["small"])
+            ws.write_number(top + i, 7, val, b.f["in_money"])
+        chart = b.wb.add_chart({"type": "bar"})
+        chart.add_series(
+            {
+                "name": "US$ per share",
+                "categories": ["Valuation", top, 6, top + len(bars) - 1, 6],
+                "values": ["Valuation", top, 7, top + len(bars) - 1, 7],
+                "points": [{"fill": {"color": c}} for _, _, c in bars],
+                "data_labels": {
+                    "value": True,
+                    "num_format": "$#,##0.00",
+                    "font": {"name": "Arial", "size": 8},
+                },
+                "gap": 60,
+            }
+        )
+        _style_chart(chart, "Valuation range, US$ per share")
+        chart.set_x_axis(
+            {
+                **_axis(),
+                "num_format": "$#,##0",
+                "min": 0,
+                "major_gridlines": {"visible": True, "line": {"color": style.GRID}},
+                "line": {"none": True},
+            }
+        )
+        chart.set_y_axis({**_axis(), "reverse": True, "line": {"color": style.RULE}})
+        chart.set_size({"width": 520, "height": 320})
+        ws.insert_chart(4, 6, chart, {"x_offset": 6})
+    ws.freeze_panes(3, 0)
 
 
-def _score(b: _Book) -> None:
-    d, n, v = b.data, b.data.numbers, b.data.views
-    ws = b.sheet("Score and metrics", SHEETS[3][1], {"B:B": 34, "C:F": 15, "G:G": 60})
-    b.band(ws, 5, ["SCORE FACTORS", "Percentile", "Weight", ""])
-    r = 6
-    ws.write(r, 1, "Score (percentile of the peer group)", b.f["total"])
+# --- Peers ---------------------------------------------------------------------------------------
+
+
+def _peers(b: _Book) -> None:
+    d, n, v = b.d, b.d.numbers, b.d.views
+    metrics = v.get("metrics") or []
+    last = max(4, 3 + len(metrics) - 1 + 1)
+    widths = {"B:B": 30, f"C:{xl_col_to_name(last)}": 13}
+    ws = b.sheet(
+        "Peers",
+        "Peers · the score, key metrics and 1-year total return against the peer group",
+        widths,
+        last,
+    )
+    r = 4
+    b.section(ws, r, 1, 3, "Score factors", {2: "Percentile", 3: "Weight"})
+    r += 1
+    ws.write(r, 1, "Score (percentile of the peer group)", b.f["bold"])
     score = (n.get("score") or {}).get("percentile")
     if score is not None:
-        ws.write_formula(r, 2, "=Score", b.f["link_int"], score)
+        ws.write_formula(r, 2, "=Score", b.f["f_int"], score)
     r += 1
     factors = n.get("factors") or []
     first = r
@@ -569,329 +1019,283 @@ def _score(b: _Book) -> None:
         ws.write(r, 1, str(f.get("name") or "").capitalize(), b.f["label"])
         ws.write(r, 2, f.get("percentile"), b.f["in_int"])
         ws.write(r, 3, f.get("weight"), b.f["in_pct"])
+        b.note(ws, r, 2, _report_note("Score section, factor table"))
         r += 1
     if factors:
-        b.wb.define_name("FactorWeights", f"='Score and metrics'!$D${first + 1}:$D${r}")
-        ws.write(r, 1, "Total weight", b.f["total"])
+        b.wb.define_name("FactorWeights", f"='Peers'!$D${first + 1}:$D${r}")
+        ws.write(r, 1, "Total weight", b.f["total_label"])
         ws.write_formula(
             r,
             3,
             "=SUM(FactorWeights)",
-            b.f["calc_pct"],
+            b.f["tot_pct"],
             sum(float(f.get("weight") or 0) for f in factors),
         )
         r += 1
-    else:
-        ws.write(r, 1, "No score is stored for this report.", b.f["muted"])
-        r += 1
     r += 1
-    b.band(
-        ws,
-        r,
-        ["KEY METRICS", d.ticker, "Peer median", "Percentile", "", "WHAT IT IS"],
-        text_cols=(5,),
-    )
-    r += 1
-    for m in v.get("metrics") or []:
-        kind = "mult" if METRIC_KINDS.get(m.get("name")) == "ratio" else "pct"
-        ws.write(r, 1, m.get("label"), b.f["label"])
-        for col, key in ((2, "value"), (3, "peer_median")):
-            val = m.get(key)
-            if isinstance(val, int | float):
-                ws.write(r, col, val, b.f[f"in_{kind}"])
-            else:
-                ws.write(r, col, "n/a", b.f["muted"])
-        ws.write(r, 4, m.get("percentile"), b.f["in_int"])
-        ws.write(r, 6, m.get("readout") or "", b.f["muted"])
-        r += 1
-    r += 1
-    b.band(ws, r, ["RED-FLAG CHECKS", "Found?", "", "", "", ""])
-    r += 1
-    for flag in v.get("red_flags") or []:
-        ws.write(r, 1, flag.get("label"), b.f["label"])
-        found = bool(flag.get("found"))
-        ws.write(r, 2, "Found" if found else "Clear", b.f["bad"] if found else b.f["in_text"])
-        r += 1
-    if v.get("red_flags_readout"):
-        ws.merge_range(r, 1, r, 6, v["red_flags_readout"], b.f["muted"])
 
-
-def _returns(b: _Book) -> None:
-    d, v = b.data, b.data.views
-    ws = b.sheet("Returns and peers", SHEETS[4][1], {"B:B": 26, "C:F": 16, "G:G": 14, "H:H": 12})
-    b.band(ws, 5, ["TOTAL RETURN", d.ticker, "Peer group", "S&P 500", "", "", ""])
-    b.units(ws, 6, "Total return with dividends; the peer group weights each peer the same")
-    r = 7
-    for row in v.get("returns") or []:
-        years = row.get("years")
-        ws.write(r, 1, f"Past {years} year{'s' if years != 1 else ''}", b.f["label"])
-        for col, key in ((2, "company"), (3, "peers"), (4, "spy")):
-            cell = row.get(key) or {}
-            val = cell.get("value")
-            ws.write(
-                r,
-                col,
-                val / 100 if isinstance(val, int | float) else "n/a",
-                b.f["in_pct"] if isinstance(val, int | float) else b.f["muted"],
-            )
-        r += 1
-    r += 1
-    # Each peer: one row per ticker, its 1-year return and its key metrics.
     peers: dict[str, dict[str, Any]] = {}
-    one_year = next((row for row in v.get("returns") or [] if row.get("years") == 1), None)
+    one_year = next((x for x in v.get("returns") or [] if x.get("years") == 1), None)
     for p in (one_year or {}).get("each_peer") or []:
         peers.setdefault(str(p.get("name")), {})["return"] = p.get("value")
-    metrics = v.get("metrics") or []
     for m in metrics:
         for p in m.get("peers") or []:
             peers.setdefault(str(p.get("ticker")), {})[m["name"]] = p.get("value")
-    heads = ["PEERS", "1-year return"] + [m.get("label") or m.get("name") for m in metrics]
-    b.band(ws, r, heads[:LAST_COL])
+    you: dict[str, Any] = {"return": ((one_year or {}).get("company") or {}).get("value")}
+    for m in metrics:
+        you[m["name"]] = m.get("value")
+    heads = {2: "1-year total return"} | {
+        3 + i: str(m.get("label") or m.get("name")) for i, m in enumerate(metrics)
+    }
+    b.section(ws, r, 1, last, "Each company in the peer group")
+    for col, text in heads.items():
+        ws.write(r, col, text, b.f["section_wrap"])
     ws.set_row(r, 28)
     r += 1
-    for ticker in sorted(peers):
-        ws.write(r, 1, ticker, b.f["label"])
-        ret = peers[ticker].get("return")
-        ws.write(r, 2, ret / 100 if isinstance(ret, int | float) else "", b.f["in_pct"])
-        for i, m in enumerate(metrics[: LAST_COL - 2]):
-            val = peers[ticker].get(m["name"])
+    table_first = r
+    others = sorted(peers, key=lambda t: -(_num(peers[t].get("return")) or -1e9))
+    order = [(d.ticker, you, True)] + [(t, peers[t], False) for t in others]
+    for ticker, vals, me in order:
+        ws.write(
+            r,
+            1,
+            f"{ticker} (this company)" if me else ticker,
+            b.f["hi_text"] if me else b.f["label"],
+        )
+        ret = _num(vals.get("return"))
+        if ret is not None:
+            ws.write_number(r, 2, ret / 100, b.f["hi_pct"] if me else b.f["in_pct"])
+        for i, m in enumerate(metrics):
+            val = _num(vals.get(m["name"]))
             kind = "mult" if METRIC_KINDS.get(m.get("name")) == "ratio" else "pct"
-            if isinstance(val, int | float):
-                ws.write(r, 3 + i, val, b.f[f"in_{kind}"])
+            if val is not None:
+                ws.write_number(r, 3 + i, val, b.f[f"hi_{kind}"] if me else b.f[f"in_{kind}"])
         r += 1
-    if not peers:
-        ws.write(r, 1, "No peer figures are stored for this report.", b.f["muted"])
-        r += 1
-    # Weekly closes and a chart of them, to the right.
-    weekly = d.numbers.get("weekly") or []
-    if weekly:
-        ws.write(5, 6, "WEEK", b.f["band"])
-        ws.write(5, 7, "US$", b.f["band_r"])
-        start = 7
-        for i, w in enumerate(weekly):
-            ws.write_datetime(start + i, 6, _dt(date.fromisoformat(str(w["date"]))), b.f["in_date"])
-            ws.write(start + i, 7, w["close"], b.f["in_money"])
-        chart = b.wb.add_chart({"type": "line"})
+    ws.write(r, 1, "Peer median (formula, peers only)", b.f["total_label"])
+    for col in range(2, 3 + len(metrics)):
+        key = "return" if col == 2 else metrics[col - 3]["name"]
+        kind = "mult" if col > 2 and METRIC_KINDS.get(key) == "ratio" else "pct"
+        found = [_num(peers[t].get(key)) for t in others]
+        found = [x / 100 if col == 2 else x for x in found if x is not None]
+        letter = xl_col_to_name(col)
+        ws.write_formula(
+            r,
+            col,
+            f"=MEDIAN({letter}{table_first + 2}:{letter}{r})",
+            b.f[f"tot_{kind}"],
+            statistics.median(found) if found else 0,
+        )
+        if col > 2:
+            b.name(f"PeerMedian_{key}", "Peers", r, col)
+    r += 1
+    ws.write(r, 1, "The report's figure for the peers", b.f["indent"])
+    ret_peers = _num(((one_year or {}).get("peers") or {}).get("value"))
+    if ret_peers is not None:
+        ws.write_number(r, 2, ret_peers / 100, b.f["in_pct"])
+        b.note(
+            ws,
+            r,
+            2,
+            _report_note(
+                "Returns",
+                "Peer group total return, each peer weighted the same: an average, not the median.",
+            ),
+        )
+    for i, m in enumerate(metrics):
+        med = _num(m.get("peer_median"))
+        kind = "mult" if METRIC_KINDS.get(m.get("name")) == "ratio" else "pct"
+        if med is not None:
+            ws.write_number(r, 3 + i, med, b.f[f"in_{kind}"])
+            b.note(ws, r, 3 + i, _report_note("Key metrics", str(m.get("readout") or "")))
+        b.name(f"ReportPeerMedian_{m['name']}", "Peers", r, 3 + i)
+    r += 1
+    ws.write(r, 1, "Percentile: share of peers below this company", b.f["indent"])
+    for i, m in enumerate(metrics):
+        if m.get("percentile") is not None:
+            ws.write_number(r, 3 + i, m["percentile"], b.f["in_int"])
+    r += 2
+    ws.merge_range(
+        r,
+        1,
+        r,
+        last,
+        "Peer figures are as the report stored them. The report's 1-year peer return weights each peer the same, so it differs from the median.",
+        b.f["small"],
+    )
+    ws.print_area(0, 0, r, last + 9)
+
+    data = [(t, _num(vals.get("return"))) for t, vals, _ in order]
+    data = sorted([(t, x) for t, x in data if x is not None], key=lambda p: p[1])
+    if len(data) > 1:
+        top = 200
+        ws.write(top - 1, 1, "Chart data", b.f["small"])
+        for i, (t, x) in enumerate(data):
+            ws.write(top + i, 1, t, b.f["small"])
+            ws.write_number(top + i, 2, x / 100, b.f["in_pct"])
+        chart = b.wb.add_chart({"type": "bar"})
         chart.add_series(
             {
-                "name": f"{d.ticker} weekly close",
-                "categories": ["Returns and peers", start, 6, start + len(weekly) - 1, 6],
-                "values": ["Returns and peers", start, 7, start + len(weekly) - 1, 7],
-                "line": {"color": style.NAVY, "width": 1.75},
+                "name": "1-year total return",
+                "categories": ["Peers", top, 1, top + len(data) - 1, 1],
+                "values": ["Peers", top, 2, top + len(data) - 1, 2],
+                "points": [
+                    {
+                        "fill": {"color": style.BEAR if t == d.ticker else "#9FB3CF"},
+                        "border": {"none": True},
+                    }
+                    for t, _ in data
+                ],
+                "gap": 35,
             }
         )
-        chart.set_title(
-            {
-                "name": f"{d.ticker} share price, past 12 months (US$)",
-                "name_font": {"name": "Arial", "size": 10, "bold": True, "color": style.NAVY},
-            }
-        )
-        chart.set_legend({"none": True})
+        _style_chart(chart, f"1-year total return: {d.ticker} (orange) and each peer")
         chart.set_x_axis(
             {
-                "date_axis": True,
-                "num_format": "mmm yy",
-                "num_font": {"name": "Arial", "size": 8, "color": style.GREY},
-                "line": {"color": style.RULE},
-            }
-        )
-        chart.set_y_axis(
-            {
-                "num_format": "$#,##0",
-                "num_font": {"name": "Arial", "size": 8, "color": style.GREY},
+                **_axis(),
+                "num_format": "0%",
                 "major_gridlines": {"visible": True, "line": {"color": style.GRID}},
                 "line": {"none": True},
             }
         )
-        chart.set_chartarea({"border": {"none": True}})
-        chart.set_size({"width": 620, "height": 300})
-        ws.insert_chart(r + 2, 1, chart)
+        chart.set_y_axis(
+            {
+                "num_font": {"name": "Arial", "size": 7, "color": style.GREY},
+                "line": {"color": style.RULE},
+            }
+        )
+        chart.set_size({"width": 420, "height": max(320, 13 * len(data) + 90)})
+        ws.insert_chart(4, last + 2, chart)
+    ws.freeze_panes(3, 2)
 
 
-def _economy(b: _Book) -> None:
-    d = b.data
-    ws = b.sheet("Economy", SHEETS[5][1], {"B:B": 34, "C:C": 22, "D:D": 14, "E:E": 16})
-    b.band(ws, 5, ["SERIES", "FRED code", "Value", "As of"], text_cols=(1, 2, 3))
-    r = 6
-    for e in d.views.get("economy") or []:
-        ws.write(r, 1, e.get("label"), b.f["label"])
-        ws.write(r, 2, e.get("series"), b.f["muted"])
-        ws.write(r, 3, e.get("value"), b.f["in_text"])
-        ws.write(r, 4, e.get("date"), b.f["in_text"])
-        r += 1
-    if r == 6:
-        ws.write(r, 1, "No economic series are stored for this report.", b.f["muted"])
-        r += 1
-    ws.write(
-        r + 1,
-        1,
-        "Source: FRED, Federal Reserve Bank of St. Louis, as the report cites it.",
-        b.f["muted"],
-    )
+# --- Sources & checks ----------------------------------------------------------------------------
 
 
 def _sources(b: _Book) -> None:
-    d = b.data
-    ws = b.sheet("Sources", SHEETS[6][1], {"B:B": 6, "C:C": 24, "D:D": 18, "E:E": 90, "F:F": 18})
-    ws.write(5, 1, "NOTE", b.f["band"])
-    for col, text in ((2, "SOURCE"), (3, "SECTION"), (4, "QUOTED PASSAGE"), (5, "LINK")):
-        ws.write(5, col, text, b.f["band"])
-    for col in (6, 7):
-        ws.write_blank(5, col, None, b.f["band"])
-    r = 6
-    for note in d.notes:
-        ws.write(r, 1, note.number, b.f["in_int_l"])
-        ws.write(r, 2, note.label, b.f["in_text"])
-        ws.write(r, 3, note.section, b.f["muted"])
-        quote = (
-            f"“{note.quote}”" if note.quote else "The quoted passage is not stored for this report."
-        )
-        ws.write(r, 4, quote, b.f["in_wrap"])
-        ws.set_row(r, 13 * max(1, min(40, -(-len(quote) // 98))))
-        if note.url:
-            ws.write_url(
-                r,
-                5,
-                note.url,
-                b.f["url"],
-                "Open on sec.gov" if "sec.gov" in note.url else "Open the article",
-            )
-        r += 1
-    if not d.notes:
-        ws.write(r, 1, "No claim in this report cites a source.", b.f["muted"])
-    ws.freeze_panes(6, 0)
-
-
-def _checks(b: _Book) -> None:
-    ws = b.sheet("Checks", SHEETS[7][1], {"B:B": 52, "C:F": 15, "G:G": 12})
-    ws.write("B4", "All checks", b.f["bold"])
-    master = b.master_value()
-    first, last = 7, 7 + max(0, len(b.checks) - 1)
+    d = b.d
+    sub = "Sources & checks · each check recomputes a figure from others in this file"
+    ws = b.sheet("Sources & checks", sub, {"B:B": 60, "C:F": 13, "G:G": 10}, 6)
+    ws.write(3, 1, "All checks", b.f["bold"])
+    master = b.master()
+    first = 6
+    count = len(b.checks)
     ws.write_formula(
-        "C4",
-        f'=IF(COUNTIF(G{first + 1}:G{last + 1},"CHECK")=0,"OK","CHECK")',
-        b.f["ok"] if master == "OK" else b.f["bad"],
+        3,
+        2,
+        f'=IF(COUNTIF(G{first + 1}:G{first + max(1, count)},"OK")={count},"OK","CHECK")',
+        b.f["ok" if master == "OK" else "bad"],
         master,
     )
-    b.band(ws, 6, ["CHECK", "This file", "Should equal", "Difference", "Tolerance", "Result"])
+    b.section(
+        ws,
+        5,
+        1,
+        6,
+        "Checks",
+        {2: "This file", 3: "Should be", 4: "Difference", 5: "Tolerance", 6: "Result"},
+    )
     r = first
     for c in b.checks:
+        kind = c["kind"]
         ws.write(r, 1, c["what"], b.f["label"])
-        if c.get("logical"):
-            ws.write_formula(r, 2, c["formula"], b.f["calc_text"], bool(c["cached"]))
-            ws.write(r, 3, True, b.f["calc_text"])
-            ws.write_formula(
-                r,
-                6,
-                f'=IF(C{r + 1}=D{r + 1},"OK","CHECK")',
-                b.f["ok"] if c["result"] == "OK" else b.f["bad"],
-                c["result"],
-            )
+        ws.write_formula(r, 2, c["formula"], b.f[f"f_{kind}"], c["cached"])
+        if isinstance(c["against"], str):
+            ws.write_formula(r, 3, c["against"], b.f[f"f_{kind}"], c["against_value"])
         else:
-            kind = c["kind"]
-            ws.write_formula(r, 2, c["formula"], b.f[f"calc_{kind}"], c["cached"])
-            if c.get("against_typed"):
-                ws.write(r, 3, c["against"], b.f[f"in_{kind}"])
-            else:
-                ws.write_formula(r, 3, c["against"], b.f[f"link_{kind}"], c["against_value"])
-            ws.write_formula(
-                r,
-                4,
-                f"=C{r + 1}-D{r + 1}",
-                b.f[f"calc_{kind}"],
-                float(c["cached"]) - float(c["against_value"]),
-            )
-            ws.write(r, 5, c["tol"], b.f[f"calc_{kind}"])
-            ws.write_formula(
-                r,
-                6,
-                f'=IF(ABS(E{r + 1})<=F{r + 1}+0.000000001,"OK","CHECK")',
-                b.f["ok"] if c["result"] == "OK" else b.f["bad"],
-                c["result"],
-            )
+            ws.write_number(r, 3, c["against"], b.f[f"in_{kind}"])
+        ws.write_formula(
+            r, 4, f"=C{r + 1}-D{r + 1}", b.f[f"f_{kind}"], c["cached"] - c["against_value"]
+        )
+        ws.write_number(r, 5, c["tol"], b.f[f"f_{kind}"])
+        ws.write_formula(
+            r,
+            6,
+            f'=IF(ABS(E{r + 1})<=F{r + 1}+0.000000001,"OK","CHECK")',
+            b.f["ok" if c["result"] == "OK" else "bad"],
+            c["result"],
+        )
         r += 1
     if not b.checks:
         ws.write(r, 1, "Nothing to check: this report stores no valuation or score.", b.f["muted"])
-    ws.merge_range(
-        r + 1,
-        1,
-        r + 2,
-        6,
-        "Each check recomputes a figure from others in this file. A CHECK means a figure was copied wrong; please report it.",
-        b.f["muted_wrap"],
-    )
-    # The claim counts, for the last check.
-    claims = b.data.views.get("claims") or {}
+        r += 1
+    claims = d.views.get("claims") or {}
     if claims.get("slices"):
-        r += 4
-        b.band(ws, r, ["CLAIMS", "Count"])
-        ws.write(r + 1, 1, "Claims written", b.f["label"])
-        ws.write(r + 1, 2, int(claims.get("total") or 0), b.f["in_int"])
-        b.name("ClaimsWritten", "Checks", r + 1, 2)
-        start = r + 2
-        for i, s in enumerate(claims["slices"]):
-            ws.write(start + i, 1, s.get("label"), b.f["label"])
-            ws.write(start + i, 2, int(s.get("count") or 0), b.f["in_int"])
-        b.wb.define_name(
-            "ClaimCounts", f"='Checks'!$C${start + 1}:$C${start + len(claims['slices'])}"
+        r += 1
+        b.section(ws, r, 1, 2, "Claims", {2: "Count"})
+        r += 1
+        ws.write(r, 1, "Claims written", b.f["label"])
+        ws.write_number(r, 2, int(claims.get("total") or 0), b.f["in_int"])
+        r += 1
+        start = r
+        for s in claims["slices"]:
+            ws.write(r, 1, str(s.get("readout") or s.get("label")), b.f["label"])
+            ws.write_number(r, 2, int(s.get("count") or 0), b.f["in_int"])
+            r += 1
+        b.wb.define_name("ClaimCounts", f"='Sources & checks'!$C${start + 1}:$C${r}")
+    r += 1
+    b.section(ws, r, 1, 6, "The filings the report read")
+    r += 1
+    for f in d.filings:
+        ws.write(r, 1, f"{f.get('form')}, accession {f.get('accession')}", b.f["in_text"])
+        if str(f.get("url") or "").startswith("https://"):
+            ws.write_url(r, 2, str(f["url"]), b.f["url"], "Open on sec.gov")
+        r += 1
+    r += 1
+    b.section(
+        ws,
+        r,
+        1,
+        6,
+        "Numbered notes: each claim's source, the same numbers as the PDF and the deck",
+        {6: "Link"},
+    )
+    r += 1
+    for note in d.notes:
+        quote = (
+            f"“{note.quote}”" if note.quote else "The quoted passage is not stored for this report."
         )
+        ws.write(r, 1, f"{note.number}.  {note.label} · {note.section}", b.f["bold"])
+        if note.url:
+            ws.write_url(
+                r, 6, note.url, b.f["url"], "sec.gov" if "sec.gov" in note.url else "article"
+            )
+        ws.merge_range(r + 1, 1, r + 1, 5, quote, b.f["in_wrap"])
+        ws.set_row(r + 1, 13 * max(1, min(40, -(-len(quote) // 115))) + 2)
+        r += 2
+    ws.freeze_panes(3, 0)
 
 
-# --- helpers ---------------------------------------------------------------------------------------
+# --- charts --------------------------------------------------------------------------------------
 
 
-def _dt(day: date):
-    from datetime import datetime
-
-    return datetime(day.year, day.month, day.day)
+def _axis() -> dict[str, Any]:
+    return {"num_font": {"name": "Arial", "size": 8, "color": style.GREY}}
 
 
-def _upside(d: ExportData) -> float | None:
-    base = (d.numbers.get("range") or {}).get("base")
-    price = (d.numbers.get("price") or {}).get("value")
-    if isinstance(base, int | float) and isinstance(price, int | float) and price:
-        return base / price - 1
-    return None
+def _style_chart(chart, title: str) -> None:
+    chart.set_title(
+        {
+            "name": title,
+            "name_font": {"name": "Arial", "size": 10, "bold": True, "color": style.NAVY},
+            "overlay": False,
+        }
+    )
+    chart.set_legend({"none": True})
+    chart.set_chartarea({"border": {"none": True}, "fill": {"color": "#FFFFFF"}})
+    chart.set_plotarea({"border": {"none": True}})
 
 
-def _split_text(d: ExportData) -> str:
-    if d.split_factor and abs(d.split_factor - 1) > 1e-9:
-        return f" The stock has split {d.split_factor:g}-for-1 since; divide these prices by {d.split_factor:g} to compare with today's."
-    return ""
-
-
-def _headline(d: ExportData) -> str:
-    """The code-written headline: the call and its numbers, never AI text."""
-    n = d.numbers
-    rating = (n.get("rating") or {}).get("call")
-    base = (n.get("range") or {}).get("base")
-    up = _upside(d)
-    unc = (n.get("rating") or {}).get("uncertainty")
-    if not rating:
-        return "No rating is stored for this report."
-    parts = [f"{rating}"]
-    if isinstance(base, int | float) and d.price_day and up is not None:
-        horizon = date(d.price_day.year + 1, d.price_day.month, 1)
-        parts.append(
-            f"base case ${base:,.2f} by {horizon:%b %Y}, {abs(up):.1%} {'above' if up >= 0 else 'below'} the price"
-        )
-    text = ": ".join(parts[:1]) + (": " + parts[1] if len(parts) > 1 else "")
-    if unc:
-        text += f", with {unc} uncertainty"
-    return text
+# --- the workbook --------------------------------------------------------------------------------
 
 
 def build(data: ExportData) -> bytes:
     """The workbook's bytes."""
     book = _Book(data)
     book.checks = _plan_checks(data)
-    _cover(book)
     _summary(book)
+    _financials(book)
     _valuation(book)
-    _score(book)
-    _returns(book)
-    _economy(book)
+    _peers(book)
     _sources(book)
-    _checks(book)
     book.wb.close()
     return book.out.getvalue()
