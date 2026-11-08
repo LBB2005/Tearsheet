@@ -9,8 +9,9 @@ import { act } from '@testing-library/react'
 import { vi, type Mock } from 'vitest'
 
 import type { MenuCommand } from '../../main/menu'
+import type { ViewId } from '../../main/navigation'
 import type { CallResult, EngineNotification, TearsheetApi, ToolStatus } from '../../preload/api'
-import type { ChartSeries, CompanyRow, PredictionSummary, ReportBar, ReportResult, ReportSummary, SearchHit, SettingsResult } from '../../shared/protocol'
+import type { ChartSeries, CompanyRow, PredictionSummary, ReportBar, ReportNumbers, ReportResult, ReportSummary, SearchHit, SettingsResult } from '../../shared/protocol'
 
 export type FakeBridge = { [K in keyof TearsheetApi]: Mock<TearsheetApi[K]> }
 
@@ -111,12 +112,35 @@ export function chart(days = 260): ChartSeries {
   }
 }
 
+// A report's numbers for the panel's bigger views, with nothing stored but the ticker.
+export function numbers(reportId: string): ReportNumbers {
+  return {
+    report_id: reportId,
+    ticker: 'AAPL',
+    score_readout: null,
+    factors: null,
+    metrics: null,
+    methods: null,
+    price: null,
+    estimate: null,
+    range: null,
+    returns: null,
+    red_flags: null,
+    red_flags_readout: null,
+    economy: null,
+    peer_ratings: null,
+    claims: null,
+    tables: []
+  }
+}
+
 // ---------- the fake itself ----------
 
 const listeners = {
   note: new Set<(n: EngineNotification) => void>(),
   menu: new Set<(c: MenuCommand) => void>(),
-  flag: new Set<(p: { claimId: string }) => void>()
+  flag: new Set<(p: { claimId: string }) => void>(),
+  open: new Set<(p: { view: ViewId; item: string | null }) => void>()
 }
 
 const listen = <T>(set: Set<(x: T) => void>) => (fn: (x: T) => void) => {
@@ -135,6 +159,7 @@ function makeBridge(): FakeBridge {
     listCompanies: vi.fn<TearsheetApi['listCompanies']>(async () => ok(COMPANIES)),
     searchCompanies: vi.fn<TearsheetApi['searchCompanies']>(async (query: string) => ok(search(query))),
     getChart: vi.fn<TearsheetApi['getChart']>(async () => ok(chart())),
+    getReportNumbers: vi.fn<TearsheetApi['getReportNumbers']>(async (reportId: string) => ok(numbers(reportId))),
     fetchHistory: vi.fn<TearsheetApi['fetchHistory']>(async () => ok({ first_date: '2021-11-08', days: 1260 })),
     checkKey: vi.fn<TearsheetApi['checkKey']>(async (service: 'massive' | 'fred') => ok({ proof: service === 'massive' ? 'Works: AAPL closed at $230.10 on Nov 6' : 'Works: inflation was 2.9% in September' })),
     runSafetyCheck: vi.fn<TearsheetApi['runSafetyCheck']>(async () => ok({ started: true })),
@@ -153,7 +178,8 @@ function makeBridge(): FakeBridge {
     setSetting: vi.fn<TearsheetApi['setSetting']>(async () => ok({ ok: true })),
     gradeDue: vi.fn<TearsheetApi['gradeDue']>(async () => ok({ graded: 0 })),
     onNotification: vi.fn<TearsheetApi['onNotification']>(listen(listeners.note)),
-    onFlagRequested: vi.fn<TearsheetApi['onFlagRequested']>(listen(listeners.flag))
+    onFlagRequested: vi.fn<TearsheetApi['onFlagRequested']>(listen(listeners.flag)),
+    onOpenView: vi.fn<TearsheetApi['onOpenView']>(listen(listeners.open))
   }
 }
 
@@ -164,6 +190,7 @@ export function installBridge(): FakeBridge {
   listeners.note.clear()
   listeners.menu.clear()
   listeners.flag.clear()
+  listeners.open.clear()
   bridge = makeBridge()
   Object.defineProperty(window, 'tearsheet', { configurable: true, value: bridge })
   return bridge
@@ -187,5 +214,12 @@ export function menu(command: MenuCommand): void {
 export function flag(claimId: string): void {
   act(() => {
     for (const fn of listeners.flag) fn({ claimId })
+  })
+}
+
+// A report link (tearsheet://open/…) clicked inside the report's frame.
+export function openView(view: ViewId, item: string | null = null): void {
+  act(() => {
+    for (const fn of listeners.open) fn({ view, item })
   })
 }

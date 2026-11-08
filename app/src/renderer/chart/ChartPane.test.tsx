@@ -139,7 +139,7 @@ describe('the chart', () => {
     expect(screen.getByRole('button', { name: 'Wide' })).toHaveAttribute('aria-pressed', 'true')
     await user.click(screen.getByRole('button', { name: 'Narrow' }))
     expect(props.onSize).toHaveBeenCalledWith('narrow')
-    await user.click(screen.getByRole('button', { name: 'Close the chart' }))
+    await user.click(screen.getByRole('button', { name: 'Close the panel' }))
     expect(props.onClose).toHaveBeenCalled()
   })
 

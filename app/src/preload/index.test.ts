@@ -41,6 +41,7 @@ describe('the calls', () => {
     ['searchCompanies', ['app'], ['tearsheet:call', 'searchCompanies', { query: 'app' }]],
     ['searchCompanies', ['app', 5], ['tearsheet:call', 'searchCompanies', { query: 'app', limit: 5 }]],
     ['getChart', ['r-1'], ['tearsheet:call', 'getChart', { report_id: 'r-1' }]],
+    ['getReportNumbers', ['r-1'], ['tearsheet:call', 'getReportNumbers', { report_id: 'r-1' }]],
     ['fetchHistory', ['r-1'], ['tearsheet:call', 'fetchHistory', { report_id: 'r-1' }]],
     ['checkKey', ['massive', 'k'], ['tearsheet:call', 'checkKey', { service: 'massive', key: 'k' }]],
     ['runSafetyCheck', ['claude'], ['tearsheet:call', 'runSafetyCheck', { tool: 'claude' }]],
@@ -69,6 +70,7 @@ describe('the listeners', () => {
   test.each([
     ['onNotification', 'tearsheet:notification', { method: 'progress', params: {} }],
     ['onFlagRequested', 'tearsheet:flag-requested', { claimId: 'c1' }],
+    ['onOpenView', 'tearsheet:open-view', { view: 'factors', item: null }],
     ['onMenu', 'tearsheet:menu', 'chart']
   ])('%s hears %s until it is taken off', (name, channel, payload) => {
     const fn = vi.fn()
@@ -82,6 +84,6 @@ describe('the listeners', () => {
 
 test('the window gets nothing but these calls and listeners', () => {
   expect(Object.keys(api).sort()).toEqual(
-    ['cancel', 'checkKey', 'fetchHistory', 'find', 'flagClaim', 'getChart', 'getReport', 'getSettings', 'getTools', 'gradeDue', 'listCompanies', 'listPredictions', 'listReports', 'onFlagRequested', 'onMenu', 'onNotification', 'openExternal', 'openTerminal', 'rereadFiling', 'resume', 'runReport', 'runSafetyCheck', 'searchCompanies', 'setKey', 'setSetting', 'stopFind'].sort()
+    ['cancel', 'checkKey', 'fetchHistory', 'find', 'flagClaim', 'getChart', 'getReport', 'getReportNumbers', 'getSettings', 'getTools', 'gradeDue', 'listCompanies', 'listPredictions', 'listReports', 'onFlagRequested', 'onMenu', 'onNotification', 'onOpenView', 'openExternal', 'openTerminal', 'rereadFiling', 'resume', 'runReport', 'runSafetyCheck', 'searchCompanies', 'setKey', 'setSetting', 'stopFind'].sort()
   )
 })

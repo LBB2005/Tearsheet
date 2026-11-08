@@ -124,13 +124,13 @@ describe('the Chart button', () => {
     expect(chartButton()).toHaveAttribute('aria-pressed', 'false')
   })
 
-  test('⌘3 does the same, and the chart’s own close button closes it', async () => {
+  test('⌘3 does the same, and the panel’s own close button closes it', async () => {
     const { user } = await renderApp()
     sizeReportPage()
     await openReport(user)
     menu('chart')
     expect(screen.getByRole('region', { name: 'Price chart' })).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Close the chart' }))
+    await user.click(screen.getByRole('button', { name: 'Close the panel' }))
     await waitFor(() => expect(screen.queryByRole('region', { name: 'Price chart' })).toBeNull())
   })
 
