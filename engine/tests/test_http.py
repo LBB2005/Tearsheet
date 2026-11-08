@@ -408,3 +408,32 @@ def test_a_call_that_works_says_the_key_works(rawstore):
             return http.keys_refused, http.keys_worked
 
     assert run(go()) == (set(), {"massive"})
+
+
+def test_wait_first_is_awaited_before_each_call_to_that_service(tmp_path):
+    from tearsheet.rawstore import RawStore
+
+    db = open_database(tmp_path / "data" / "tearsheet.sqlite")
+    store = RawStore(tmp_path / "data" / "raw", db.conn)
+    waits: list[str] = []
+
+    async def gate():
+        waits.append("massive")
+
+    async def go():
+        with respx.mock() as mock:
+            mock.get("https://api.massive.com/x").mock(
+                return_value=httpx.Response(200, json={"status": "OK"})
+            )
+            mock.get("https://api.stlouisfed.org/y").mock(
+                return_value=httpx.Response(200, json={"observations": []})
+            )
+            async with HttpClient(store, "run-t", sleep=lambda s: asyncio.sleep(0)) as http:
+                http.wait_first("massive", gate)
+                await http.fetch("massive", "https://api.massive.com/x", kind="x")
+                await http.fetch("massive", "https://api.massive.com/x", kind="x")
+                await http.fetch("fred", "https://api.stlouisfed.org/y", kind="y")
+
+    asyncio.run(go())
+    db.close()
+    assert waits == ["massive", "massive"]

@@ -1101,7 +1101,7 @@ def test_a_failed_other_tool_call_falls_back_to_a_fresh_session_of_the_same_tool
 
 def test_a_mix_says_which_sections_were_self_checked(database, tmp_path):
     def codex(request):
-        # The risks section's call and its one retry fail. Sections are checked 3 at a time,
+        # The risks section's call and its one retry fail. Sections are checked 5 at a time,
         # so which others were already on Codex when it failed depends on timing; every
         # section that wasn't is self-checked, and the box names them all.
         if "Section: risks." in request.instructions:

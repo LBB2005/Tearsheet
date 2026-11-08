@@ -654,3 +654,56 @@ def test_the_price_download_stop_reasons_are_plain_words():
     assert backfill_stop_reason(failure(503)) == "Massive was having trouble"
     assert backfill_stop_reason(failure(200)) == "Massive sent an unreadable answer"
     assert backfill_stop_reason(KeyError("x")).startswith("something went wrong")
+
+
+def test_after_the_backfill_companies_it_couldnt_start_are_filled(tmp_path, monkeypatch):
+    import tearsheet.data.market as market
+    from tearsheet.data.membership import stored_or_bundled
+    from tearsheet.data.prices import PriceStore, last_completed_session
+    from tests.test_pipeline import NOW
+
+    h, _ = _backfill_harness(tmp_path, monkeypatch)
+    conn = h.server.db.conn
+    index = stored_or_bundled(conn)
+    wanted = market.wanted_members(index)
+    market.record_backfill(config.Settings(conn), wanted, date(2026, 11, 2))  # done earlier
+    end = last_completed_session(NOW)
+    store = PriceStore(conn)
+    # Every company has closes but two, as after the 7 Nov backfill.
+    companies = index.companies()
+    left = {c.cik: c.tickers[0] for c in companies[:2]}
+    for c in companies[2:]:
+        store.store_bars(c.cik, "", {"results": [{"t": _ms(end), "c": 1.0}]}, raw_hash="x")
+    asked = []
+
+    async def fake_fill(http, rawstore, conn, store, members, *, end, gate):
+        asked.append((members, end, h.server._others_running()))
+
+    monkeypatch.setattr(market, "fill_one_by_one", fake_fill)
+
+    async def go():
+        await h.server.start()
+        await asyncio.wait_for(h.server.backfill_job, 5)
+        # The open app's next check finds them tried for this session and asks nothing.
+        await h.server._fill_one_by_one(wanted)
+
+    run(go())
+    assert asked == [(left, end, False)]
+    h.server.close()
+
+
+def test_no_one_by_one_fill_before_the_backfill_is_done(tmp_path, monkeypatch):
+    import tearsheet.data.market as market
+    from tearsheet.data.membership import stored_or_bundled
+
+    h, _ = _backfill_harness(tmp_path, monkeypatch)
+    asked = []
+
+    async def fake_fill(*args, **kwargs):
+        asked.append(1)
+
+    monkeypatch.setattr(market, "fill_one_by_one", fake_fill)
+    wanted = market.wanted_members(stored_or_bundled(h.server.db.conn))
+    run(h.server._fill_one_by_one(wanted))
+    assert asked == []
+    h.server.close()

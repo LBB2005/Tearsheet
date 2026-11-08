@@ -433,3 +433,65 @@ def test_one_ticker_per_company_in_a_top_up(database, rawstore):
     # Grading may ask for GOOG while the stored list rates GOOGL: GOOG's close is the one kept.
     fill(database, rawstore, {AAPL: "AAPL", alphabet: "GOOG"}, {NEW_DAY: rows})
     assert store.latest_close(alphabet) == (NEW_DAY, 300.0)
+
+
+# --- companies the backfill can't start ------------------------------------------------------
+
+
+def holdings_of(*rows: tuple[str, int]):
+    from tearsheet.data.membership import HoldingRow, Holdings
+
+    return Holdings(
+        date(2026, 11, 3),
+        "bundled",
+        [HoldingRow(t, cik, t, "Information Technology", 1.0) for t, cik in rows],
+    )
+
+
+def test_companies_with_no_closes_are_filled_one_by_one(database, settings):
+    store = seeded(database)
+    index = holdings_of(("AAPL", AAPL), ("AMD", 2488), ("Q", 2028))
+    end = NEW_DAY
+    assert market.without_prices(store, index) == {2488: "AMD", 2028: "Q"}
+    assert market.to_fill_one_by_one(settings, store, index, end=end) == {2488: "AMD", 2028: "Q"}
+    # Tried once a session: not again for this one, but again for the next.
+    market.record_one_by_one(settings, {2488: "AMD"}, end=end)
+    assert market.to_fill_one_by_one(settings, store, index, end=end) == {2028: "Q"}
+    market.record_one_by_one(settings, {2028: "Q"}, end=end)
+    assert market.to_fill_one_by_one(settings, store, index, end=end) == {}
+    later = end + timedelta(days=1)
+    assert market.to_fill_one_by_one(settings, store, index, end=later) == {2488: "AMD", 2028: "Q"}
+
+
+def test_too_many_without_closes_is_the_backfills_job(database, settings, monkeypatch):
+    monkeypatch.setattr(market, "MAX_ONE_BY_ONE", 1)
+    store = seeded(database)
+    index = holdings_of(("AAPL", AAPL), ("AMD", 2488), ("Q", 2028))
+    assert market.to_fill_one_by_one(settings, store, index, end=NEW_DAY) == {}
+
+
+def test_a_one_by_one_fill_is_a_reports_first_fill_with_a_gate(database, rawstore):
+    store = seeded(database)
+    waits = []
+
+    async def gate():
+        waits.append(1)
+        return False
+
+    async def go():
+        with respx.mock(assert_all_called=False) as mock:
+            massive = Massive(mock, {})
+            async with client(rawstore) as http:
+                await market.fill_one_by_one(
+                    http, rawstore, database.conn, store, {2488: "AMD"}, end=NEW_DAY, gate=gate
+                )
+            return massive
+
+    massive = asyncio.run(go())
+    window = (NEW_DAY - timedelta(days=round(14 * 30.44))).isoformat()
+    # The same calls a report's first fill makes (test_a_first_fill_stays_per_stock), SPY's
+    # one new day included, and the gate before each.
+    assert f"bars AMD {window}" in massive.calls and "dividends (ticker)" in massive.calls
+    assert massive.calls[0] == "splits"
+    assert len(waits) == len(massive.calls)
+    assert store.latest_close(2488)[0] == NEW_DAY

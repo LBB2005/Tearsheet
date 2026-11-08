@@ -1,8 +1,9 @@
-/* The home page (pages/Home.tsx) and the run view (home/RunView.tsx). Class names, colours and
-   spacing are ported from docs/designs/opening-and-setup.html (.home, .bigq, .dd, .ddr, .sugg,
-   .sg, .since, .sr, .alert, .runv, .segring, .phases, .steps), in A. Settle only. Each part has
-   class mv and its place in the order (--i), so the frame's own entrance is turned off for the
-   two roots. Under Reduce motion nothing moves (styles.css). */
+/* The home page (pages/Home.tsx) and the run view (home/RunView.tsx). The home page's class names,
+   colours and spacing are ported from docs/designs/opening-and-setup.html (.home, .bigq, .dd,
+   .ddr, .sugg, .sg, .since, .sr, .alert), in A. Settle only; the run view is "Receipt", Liam's
+   pick of the ten loading screens (7 Nov 2026). Each part has class mv and its place in the
+   order (--i), so the frame's own entrance is turned off for the two roots. Under Reduce motion
+   nothing moves (styles.css). */
 
 .pagebody[data-page="home"] { display: flex; flex-direction: column; align-items: center; justify-content: safe center; padding: 12px 60px 60px; }
 .enter > .homev, .enter > .runv { animation: none; }
@@ -82,32 +83,54 @@
 .homev .sr > i.hold { background: var(--hold); }
 .homev .sr .btn2 { margin-left: auto; padding: 4px 10px; font-size: 12px; }
 
-/* ---------- the run view ---------- */
-.runv { width: 900px; max-width: 100%; display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 40px; align-items: start; }
-.runv .runcol { min-width: 0; }
-.runv .segring { width: 200px; height: 200px; position: relative; margin-top: 30px; }
-.runv .segring .seg { width: 200px; height: 200px; display: block; }
-.runv .segring .seg path { fill: none; stroke-width: 10; transition: stroke .4s; }
-.runv .segring .seg path.w { stroke: rgba(255, 255, 255, .08); }
-.runv .segring .seg path.d { stroke: rgba(127, 227, 247, .55); }
-.runv .segring .seg path.now { stroke: var(--accent); animation: pulse 1.4s ease-in-out infinite; }
-.runv .segring .seg path.x { stroke: var(--down); }
-.runv .segring .rc { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
-.runv .segring .rc .mark { margin-bottom: 8px; }
-.runv .segring .rc b { font: 600 30px/1 var(--ui); }
-.runv .segring .rc small { color: var(--muted); font-size: 12.5px; margin-top: 3px; }
-.runv .phases { display: flex; gap: 6px; margin-bottom: 10px; }
-.runv .phases span { flex: 1; text-align: center; font-size: 12px; color: var(--muted); padding: 5px 0; border-radius: 8px; background: rgba(255, 255, 255, .035); border: 1px solid var(--line); transition: color .3s, border-color .3s, background .3s; }
-.runv .phases span.d { color: #B5C2CF; border-color: rgba(127, 227, 247, .22); }
-.runv .phases span.now { color: var(--text); border-color: var(--chipline); background: rgba(127, 227, 247, .08); }
-.runv .steps { list-style: none; margin: 0 0 10px; padding: 0; }
-.runv .steps li { display: grid; grid-template-columns: 28px minmax(0, 1fr) 80px; padding: 6px 8px; border-bottom: 1px solid var(--line); font-size: 13.5px; align-items: center; }
-.runv .steps li .n2 { font: 600 12px var(--ui); color: var(--muted); }
-.runv .steps li .s { font-size: 12px; text-align: right; color: var(--muted); }
-.runv .steps li.d { color: var(--muted); }
-.runv .steps li.d .s { color: var(--up); }
-.runv .steps li.now, .runv .steps li.x { color: var(--text); background: rgba(127, 227, 247, .07); border-radius: 10px; border-bottom-color: transparent; }
-.runv .steps li.now .s { color: var(--accent); animation: pulse 1.6s ease-in-out infinite; }
-.runv .steps li.x { background: rgba(255, 127, 138, .07); }
-.runv .steps li.x .s { color: var(--down); }
-.runv .steps li.w { color: #637287; }
+/* ---------- the run view: "Receipt" (home/RunView.tsx) ----------
+   One card that writes down each stage as it happens. Its only motion: the working stage's
+   spinner and the bars sliding (none under Reduce motion or Animations Off, styles.css). */
+/* The card's top stays put and it grows downward as rows come and go, so nothing on it moves
+   while you read it; it never slides under the toolbar in a short window. Less padding below it
+   there, the footnote left out, and no scroll nudges. */
+.pagebody[data-page="home"]:has(> .runv) { justify-content: flex-start; padding-bottom: 20px; overflow-anchor: none; }
+.runv { width: 620px; max-width: 100%; display: flex; flex-direction: column; gap: 12px; margin-top: min(9vh, 72px); }
+@media (max-height: 700px) { .runv { margin-top: 8px; } .runv > .fine { display: none; } }
+.runv .alert { margin-bottom: 0; }
+.rcpt { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 16px 22px 18px; display: flex; flex-direction: column; text-align: left; }
+.rcpt .rh { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--line); margin-bottom: 4px; }
+.rcpt .rh > div { min-width: 0; display: flex; flex-direction: column; }
+.rcpt .rh b { font: 600 18px/1.3 var(--ui); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rcpt .rh span { color: var(--muted); font-size: 12.5px; }
+.rcpt .rh time { font: 500 12px var(--mono); color: var(--muted); white-space: nowrap; margin-top: 3px; }
+.rcpt ol { list-style: none; margin: 0; padding: 0; }
+.rcpt ol > li { padding: 7px 0; }
+.rcpt .ln { display: flex; align-items: center; gap: 10px; }
+.rcpt .ln b { font-weight: 600; }
+.rcpt .lead { flex: 1; border-bottom: 1px dotted rgba(255, 255, 255, .16); transform: translateY(-3px); }
+.rcpt .tm { font: 12px var(--mono); color: var(--muted); }
+.rcpt .ck { width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid rgba(255, 255, 255, .18); flex: none; display: grid; place-items: center; box-sizing: border-box; }
+.rcpt li.now .ck { border-color: var(--accent); border-top-color: transparent; animation: home-spin 1.1s linear infinite; }
+.rcpt li.d .ck { border-color: var(--up); background: rgba(99, 223, 165, .12); }
+.rcpt li.d .ck::after { content: ""; width: 6px; height: 3px; border-left: 1.5px solid var(--up); border-bottom: 1.5px solid var(--up); transform: translate(0, -1px) rotate(-45deg); }
+.rcpt li.x .ck { border-color: var(--down); background: rgba(255, 127, 138, .12); }
+.rcpt li.x .tm { color: var(--down); }
+.rcpt .dt { margin: 2px 0 0 26px; color: var(--muted); font-size: 12.5px; }
+.rcpt li.w b, .rcpt li.w .dt { color: #637287; }
+.rcpt li.now .dt { color: #C3CDD8; }
+.rcpt .live { list-style: none; margin: 6px 0 0 26px; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.rcpt .live li { display: grid; grid-template-columns: minmax(0, 1fr) 90px; gap: 10px; align-items: center; font-size: 12.5px; color: #C3CDD8; }
+.rcpt .live span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rcpt .live i { height: 3px; border-radius: 2px; background: var(--track); position: relative; overflow: hidden; }
+.rcpt .live i::after { content: ""; position: absolute; inset: 0 auto 0 0; width: var(--w, 0%); background: var(--accent); transition: width .9s linear; }
+.rcpt .ft { margin-top: 8px; padding-top: 12px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; }
+.rcpt .bar { height: 3px; border-radius: 2px; background: var(--track); overflow: hidden; }
+.rcpt .bar i { display: block; height: 100%; background: var(--accent); border-radius: 2px; transition: width .9s linear; }
+.rcpt .fr { display: flex; justify-content: space-between; color: var(--muted); font-size: 12.5px; }
+.rcpt .donec { margin-top: 8px; padding-top: 14px; border-top: 1px solid var(--line); display: flex; align-items: center; gap: 12px; }
+.rcpt .donec > div { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.rcpt .donec b { font: 600 17px var(--ui); }
+.rcpt .donec span { color: var(--muted); font-size: 12.5px; }
+.rcpt .pill { font: 600 12px/1 var(--ui); font-style: normal; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--line); color: #C3CDD8; white-space: nowrap; }
+.rcpt .pill.buy { color: var(--up); border-color: rgba(99, 223, 165, .4); background: rgba(99, 223, 165, .08); }
+.rcpt .pill.hold { color: var(--hold); border-color: rgba(255, 197, 107, .4); background: rgba(255, 197, 107, .08); }
+.rcpt .pill.sell { color: var(--down); border-color: rgba(255, 127, 138, .4); background: rgba(255, 127, 138, .08); }
+.btn2.primary2 { background: var(--accent); color: #062029; border-color: var(--accent); font-weight: 600; }
+.btn2.primary2:hover { background: #A6EDFA; }
+.runv > .fine { text-align: center; }

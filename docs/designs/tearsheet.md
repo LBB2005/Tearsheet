@@ -282,8 +282,8 @@ The engine can also run from the terminal (`tearsheet-engine run GOOGL`) and wri
 
 *   **First report on a company:** about 30–45 calls.
 *   **Repeat report:** about 20–35 calls, because saved evidence skips filing extraction.
-*   **In parallel:** 3 calls at a time.
-*   **Call budget:** 50 calls per run (drafter default). When a run would go over it, the engine cuts in this order: fewer articles (down to 5), then no section rewrites. The report says what was cut.
+*   **In parallel:** 5 calls at a time (3 until 7 Nov 2026: the same calls, finishing about a minute sooner per report).
+*   **Call budget:** 60 calls per run (50 until 7 Nov 2026; the first 5 reports used 35 to 44, and the most a run can need is about 56). When a run would go over it, the engine cuts in this order: fewer articles (down to 5), then no section rewrites. The report says what was cut.
 
 **When something fails:**
 
@@ -1081,7 +1081,7 @@ These are drafter defaults. Change any of them at this section's approval.
 | :-- | :-- |
 | Python version and tooling | Python 3.12, managed with `uv` and built with `hatchling`; `ruff` for linting; `pytest` and `pytest-cov` for tests |
 | Desktop app tooling | Electron with `electron-vite`, React and TypeScript for the window; `vitest` for tests; `json-schema-to-typescript` for the shared message types. `electron-builder` and `electron-updater` come in Phase 3. |
-| Concurrency in the engine | `asyncio` throughout: `httpx.AsyncClient` for HTTP; one async rate limiter per service; `asyncio.Semaphore(3)` for AI calls in parallel and `asyncio.wait_for` for the 5-minute limit; `asyncio.create_subprocess_exec` for `codex app-server`, with separate readers for its standard output and standard error; an async reader on standard input, so `cancel` is read during a run. Calculation modules are plain functions, run with `asyncio.to_thread`. |
+| Concurrency in the engine | `asyncio` throughout: `httpx.AsyncClient` for HTTP; one async rate limiter per service; `asyncio.Semaphore(5)` for AI calls in parallel and `asyncio.wait_for` for the 5-minute limit; `asyncio.create_subprocess_exec` for `codex app-server`, with separate readers for its standard output and standard error; an async reader on standard input, so `cancel` is read during a run. Calculation modules are plain functions, run with `asyncio.to_thread`. |
 | Trading calendar | The NYSE calendar (`XNYS`) from the `exchange_calendars` package, in US Eastern time |
 | Where keys are stored | macOS Keychain, through Python's `keyring` package, under the service name `Tearsheet` |
 | App data folder | `~/Library/Application Support/Tearsheet/` (database, raw-data folder, logs) |
@@ -1135,7 +1135,7 @@ Goal: test the five assumptions in the Technical Plan roadmap before building th
     *   **Keys:** reads and writes keys in the Keychain (`massive`, `fred`, `alphavantage`). Keys are never logged or sent to the window.
     *   **SEC contact string:** `Tearsheet/<version> <email>`, where the email is the `sec_contact_email` setting that each user enters once. No email is built in.
     *   **AI tools:** the program paths and PATH passed in by the app (`TEARSHEET_CLAUDE_BIN`, `TEARSHEET_CODEX_BIN`, `TEARSHEET_PATH`; item 37). In terminal mode, the programs are looked up on PATH. The `primary_tool` setting (item 8).
-    *   **Run limits:** the call budget (50), calls in parallel (3), the per-call time limit (5 minutes) and the model for each step: on Claude Code, Haiku for extraction and Sonnet for narration and the skeptic; Codex's models come from the Phase 0 results.
+    *   **Run limits:** the call budget (60), calls in parallel (5), the per-call time limit (5 minutes) and the model for each step: on Claude Code, Haiku for extraction and Sonnet for narration and the skeptic; Codex's models come from the Phase 0 results.
     *   **Other settings:** the raw-data cap (5 GB), `goal1_round` (item 36), and the values recorded in `docs/phase0-results.md` (item 12).
 
 #### 4. `engine/src/tearsheet/http.py` (Create)
@@ -1231,8 +1231,8 @@ Goal: test the five assumptions in the Technical Plan roadmap before building th
 *   **Proposed Changes:**
     *   **Interface:** `structured(task, instructions, sources, schema, allow_web_search=False) -> validated object`. `sources` is the list of paragraphs (ID and text) the call may cite.
     *   **Which AI tool:** chosen at the start of the run: the `--tool` flag or the `run_report` field, otherwise the `primary_tool` setting, otherwise Claude Code if it is connected, otherwise Codex. "Connected" means the program was found and passed the lock-down check for its current version. The tool is stored on the run, and Resume uses the same tool. There is no automatic switch when a tool hits its usage limit.
-    *   **Run limits:** at most 3 calls at a time, and the time limit on each.
-    *   **Call budget:** every call sent counts against the run's 50, including retries and each part of a split section. The automatic lock-down check is logged but not counted. A call that would be the 51st raises `AIBudgetExhausted` instead of being sent (item 34).
+    *   **Run limits:** at most 5 calls at a time, and the time limit on each.
+    *   **Call budget:** every call sent counts against the run's 60, including retries and each part of a split section. The automatic lock-down check is logged but not counted. A call that would be the 61st raises `AIBudgetExhausted` instead of being sent (item 34).
     *   **Retries:** a temporary error or a time-out is retried once after 30 seconds. An answer that doesn't match the schema is retried once, straight away. Usage-limit, sign-in and tool-use errors are never retried.
     *   **What every call records:** tool, program version, model ID, prompt version, token counts if reported, and duration.
     *   **Treated as failures:** any attempt at tool use (except web search on a call with `allow_web_search=True`), and output that doesn't match the schema after one retry.
@@ -1405,8 +1405,8 @@ Goal: test the five assumptions in the Technical Plan roadmap before building th
         *   edgartools reads only from stored documents and makes no requests of its own;
         *   the re-download rule: a second run on the same day makes no requests for company facts or stored filing documents.
     *   **`test_ai_client.py`,** with the fake connector:
-        *   the call budget, counting retries, and `AIBudgetExhausted` before a 51st call;
-        *   no more than 3 calls at a time, and the time limit;
+        *   the call budget, counting retries, and `AIBudgetExhausted` before a 61st call;
+        *   no more than 5 calls at a time, and the time limit;
         *   the schema retry, and no retry for usage-limit and sign-in errors;
         *   the lock-down gate: a changed version or a tool-use attempt holds new calls until the short check passes, and a failed check blocks the tool;
         *   the error table on the recorded fixtures, and an unknown error becoming `AIUnavailable`.
@@ -1532,7 +1532,7 @@ Phase 1 runs in three parts:
 *   **Proposed Changes:**
     *   **From Massive:** unadjusted daily bars and dividends per ticker, and splits for the whole market by date range, at the endpoints recorded in the Phase 0 results.
     *   **Storage:** keyed by company and share class, with the source on each row. A first run fetches 14 months for the company and each peer, and 2 years for SPY; after that, only new days.
-    *   **Backfill** (only if the free plan includes the all-stocks daily summary): `tearsheet-engine prices-backfill`, and in the app, a background job started when the app opens while the backfill is unfinished. It fills 14 months for every S&P 500 member, one summary call per trading day. Before each call it checks whether a report or grading job is running, and if one is, it waits. After the backfill, each run tops up missing days with one summary call per day.
+    *   **Backfill** (only if the free plan includes the all-stocks daily summary): `tearsheet-engine prices-backfill`, and in the app, a background job started when the app opens while the backfill is unfinished. It fills 14 months for every S&P 500 member, one summary call per trading day. Before each call it checks whether a report or grading job is running, and if one is, it waits. After the backfill, each run tops up missing days with one summary call per day. The backfill starts a company only on the window's first session, so a company whose ticker began trading later (a spin-off or a rename: 7 on 7 Nov 2026) has no closes after it. The open app then gives each of those its own first fill, the same calls a report would make, waiting at the same check before each call, once per trading session (at most 25 companies; more means the backfill hasn't covered the index). This way a report never waits a minute at 5 calls a minute to fill a peer.
     *   **Total return:** computed from unadjusted closes, splits and dividends, with each dividend reinvested at the close on its ex-dividend date.
     *   **Staleness:** prices are current when the latest stored close is from the last completed NYSE session before the run time, or the session before it. A session counts as completed once Massive's close delay (from the Phase 0 results) has passed. If the company or SPY is stale, the run withholds sections 1–3 and the trigger prices (CUJ 5). A stale peer is left out of that run's peer group.
     *   **Split check:** a one-day move larger than 40% is checked against stored splits and XBRL share counts, and flagged if unexplained.
@@ -1707,6 +1707,7 @@ Phase 1 runs in three parts:
     *   **Section size:** a section larger than 60,000 tokens is split at sub-headings, with one paragraph of overlap. Tokens are estimated at 4 characters per token.
     *   **Saved evidence:** stored under `cache_key = accession or article ID + section + parser version + prompt version + extraction model ID`. `reread_filing` deletes that filing's entries.
     *   **Checks on the answer:** every cited paragraph ID must exist in that source, and each `QuotedValue` goes through the quote check (item 33). Items that fail are dropped and counted.
+    *   **Miscopied IDs:** when more than half of an answer's items and quotes cite a paragraph that isn't in the source, that part is asked for once more (a call on the budget), and a few of the bad IDs are logged. The AI sometimes miscopies the IDs all through one answer: on 7 Nov 2026 Meta's 10-K Item 7 kept 0 of 21 items, and the same read asked again was clean. If the second answer is just as bad, the one that kept more is used and nothing is saved, so the next run reads the section again. A saved answer like that is not reused either. The check itself doesn't change.
 
 #### 30. `engine/src/tearsheet/ai/prompts/extract.md`, `narrate.md`, `skeptic.md`, `news_search.md` (Create)
 
@@ -1788,6 +1789,7 @@ Phase 1 runs in three parts:
 *   **Proposed Changes:**
     *   **Steps:** runs the 14 steps in the Technical Plan §3 order and sends a `progress` notification as each step starts and ends.
     *   **Saved steps:** each step's output is saved in `step_outputs`, so `resume` continues from the last saved step.
+    *   **Overlap (7 Nov 2026):** step 9's link search starts right after step 1. Step 2 downloads the company's own filings first, and step 10's reads of them start at once, while the prices, the peers' facts, FRED and the Form 4s download; each peer's filing is read as soon as it arrives. The reads wait for one of the 5 slots, and a read is sent only when its slot is free, so a cancel or a usage limit stops the queued ones before they send anything. Step 10 takes their answers, and any error, in the sources' order, so the evidence, the dropped sources and the notes are the same as when every read ran in step 10, and a usage limit an early read met is reported at step 10. A run that ends before step 10 stops its unfinished reads.
     *   **AI call plan** (models from `config.py`; "larger" is Sonnet on Claude Code, "smaller" is Haiku):
 
         | Step | First report | Repeat report | Input | Model |
@@ -1800,7 +1802,7 @@ Phase 1 runs in three parts:
         | 13. Skeptic | 6 | 6 | one section's claims, paragraphs and evidence, and the rating | Larger |
         | 13. Rewrite and re-check | 0–12 | 0–12 | one section plus its removals | Larger |
 
-    *   **Call budget:** after the link search, the engine projects the run's calls: 1 + the uncached filing, press-release and peer sections (counting each part of a split section) + the articles to read + 12 (narration and the skeptic) + 4 (room for two rewrites). If the projection is over 50, it reads fewer articles, down to 5. If it is still over, the run allows no rewrites. The cuts are recorded. If a call would still be the 51st, `AIBudgetExhausted` stops the AI steps, and the report is saved as "narrative incomplete," listing what is missing.
+    *   **Call budget:** after the link search, the engine projects the run's calls: 1 + the uncached filing, press-release and peer sections (counting each part of a split section) + the articles to read + 12 (narration and the skeptic) + 12 (room for a rewrite and its re-check in every section; runs needed up to 5). If the projection is over 60, it reads fewer articles, down to 5. If it is still over, the run allows no rewrites. The cuts are recorded in the report and in `runs.cuts_json`. If a call would still be the 61st, `AIBudgetExhausted` stops the AI steps, and the report is saved as "narrative incomplete," listing what is missing.
     *   **Failures:** handled as in the §3 failure table.
         *   The official prediction is saved when step 8 finishes. If a later step fails, the report is marked "narrative incomplete."
         *   In a step with many calls, a call that still fails after its retry drops only its source or section, which the report lists. The step goes on.

@@ -41,8 +41,10 @@ from tearsheet.protocol import (
     Progress,
     ReportReady,
     RunFailedNote,
+    RunTally,
     SafetyDone,
     SafetyProgress,
+    Tally,
 )
 from tearsheet.rawstore import RawStore
 
@@ -381,6 +383,7 @@ class Server:
                 if result is None:
                     return None  # it stopped; it tries again next time the app opens
             await self._keep_current(wanted)
+            await self._fill_one_by_one(wanted)
             if self.keep_current_every_s is None:
                 return result
             await asyncio.sleep(self.keep_current_every_s)
@@ -410,6 +413,47 @@ class Server:
             return
         except Exception as exc:  # noqa: BLE001 - the next check, or the next report, tries again
             log.warning("price top-up stopped: %s", exc)
+
+    async def _fill_one_by_one(self, wanted: dict[str, tuple[int, str]]) -> None:
+        """After the backfill, the index's companies it couldn't start (their ticker began
+        trading inside the window) get their own first fill, as a report would give them, so
+        no report waits for it. Each is tried once a session; it waits while a report runs."""
+        from tearsheet.data import market
+        from tearsheet.data.membership import stored_or_bundled
+        from tearsheet.data.prices import PriceStore, last_completed_session
+
+        settings = config.Settings(self.db.conn)
+        if not market.backfill_done(settings, wanted):
+            return
+        store = PriceStore(self.db.conn)
+        end = last_completed_session(self.now())
+        members = market.to_fill_one_by_one(
+            settings, store, stored_or_bundled(self.db.conn), end=end
+        )
+        if not members:
+            return
+        try:
+            await self._backfill_gate()
+            market.record_one_by_one(settings, members, end=end)
+            async with self.http_factory(
+                f"prices-{self.now():%Y%m%dT%H%M%SZ}", self.db.conn, self.rawstore
+            ) as http:
+                await market.fill_one_by_one(
+                    http,
+                    self.rawstore,
+                    self.db.conn,
+                    store,
+                    members,
+                    end=end,
+                    gate=self._backfill_gate,
+                )
+            log.info("filled %d companies' prices one by one", len(members))
+        except asyncio.CancelledError:
+            raise
+        except market.SwitchedOff:
+            return
+        except Exception as exc:  # noqa: BLE001 - a report fills them itself if it needs them
+            log.warning("one-by-one price fill stopped: %s", exc)
 
     def _others_running(self) -> bool:
         return self._busy() or self._grading() or self._downloading() or self._safety_running()
@@ -626,6 +670,14 @@ class Server:
 
         return send
 
+    def _tally(self, run_id: str):
+        """The run's live counts, for the app's progress screen (protocol Tally)."""
+
+        def send(tally: dict[str, Any]) -> None:
+            self.notify("run_tally", RunTally(run_id=run_id, tally=Tally(**tally)))
+
+        return send
+
     async def _job(
         self,
         run_id: str,
@@ -754,6 +806,7 @@ class Server:
                 now=now,
                 out_dir=None,
                 progress=self._progress(run_id),
+                tally=self._tally(run_id),
                 run_id=run_id,
                 rawstore=self.rawstore,
                 checker=checker,
@@ -790,6 +843,7 @@ class Server:
                 out_dir=None,
                 progress=self._progress(p.run_id),
                 checker=checker,
+                tally=self._tally(p.run_id),
             )
         except ReplayError as exc:
             raise EngineError("NOT_RESUMABLE", str(exc)) from exc

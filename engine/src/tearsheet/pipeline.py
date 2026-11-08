@@ -39,7 +39,7 @@ from tearsheet.data import sec as sec_data
 from tearsheet.data.analyst import consensus
 from tearsheet.data.articles import Allowlist, Skipped
 from tearsheet.data.prices import SPY_CIK, PriceStore, last_completed_session
-from tearsheet.extract import Extracted, extract_section
+from tearsheet.extract import Extracted, extract_section, planned_calls
 from tearsheet.flags import insider_buying_note, red_flags
 from tearsheet.methodology import Methodology
 from tearsheet.metrics import Metric, compute_metrics, inputs_from, tax_rate
@@ -96,6 +96,15 @@ STEPS = (
     "save",
 )
 STOPPING = (AIUsageLimit, AIAuthError, AILockdownFailed)
+
+
+async def _settled(value: Any) -> Any:
+    """A finished read's answer, or its error raised again (for `Run._ai_call` in step 10)."""
+    if isinstance(value, BaseException):
+        raise value
+    return value
+
+
 # Which `_parallel` job is running, so the notes it adds can be put back in the jobs' order.
 _JOB: contextvars.ContextVar[int | None] = contextvars.ContextVar("tearsheet_job", default=None)
 # The order the score table lists factors in (weights.yaml's order).
@@ -173,6 +182,40 @@ FULL_SECTIONS = (
 )
 ARTICLE_CAP = 15
 ARTICLE_FLOOR = 5
+# The sections' titles as the report prints them, for the app's live progress.
+SECTION_TITLES = {
+    SectionKey.BUSINESS: "The business",
+    SectionKey.RISKS: "Risks",
+    SectionKey.RESULTS: "Recent results",
+    SectionKey.NEWS: "News and views",
+    SectionKey.TRENDS: "Industry trends",
+    SectionKey.WATCH: "What to watch",
+}
+# The usual step times the app paces its progress by come from this many recent finished runs.
+TYPICAL_RUNS = 5
+
+
+def typical_seconds(conn: sqlite3.Connection, runs: int = TYPICAL_RUNS) -> dict[str, float] | None:
+    """Each step's usual time in seconds: the median over the last few finished full-method
+    runs that recorded their timings, or None before the first one."""
+    rows = conn.execute(
+        "SELECT so.json FROM step_outputs so JOIN runs r ON r.run_id = so.run_id"
+        " WHERE so.step = 'timings' AND r.mode = 'full' AND r.status = 'done'"
+        " ORDER BY r.started_at DESC LIMIT ?",
+        (runs,),
+    ).fetchall()
+    times: dict[str, list[float]] = {}
+    for (text,) in rows:
+        try:
+            steps = json.loads(text).get("steps") or {}
+        except (ValueError, AttributeError):
+            continue
+        for step, seconds in steps.items():
+            if step in STEPS and isinstance(seconds, int | float):
+                times.setdefault(step, []).append(float(seconds))
+    if not times:
+        return None
+    return {step: round(statistics.median(v), 1) for step, v in times.items()}
 
 
 class RunCancelled(Exception):
@@ -296,6 +339,7 @@ class Run:
         checker: AIClient | None = None,
         log_predictions: bool = False,
         backup_dir: Path | None = None,
+        tally: Callable[[dict[str, Any]], None] | None = None,
     ):
         if mode not in ("slice", "full"):
             raise ValueError("mode is 'slice' (Phase 1a) or 'full' (Phase 1b's code steps)")
@@ -325,6 +369,9 @@ class Run:
         self.today = self.now.astimezone(UTC).date()
         self.out_dir = out_dir
         self.progress = progress or (lambda step, state: None)
+        # The run's live counts for the app (protocol Tally); each change sends the whole tally.
+        self.tally: dict[str, Any] = {}
+        self.on_tally = tally or (lambda tally: None)
         self.run_id = run_id or new_run_id(self.now)
         self.rawstore = rawstore
         self.sources = SLICE_SOURCES if mode == "slice" else FULL_SOURCES
@@ -333,6 +380,8 @@ class Run:
         self.articles: list[tuple[Any, Any]] = []  # (Article, Link)
         self.article_urls: dict[str, str] = {}
         self.cuts: list[str] = []
+        # The call budget's last cut (Technical Plan §3): no section rewrites.
+        self.rewrites_cut = False
         self.trend_sources: list[tuple[str, str, str, tuple[SectionKey, ...]]] = []
         self.press_sources: list[tuple[str, str, str, tuple[SectionKey, ...]]] = []
         self.peer_docs: list[Doc] = []
@@ -346,6 +395,19 @@ class Run:
         self.dropped: list[str] = []
         # Step 9's link search, started right after step 1 (`_start_link_search`).
         self._link_search: asyncio.Task | None = None
+        # Step 10's reads, started as each document arrives (`_read_early`), by
+        # (document role, section key); their answers are taken in order in step 10.
+        self._reads: dict[tuple[str, str], asyncio.Task] = {}
+        self._read_slots: asyncio.Semaphore | None = None
+        # The first usage limit or budget end an early read met: the reads queued behind it
+        # never send anything, and step 10 reports it, as if the reads had run there.
+        self._reads_stop: AIError | None = None
+        # Each filing read's planned calls, counted when it started (the budget's projection).
+        self._planned: dict[tuple[str, str], int] = {}
+        # Documents parsed before step 4 (role → accession, paragraphs, "not available" notes).
+        self._parsed: dict[str, tuple[str, dict[tuple[str, str], list[Paragraph]], list[str]]] = {}
+        self._early_paragraphs: dict[tuple[str, str], list[Paragraph]] = {}
+        self.docs_by_role: dict[str, Doc] = {}
         # A `_parallel` batch's notes and dropped lines, by position, tagged with their job.
         self._note_jobs: dict[int, int] = {}
         self._drop_jobs: dict[int, int] = {}
@@ -420,7 +482,7 @@ class Run:
         self._current = (name, now)
 
     def _timings(self) -> dict[str, Any]:
-        """Seconds per step, and each AI task's calls and summed call seconds (calls run 3 at
+        """Seconds per step, and each AI task's calls and summed call seconds (calls run 5 at
         a time, so these can add up to more than the step's own time)."""
         self._mark("end")
         ai: dict[str, dict[str, float]] = {}
@@ -440,7 +502,7 @@ class Run:
         model_ids = sorted({r.model_id for c in clients for r in c.calls if r.model_id})
         with self.conn:
             self.conn.execute(
-                "UPDATE runs SET status = ?, ended_at = ?, failed_step = ?, ai_calls = ?, model_ids_json = ?, request_counts_json = ?, cik = ? WHERE run_id = ?",
+                "UPDATE runs SET status = ?, ended_at = ?, failed_step = ?, ai_calls = ?, model_ids_json = ?, request_counts_json = ?, cuts_json = ?, cik = ? WHERE run_id = ?",
                 (
                     status,
                     _now().isoformat(),
@@ -448,6 +510,7 @@ class Run:
                     calls,
                     json.dumps(model_ids),
                     json.dumps(self.data.request_counts()),
+                    json.dumps(self.cuts) if self.cuts else None,
                     self.cik,
                     self.run_id,
                 ),
@@ -464,6 +527,19 @@ class Run:
             raise RunCancelled(name)
         self._mark(name)
         self.progress(name, "started")
+
+    def _tally(self, **changes: Any) -> None:
+        """Some live counts changed: send the whole tally (lists copied, so a later change
+        can't alter a note already sent)."""
+        self.tally.update(changes)
+        self.on_tally({k: list(v) if isinstance(v, list) else v for k, v in self.tally.items()})
+
+    def _bump(self, key: str, by: int = 1) -> int:
+        return self.tally.get(key, 0) + by
+
+    @staticmethod
+    def _tool_name(client: AIClient | None) -> str | None:
+        return getattr(getattr(client, "connector", None), "display_name", None)
 
     def cancel(self) -> None:
         """Ask the run to stop at the next step or AI call."""
@@ -486,6 +562,12 @@ class Run:
             self.method.store_copies(self.rawstore, self.run_id)
         step = "resolve"
         try:
+            self._tally(
+                typical=typical_seconds(self.conn),
+                writer=self._tool_name(self.ai),
+                checker=self._tool_name(self.checker),
+                parallel=config.AI_CALLS_IN_PARALLEL,
+            )
             step = "resolve"
             self._step(step)
             resolved, group = await self.resolve(query)
@@ -540,6 +622,7 @@ class Run:
             step = "score"
             self._step(step)
             score = self.score()
+            self._tally(score=score.composite.get(self.cik))
             self._save_step(
                 step, {"composite": score.composite.get(self.cik), "scaling": score.scaling.note}
             )
@@ -559,6 +642,7 @@ class Run:
             self._step(step)
             rating, rng, level, mix = self.rate(score)
             self.rated = (rating, rng)
+            self._tally(rating=rating.rating)
             self._log_prediction(resolved, docs, score, rating, rng, level)
             self._save_step(
                 step,
@@ -570,7 +654,7 @@ class Run:
             )
             step = "news"
             self._step(step)
-            news_paragraphs = await self.news(resolved)
+            news_paragraphs = await self.news(resolved, paragraphs)
             paragraphs.update(news_paragraphs)
             if self.press_sources:
                 self.empty_sections.discard(SectionKey.NEWS)
@@ -596,7 +680,7 @@ class Run:
             step = "render"
             self._step(step)
             step = "verify"
-            self._mark(step)
+            self._step(step)
             claims, removed, split = await self.verify(drafts, paragraphs, resolved)
             self._save_step(
                 step, {"kept": sum(len(v) for v in claims.values()), "removed": len(removed)}
@@ -649,6 +733,7 @@ class Run:
             raise
         finally:
             self._stop_link_search()
+            self._stop_reads()
 
     # --- steps 1-2 --------------------------------------------------------------------------
 
@@ -697,10 +782,35 @@ class Run:
 
     async def fetch(self, resolved: Resolved, group: PeerGroup) -> list[Doc]:
         members = {cik: self.holdings.tickers_of(cik)[0] for cik in group.members}
+        # The company's own filings come first, so step 10 can start reading them while the
+        # prices, the peers' facts and filings, FRED and the Form 4s download.
+        self._tally(companies=len(members), fetching="filings")
+        older = self.predecessors.get(self.cik, ())
+        all_docs = await self.data.filing_documents(
+            self.cik, today=self.today, **({"predecessors": older} if older else {})
+        )
+        docs = all_docs
+        if self.mode == "slice":
+            docs = [d for d in docs if d.role in ("10-K", "10-Q", "10-K prior")]
+        self._tally(filings=len(docs))
+        if self.mode == "full":
+            for doc in docs:
+                if doc.role.startswith("press "):
+                    self.press_sources.append(
+                        (
+                            doc.role,
+                            "Exhibit 99.1",
+                            f"a company press release ({doc.filed:%-d %b %Y})",
+                            (SectionKey.NEWS,),
+                        )
+                    )
+        self._read_early(docs)
+        self._tally(fetching="prices")
         # Top up to the latest session whose close is out, not the UTC date: in New York's
         # evening the UTC date is already tomorrow, and Massive refuses a day that hasn't closed.
         self.price_date = last_completed_session(self.now)
         await self.data.fill_prices(self.store, members, end=self.price_date)
+        self._tally(prices=True, fetching="facts", facts=0)
         stale_company = self.store.is_stale(self.cik, "", self.now)
         stale_spy = self.store.is_stale(SPY_CIK, "", self.now)
         self.withheld = stale_company or stale_spy
@@ -712,7 +822,9 @@ class Run:
             if self.store.is_stale(cik, "", self.now):
                 group = group.leave_out(cik, "missing or stale prices")
         financial_sector = group.sector in ("Financials", "Real Estate")
-        for cik in group.members:
+        for done, cik in enumerate(group.members):
+            if done:
+                self._tally(facts=done)
             member = MemberData(cik, members[cik])
             try:
                 facts = await self.data.company_facts(cik)
@@ -742,34 +854,21 @@ class Run:
                 member.financial_class = financial_class(sic, cik, self.method.peers)
             self.members[cik] = member
         self.group = group
-        older = self.predecessors.get(self.cik, ())
-        docs = await self.data.filing_documents(
-            self.cik, today=self.today, **({"predecessors": older} if older else {})
-        )
-        self._successor_note(docs)
-        if self.mode == "slice":
-            docs = [d for d in docs if d.role in ("10-K", "10-Q", "10-K prior")]
+        self._tally(facts=len(members))
+        self._successor_note(all_docs)  # here, so the notes keep their order
         if self.mode == "full":
-            for doc in docs:
-                if doc.role.startswith("press "):
-                    self.press_sources.append(
-                        (
-                            doc.role,
-                            "Exhibit 99.1",
-                            f"a company press release ({doc.filed:%-d %b %Y})",
-                            (SectionKey.NEWS,),
-                        )
-                    )
             peer_documents = getattr(self.data, "peer_documents", None)
             if peer_documents is not None and group.trend_peers:
                 linked = {
                     c: self.predecessors[c] for c in group.trend_peers if c in self.predecessors
                 }
+                self._tally(fetching="peer filings")
                 self.peer_docs = await peer_documents(
                     group.trend_peers,
                     today=self.today,
                     **({"predecessors": linked} if linked else {}),
                 )
+                self._tally(filings=len(docs) + len(self.peer_docs))
                 for doc in self.peer_docs:
                     cik = int(doc.role.split()[1])
                     name = self.holdings.name_of(cik) if self.holdings.has(cik) else str(cik)
@@ -781,19 +880,24 @@ class Run:
                             (SectionKey.TRENDS,),
                         )
                     )
+                self._read_early(self.peer_docs)
             if not self.peer_docs:
                 self.empty_sections.add(SectionKey.TRENDS)
                 self.notes.append("The trends section has no peer filings with these inputs.")
             macro = getattr(self.data, "macro", None)
             if macro is not None:
+                self._tally(fetching="rates")
                 self.macro = await macro(self.today)
+                self._tally(rates=True)
             trades = getattr(self.data, "form4_trades", None)
-            self.insider_note = (
-                insider_buying_note(await trades(self.cik, today=self.today), self.today)
-                if trades
-                else None
-            )
+            self.insider_note = None
+            if trades:
+                self._tally(fetching="insider trades")
+                found = list(await trades(self.cik, today=self.today))
+                self._tally(insider=len(found))
+                self.insider_note = insider_buying_note(found, self.today)
             self.insider_checked = trades is not None
+        self._tally(fetching=None)
         return docs + self.peer_docs
 
     async def _with_predecessors(self, cik: int, facts: dict[str, Any]) -> dict[str, Any]:
@@ -896,20 +1000,34 @@ class Run:
 
     # --- step 4 -----------------------------------------------------------------------------
 
-    def text_layer(self, docs: list[Doc]) -> dict[tuple[str, str], list[Paragraph]]:
+    def _parse(self, doc: Doc) -> tuple[dict[tuple[str, str], list[Paragraph]], list[str]]:
+        """One document's sections as paragraphs, and its "not available" notes; no writes.
+        A document parsed early for step 10 (`_read_early`) is parsed once."""
+        early = self._parsed.get(doc.role)
+        if early is not None and early[0] == doc.accession:
+            return early[1], early[2]
         phrases = self.method.instruction_phrases.get("patterns", [])
+        out: dict[tuple[str, str], list[Paragraph]] = {}
+        notes: list[str] = []
+        sections = filing_sections(doc.body, doc.form, exhibit_13=doc.exhibit_13)
+        for key, section in sections.items():
+            if doc.role.startswith("peer ") and key != "Item 7":
+                continue
+            if not section.available:
+                notes.append(f"{doc.form} {key} is not available in the filing.")
+                continue
+            out[(doc.role, key)] = split_paragraphs(doc.accession, key, section.text, phrases)
+        self._parsed[doc.role] = (doc.accession, out, notes)
+        return out, notes
+
+    def text_layer(self, docs: list[Doc]) -> dict[tuple[str, str], list[Paragraph]]:
         out: dict[tuple[str, str], list[Paragraph]] = {}
         self.docs_by_role = {d.role: d for d in docs}
         for doc in docs:
-            sections = filing_sections(doc.body, doc.form, exhibit_13=doc.exhibit_13)
-            for key, section in sections.items():
-                if doc.role.startswith("peer ") and key != "Item 7":
-                    continue
-                if not section.available:
-                    self.notes.append(f"{doc.form} {key} is not available in the filing.")
-                    continue
-                paras = split_paragraphs(doc.accession, key, section.text, phrases)
-                out[(doc.role, key)] = paras
+            parsed, notes = self._parse(doc)
+            self.notes += notes
+            for (role, key), paras in parsed.items():
+                out[(role, key)] = paras
                 with self.conn:
                     self.conn.executemany(
                         "INSERT OR IGNORE INTO paragraphs (id, source_id, section, ordinal, text, parser_version, marked) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -1427,7 +1545,13 @@ class Run:
         """One AI call for `_parallel`: its coroutine is made only when a slot is free."""
         return lambda: self._ai_call(label, make())
 
-    async def _parallel(self, jobs: list[Callable[[], Any]]) -> list[Any]:
+    async def _parallel(
+        self,
+        jobs: list[Callable[[], Any]],
+        *,
+        count: str | None = None,
+        names: list[str] | None = None,
+    ) -> list[Any]:
         """Run AI jobs at most `config.AI_CALLS_IN_PARALLEL` at a time (Technical Plan §3) and
         return their results in the jobs' order.
 
@@ -1435,14 +1559,29 @@ class Run:
         ones before they send anything. The notes and dropped-source lines the jobs add are
         put in the jobs' order, so a report reads the same whatever finished first. (Which
         calls got in before a usage limit or the end of the budget still depends on timing,
-        as it must.) A cancel, or an unexpected error, is raised once every job has settled."""
+        as it must.) A cancel, or an unexpected error, is raised once every job has settled.
+
+        With `count` ("reads", "sections" or "checks") and the jobs' `names`, the live tally
+        counts the jobs done out of all, and `now` names the ones under way."""
         slots = asyncio.Semaphore(config.AI_CALLS_IN_PARALLEL)
         notes_before, dropped_before = len(self.notes), len(self.dropped)
+        if count is not None:
+            self._tally(**{f"{count}_total": len(jobs), f"{count}_done": 0}, now=[])
 
         async def one(index: int, make: Callable[[], Any]) -> Any:
             _JOB.set(index)  # this task's own context: the notes it adds are tagged with it
             async with slots:
-                return await make()
+                if count is None or names is None:
+                    return await make()
+                name = names[index]
+                self._tally(now=[*self.tally.get("now", []), name])
+                try:
+                    return await make()
+                finally:
+                    now = list(self.tally.get("now", []))
+                    if name in now:
+                        now.remove(name)
+                    self._tally(now=now, **{f"{count}_done": self._bump(f"{count}_done")})
 
         results = await asyncio.gather(
             *(one(i, make) for i, make in enumerate(jobs)), return_exceptions=True
@@ -1467,32 +1606,19 @@ class Run:
     async def extract(
         self, paragraphs: dict[tuple[str, str], list[Paragraph]]
     ) -> dict[SectionKey, list[EvidenceItem]]:
+        """Step 10. One read per source, 5 at a time; the filings' reads mostly started while
+        the rest downloaded (`_read_early`), and the articles' start here. Their answers, and
+        any error, are taken in the sources' order, so the evidence, the dropped sources and
+        the notes read the same whatever finished first, and a usage limit an early read met
+        is reported here, at step 10."""
         evidence: dict[SectionKey, list[EvidenceItem]] = {s: [] for s in self.sections}
         if self.ai is None:
             self.notes.append("No AI tool was used, so the narrative sections are empty.")
             return evidence
-        # One call per source, 3 at a time (`_parallel`); the evidence is added in the sources'
-        # order, so it reads the same whatever finished first.
-        jobs = []
+        reads: list[tuple[str, asyncio.Task]] = []
         uses: list[tuple[str, tuple[SectionKey, ...]]] = []
-        for role, key, label, feeds in [*self.sources, *self.trend_sources, *self.press_sources]:
-            paras = paragraphs.get((role, key))
-            doc = self.docs_by_role.get(role)
-            if not paras or doc is None:
-                continue
-            jobs.append(
-                self._job(
-                    label,
-                    lambda doc=doc, key=key, paras=paras, label=label: extract_section(
-                        self.ai,
-                        self.conn,
-                        source_id=doc.accession,
-                        section=key,
-                        paragraphs=paras,
-                        label=label,
-                    ),
-                )
-            )
+        for role, key, label, feeds, doc, paras in self._filing_reads(paragraphs):
+            reads.append((label, self._filing_read(role, key, label, doc, paras)))
             uses.append((role, feeds))
         # Articles: one call each, and their evidence reaches section 7 only.
         for article, link in self.articles:
@@ -1500,23 +1626,29 @@ class Run:
             paras = paragraphs.get(("article", source_id), [])
             if not paras:
                 continue
-            jobs.append(
-                self._job(
+            label = f"an article, {link.title!r} ({link.publisher}, {article.published:%-d %b %Y})"
+            reads.append(
+                (
                     f"article {article.url}",
-                    lambda source_id=source_id, paras=paras, article=article, link=link: (
-                        extract_section(
+                    self._read(
+                        ("article", source_id),
+                        f"{link.publisher}: {link.title}",
+                        lambda source_id=source_id, paras=paras, label=label: extract_section(
                             self.ai,
                             self.conn,
                             source_id=source_id,
                             section="article",
                             paragraphs=paras,
-                            label=f"an article, {link.title!r} ({link.publisher}, {article.published:%-d %b %Y})",
-                        )
+                            label=label,
+                        ),
                     ),
                 )
             )
             uses.append(("article", (SectionKey.NEWS,)))
-        results: list[Extracted | None] = await self._parallel(jobs)
+        settled = await asyncio.gather(*(task for _, task in reads), return_exceptions=True)
+        results: list[Extracted | None] = []
+        for (label, _), value in zip(reads, settled, strict=True):
+            results.append(await self._ai_call(label, _settled(value)))
         for (role, feeds), result in zip(uses, results, strict=True):
             if result is None:
                 continue
@@ -1528,6 +1660,117 @@ class Run:
                     items = [i for i in items if i.type == "trend"]
                 evidence[feed] += items
         return evidence
+
+    def _read_early(self, docs: list[Doc]) -> None:
+        """Parse these documents now and start step 10's reads of their sections, so the
+        reads run while the rest of step 2 downloads. Their answers are taken in step 10."""
+        if self.ai is None or not docs:
+            return
+        for doc in docs:
+            self.docs_by_role[doc.role] = doc
+            self._early_paragraphs.update(self._parse(doc)[0])
+        for role, key, label, _, doc, paras in self._filing_reads(self._early_paragraphs):
+            self._filing_read(role, key, label, doc, paras)
+
+    def _filing_read(self, role: str, key: str, label: str, doc: Doc, paras) -> asyncio.Task:
+        """The read of one filing section, started now unless it already was."""
+        if (role, key) not in self._reads:
+            # Counted before it starts, when any answer it saves isn't there yet.
+            self._planned[(role, key)] = planned_calls(
+                self.ai, self.conn, source_id=doc.accession, section=key, paragraphs=paras
+            )
+        return self._read(
+            (role, key),
+            label[:1].upper() + label[1:],
+            lambda: extract_section(
+                self.ai,
+                self.conn,
+                source_id=doc.accession,
+                section=key,
+                paragraphs=paras,
+                label=label,
+            ),
+        )
+
+    def _read(self, key: tuple[str, str], name: str, make: Callable[[], Any]) -> asyncio.Task:
+        """One of step 10's reads, as a task that waits for one of its 5 slots. The read is
+        made only when a slot is free, so a cancel, or a usage limit or the end of the budget
+        met by an earlier read, stops it before it sends anything. The live tally counts the
+        reads done out of all started, names the ones under way (`name`) and counts the
+        evidence they find, wherever in the run they start."""
+        task = self._reads.get(key)
+        if task is not None:
+            return task
+        first = self._read_slots is None
+        if self._read_slots is None:
+            self._read_slots = asyncio.Semaphore(config.AI_CALLS_IN_PARALLEL)
+        slots = self._read_slots
+
+        async def one():
+            async with slots:
+                sent, result = False, None
+                try:
+                    if self.cancel_requested:
+                        raise RunCancelled("extract")
+                    if self._reads_stop is not None:
+                        raise self._reads_stop
+                    if self.ai is None or self.ai_stopped:
+                        return None  # step 10 makes nothing of it: the AI steps had stopped
+                    sent = True
+                    self._tally(now=[*self.tally.get("now", []), name])
+                    result = await make()
+                    return result
+                except (*STOPPING, AIBudgetExhausted) as exc:
+                    if self._reads_stop is None:
+                        self._reads_stop = exc
+                    raise
+                finally:
+                    now = list(self.tally.get("now", []))
+                    if sent and name in now:
+                        now.remove(name)
+                    changes: dict[str, Any] = {"now": now, "reads_done": self._bump("reads_done")}
+                    if result is not None:
+                        changes["evidence"] = self._bump("evidence", len(result.items))
+                    self._tally(**changes)
+
+        task = asyncio.create_task(one())
+        self._reads[key] = task
+        if first:
+            self._tally(reads_done=0, reads_total=1, evidence=0, now=[])
+        else:
+            self._tally(reads_total=len(self._reads))
+        return task
+
+    def _stop_reads(self) -> None:
+        """A run that ends before step 10 takes its reads' answers stops the unfinished ones."""
+        reads, self._reads = self._reads, {}
+        for task in reads.values():
+            if not task.done():
+                task.cancel()
+            elif not task.cancelled():
+                task.exception()  # read, so asyncio doesn't warn that nobody did
+
+    def _filing_reads(self, paragraphs: dict[tuple[str, str], list[Paragraph]]):
+        """The filing sections step 10 reads, in order: (role, key, label, feeds, doc, paras)."""
+        for role, key, label, feeds in [*self.sources, *self.trend_sources, *self.press_sources]:
+            paras = paragraphs.get((role, key))
+            doc = self.docs_by_role.get(role)
+            if paras and doc is not None:
+                yield role, key, label, feeds, doc, paras
+
+    def _planned_reads(self, paragraphs: dict[tuple[str, str], list[Paragraph]]) -> int:
+        """The filing reads still to make: saved ones cost nothing, a split section one call
+        per part."""
+        if self.ai is None:
+            return 0
+        return sum(
+            self._planned[(role, key)]
+            if (role, key) in self._planned
+            else planned_calls(
+                self.ai, self.conn, source_id=doc.accession, section=key, paragraphs=paras
+            )
+            for role, key, _, _, doc, paras in self._filing_reads(paragraphs)
+        )
 
     def _search_links(self, resolved: Resolved, allowlist: Allowlist):
         prompt = load_prompt("news_search")
@@ -1570,7 +1813,9 @@ class Run:
         elif not task.cancelled():
             task.exception()  # read, so asyncio doesn't warn that nobody did
 
-    async def news(self, resolved: Resolved) -> dict[tuple[str, str], list[Paragraph]]:
+    async def news(
+        self, resolved: Resolved, paragraphs: dict[tuple[str, str], list[Paragraph]]
+    ) -> dict[tuple[str, str], list[Paragraph]]:
         """Step 9: the AI suggests links from allowlisted sites (web search only); code
         downloads and saves each page (Technical Plan §9)."""
         out: dict[tuple[str, str], list[Paragraph]] = {}
@@ -1590,16 +1835,24 @@ class Run:
         if found is None:
             self.empty_sections.add(SectionKey.NEWS)
             return out
-        # The call budget: fewer articles first, down to 5 (Technical Plan §3).
-        room = config.CALL_BUDGET - (1 + len(self.sources) + 2 * len(self.sections) + 4)
-        cap = min(ARTICLE_CAP, max(ARTICLE_FLOOR, room))
+        # The call budget (Technical Plan §3). The projection: this link search, every filing
+        # read still to make, the articles, and for every section its draft, its check and
+        # room for one rewrite with its re-check. Over the budget, fewer articles are read,
+        # down to 5; still over, no section is rewritten.
+        fixed = 1 + self._planned_reads(paragraphs) + 2 * len(self.sections)
+        rewrites = 2 * len(self.sections)
+        cap = min(ARTICLE_CAP, max(ARTICLE_FLOOR, config.CALL_BUDGET - fixed - rewrites))
         links = found.kept[:cap]
         if len(found.kept) > cap:
             self.cuts.append(
                 f"read {cap} of {len(found.kept)} articles to stay within the call budget"
             )
+        if fixed + len(links) + rewrites > config.CALL_BUDGET:
+            self.rewrites_cut = True
+            self.cuts.append("no section rewrites, to stay within the call budget")
         phrases = [re.compile(x, re.I) for x in self.method.instruction_phrases.get("patterns", [])]
         skipped: dict[str, int] = {}
+        self._tally(articles=0)
         for link in links:
             got = await fetch(link.url, allowlist)
             if isinstance(got, Skipped):
@@ -1627,6 +1880,7 @@ class Run:
             ]
             out[("article", source_id)] = paras
             self.articles.append((got, link))
+            self._tally(articles=len(self.articles))
             self.article_urls[source_id] = got.url
             with self.conn:
                 self.conn.execute(
@@ -1729,9 +1983,11 @@ class Run:
                 )
             )
             keys.append(section)
-        # Each section is written from its own sources, so they go 3 at a time; the drafts
+        # Each section is written from its own sources, so they go 5 at a time; the drafts
         # keep the sections' order.
-        for section, draft in zip(keys, await self._parallel(jobs), strict=True):
+        names = [SECTION_TITLES.get(s, s.value) for s in keys]
+        done = await self._parallel(jobs, count="sections", names=names)
+        for section, draft in zip(keys, done, strict=True):
             if draft is not None:
                 drafts[section] = draft
         return drafts
@@ -1839,16 +2095,24 @@ class Run:
         split: dict[str, int] = {}
         full = self.mode == "full" and self.ai is not None
         order = list(drafts.items())
-        # Each section's checks, skeptic and rewrite form one chain; the chains go 3 at a time
+        # Each section's checks, skeptic and rewrite form one chain; the chains go 5 at a time
         # and are put together in the sections' order.
-        jobs = [
-            lambda section=section, draft=draft: self._verify_section(
-                section, draft, drafts, guard, by_id, full=full
+        self._tally(claims_kept=0, claims_removed=0)
+
+        async def chain(section: SectionKey, draft: Draft):
+            out = await self._verify_section(section, draft, drafts, guard, by_id, full=full)
+            self._tally(
+                claims_kept=self._bump("claims_kept", len(out[0])),
+                claims_removed=self._bump("claims_removed", len(out[1])),
             )
-            for section, draft in order
+            return out
+
+        jobs = [
+            lambda section=section, draft=draft: chain(section, draft) for section, draft in order
         ]
+        names = [SECTION_TITLES.get(s, s.value) for s, _ in order]
         for (section, _), (section_kept, section_removed, section_split) in zip(
-            order, await self._parallel(jobs), strict=True
+            order, await self._parallel(jobs, count="checks", names=names), strict=True
         ):
             kept[section] = section_kept
             removed += section_removed
@@ -1874,7 +2138,11 @@ class Run:
             result = decide(claims, skeptic={}, rewrites_allowed=False)
             return result.kept, result.removed, result.direction_split
         marks = await self._skeptic(section, claims, by_id)
-        result = decide(claims, skeptic=marks, rewrites_allowed=self.ai_stopped is None)
+        result = decide(
+            claims,
+            skeptic=marks,
+            rewrites_allowed=self.ai_stopped is None and not self.rewrites_cut,
+        )
         if result.needs_rewrite:
             notes = [f"{c.text} (removed: {'; '.join(c.reasons)})" for c in result.removed]
             notes += [f"{c.text} (tone: {c.note})" for c in result.kept if c.note]
@@ -2300,6 +2568,7 @@ def prepare_resume(
     out_dir: Path | None,
     progress: Callable[[str, str], None] | None = None,
     checker: AIClient | None = None,
+    tally: Callable[[dict[str, Any]], None] | None = None,
 ) -> tuple[Run, str]:
     """Continue a stopped or interrupted run (item 34). Steps 1-8 are re-run from the run's own
     stored inputs, with its stored methodology, so their numbers can't change; the AI steps
@@ -2345,6 +2614,7 @@ def prepare_resume(
         progress=progress,
         run_id=run_id,
         checker=checker,
+        tally=tally,
     )
     return again, resolved["ticker"]
 
