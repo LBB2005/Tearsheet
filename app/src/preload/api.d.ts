@@ -42,6 +42,13 @@ export interface TearsheetApi {
   openExternal(url: string): Promise<boolean>
   find(text: string, forward: boolean): Promise<void>
   stopFind(): Promise<void>
+  // The look picked on Settings → Appearance, for the window itself: its zoom (text size, 0.85 to
+  // 1.3) and its own colour (shown before the page draws and while it resizes). main/look.ts.
+  setLook(look: { zoom: number; background: string }): Promise<boolean>
+  // Theme files, through the Mac's own open and save panels. Open answers with the file's text,
+  // which the window then reads as untrusted (appearance/themeFile.ts).
+  openTheme(): Promise<import('../main/look').OpenedTheme>
+  saveTheme(name: string, text: string): Promise<import('../main/look').SavedTheme>
   onMenu(fn: (c: import('../main/menu').MenuCommand) => void): () => void
   // Newest first; `limit` defaults to the engine's 50. `hidden`: only the reports hidden from
   // the sidebar, for its Hidden group; otherwise those are left out.

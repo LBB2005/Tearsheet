@@ -9,10 +9,12 @@
 // a link in the report opened bigger, with the same switch, width buttons and close button. The
 // state lives in report/useReport.ts.
 
-import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from 'react'
 
 import type { ViewId } from '../../main/navigation'
 import type { ReportSummary } from '../../shared/protocol'
+import { reportCss, withLook } from '../appearance/report'
+import { useAppearance } from '../appearance/store'
 import { ChartPane } from '../chart/ChartPane'
 import { Divider } from '../chart/Divider'
 import { DIV, presetSplit, snapWidth, splitWidth, TEXT_MIN, type Preset, type Snap } from '../chart/split'
@@ -127,6 +129,10 @@ export function Report({ page, wide }: { page: ReportPage; wide: boolean }) {
   const named = report ?? page.listed
   const text = report ? { key: page.textKey, html: report.html } : null
   const texts = useTextFrames(text, error !== null)
+  // The look from Settings → Appearance goes into each frame's page (appearance/report.ts). A new
+  // look loads the frames again; it only changes on the Appearance page, never with a report open.
+  const { resolved } = useAppearance()
+  const look = useMemo(() => reportCss(resolved), [resolved])
 
   // The panel's views. The price chart mounts the first time it shows in an opening and stays
   // mounted, hidden, while another view shows, so switching back keeps it as it was. A view's
@@ -179,7 +185,7 @@ export function Report({ page, wide }: { page: ReportPage; wide: boolean }) {
                   aria-hidden={showing !== 'text' || !asked}
                   title="Report"
                   sandbox=""
-                  srcDoc={f.html}
+                  srcDoc={withLook(f.html, look)}
                   onLoad={asked ? () => texts.loaded(f.key) : undefined}
                 />
               )
@@ -191,7 +197,7 @@ export function Report({ page, wide }: { page: ReportPage; wide: boolean }) {
                 aria-hidden={showing !== 'numbers'}
                 title="Report, numbers"
                 sandbox=""
-                srcDoc={page.numbers.html}
+                srcDoc={withLook(page.numbers.html, look)}
                 onLoad={() => page.setNumbersReady(true)}
               />
             )}

@@ -50,6 +50,9 @@ describe('the calls', () => {
     ['openExternal', ['https://massive.com'], ['tearsheet:openExternal', 'https://massive.com']],
     ['find', ['rev', false], ['tearsheet:find', 'rev', false]],
     ['stopFind', [], ['tearsheet:stopFind']],
+    ['setLook', [{ zoom: 1.1, background: '#0A0D14' }], ['tearsheet:setLook', { zoom: 1.1, background: '#0A0D14' }]],
+    ['openTheme', [], ['tearsheet:openTheme']],
+    ['saveTheme', ['My look', '{}'], ['tearsheet:saveTheme', 'My look', '{}']],
     ['listReports', [], ['tearsheet:call', 'listReports', {}]],
     ['listReports', [500], ['tearsheet:call', 'listReports', { limit: 500 }]],
     ['listReports', [undefined, true], ['tearsheet:call', 'listReports', { hidden: true }]],
@@ -97,6 +100,6 @@ describe('the listeners', () => {
 
 test('the window gets nothing but these calls and listeners', () => {
   expect(Object.keys(api).sort()).toEqual(
-    ['addToLine', 'cancel', 'carryOnLine', 'checkKey', 'clearLine', 'getLine', 'planLine', 'removeFromLine', 'fetchHistory', 'find', 'flagClaim', 'getAnalysts', 'getChart', 'getReport', 'getReportNumbers', 'eraseReports', 'getSettings', 'getTools', 'gradeDue', 'hideReports', 'listCompanies', 'listPredictions', 'listReports', 'onFlagRequested', 'onMenu', 'onNotification', 'onOpenView', 'openExternal', 'openTerminal', 'pinCompany', 'rereadFiling', 'resume', 'runReport', 'runSafetyCheck', 'searchCompanies', 'setKey', 'setSetting', 'showReports', 'stopFind'].sort()
+    ['addToLine', 'cancel', 'carryOnLine', 'checkKey', 'clearLine', 'getLine', 'planLine', 'removeFromLine', 'fetchHistory', 'find', 'flagClaim', 'getAnalysts', 'getChart', 'getReport', 'getReportNumbers', 'eraseReports', 'getSettings', 'getTools', 'gradeDue', 'hideReports', 'listCompanies', 'listPredictions', 'listReports', 'onFlagRequested', 'onMenu', 'onNotification', 'onOpenView', 'openExternal', 'openTerminal', 'pinCompany', 'rereadFiling', 'resume', 'runReport', 'runSafetyCheck', 'searchCompanies', 'setKey', 'setSetting', 'showReports', 'stopFind', 'setLook', 'openTheme', 'saveTheme'].sort()
   )
 })

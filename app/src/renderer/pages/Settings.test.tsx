@@ -1,4 +1,4 @@
-// Settings: the six topics and what each page's buttons send to the engine. The app is opened on
+// Settings: the seven topics and what each page's buttons send to the engine. The app is opened on
 // the fake bridge and Settings reached with ⌘, as a person would.
 
 import { act, screen, waitFor, within } from '@testing-library/react'
@@ -26,6 +26,7 @@ describe('the topic list', () => {
     expect(pageHeading()).toHaveTextContent('General')
     expect(toolbarTitle()).toBe('SettingsGeneral')
     const pages: [string, string][] = [
+      ['Appearance', 'Appearance'],
       ['AI tools', 'AI tools'],
       ['Data keys', 'Data keys'],
       ['Storage and backup', 'Storage and backup'],
@@ -46,6 +47,8 @@ describe('the topic list', () => {
     topic('General').focus()
     await user.keyboard('{ArrowUp}')
     expect(pageHeading()).toHaveTextContent('General')
+    await user.keyboard('{ArrowDown}')
+    expect(pageHeading()).toHaveTextContent('Appearance')
     await user.keyboard('{ArrowDown}{ArrowDown}')
     expect(pageHeading()).toHaveTextContent('Data keys')
     expect(topic('Data keys')).toHaveFocus()
@@ -100,10 +103,12 @@ describe('General', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Locked.')
   })
 
-  test('the chart’s first range and the animations are kept on this Mac', async () => {
+  test('the chart’s first range is kept on this Mac, and the animations moved to Appearance', async () => {
     const { user } = await openSettings()
     await user.selectOptions(screen.getByRole('combobox', { name: 'The chart opens on' }), '3M')
     expect(localStorage.getItem('chart.startRange')).toBe('3M')
+    expect(screen.queryByRole('combobox', { name: 'Animations' })).toBeNull()
+    await user.click(topic('Appearance'))
     await user.selectOptions(screen.getByRole('combobox', { name: 'Animations' }), 'off')
     expect(localStorage.getItem('motion.level')).toBe('off')
     expect(document.documentElement).toHaveAttribute('data-motion', 'off')

@@ -215,6 +215,9 @@ function makeBridge(): FakeBridge {
     openExternal: vi.fn<TearsheetApi['openExternal']>(async () => true),
     find: vi.fn<TearsheetApi['find']>(async () => undefined),
     stopFind: vi.fn<TearsheetApi['stopFind']>(async () => undefined),
+    setLook: vi.fn<TearsheetApi['setLook']>(async () => true),
+    openTheme: vi.fn<TearsheetApi['openTheme']>(async () => ({ ok: false as const, cancelled: true as const })),
+    saveTheme: vi.fn<TearsheetApi['saveTheme']>(async () => ({ ok: false as const, cancelled: true as const })),
     onMenu: vi.fn<TearsheetApi['onMenu']>(listen(listeners.menu)),
     listReports: vi.fn<TearsheetApi['listReports']>(async (_limit?: number, hidden?: boolean) => ok(m.reports(Boolean(hidden)))),
     hideReports: vi.fn<TearsheetApi['hideReports']>(async (ids: string[]) => {

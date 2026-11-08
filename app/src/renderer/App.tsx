@@ -497,6 +497,7 @@ export function App() {
         }}
         topic={settingsTopic}
         onTopic={setSettingsTopic}
+        onNotify={notify}
       />
     )
 

@@ -7,18 +7,18 @@
 /* Score by factor: one button for each factor, in three columns: its name, its bars, its percentile. */
 .frows { display: flex; flex-direction: column; gap: 4px; padding: 4px 0 12px; }
 .frow { all: unset; box-sizing: border-box; cursor: pointer; display: grid; grid-template-columns: minmax(96px, 26%) 1fr 36px; gap: 12px; align-items: center;
-  padding: 8px 10px; border-radius: 10px; border: 1px solid transparent; color: var(--text); font-size: 13px; }
-.frow:hover { background: rgba(127, 227, 247, .06); }
+  padding: 8px 10px; border-radius: calc(10px * var(--round)); border: 1px solid transparent; color: var(--text); font-size: 13px; }
+.frow:hover { background: rgb(from var(--accent) r g b / .06); }
 .frow:focus-visible { outline: 2px solid var(--accent); }
-.frow.picked { border-color: var(--accent); background: rgba(127, 227, 247, .08); }
+.frow.picked { border-color: var(--accent); background: rgb(from var(--accent) r g b / .08); }
 .fname { text-transform: capitalize; overflow-wrap: anywhere; }
 .fmid { position: relative; display: flex; flex-direction: column; gap: 5px; min-width: 0; }
-.ftrack { display: block; height: 10px; border-radius: 5px; background: var(--line); overflow: hidden; }
-.fbar { display: block; height: 100%; border-radius: 5px; background: var(--accent); }
+.ftrack { display: block; height: 10px; border-radius: calc(5px * var(--round)); background: var(--line); overflow: hidden; }
+.fbar { display: block; height: 100%; border-radius: calc(5px * var(--round)); background: var(--accent); }
 .fwrow { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 11px; }
-.fwtrack { flex: none; width: 56px; height: 3px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.fwtrack { flex: none; width: 56px; height: 3px; border-radius: calc(2px * var(--round)); background: var(--line); overflow: hidden; }
 .fwbar { display: block; height: 100%; background: var(--accent2); }
-.fpct { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+.fpct { text-align: right; font-weight: calc(600 + var(--wt)); font-variant-numeric: tabular-nums; }
 /* The line at 50 runs over the percentile bar and a little above and below it. */
 .fline { position: absolute; left: 50%; top: -3px; height: 16px; width: 0; border-left: 1px dashed var(--muted); pointer-events: none; }
 .fhead { cursor: default; padding-top: 0; padding-bottom: 0; }
@@ -29,14 +29,14 @@
 /* Key metrics: one row for each metric, with its name and the company's value above a track that
    holds the company's dot, the median tick and, when asked, a small dot for each peer. */
 .mrows { display: flex; flex-direction: column; gap: 4px; padding: 4px 0 12px; }
-.mrow { box-sizing: border-box; display: grid; grid-template-columns: 1fr auto; gap: 8px 12px; align-items: baseline; padding: 8px 10px 10px; border-radius: 10px; border: 1px solid transparent; color: var(--text); font-size: 13px; }
-.mrow:hover { background: rgba(127, 227, 247, .06); }
+.mrow { box-sizing: border-box; display: grid; grid-template-columns: 1fr auto; gap: 8px 12px; align-items: baseline; padding: 8px 10px 10px; border-radius: calc(10px * var(--round)); border: 1px solid transparent; color: var(--text); font-size: 13px; }
+.mrow:hover { background: rgb(from var(--accent) r g b / .06); }
 .mrow:focus-visible { outline: 2px solid var(--accent); }
-.mrow.picked { border-color: var(--accent); background: rgba(127, 227, 247, .08); }
+.mrow.picked { border-color: var(--accent); background: rgb(from var(--accent) r g b / .08); }
 .mname { overflow-wrap: anywhere; }
-.mval { font-weight: 600; font-variant-numeric: tabular-nums; }
+.mval { font-weight: calc(600 + var(--wt)); font-variant-numeric: tabular-nums; }
 .mtrack { position: relative; grid-column: 1 / -1; height: 14px; }
-.mtrack::before { content: ''; position: absolute; left: 0; right: 0; top: 6px; height: 2px; border-radius: 1px; background: var(--line); }
+.mtrack::before { content: ''; position: absolute; left: 0; right: 0; top: 6px; height: 2px; border-radius: calc(1px * var(--round)); background: var(--line); }
 .mdot, .mpeer, .mmed { position: absolute; transform: translateX(-50%); }
 .mdot { top: 1px; width: 12px; height: 12px; border-radius: 50%; background: var(--accent); }
 .mmed { top: 0; height: 14px; width: 0; border-left: 2px solid var(--muted); }
@@ -59,7 +59,7 @@
 .vline.est { border-left: 2px solid var(--accent); }
 /* The marks in the strip are the targets for hover and focus; the band and lines below are only drawn. */
 .vmark { all: unset; box-sizing: border-box; cursor: pointer; position: absolute; top: 2px; height: 18px; }
-.vmark.range { border-radius: 4px; background: var(--accent2); opacity: .5; min-width: 6px; }
+.vmark.range { border-radius: calc(4px * var(--round)); background: var(--accent2); opacity: .5; min-width: 6px; }
 .vmark.tick { transform: translateX(-50%); width: 14px; }
 .vmark.tick::after { content: ''; position: absolute; left: 6px; top: 2px; bottom: 2px; width: 0; }
 .vmark.tick.price::after { border-left: 2px dashed var(--hold); }
@@ -70,49 +70,49 @@
 .rrows { display: flex; flex-direction: column; gap: 4px; padding: 4px 0 12px; }
 .rtrack::before { display: none; }
 .rzero { position: absolute; top: 0; height: 14px; width: 0; border-left: 1px dashed var(--muted); }
-.retbar { position: absolute; top: 3px; height: 8px; border-radius: 2px; min-width: 2px; }
+.retbar { position: absolute; top: 3px; height: 8px; border-radius: calc(2px * var(--round)); min-width: 2px; }
 
 /* A Full-report table: the filter and its count above, then the table, whose header cells sort. */
 .tctl { display: flex; align-items: center; gap: 12px; padding: 4px 0 10px; }
-.tfilter { flex: 1; min-width: 0; box-sizing: border-box; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--text); font: inherit; font-size: 13px; }
+.tfilter { flex: 1; min-width: 0; box-sizing: border-box; padding: 6px 10px; border-radius: calc(8px * var(--round)); border: 1px solid var(--line); background: var(--panel); color: var(--text); font: inherit; font-size: 13px; }
 .tfilter:focus-visible { outline: 2px solid var(--accent); }
 .tcount { flex: none; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 .tscroll { overflow-x: auto; padding-bottom: 12px; }
 .ttable { width: 100%; border-collapse: collapse; font-size: 13px; }
 .ttable th, .ttable td { padding: 7px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
 .ttable td.num, .ttable th.num { text-align: right; font-variant-numeric: tabular-nums; }
-.ttable th { padding: 0; font-weight: 600; }
+.ttable th { padding: 0; font-weight: calc(600 + var(--wt)); }
 .tsort { all: unset; box-sizing: border-box; display: flex; width: 100%; gap: 6px; padding: 7px 10px; cursor: pointer; color: var(--muted); }
 .num .tsort { justify-content: flex-end; }
 .tsort:hover { color: var(--text); }
 .tsort:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 th[aria-sort='ascending'] .tsort, th[aria-sort='descending'] .tsort { color: var(--accent); }
-.ttable tbody tr.picked { background: rgba(127, 227, 247, .08); outline: 1px solid var(--accent); outline-offset: -1px; }
+.ttable tbody tr.picked { background: rgb(from var(--accent) r g b / .08); outline: 1px solid var(--accent); outline-offset: -1px; }
 .tnone { color: var(--muted); padding: 12px 10px; }
 
 /* Red flags: the meter is one cell for each check, then one button for each check. */
 .rfmeter { display: flex; align-items: center; gap: 12px; padding: 6px 4px 14px; font-size: 18px; }
 .rfcells { flex: 1; display: flex; gap: 4px; }
-.rfcells i { flex: 1; height: 14px; border-radius: 4px; background: var(--line); }
+.rfcells i { flex: 1; height: 14px; border-radius: calc(4px * var(--round)); background: var(--line); }
 .rfcells i.found { background: var(--hold); }
 .rfrows { display: flex; flex-direction: column; gap: 4px; padding-bottom: 12px; }
-.rfrow { all: unset; box-sizing: border-box; cursor: pointer; display: flex; justify-content: space-between; gap: 12px; padding: 10px; border-radius: 10px;
+.rfrow { all: unset; box-sizing: border-box; cursor: pointer; display: flex; justify-content: space-between; gap: 12px; padding: 10px; border-radius: calc(10px * var(--round));
   border: 1px solid transparent; color: var(--text); font-size: 14px; }
-.rfrow:hover { background: rgba(127, 227, 247, .06); }
+.rfrow:hover { background: rgb(from var(--accent) r g b / .06); }
 .rfrow:focus-visible { outline: 2px solid var(--accent); }
-.rfrow.picked { border-color: var(--accent); background: rgba(127, 227, 247, .08); }
+.rfrow.picked { border-color: var(--accent); background: rgb(from var(--accent) r g b / .08); }
 .rfstate { flex: none; color: var(--muted); }
-.rfstate.found { color: var(--hold); font-weight: 600; }
+.rfstate.found { color: var(--hold); font-weight: calc(600 + var(--wt)); }
 
 /* Economy: a large tile for each figure. */
 .etiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; padding: 4px 0 12px; }
-.etile { all: unset; box-sizing: border-box; cursor: pointer; display: flex; flex-direction: column; gap: 4px; padding: 14px; border-radius: 12px;
+.etile { all: unset; box-sizing: border-box; cursor: pointer; display: flex; flex-direction: column; gap: 4px; padding: 14px; border-radius: calc(12px * var(--round));
   border: 1px solid var(--line); background: var(--panel); color: var(--text); }
 .etile b { font-size: 26px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .etile small { color: var(--muted); font-size: 12px; }
-.etile:hover { background: rgba(127, 227, 247, .06); }
+.etile:hover { background: rgb(from var(--accent) r g b / .06); }
 .etile:focus-visible { outline: 2px solid var(--accent); }
-.etile.picked { border-color: var(--accent); background: rgba(127, 227, 247, .08); }
+.etile.picked { border-color: var(--accent); background: rgb(from var(--accent) r g b / .08); }
 
 /* Rings: each ring with its lists under it. */
 .rings { display: flex; flex-direction: column; gap: 24px; padding: 4px 0 12px; }
@@ -120,7 +120,7 @@ th[aria-sort='ascending'] .tsort, th[aria-sort='descending'] .tsort { color: var
 .ringsvg { display: block; margin: 0 auto 10px; fill: none; }
 .rarc { stroke-width: 18; cursor: pointer; }
 .rarc:hover, .rarc:focus-visible, .rarc.picked { stroke-width: 22; outline: none; }
-.rtotal { fill: var(--text); font-size: 28px; font-weight: 600; stroke: none; }
+.rtotal { fill: var(--text); font-size: 28px; font-weight: calc(600 + var(--wt)); stroke: none; }
 .rlists details { border-top: 1px solid var(--line); padding: 8px 4px; font-size: 13px; }
 .rlists summary { cursor: pointer; display: flex; align-items: center; gap: 8px; }
 .rlists summary:focus-visible { outline: 2px solid var(--accent); }
@@ -133,17 +133,17 @@ th[aria-sort='ascending'] .tsort, th[aria-sort='descending'] .tsort { color: var
    table whose rows read themselves out, with the side filter above the firms and the notes and
    the source line under. */
 .avw { display: flex; flex-direction: column; gap: 10px; padding: 4px 0 12px; }
-.aside b, .atabs b { font-weight: 600; font-variant-numeric: tabular-nums; opacity: .8; margin-left: 2px; }
+.aside b, .atabs b { font-weight: calc(600 + var(--wt)); font-variant-numeric: tabular-nums; opacity: .8; margin-left: 2px; }
 .aside { align-self: flex-start; }
 .atw { overflow-x: auto; }
 .atable { width: 100%; border-collapse: collapse; font-size: 13px; }
-.atable th { text-align: left; font-weight: 500; color: var(--muted); padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: bottom; }
-.atable td { padding: 6px 8px; border-bottom: 1px solid rgba(255, 255, 255, .05); white-space: nowrap; }
+.atable th { text-align: left; font-weight: calc(500 + var(--wt)); color: var(--muted); padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: bottom; }
+.atable td { padding: 6px 8px; border-bottom: 1px solid rgb(var(--ink) / .05); white-space: nowrap; }
 /* In a narrow pane the words wrap (a firm's name, its rating, the headers) and the figures don't. */
 .atable td:first-child, .atable td.awrap { white-space: normal; min-width: 7em; }
 .atable .num { text-align: right; font-variant-numeric: tabular-nums; }
 .atable tbody tr { cursor: default; }
-.atable tbody tr:hover td { background: rgba(127, 227, 247, .05); }
+.atable tbody tr:hover td { background: rgb(from var(--accent) r g b / .05); }
 .atable tbody tr:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .atable .abuy, .atable .aup { color: var(--up); }
 .atable .ahold { color: var(--hold); }
@@ -151,9 +151,9 @@ th[aria-sort='ascending'] .tsort, th[aria-sort='descending'] .tsort { color: var
 .atable .adim { color: var(--muted); }
 .atable .aoff { color: var(--hold); }
 .ahero { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
-.ahero > div { display: flex; flex-direction: column; gap: 3px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); }
+.ahero > div { display: flex; flex-direction: column; gap: 3px; padding: 12px 14px; border-radius: calc(12px * var(--round)); border: 1px solid var(--line); background: var(--panel); }
 .ahero span, .ahero small { color: var(--muted); font-size: 12px; }
-.ahero b { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.ahero b { font-size: 22px; font-weight: calc(600 + var(--wt)); font-variant-numeric: tabular-nums; }
 .ahero b.aoff { color: var(--hold); }
 .anote { margin: 0; max-width: 78ch; color: var(--muted); font-size: 12.5px; line-height: 1.5; }
 .anote.warn { color: var(--hold); }

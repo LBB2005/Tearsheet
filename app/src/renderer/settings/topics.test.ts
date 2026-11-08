@@ -33,8 +33,8 @@ const base: HealthInput = {
 const health = (over: Partial<HealthInput>): HealthInput => ({ ...base, ...over })
 
 describe('the topic list', () => {
-  it('lists six topics in order, General first', () => {
-    expect(TOPICS.map((t) => t.name)).toEqual(['General', 'AI tools', 'Data keys', 'Storage and backup', 'Privacy', 'Advanced'])
+  it('lists seven topics in order, General first and Appearance after it', () => {
+    expect(TOPICS.map((t) => t.name)).toEqual(['General', 'Appearance', 'AI tools', 'Data keys', 'Storage and backup', 'Privacy', 'Advanced'])
   })
 
   it('names each topic for the toolbar', () => {
@@ -45,7 +45,8 @@ describe('the topic list', () => {
 
 describe('moveTopic', () => {
   it('steps down and up one topic with the arrow keys', () => {
-    expect(moveTopic('general', 'ArrowDown')).toBe('ai')
+    expect(moveTopic('general', 'ArrowDown')).toBe('appearance')
+    expect(moveTopic('appearance', 'ArrowDown')).toBe('ai')
     expect(moveTopic('keys', 'ArrowUp')).toBe('ai')
   })
 

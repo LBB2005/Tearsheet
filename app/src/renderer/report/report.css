@@ -13,7 +13,7 @@
    visibility from the report around it (inherit, never visible): behind a Full chart, or a narrow
    window's chart, .rmain is hidden, and a frame set to visible would still be drawn there, showing
    the report through the chart's see-through background. */
-iframe.report-frame { position: absolute; inset: 0; display: block; width: 100%; height: 100%; border: 0; background: #070B14; visibility: hidden; }
+iframe.report-frame { position: absolute; inset: 0; display: block; width: 100%; height: 100%; border: 0; background: var(--base); visibility: hidden; }
 iframe.report-frame.on { visibility: inherit; }
 /* Another report, or the same one loaded again: the new text frame waits, unseen, over the one
    on show until it has loaded, then fades in over it in 150 ms (report/frames.ts, motion.ts).
@@ -23,24 +23,24 @@ iframe.report-frame.wait { opacity: 0; pointer-events: none; background: transpa
 iframe.report-frame.fadein { animation: fade .15s ease-out both; background: transparent; }
 .rerror { display: flex; align-items: center; gap: 14px; margin: 14px 16px 0; }
 .rerror span { flex: 1; min-width: 0; }
-.rerror b { color: #FFC2C8; font-weight: 600; }
+.rerror b { color: var(--bad-text2); font-weight: calc(600 + var(--wt)); }
 /* A narrow window gives the chart the whole window. */
 /* The report stays loaded behind it, at the whole width, so it keeps its place for when the
    chart closes. */
 .narrow .rpage.chartopen .rmain { position: absolute; inset: 0; visibility: hidden; }
 
 /* ---------- the toolbar: the Chart button and the Numbers / Text switch ---------- */
-.top .cbtn { all: unset; display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--line); color: var(--text); cursor: pointer; background: rgba(255, 255, 255, .04); font-size: 13px; white-space: nowrap; transition: background .2s, border-color .2s, color .2s; }
-.top .cbtn:hover { background: rgba(255, 255, 255, .08); }
-.top .cbtn.on { border-color: var(--chipline); background: rgba(127, 227, 247, .12); color: var(--accent); }
+.top .cbtn { all: unset; display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px; border-radius: calc(8px * var(--round)); border: 1px solid var(--line); color: var(--text); cursor: pointer; background: rgb(var(--ink) / .04); font-size: 13px; white-space: nowrap; transition: background .2s, border-color .2s, color .2s; }
+.top .cbtn:hover { background: rgb(var(--ink) / .08); }
+.top .cbtn.on { border-color: var(--chipline); background: rgb(from var(--accent) r g b / .12); color: var(--accent); }
 .top .cbtn:focus-visible { outline: 2px solid var(--accent); }
 .top .cbtn svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.7; }
-.top .cbtn kbd { font: 11px var(--ui); color: var(--muted); }
+.top .cbtn kbd { font: 11px var(--ui); font-weight: calc(400 + var(--wt)); color: var(--muted); }
 .sidesw { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); white-space: nowrap; animation: settle-in .3s var(--settle) backwards; }
-.segc { display: inline-flex; padding: 2px; border-radius: 9px; background: rgba(255, 255, 255, .06); border: 1px solid var(--line); }
-.segc button { all: unset; padding: 3px 11px; border-radius: 7px; color: var(--muted); cursor: pointer; font-size: 12.5px; transition: background .2s, color .2s; }
+.segc { display: inline-flex; padding: 2px; border-radius: calc(9px * var(--round)); background: rgb(var(--ink) / .06); border: 1px solid var(--line); }
+.segc button { all: unset; padding: 3px 11px; border-radius: calc(7px * var(--round)); color: var(--muted); cursor: pointer; font-size: 12.5px; transition: background .2s, color .2s; }
 .segc button:hover { color: var(--text); }
-.segc button.on { background: rgba(255, 255, 255, .14); color: var(--text); box-shadow: 0 1px 2px rgba(0, 0, 0, .3); }
+.segc button.on { background: rgb(var(--ink) / .14); color: var(--text); box-shadow: 0 1px 2px rgb(var(--shade) / calc(.3 * var(--shade-k))); }
 .segc button:focus-visible { outline: 2px solid var(--accent); }
 
 /* ---------- the top bar (report/ReportBar.tsx): the ticker, the last close and the day's move,
@@ -50,63 +50,63 @@ iframe.report-frame.fadein { animation: fade .15s ease-out both; background: tra
 .rbar-line { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; white-space: nowrap; }
 .rbar-ruler { position: absolute; left: 0; top: 0; display: grid; justify-items: start; visibility: hidden; pointer-events: none; }
 .rbar-ruler .rbar-line { flex: none; width: max-content; }
-.rbar-tk { margin: 0; font: 600 15px/1 var(--ui); letter-spacing: .5px; color: var(--text); }
-.rbar-px { font: 600 21px/1 var(--ui); letter-spacing: -.2px; color: var(--text); }
-.rbar-mv { font: 500 14px var(--ui); }
+.rbar-tk { margin: 0; font: 15px/1 var(--ui); font-weight: calc(600 + var(--wt)); letter-spacing: .5px; color: var(--text); }
+.rbar-px { font: 21px/1 var(--ui); font-weight: calc(600 + var(--wt)); letter-spacing: -.2px; color: var(--text); }
+.rbar-mv { font: 14px var(--ui); font-weight: calc(500 + var(--wt)); }
 .rbar-when { font-size: 13px; color: var(--muted); }
 .rbar .up { color: var(--up); }
 .rbar .down { color: var(--down); }
-.rbar .flat { color: #BAC7D4; }
-.rbar-box { margin-left: auto; flex: none; display: flex; align-items: center; height: 34px; border-radius: 10px; background: rgba(255, 255, 255, .045); border: 1px solid var(--line); }
+.rbar .flat { color: var(--soft2); }
+.rbar-box { margin-left: auto; flex: none; display: flex; align-items: center; height: 34px; border-radius: calc(10px * var(--round)); background: rgb(var(--ink) / .045); border: 1px solid var(--line); }
 .rbar-box > span { display: inline-flex; align-items: center; gap: 7px; height: 100%; padding: 0 12px; font-size: 13.5px; border-left: 1px solid var(--line); }
 .rbar-box > span:first-child { border-left: 0; }
-.rbar-box small { font: 13px var(--ui); color: var(--muted); }
-.rbar-box b { font-weight: 600; color: var(--text); }
+.rbar-box small { font: 13px var(--ui); font-weight: calc(400 + var(--wt)); color: var(--muted); }
+.rbar-box b { font-weight: calc(600 + var(--wt)); color: var(--text); }
 .rbar-rate { --rc: var(--hold); }
 .rbar-rate.buy { --rc: var(--up); }
 .rbar-rate.sell { --rc: var(--down); }
 .rbar-rate::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--rc); box-shadow: 0 0 8px color-mix(in srgb, var(--rc) 60%, transparent); }
 .rbar-box .rbar-rate b { color: var(--rc); }
 .rbar-rng svg { display: block; }
-.rbar-rng .track { fill: rgba(255, 255, 255, .12); }
-.rbar-rng .gap.up { fill: rgba(99, 223, 165, .45); }
-.rbar-rng .gap.down { fill: rgba(255, 127, 138, .45); }
-.rbar-rng .tick { stroke: rgba(234, 241, 247, .7); stroke-width: 1.5; }
-.rbar-rng .now { fill: var(--accent); stroke: #0A0D14; stroke-width: 2; }
+.rbar-rng .track { fill: rgb(var(--ink) / .12); }
+.rbar-rng .gap.up { fill: rgb(from var(--up) r g b / .45); }
+.rbar-rng .gap.down { fill: rgb(from var(--down) r g b / .45); }
+.rbar-rng .tick { stroke: rgb(from var(--text) r g b / .7); stroke-width: 1.5; }
+.rbar-rng .now { fill: var(--accent); stroke: var(--bg); stroke-width: 2; }
 /* Pointing at a part says what it means, so the parts on show take the pointer; the space
    between them still drags the window. The ruler's hidden copies stay out of it. */
 .top .rbar > .rbar-line > *, .top .rbar > .rbar-line .rbar-box > span { -webkit-app-region: no-drag; }
 
 /* The report's date beside the bar: the menu of the company's other reports when it has some. */
-.top .rdate { all: unset; flex: none; display: inline-flex; align-items: center; gap: 3px; padding: 4px 6px; margin: 0 -2px; border-radius: 6px; color: #BAC7D4; font-size: 13px; white-space: nowrap; -webkit-app-region: no-drag; transition: background .15s, color .15s; }
+.top .rdate { all: unset; flex: none; display: inline-flex; align-items: center; gap: 3px; padding: 4px 6px; margin: 0 -2px; border-radius: calc(6px * var(--round)); color: var(--soft2); font-size: 13px; white-space: nowrap; -webkit-app-region: no-drag; transition: background .15s, color .15s; }
 .top button.rdate { cursor: pointer; }
-.top button.rdate:hover, .top button.rdate[aria-expanded="true"] { background: rgba(255, 255, 255, .06); color: var(--text); }
+.top button.rdate:hover, .top button.rdate[aria-expanded="true"] { background: rgb(var(--ink) / .06); color: var(--text); }
 .top .rdate:focus-visible { outline: 2px solid var(--accent); }
 .top .rdate svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; }
 .top .rdate svg.doc { width: 15px; height: 15px; stroke-width: 1.6; margin-right: 3px; }
 
 /* ---------- the subtitle: a small menu of the company's other reports ---------- */
-.top .ttl .subbtn { all: unset; display: inline-flex; align-items: center; gap: 3px; cursor: pointer; border-radius: 5px; -webkit-app-region: no-drag; transition: color .15s; }
+.top .ttl .subbtn { all: unset; display: inline-flex; align-items: center; gap: 3px; cursor: pointer; border-radius: calc(5px * var(--round)); -webkit-app-region: no-drag; transition: color .15s; }
 .top .ttl .subbtn:hover, .top .ttl .subbtn[aria-expanded="true"] { color: var(--text); }
 .top .ttl .subbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .top .ttl .subbtn svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 2; }
 .rmenu-scrim { position: fixed; inset: 0; z-index: 30; -webkit-app-region: no-drag; }
-.rmenu { position: fixed; z-index: 31; min-width: 220px; padding: 6px; display: flex; flex-direction: column; gap: 1px; border-radius: 12px; background: rgba(22, 28, 40, .94); border: 1px solid rgba(255, 255, 255, .14);
-  backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px); box-shadow: 0 20px 50px rgba(0, 0, 0, .5); font: 13px/1.4 var(--ui); color: var(--text); white-space: nowrap; -webkit-app-region: no-drag; animation: pop .2s var(--slide) both; }
-.rmenu-h { display: block; padding: 4px 10px 6px; font: 500 11.5px var(--ui); color: #67768A; }
-.rmenu button { all: unset; display: flex; align-items: center; gap: 16px; padding: 7px 10px; border-radius: 8px; cursor: pointer; }
-.rmenu button:hover, .rmenu button:focus-visible { background: rgba(127, 227, 247, .12); outline: none; }
+.rmenu { position: fixed; z-index: 31; min-width: 220px; padding: 6px; display: flex; flex-direction: column; gap: 1px; border-radius: calc(12px * var(--round)); background: rgb(var(--surface) / .94); border: 1px solid rgb(var(--ink) / .14);
+  backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px); box-shadow: 0 20px 50px rgb(var(--shade) / calc(.5 * var(--shade-k))); font: 13px/1.4 var(--ui); font-weight: calc(400 + var(--wt)); color: var(--text); white-space: nowrap; -webkit-app-region: no-drag; animation: pop .2s var(--slide) both; }
+.rmenu-h { display: block; padding: 4px 10px 6px; font: 11.5px var(--ui); font-weight: calc(500 + var(--wt)); color: var(--dim); }
+.rmenu button { all: unset; display: flex; align-items: center; gap: 16px; padding: 7px 10px; border-radius: calc(8px * var(--round)); cursor: pointer; }
+.rmenu button:hover, .rmenu button:focus-visible { background: rgb(from var(--accent) r g b / .12); outline: none; }
 .rmenu button span { flex: 1; }
 .rmenu button small { color: var(--muted); font-size: 12px; }
-.rmenu button.danger { color: #FF9AA3; }
-.rmenu-sep { display: block; height: 1px; margin: 4px 6px; background: rgba(255, 255, 255, .09); }
+.rmenu button.danger { color: var(--bad-text3); }
+.rmenu-sep { display: block; height: 1px; margin: 4px 6px; background: rgb(var(--ink) / .09); }
 
 /* ---------- the flag sheet: it drops from the toolbar ---------- */
-.sheet { position: absolute; z-index: 21; top: 52px; left: 50%; width: 520px; margin-left: -260px; padding: 18px 18px 16px; display: grid; gap: 10px; border-radius: 0 0 16px 16px;
-  background: rgba(22, 28, 40, .9); border: 1px solid rgba(255, 255, 255, .14); border-top: 0; backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px); box-shadow: 0 30px 70px rgba(0, 0, 0, .5); -webkit-app-region: no-drag; animation: drop .26s var(--slide) both; }
+.sheet { position: absolute; z-index: 21; top: 52px; left: 50%; width: 520px; margin-left: -260px; padding: 18px 18px 16px; display: grid; gap: 10px; border-radius: 0 0 calc(16px * var(--round)) calc(16px * var(--round));
+  background: rgb(var(--surface) / .9); border: 1px solid rgb(var(--ink) / .14); border-top: 0; backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px); box-shadow: 0 30px 70px rgb(var(--shade) / calc(.5 * var(--shade-k))); -webkit-app-region: no-drag; animation: drop .26s var(--slide) both; }
 .sheet.leave { animation: settle-out .24s ease-in forwards; }
-.sheet b { font-size: 15px; font-weight: 600; }
+.sheet b { font-size: 15px; font-weight: calc(600 + var(--wt)); }
 .sheet q { color: var(--muted); font-size: 13.5px; line-height: 1.5; max-height: 7.5em; overflow: auto; }
 .sheet textarea { min-height: 78px; resize: vertical; font-size: 13.5px; }
-.sheet .why { margin: 0; color: #FFB3BA; font-size: 13px; }
+.sheet .why { margin: 0; color: var(--bad-text); font-size: 13px; }
 .sheet .row { display: flex; gap: 8px; justify-content: flex-end; }

@@ -4,13 +4,13 @@
    (.panels). Everything is scoped under .logv. Under Reduce motion nothing moves (styles.css). */
 
 .logv .tiles3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
-.logv .stat b { display: block; font: 600 26px/1.3 var(--ui); }
+.logv .stat b { display: block; font: 26px/1.3 var(--ui); font-weight: calc(600 + var(--wt)); }
 .logv .stat span { color: var(--muted); font-size: 12.5px; }
 @container (max-width: 700px) { .logv .tiles3 { grid-template-columns: minmax(0, 1fr); } }
 
 .logv .p h4 .btn2 { padding: 4px 11px; font-size: 12.5px; }
 .logv .gline { margin: -2px 0 6px; font-size: 12.5px; color: var(--muted); }
-.logv table.t td.tk { font-weight: 600; letter-spacing: .3px; }
+.logv table.t td.tk { font-weight: calc(600 + var(--wt)); letter-spacing: .3px; }
 .logv table.t td { white-space: nowrap; }
 .logv table.t td.grades { white-space: normal; }
 .logv .grades .gr { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 12.5px; }

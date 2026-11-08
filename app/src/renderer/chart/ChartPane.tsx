@@ -356,11 +356,11 @@ function drawChart(sl: ChartSeries, g: Geo, ticker: string, over: Over | null): 
   // With a compare line on: each line's name and change at its end, kept apart.
   const ends: ReactElement[] = []
   if (g.indexed) {
-    const named: [string, number, string][] = [[ticker, end, 'var(--accent)']]
+    const named: [string, number, string][] = [[ticker, end, 'var(--c-co)']]
     const peerEnd = g.peers?.[n - 1]
     const spyEnd = g.spy?.[n - 1]
-    if (peerEnd != null) named.push(['Peers', peerEnd, '#8FA2FF'])
-    if (spyEnd != null) named.push(['S&P 500', spyEnd, '#D8DCE6'])
+    if (peerEnd != null) named.push(['Peers', peerEnd, 'var(--c-peer)'])
+    if (spyEnd != null) named.push(['S&P 500', spyEnd, 'var(--c-spy)'])
     named.sort((a, b) => b[1] - a[1])
     let lastY = -99
     for (const [label, v, colour] of named) {
@@ -883,12 +883,12 @@ export function ChartPane({ reportId, cik, ticker, name, width, wide, size, onCl
       <svg width={g.W} height={g.H} viewBox={`0 0 ${g.W} ${g.H}`} role="img" aria-label={`${label} daily price, ${shown}`}>
         <defs>
           <linearGradient id="area-g" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor="#7FE3F7" stopOpacity=".18" />
-            <stop offset="1" stopColor="#7FE3F7" stopOpacity="0" />
+            <stop offset="0" style={{ stopColor: 'var(--c-co)' }} stopOpacity=".18" />
+            <stop offset="1" style={{ stopColor: 'var(--c-co)' }} stopOpacity="0" />
           </linearGradient>
           <linearGradient id="fan-g" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0" stopColor="#8FA2FF" stopOpacity=".05" />
-            <stop offset="1" stopColor="#8FA2FF" stopOpacity=".24" />
+            <stop offset="0" style={{ stopColor: 'var(--accent2)' }} stopOpacity=".05" />
+            <stop offset="1" style={{ stopColor: 'var(--accent2)' }} stopOpacity=".24" />
           </linearGradient>
         </defs>
         {span && span.a !== span.b && (
@@ -939,10 +939,10 @@ export function ChartPane({ reportId, cik, ticker, name, width, wide, size, onCl
                 )
               })}
             </div>
-            {toggle('fan', '12-month range', '#8FA2FF', !series?.range, 'This report has no 12-month range.')}
-            {toggle('peers', 'Peers', '#8FA2FF', noPeers, 'No peer prices are stored for this report.')}
-            {toggle('spy', 'S&P 500', '#D8DCE6', noSpy, 'No S&P 500 prices are stored.')}
-            {toggle('volume', 'Volume', 'rgba(127, 227, 247, .45)', false, '')}
+            {toggle('fan', '12-month range', 'var(--accent2)', !series?.range, 'This report has no 12-month range.')}
+            {toggle('peers', 'Peers', 'var(--c-peer)', noPeers, 'No peer prices are stored for this report.')}
+            {toggle('spy', 'S&P 500', 'var(--c-spy)', noSpy, 'No S&P 500 prices are stored.')}
+            {toggle('volume', 'Volume', 'rgb(from var(--accent) r g b / .45)', false, '')}
             <PanelSize wide={wide} size={size} onSize={onSize} onClose={onClose} />
           </div>
         </div>
@@ -973,18 +973,18 @@ export function ChartPane({ reportId, cik, ticker, name, width, wide, size, onCl
         </div>
         <div className="cfoot">
           <span>
-            <i style={{ background: 'var(--accent)' }} />
+            <i style={{ background: 'var(--c-co)' }} />
             {name ?? label}
           </span>
           {toggles.peers && (
             <span>
-              <i style={{ background: '#8FA2FF' }} />
+              <i style={{ background: 'var(--c-peer)' }} />
               Peers, equal-weighted
             </span>
           )}
           {toggles.spy && (
             <span>
-              <i style={{ background: '#D8DCE6' }} />
+              <i style={{ background: 'var(--c-spy)' }} />
               S&amp;P 500
             </span>
           )}

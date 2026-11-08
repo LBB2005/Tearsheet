@@ -11,24 +11,32 @@
 <style>
 :root {
   color-scheme: dark;
-  --panel: rgba(255,255,255,.045); --line: rgba(255,255,255,.085); --track: rgba(255,255,255,.08);
-  --band: rgba(127,227,247,.18); --chipline: rgba(127,227,247,.30);
-  --text: #EAF1F7; --muted: #92A4B6; --accent: #7FE3F7; --accent2: #8FA2FF;
-  --hold: #FFC56B; --up: #63DFA5; --down: #FF7F8A;
+  /* Every colour, weight, corner and the panels' blur go through these names. The defaults are
+     Tearsheet's dark look at full glow, which a report file keeps; in the app, the window adds a
+     second block after this one with the look picked on Settings → Appearance
+     (app/src/renderer/appearance/report.ts). */
+  --base: #070B14; --ink: 255 255 255; --shade: 0 0 0; --shade-k: 1;
+  --panel-a: .045; --line-a: .085;
+  --panel: rgb(var(--ink) / var(--panel-a)); --line: rgb(var(--ink) / var(--line-a)); --track: rgb(var(--ink) / .08);
+  --band: rgb(from var(--accent) r g b / .18); --chipline: rgb(from var(--accent) r g b / .30);
+  --text: #EAF1F7; --muted: #92A4B6; --accent: #7FE3F7; --accent2: #8FA2FF; --accent-lo: #4C8DFF;
+  --hold: #FFC56B; --up: #63DFA5; --down: #FF7F8A; --readout: #0E1422;
+  --g1: 32 120 150; --g2: 70 60 170; --g3: 20 90 120; --glow: 1;
+  --wt: 0; --round: 1; --frost: 1;
   --ui: "Avenir Next", "Helvetica Neue", sans-serif; --num: "Avenir Next", "Helvetica Neue", sans-serif;
-  --mono: "SF Mono", ui-monospace, Menlo, monospace; --r: 14px;
+  --mono: "SF Mono", ui-monospace, Menlo, monospace; --r: calc(14px * var(--round));
 }
 * { box-sizing: border-box; }
 html {
-  background: radial-gradient(620px 440px at 20% 0%, rgba(32,120,150,.20), transparent 70%),
-    radial-gradient(720px 520px at 92% 30%, rgba(70,60,170,.18), transparent 70%),
-    radial-gradient(520px 420px at 55% 112%, rgba(20,90,120,.16), transparent 70%), #070B14;
+  background: radial-gradient(620px 440px at 20% 0%, rgb(var(--g1) / calc(.20 * var(--glow))), transparent 70%),
+    radial-gradient(720px 520px at 92% 30%, rgb(var(--g2) / calc(.18 * var(--glow))), transparent 70%),
+    radial-gradient(520px 420px at 55% 112%, rgb(var(--g3) / calc(.16 * var(--glow))), transparent 70%), var(--base);
   background-attachment: fixed;
 }
-body { margin: 0; color: var(--text); font: 13px/1.45 var(--ui); font-variant-numeric: tabular-nums; }
+body { margin: 0; color: var(--text); font: 13px/1.45 var(--ui); font-weight: calc(400 + var(--wt)); font-variant-numeric: tabular-nums; }
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
-a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: calc(6px * var(--round)); }
 
 /* Readouts. Each chart, bar, ring, tile and row is a hot element (report/_hot.html.j2): in the
    app a link that opens it bigger, in a file an element that takes keyboard focus. Its readout
@@ -40,13 +48,13 @@ a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outli
    red-flag row keeps its own display. */
 .hot { color: inherit; text-decoration: none; display: block; }
 .hot:hover { text-decoration: none; background: var(--panel); }
-.ro { display: none; position: absolute; pointer-events: none; padding: 6px 9px; border-radius: 9px; background: #0E1422; border: 1px solid var(--line); color: var(--text); font: 12px/1.4 var(--ui); z-index: 5; }
+.ro { display: none; position: absolute; pointer-events: none; padding: 6px 9px; border-radius: calc(9px * var(--round)); background: var(--readout); border: 1px solid var(--line); color: var(--text); font: 12px/1.4 var(--ui); font-weight: calc(400 + var(--wt)); z-index: 5; }
 .hot:hover > .ro, .hot:focus-visible > .ro, .hit:hover > .ro, tr:hover > td > .hot > .ro, tr:has(:focus-visible) .ro { display: block; }
 /* Over a chart, the week, case or method pointed at has its own readout, which stands in for
    the chart's. */
 .hot:has(.hit:hover) > .ro, .hot:has(~ .hits .hit:hover) > .ro { display: none; }
 .defs { position: absolute; width: 0; height: 0; }
-.glass { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); box-shadow: inset 0 1px 0 rgba(255,255,255,.05); }
+.glass { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); backdrop-filter: blur(calc(18px * var(--frost))); -webkit-backdrop-filter: blur(calc(18px * var(--frost))); box-shadow: inset 0 1px 0 rgb(var(--ink) / .05); }
 
 /* Layout. In the app both columns fill the frame and scroll on their own; a file is a page. */
 .layout { display: flex; height: 100vh; }
@@ -72,11 +80,11 @@ a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outli
 .mode-file .nums { width: auto; overflow: visible; border-right: 0; grid-auto-flow: dense; }
 .mode-file .textcol { max-width: 860px; margin: 0 auto; }
 .mode-file .tscroll { overflow: visible; }
-.mode-file .tbar { position: sticky; top: 0; z-index: 2; background: rgba(7,11,20,.86); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); }
+.mode-file .tbar { position: sticky; top: 0; z-index: 2; background: rgb(from var(--base) r g b / .86); backdrop-filter: blur(calc(18px * var(--frost))); -webkit-backdrop-filter: blur(calc(18px * var(--frost))); }
 .rsec { scroll-margin-top: 18px; }
 .mode-file .rsec, .mode-file .view { scroll-margin-top: 96px; }
 .rhead { max-width: 1140px; margin: 0 auto; padding: 26px 16px 4px; }
-.rhead h1 { margin: 0 0 4px; font: 600 26px/1.2 var(--ui); }
+.rhead h1 { margin: 0 0 4px; font: 26px/1.2 var(--ui); font-weight: calc(600 + var(--wt)); }
 .rhead p, .foot { margin: 0 0 4px; color: var(--muted); font-size: 12.5px; }
 .foot { margin: 0 14px 28px; padding: 0 22px; }
 
@@ -104,27 +112,27 @@ a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outli
 /* A readout may reach past its panel's edge, where the next panel's glass would blur it and draw
    over it, so the panel pointed at or focused is drawn over the others. */
 .p:hover, .p:focus-within { z-index: 1; }
-.p h4 { margin: 0 0 8px; display: flex; justify-content: space-between; gap: 8px; font: 500 12px var(--ui); color: var(--muted); }
+.p h4 { margin: 0 0 8px; display: flex; justify-content: space-between; gap: 8px; font: 12px var(--ui); font-weight: calc(500 + var(--wt)); color: var(--muted); }
 .p h4 em { font-style: normal; text-align: right; }
 .gap { margin: 4px 0 2px; color: var(--muted); font-size: 12.5px; }
-.tkr { font: 600 19px var(--ui); letter-spacing: .5px; }
-.tkr small { display: block; font: 12.5px var(--ui); color: var(--muted); letter-spacing: 0; margin-top: 1px; }
+.tkr { font: 19px var(--ui); font-weight: calc(600 + var(--wt)); letter-spacing: .5px; }
+.tkr small { display: block; font: 12.5px var(--ui); font-weight: calc(400 + var(--wt)); color: var(--muted); letter-spacing: 0; margin-top: 1px; }
 .callrow { display: flex; align-items: center; gap: 14px; margin: 10px 0 8px; }
 .callrow > div > span { color: var(--muted); font-size: 12px; line-height: 1.35; }
 .callrow > .hot, .callrow > .hot:focus-visible { flex: none; border-radius: 50%; }
 .ring { position: relative; width: 84px; height: 84px; flex: none; }
 .ring > div { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
-.ring b { font: 600 22px/1.1 var(--num); }
+.ring b { font: 22px/1.1 var(--num); font-weight: calc(600 + var(--wt)); }
 .ring span { font-size: 10.5px; color: var(--muted); }
 .ring-svg { display: block; }
-.call { font: 600 36px/1 var(--ui); letter-spacing: .5px; margin-bottom: 2px; }
+.call { font: 36px/1 var(--ui); font-weight: calc(600 + var(--wt)); letter-spacing: .5px; margin-bottom: 2px; }
 .buy { color: var(--up); } .hold { color: var(--hold); } .sell { color: var(--down); }
-.note { font-size: 12.5px; color: var(--hold); line-height: 1.4; background: rgba(255,197,107,.07); border: 1px solid rgba(255,197,107,.2); border-radius: 10px; padding: 6px 9px; }
+.note { font-size: 12.5px; color: var(--hold); line-height: 1.4; background: rgb(from var(--hold) r g b / .07); border: 1px solid rgb(from var(--hold) r g b / .2); border-radius: calc(10px * var(--round)); padding: 6px 9px; }
 .kvs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px 14px; margin: 10px 0 0; }
 .kvs dl { margin: 0; }
 .kvs dt { color: var(--muted); font-size: 12px; line-height: 1.3; }
-.kvs dd { margin: 2px 0 0; font: 600 15px var(--num); }
-.kvs dd.miss, .kvs dd.words { font: 12px/1.3 var(--ui); color: var(--muted); }
+.kvs dd { margin: 2px 0 0; font: 15px var(--num); font-weight: calc(600 + var(--wt)); }
+.kvs dd.miss, .kvs dd.words { font: 12px/1.3 var(--ui); font-weight: calc(400 + var(--wt)); color: var(--muted); }
 .kvs dd.words { color: var(--text); }
 .chart { display: block; width: 100%; height: auto; overflow: visible; }
 /* A chart is a readout box: its readouts show on its top edge. Pointer targets laid over it
@@ -145,31 +153,31 @@ a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outli
 .bar.fbar { grid-template-columns: 130px 1fr 28px 40px; }
 .bar.rbar { grid-template-columns: 74px 1fr 50px; }
 .bar > span:not(.ro) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.bar .tr { height: 7px; background: var(--track); position: relative; border-radius: 4px; }
-.bar .tr i { position: absolute; top: 0; bottom: 0; left: 0; border-radius: 4px; background: linear-gradient(90deg, #4C8DFF, #7FE3F7); transform-origin: left; }
+.bar .tr { height: 7px; background: var(--track); position: relative; border-radius: calc(4px * var(--round)); }
+.bar .tr i { position: absolute; top: 0; bottom: 0; left: 0; border-radius: calc(4px * var(--round)); background: linear-gradient(90deg, var(--accent-lo), var(--accent)); transform-origin: left; }
 .bar .tr i.neg { background: var(--down); } .bar .tr i.self { background: var(--hold); }
-.bar .tr .mid { position: absolute; left: 50%; top: -3px; bottom: -3px; width: 1px; background: rgba(255,255,255,.26); }
-.bar .tr .zero { position: absolute; top: -3px; bottom: -3px; width: 1px; background: rgba(255,255,255,.32); }
-.bar b { font: 600 13px var(--num); text-align: right; }
+.bar .tr .mid { position: absolute; left: 50%; top: -3px; bottom: -3px; width: 1px; background: rgb(var(--ink) / .26); }
+.bar .tr .zero { position: absolute; top: -3px; bottom: -3px; width: 1px; background: rgb(var(--ink) / .32); }
+.bar b { font: 13px var(--num); font-weight: calc(600 + var(--wt)); text-align: right; }
 .bar small { color: var(--muted); font-size: 12px; text-align: right; }
 .kv { display: flex; justify-content: space-between; gap: 10px; padding: 4px 0; border-top: 1px solid var(--line); color: var(--muted); font-size: 12.5px; }
-.kv b { font: 600 12.5px var(--num); text-align: right; }
-.kv b.clear { color: var(--muted); font-weight: 500; } .kv b.found { color: var(--hold); }
+.kv b { font: 12.5px var(--num); font-weight: calc(600 + var(--wt)); text-align: right; }
+.kv b.clear { color: var(--muted); font-weight: calc(500 + var(--wt)); } .kv b.found { color: var(--hold); }
 .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(108px, 1fr)); gap: 8px; }
-.tile { padding: 9px 10px; border-radius: 12px; background: rgba(255,255,255,.035); border: 1px solid var(--line); min-width: 0; }
-.hot.tile:focus-visible { border-radius: 12px; }
+.tile { padding: 9px 10px; border-radius: calc(12px * var(--round)); background: rgb(var(--ink) / .035); border: 1px solid var(--line); min-width: 0; }
+.hot.tile:focus-visible { border-radius: calc(12px * var(--round)); }
 .tile span:not(.ro) { display: block; color: var(--muted); font-size: 11.5px; line-height: 1.25; min-height: 29px; }
-.tile b { font: 600 18px var(--num); display: block; margin: 1px 0; }
+.tile b { font: 18px var(--num); font-weight: calc(600 + var(--wt)); display: block; margin: 1px 0; }
 .tile small { color: var(--muted); font-size: 11.5px; }
-.tile .rk { height: 4px; background: var(--track); border-radius: 2px; position: relative; margin-top: 6px; }
+.tile .rk { height: 4px; background: var(--track); border-radius: calc(2px * var(--round)); position: relative; margin-top: 6px; }
 .tile .rk i { position: absolute; top: -2px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); margin-left: -4px; }
-.tile .rk::after { content: ""; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: rgba(255,255,255,.28); }
+.tile .rk::after { content: ""; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: rgb(var(--ink) / .28); }
 .flags { display: flex; gap: 4px; height: 8px; margin: 6px 0 8px; }
-.flags i { flex: 1; border-radius: 4px; background: var(--track); transform-origin: left; }
-.flags i.on { background: linear-gradient(90deg, rgba(255,197,107,.45), var(--hold)); }
+.flags i { flex: 1; border-radius: calc(4px * var(--round)); background: var(--track); transform-origin: left; }
+.flags i.on { background: linear-gradient(90deg, rgb(from var(--hold) r g b / .45), var(--hold)); }
 .macro { display: grid; grid-template-columns: repeat(auto-fit, minmax(80px, 1fr)); gap: 6px; }
 .macro div { text-align: center; }
-.macro b { display: block; font: 600 15px var(--num); }
+.macro b { display: block; font: 15px var(--num); font-weight: calc(600 + var(--wt)); }
 .macro span:not(.ro) { font-size: 11px; color: var(--muted); line-height: 1.25; display: block; }
 .macro small { font-size: 10.5px; color: var(--muted); opacity: .8; }
 .donutrow { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
@@ -178,7 +186,7 @@ a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outli
    way in. The count's box covers the whole ring, so it lets the pointer through to the slices
    under it. */
 .dn { position: relative; }
-.dn b { position: absolute; inset: 0; display: grid; place-content: center; font: 600 15px var(--num); pointer-events: none; }
+.dn b { position: absolute; inset: 0; display: grid; place-content: center; font: 15px var(--num); font-weight: calc(600 + var(--wt)); pointer-events: none; }
 .donut:has(.dn-buy:hover) > .ro-buy, .donut:has(.dn-hold:hover) > .ro-hold, .donut:has(.dn-sell:hover) > .ro-sell,
 .donut:has(.dn-kept:hover) > .ro-kept, .donut:has(.dn-removed:hover) > .ro-removed { display: block; }
 .legend { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); margin-right: 8px; }
@@ -191,26 +199,26 @@ a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outli
    Tearsheet's base value and the price marked. */
 .akvs { min-width: 170px; }
 .akvs > .kv:first-child { border-top: 0; }
-.astriphot { margin-top: 10px; border-radius: 8px; padding: 4px 2px; }
+.astriphot { margin-top: 10px; border-radius: calc(8px * var(--round)); padding: 4px 2px; }
 .astrip { position: relative; height: 18px; }
 .astrip i { position: absolute; }
-.aband { top: 6px; height: 6px; border-radius: 3px; background: var(--band); }
+.aband { top: 6px; height: 6px; border-radius: calc(3px * var(--round)); background: var(--band); }
 .aavg, .amed { top: 2px; width: 2px; height: 14px; margin-left: -1px; }
 .aavg { background: var(--accent); } .amed { background: var(--text); opacity: .7; }
-.abase { top: 4px; width: 10px; height: 10px; margin-left: -5px; transform: rotate(45deg); border: 2px solid var(--accent2); background: #070B14; }
+.abase { top: 4px; width: 10px; height: 10px; margin-left: -5px; transform: rotate(45deg); border: 2px solid var(--accent2); background: var(--base); }
 .apx { top: 0; width: 2px; height: 18px; margin-left: -1px; background: var(--hold); }
-.aends { display: flex; justify-content: space-between; font: 11px var(--num); color: var(--muted); }
+.aends { display: flex; justify-content: space-between; font: 11px var(--num); font-weight: calc(400 + var(--wt)); color: var(--muted); }
 .akeys { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 4px; font-size: 11.5px; color: var(--muted); }
 .akeys i { display: inline-block; vertical-align: middle; margin-right: 5px; }
-.akeys .k-band { width: 14px; height: 6px; border-radius: 3px; background: var(--band); }
+.akeys .k-band { width: 14px; height: 6px; border-radius: calc(3px * var(--round)); background: var(--band); }
 .akeys .k-avg, .akeys .k-med, .akeys .k-px { width: 2px; height: 11px; }
 .akeys .k-avg { background: var(--accent); } .akeys .k-med { background: var(--text); opacity: .7; } .akeys .k-px { background: var(--hold); }
 .akeys .k-base { width: 8px; height: 8px; transform: rotate(45deg); border: 2px solid var(--accent2); }
 .afoot { margin: 8px 0 0; font-size: 11.5px; color: var(--muted); }
 .aquiet { margin: 0; font-size: 12.5px; color: var(--muted); }
-.ch-band { fill: var(--band); opacity: .6; } .ch-axis { stroke: var(--line); } .ch-grid { stroke: rgba(255,255,255,.06); }
-.ch-lab { fill: var(--muted); font: 11px var(--ui); } .ch-val { fill: var(--text); font: 600 11.5px var(--num); }
-.ch-plab { fill: var(--hold); font: 600 11.5px var(--num); } .ch-dot { fill: var(--accent); } .ch-row { fill: var(--muted); font: 12px var(--ui); }
+.ch-band { fill: var(--band); opacity: .6; } .ch-axis { stroke: var(--line); } .ch-grid { stroke: rgb(var(--ink) / .06); }
+.ch-lab { fill: var(--muted); font: 11px var(--ui); font-weight: calc(400 + var(--wt)); } .ch-val { fill: var(--text); font: 11.5px var(--num); font-weight: calc(600 + var(--wt)); }
+.ch-plab { fill: var(--hold); font: 11.5px var(--num); font-weight: calc(600 + var(--wt)); } .ch-dot { fill: var(--accent); } .ch-row { fill: var(--muted); font: 12px var(--ui); font-weight: calc(400 + var(--wt)); }
 .ch-pline { stroke: var(--hold); stroke-dasharray: 3 3; } .ch-today { fill: var(--hold); }
 .ch-line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; }
 .ch-area { fill: url(#area-g); } .ch-fan { fill: url(#fan-g); }
@@ -225,30 +233,30 @@ a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outli
 .keys { position: relative; flex: none; display: grid; grid-template-columns: 1.2fr 1fr 1fr 1.6fr 1fr; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
 /* The key strip is a readout box: a tile's readout shows just below the strip. */
 .keys .ro { top: 100%; left: 14px; right: 14px; }
-.keys .hot, .keys .hot:focus-visible { border-radius: 12px; }
+.keys .hot, .keys .hot:focus-visible { border-radius: calc(12px * var(--round)); }
 /* A hot tile's link is the grid item, so it narrows with the frame as the tile does. */
 .keys > .hot { min-width: 0; }
-.kt { padding: 8px 11px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); min-width: 0; }
+.kt { padding: 8px 11px; border-radius: calc(12px * var(--round)); background: var(--panel); border: 1px solid var(--line); min-width: 0; }
 .kt span { display: block; color: var(--muted); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.kt b { font: 600 16px var(--num); white-space: nowrap; }
-.kt b.miss { font: 12px/1.95 var(--ui); color: var(--muted); }
+.kt b { font: 16px var(--num); font-weight: calc(600 + var(--wt)); white-space: nowrap; }
+.kt b.miss { font: 12px/1.95 var(--ui); font-weight: calc(400 + var(--wt)); color: var(--muted); }
 .kt b.up { color: var(--up); } .kt b.down { color: var(--down); }
 .mini { height: 12px; position: relative; margin-top: 5px; }
 .mini i { position: absolute; }
-.mini .b { top: 4px; height: 4px; background: var(--band); border-radius: 2px; }
+.mini .b { top: 4px; height: 4px; background: var(--band); border-radius: calc(2px * var(--round)); }
 .mini .m { top: 2px; width: 2px; height: 8px; margin-left: -1px; background: var(--accent); }
 .mini .pm { top: 0; width: 2px; height: 12px; margin-left: -1px; background: var(--hold); }
 
 /* Text column */
-.tbar { flex: none; display: flex; flex-direction: column; gap: 8px; padding: 10px 20px; border-bottom: 1px solid var(--line); background: rgba(7,11,20,.5); }
-.segc { display: inline-flex; align-self: flex-start; padding: 2px; border-radius: 9px; background: rgba(255,255,255,.06); border: 1px solid var(--line); }
-.seg { padding: 4px 14px; border-radius: 7px; color: var(--muted); font-size: 12.5px; transition: background .2s, color .2s; }
+.tbar { flex: none; display: flex; flex-direction: column; gap: 8px; padding: 10px 20px; border-bottom: 1px solid var(--line); background: rgb(from var(--base) r g b / .5); }
+.segc { display: inline-flex; align-self: flex-start; padding: 2px; border-radius: calc(9px * var(--round)); background: rgb(var(--ink) / .06); border: 1px solid var(--line); }
+.seg { padding: 4px 14px; border-radius: calc(7px * var(--round)); color: var(--muted); font-size: 12.5px; transition: background .2s, color .2s; }
 .seg:hover { text-decoration: none; color: var(--text); }
-.seg kbd { font: 10.5px var(--ui); color: var(--muted); margin-left: 6px; }
+.seg kbd { font: 10.5px var(--ui); font-weight: calc(400 + var(--wt)); color: var(--muted); margin-left: 6px; }
 .pills { display: none; gap: 5px; flex-wrap: wrap; }
 .pills a { font-size: 12px; color: var(--muted); padding: 3px 10px; border: 1px solid var(--line); border-radius: 999px; }
 .pills a:hover { text-decoration: none; color: var(--text); border-color: var(--chipline); }
-.pills a b { font: 600 11px var(--num); margin-left: 4px; color: var(--muted); }
+.pills a b { font: 11px var(--num); font-weight: calc(600 + var(--wt)); margin-left: 4px; color: var(--muted); }
 .view { display: none; }
 
 /* Which view shows: the one data-view names, unless a same-page link (render._anchor) has
@@ -262,42 +270,42 @@ body:has(#full:target, #full :target) .pills { display: flex; }
 body[data-view="summary"]:not(:has(#full:target, #full :target)) .to-summary,
 body:has(#summary:target) .to-summary,
 body[data-view="full"]:not(:has(#summary:target)) .to-full,
-body:has(#full:target, #full :target) .to-full { background: rgba(255,255,255,.14); color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,.3); }
+body:has(#full:target, #full :target) .to-full { background: rgb(var(--ink) / .14); color: var(--text); box-shadow: 0 1px 2px rgb(var(--shade) / calc(.3 * var(--shade-k))); }
 
 .txt { margin: 12px 14px 18px; padding: 4px 22px 26px; max-width: 860px; }
-.txt h3 { font: 600 18px/1.3 var(--ui); margin: 20px 0 12px; }
-.txt h4.sh { margin: 22px 0 10px; font: 600 12.5px var(--ui); color: var(--muted); }
+.txt h3 { font: 18px/1.3 var(--ui); font-weight: calc(600 + var(--wt)); margin: 20px 0 12px; }
+.txt h4.sh { margin: 22px 0 10px; font: 12.5px var(--ui); font-weight: calc(600 + var(--wt)); color: var(--muted); }
 .cl { margin: 0 0 16px; }
-.cl p { margin: 0; font: 15.5px/1.62 var(--ui); }
+.cl p { margin: 0; font: 15.5px/1.62 var(--ui); font-weight: calc(400 + var(--wt)); }
 .meta { display: flex; gap: 6px; align-items: center; margin-top: 6px; flex-wrap: wrap; }
 details.src[open] { flex-basis: 100%; }
 details.src > summary { list-style: none; display: inline-block; }
 details.src > summary::-webkit-details-marker { display: none; }
-.chip { font: 500 11.5px var(--ui); color: var(--accent); border: 1px solid var(--chipline); border-radius: 999px; padding: 1px 9px; cursor: pointer; transition: background .2s; }
-.chip:hover, details[open] > .chip { background: rgba(127,227,247,.16); }
+.chip { font: 11.5px var(--ui); font-weight: calc(500 + var(--wt)); color: var(--accent); border: 1px solid var(--chipline); border-radius: 999px; padding: 1px 9px; cursor: pointer; transition: background .2s; }
+.chip:hover, details[open] > .chip { background: rgb(from var(--accent) r g b / .16); }
 .flag, .cid { margin-left: auto; font-size: 12px; color: var(--muted); }
 .flag:hover { color: var(--text); text-decoration: none; }
-.cid { font: 11.5px var(--mono); }
+.cid { font: 11.5px var(--mono); font-weight: calc(400 + var(--wt)); }
 .read { font-size: 12px; color: var(--accent); }
-.quote { margin: 8px 0 0; padding: 10px 13px; border-radius: 12px; background: rgba(255,255,255,.045); border: 1px solid var(--line); font-size: 13.5px; line-height: 1.5; }
+.quote { margin: 8px 0 0; padding: 10px 13px; border-radius: calc(12px * var(--round)); background: rgb(var(--ink) / .045); border: 1px solid var(--line); font-size: 13.5px; line-height: 1.5; }
 .quote span { display: block; color: var(--muted); font-size: 12px; margin-top: 4px; }
-.cnote { margin-top: 7px; color: var(--hold); font-size: 13px; padding: 6px 10px; border-radius: 10px; background: rgba(255,197,107,.06); }
+.cnote { margin-top: 7px; color: var(--hold); font-size: 13px; padding: 6px 10px; border-radius: calc(10px * var(--round)); background: rgb(from var(--hold) r g b / .06); }
 .code { font-size: 14px; color: var(--muted); margin: 0 0 12px; line-height: 1.55; }
-.code b { color: var(--text); font-weight: 600; }
-.rf { padding: 10px 13px; border-radius: 12px; margin: 0 0 14px; font-size: 14px; background: rgba(255,197,107,.07); border: 1px solid rgba(255,197,107,.24); }
+.code b { color: var(--text); font-weight: calc(600 + var(--wt)); }
+.rf { padding: 10px 13px; border-radius: calc(12px * var(--round)); margin: 0 0 14px; font-size: 14px; background: rgb(from var(--hold) r g b / .07); border: 1px solid rgb(from var(--hold) r g b / .24); }
 .rf b { color: var(--hold); }
-.callline { font: 500 17px/1.5 var(--ui); margin: 6px 0 14px; }
-.callline b { font-weight: 600; }
+.callline { font: 17px/1.5 var(--ui); font-weight: calc(500 + var(--wt)); margin: 6px 0 14px; }
+.callline b { font-weight: calc(600 + var(--wt)); }
 .kp { list-style: none; margin: 0; padding: 0; }
 .kp li { padding: 12px 0; border-top: 1px solid var(--line); }
 .kp li.none { color: var(--muted); font-size: 14px; }
-.kp .sec { font: 600 12px var(--ui); color: var(--accent); display: block; margin-bottom: 3px; }
+.kp .sec { font: 12px var(--ui); font-weight: calc(600 + var(--wt)); color: var(--accent); display: block; margin-bottom: 3px; }
 .heads { list-style: none; padding: 0; margin: 0 0 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; }
 .heads li { font-size: 13.5px; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
 .heads a { color: var(--text); }
 .heads small, .removed small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
 table.t { width: 100%; border-collapse: collapse; font-size: 13.5px; margin: 0 0 14px; }
-table.t th { text-align: left; font: 500 12px var(--ui); color: var(--muted); padding: 7px 10px; border-bottom: 1px solid var(--line); }
+table.t th { text-align: left; font: 12px var(--ui); font-weight: calc(500 + var(--wt)); color: var(--muted); padding: 7px 10px; border-bottom: 1px solid var(--line); }
 table.t td { padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
 /* A table sits in a readout box with a strip kept free below it, where a row's readout shows,
    over a hint while no row is pointed at. A row's links fill its cells, so a click anywhere
@@ -360,9 +368,9 @@ table.t .hot:hover { background: none; }
 {%- set SHORT = {"rating": "Rating", "score": "Score", "valuation": "Valuation", "business": "Business", "risks": "Risks", "results": "Results", "news": "News", "trends": "Trends", "watch": "Watch"} %}
 <body data-view="{{ view }}" class="mode-{{ mode }} col-{{ column }} side-{{ side }}{% if narrow_layout %} narrow{% endif %}">
 <svg class="defs" width="0" height="0" aria-hidden="true" focusable="false"><defs>
-<linearGradient id="ring-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4C8DFF"/><stop offset="1" stop-color="#7FE3F7"/></linearGradient>
-<linearGradient id="area-g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7FE3F7" stop-opacity=".18"/><stop offset="1" stop-color="#7FE3F7" stop-opacity="0"/></linearGradient>
-<linearGradient id="fan-g" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#8FA2FF" stop-opacity=".04"/><stop offset="1" stop-color="#8FA2FF" stop-opacity=".14"/></linearGradient>
+<linearGradient id="ring-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color: var(--accent-lo)"/><stop offset="1" style="stop-color: var(--accent)"/></linearGradient>
+<linearGradient id="area-g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color: var(--accent)" stop-opacity=".18"/><stop offset="1" style="stop-color: var(--accent)" stop-opacity="0"/></linearGradient>
+<linearGradient id="fan-g" x1="0" y1="0" x2="1" y2="0"><stop offset="0" style="stop-color: var(--accent2)" stop-opacity=".04"/><stop offset="1" style="stop-color: var(--accent2)" stop-opacity=".14"/></linearGradient>
 </defs></svg>
 {%- if mode == "file" %}
 <header class="rhead">

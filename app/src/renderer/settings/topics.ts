@@ -6,11 +6,12 @@ import type { ToolStatus } from '../../preload/api'
 import type { ToolKind } from '../setup/steps'
 import { healthTiles, storage, type HealthInput, type Tile } from './settings'
 
-export type Topic = 'general' | 'ai' | 'keys' | 'storage' | 'privacy' | 'advanced'
+export type Topic = 'general' | 'appearance' | 'ai' | 'keys' | 'storage' | 'privacy' | 'advanced'
 
 // In the order the list shows them. General opens first.
 export const TOPICS: { id: Topic; name: string }[] = [
   { id: 'general', name: 'General' },
+  { id: 'appearance', name: 'Appearance' },
   { id: 'ai', name: 'AI tools' },
   { id: 'keys', name: 'Data keys' },
   { id: 'storage', name: 'Storage and backup' },

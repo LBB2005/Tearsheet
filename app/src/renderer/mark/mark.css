@@ -1,6 +1,6 @@
 /* The Glass mark (Mark.tsx). It fades up with the app's A. Settle motion; the price line fills
    in over half a second. Under macOS Reduce motion nothing moves. */
-.mark { display: block; flex: none; line-height: 0; filter: drop-shadow(0 4px 10px rgba(0, 0, 0, .28)); animation: mark-settle .5s cubic-bezier(.2, .7, .2, 1) both; }
+.mark { display: block; flex: none; line-height: 0; filter: drop-shadow(0 4px 10px rgb(var(--shade) / calc(.28 * var(--shade-k)))); animation: mark-settle .5s cubic-bezier(.2, .7, .2, 1) both; }
 .mark svg { display: block; width: 100%; height: 100%; }
 .mark-fill { transition: stroke-dashoffset .5s cubic-bezier(.3, .7, .2, 1); }
 .mark-area { transition: opacity .5s; }

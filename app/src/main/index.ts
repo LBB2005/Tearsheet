@@ -11,6 +11,7 @@ import { keepAwakeDuringLine } from './awake'
 import { dockUpdate, NO_RUN } from './dockProgress'
 import { Engine, engineCommand, type Notification } from './engine'
 import { registerIpc } from './ipc'
+import { readWindowLook, registerLookIpc } from './look'
 import { claimOnlyCopy, closeHides, hiddenForChecks } from './lifecycle'
 import { loginShellPath } from './loginShellPath'
 import { menuTemplate } from './menu'
@@ -80,6 +81,8 @@ async function createWindow(): Promise<void> {
     logFile: join(dataDir, 'logs', 'engine.log')
   })
 
+  const lookFile = join(app.getPath('userData'), 'window-look.json')
+  const look = readWindowLook(lookFile)
   const window = new BrowserWindow({
     width: 1280,
     height: 840,
@@ -88,9 +91,11 @@ async function createWindow(): Promise<void> {
     title: 'Tearsheet',
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 18, y: 18 },
-    backgroundColor: '#0A0D14',
+    // The look's own colour and zoom from last time (look.ts), so a light look opens light.
+    backgroundColor: look.background,
     show: !hidden,
     webPreferences: {
+      zoomFactor: look.zoom,
       backgroundThrottling: !hidden,
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -100,6 +105,7 @@ async function createWindow(): Promise<void> {
   })
   mainWindow = window
   registerIpc(window, engine, fixedPath)
+  registerLookIpc(window, lookFile)
   Menu.setApplicationMenu(Menu.buildFromTemplate(menuTemplate((command) => {
         if (window.isDestroyed() || window.webContents.isDestroyed()) return
         // A shortcut used while the window is hidden (⌘N, say) brings it back first.
