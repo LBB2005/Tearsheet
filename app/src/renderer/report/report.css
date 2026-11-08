@@ -98,6 +98,8 @@ iframe.report-frame.fadein { animation: fade .15s ease-out both; background: tra
 .rmenu button:hover, .rmenu button:focus-visible { background: rgba(127, 227, 247, .12); outline: none; }
 .rmenu button span { flex: 1; }
 .rmenu button small { color: var(--muted); font-size: 12px; }
+.rmenu button.danger { color: #FF9AA3; }
+.rmenu-sep { display: block; height: 1px; margin: 4px 6px; background: rgba(255, 255, 255, .09); }
 
 /* ---------- the flag sheet: it drops from the toolbar ---------- */
 .sheet { position: absolute; z-index: 21; top: 52px; left: 50%; width: 520px; margin-left: -260px; padding: 18px 18px 16px; display: grid; gap: 10px; border-radius: 0 0 16px 16px;

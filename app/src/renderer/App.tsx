@@ -35,6 +35,7 @@ import { nextView, reportSubtitle } from './report/view'
 import { applySafetyNote, SAFETY_CALLS, safetyStarted, type SafetyState, type ToolKind } from './setup/steps'
 import { Sidebar, SidebarButton } from './shell/Sidebar'
 import { Toolbar } from './shell/Toolbar'
+import { useMarks } from './shell/useMarks'
 import { useWide } from './shell/useWide'
 
 export function App() {
@@ -107,9 +108,9 @@ export function App() {
   const frameKey = useRef<string | null>(null)
   const builds = useRef(false)
 
-  const notify = useCallback((title: string, text?: string, tone?: Notice['tone']) => {
+  const notify = useCallback((title: string, text?: string, tone?: Notice['tone'], extra?: Pick<Notice, 'action' | 'ms'>) => {
     noticeId.current += 1
-    setNotice({ id: noticeId.current, title, text, tone })
+    setNotice({ id: noticeId.current, title, text, tone, ...extra })
   }, [])
 
   const loadCompanies = useCallback(() => {
@@ -192,6 +193,29 @@ export function App() {
   // The sidebar's row for the report on show, which may be one of the company's older reports.
   const shownCik = reportPage.report?.cik ?? reportPage.listed?.cik ?? null
   const openRow = companies.find((c) => c.report_id === openReport) ?? (shownCik === null ? undefined : companies.find((c) => c.cik === shownCik))
+
+  // The sidebar's own order (its sort, filters and search), for ⌘[ and ⌘].
+  const shownOrder = useRef<CompanyRow[] | null>(null)
+  // Deleting the report on show opens `afterDelete` (the company's next report, when it was
+  // deleted from the toolbar's menu), or else the home page.
+  const openNow = useRef(openReport)
+  openNow.current = openReport
+  const afterDelete = useRef<string | null>(null)
+  const marks = useMarks({
+    notify,
+    loadCompanies,
+    onGone: (ids) => {
+      const next = afterDelete.current
+      afterDelete.current = null
+      if (target.current !== 'report' || !openNow.current || !ids.includes(openNow.current)) return
+      if (next) setOpenReport(next)
+      else go('home')
+    }
+  })
+  const deleteShown = (reportId: string, ticker: string) => {
+    afterDelete.current = reportPage.others[0]?.report_id ?? null
+    marks.removeOne(reportId, ticker)
+  }
 
   // The one listener for the engine's notes. The run's notes go to useRun.
   useEffect(() => {
@@ -284,8 +308,9 @@ export function App() {
 
   const currentTicker = () => (target.current === 'report' ? openRow?.ticker ?? null : null)
   const step = (dir: 1 | -1) => {
-    const ticker = nextCompany(companies, currentTicker(), dir)
-    const row = companies.find((c) => c.ticker === ticker)
+    const list = shownOrder.current ?? companies
+    const ticker = nextCompany(list, currentTicker(), dir)
+    const row = list.find((c) => c.ticker === ticker)
     if (row) openCompany(row)
   }
 
@@ -378,6 +403,7 @@ export function App() {
             className="rdate"
             others={shown ? reportPage.others : []}
             onOpen={setOpenReport}
+            onDelete={shown ? () => deleteShown(shown.report_id, shown.ticker) : undefined}
           />
         )}
       </>
@@ -387,7 +413,7 @@ export function App() {
       ? {
           title: shown?.name ?? shown?.ticker ?? entry?.name ?? openRow?.name ?? 'Reports',
           subtitle: shown ? (
-            <ReportSubtitle text={reportSubtitle(shown.created_at, shown.kept)} others={reportPage.others} onOpen={setOpenReport} />
+            <ReportSubtitle text={reportSubtitle(shown.created_at, shown.kept)} others={reportPage.others} onOpen={setOpenReport} onDelete={() => deleteShown(shown.report_id, shown.ticker)} />
           ) : entry ? (
             reportSubtitle(entry.created_at, null)
           ) : openRow?.report_id === openReport ? (
@@ -512,6 +538,20 @@ export function App() {
         onPage={(p) => {
           setSideOver(false)
           go(p)
+        }}
+        hidden={marks.hidden}
+        onDelete={marks.remove}
+        onPin={(row, pinned) => void marks.pin(row, pinned)}
+        onShowHidden={marks.setWantHidden}
+        onOpenHidden={(r) => {
+          setOpenReport(r.report_id)
+          setSideOver(false)
+          go('report')
+        }}
+        onBringBack={(r) => void marks.bringBack(r)}
+        onDeleteHidden={marks.removeHidden}
+        onOrder={(rows) => {
+          shownOrder.current = rows
         }}
       />
       {!wide && sideOver && <div className="sidescrim" onMouseDown={() => setSideOver(false)} />}

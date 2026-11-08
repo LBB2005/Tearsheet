@@ -1,4 +1,5 @@
 // A small notice that rises from the bottom right, stays a few seconds, then fades and lifts away.
+// It may carry one action, such as Undo after a delete; using it closes the notice.
 
 import { useEffect, useRef, useState } from 'react'
 
@@ -9,6 +10,9 @@ export interface Notice {
   title: string
   text?: string
   tone?: 'ok' | 'stop'
+  action?: { label: string; run: () => void }
+  // How long it stays; SHOW_MS by default.
+  ms?: number
 }
 
 const SHOW_MS = 5000
@@ -20,19 +24,35 @@ export function Toast({ notice, onDone }: { notice: Notice; onDone: () => void }
   done.current = onDone
 
   useEffect(() => {
-    const hide = window.setTimeout(() => setLeaving(true), SHOW_MS)
-    const gone = window.setTimeout(() => done.current(), SHOW_MS + leaveMs())
+    const stay = notice.ms ?? SHOW_MS
+    const hide = window.setTimeout(() => setLeaving(true), stay)
+    const gone = window.setTimeout(() => done.current(), stay + leaveMs())
     return () => {
       window.clearTimeout(hide)
       window.clearTimeout(gone)
     }
+    // Each notice keeps the time it was given when it first showed.
   }, [])
 
-  const cls = ['toast4', notice.tone === 'stop' ? 'stop' : '', leaving ? 'leave' : ''].filter(Boolean).join(' ')
+  const cls = ['toast4', notice.tone === 'stop' ? 'stop' : '', notice.action ? 'act' : '', leaving ? 'leave' : ''].filter(Boolean).join(' ')
+  const action = notice.action
   return (
     <div className={cls}>
-      <b>{notice.title}</b>
-      {notice.text && <span>{notice.text}</span>}
+      <div>
+        <b>{notice.title}</b>
+        {notice.text && <span>{notice.text}</span>}
+      </div>
+      {action && (
+        <button
+          onClick={() => {
+            action.run()
+            setLeaving(true)
+            window.setTimeout(() => done.current(), leaveMs())
+          }}
+        >
+          {action.label}
+        </button>
+      )}
     </div>
   )
 }
