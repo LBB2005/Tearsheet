@@ -1,6 +1,7 @@
 // The sidebar's width, which Liam sets by dragging its right edge (shell/SidebarSizer.tsx), as in
 // Finder and the Claude app. The arrow keys move the edge too, and a double-click (or Return)
-// puts it back to the usual width. It is kept between launches.
+// puts it back to the usual width. It is kept between launches. Dragged well past the narrowest,
+// to under half of it, the sidebar closes, as in Finder; the width it had is kept for next time.
 //
 // The limits come from the rows. The widest row there can be (a five-letter ticker, the official
 // tick, a four-digit close and the HOLD tag, measured in Avenir Next) needs 224 px, so the
@@ -19,6 +20,9 @@ type Root = { style: Pick<CSSStyleDeclaration, 'setProperty'> }
 export const SIDEBAR_MIN = 224
 export const SIDEBAR_DEFAULT = 232
 export const SIDEBAR_MAX = 360
+// A drag that takes the edge under this closes the sidebar: half the narrowest, so a drag that
+// only meant to make it narrow, and went a little too far, never closes it by mistake.
+export const SIDEBAR_CLOSE_AT = SIDEBAR_MIN / 2
 // One arrow key press; with Shift, a bigger step.
 export const SIDEBAR_STEP = 16
 export const SIDEBAR_BIG_STEP = 64
@@ -101,4 +105,9 @@ export function keyWidth(key: string, width: number, shift = false): number | nu
 // The width a drag asks for: where it started, moved by how far the pointer has gone.
 export function dragWidth(from: number, startX: number, x: number): number {
   return clampWidth(from + x - startX)
+}
+
+// Whether a drag has taken the edge far enough to close the sidebar once it is let go.
+export function dragCloses(from: number, startX: number, x: number): boolean {
+  return from + x - startX < SIDEBAR_CLOSE_AT
 }

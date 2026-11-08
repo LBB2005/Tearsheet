@@ -15,12 +15,13 @@ import { renderApp, sidebarButton, win } from '../test/app'
 import { menu } from '../test/bridge'
 import { clickReaches, dragAreas, regionOf } from '../test/dragMap'
 import { setWindowWidth } from '../test/screen'
-import { setSidebarWidth, SIDEBAR_DEFAULT, SIDEBAR_MAX, SIDEBAR_MIN } from './sidebarWidth'
+import { setSidebarWidth, SIDEBAR_CLOSE_AT, SIDEBAR_DEFAULT, SIDEBAR_MAX, SIDEBAR_MIN } from './sidebarWidth'
 
 const edge = () => screen.getByRole('separator', { name: 'Resize the sidebar' })
 const noEdge = () => screen.queryByRole('separator', { name: 'Resize the sidebar' })
 const shownWidth = () => document.documentElement.style.getPropertyValue('--sw')
 const kept = () => localStorage.getItem('sidebar.width')
+const keptHidden = () => localStorage.getItem('sidebar.hidden')
 
 function drag(from: number, to: number, end: 'up' | 'lost' = 'up') {
   const el = edge()
@@ -70,7 +71,7 @@ describe('the sidebar’s edge', () => {
     expect(shownWidth()).toBe(`${SIDEBAR_MAX}px`)
     expect(edge()).toHaveClass('max')
     expect(kept()).toBe(String(SIDEBAR_MAX))
-    drag(360, 20)
+    drag(360, SIDEBAR_CLOSE_AT + 30)
     expect(shownWidth()).toBe(`${SIDEBAR_MIN}px`)
     expect(edge()).toHaveClass('min')
     expect(edge()).not.toHaveClass('max')
@@ -155,6 +156,86 @@ describe('the sidebar’s edge', () => {
   })
 })
 
+describe('dragged past the narrowest', () => {
+  test('a little past it, the sidebar stops at the narrowest and stays open', async () => {
+    await renderApp()
+    drag(232, SIDEBAR_CLOSE_AT + 10)
+    expect(win()).not.toHaveClass('sbhidden')
+    expect(shownWidth()).toBe(`${SIDEBAR_MIN}px`)
+    expect(kept()).toBe(String(SIDEBAR_MIN))
+    expect(keptHidden()).toBeNull()
+  })
+
+  test('well past it, the sidebar closes, and its button brings it back at the width it had', async () => {
+    localStorage.setItem('sidebar.width', '300')
+    const { user } = await renderApp()
+    drag(300, SIDEBAR_CLOSE_AT - 20)
+    expect(win()).toHaveClass('sbhidden')
+    expect(noEdge()).toBeNull()
+    expect(keptHidden()).toBe('1')
+    // The width from before the drag is kept, not the narrowest.
+    expect(kept()).toBe('300')
+    expect(shownWidth()).toBe('300px')
+    expect(sidebarButton()).toHaveAttribute('aria-expanded', 'false')
+    await user.click(sidebarButton())
+    expect(win()).not.toHaveClass('sbhidden')
+    expect(edge()).toHaveAttribute('aria-valuenow', '300')
+    expect(shownWidth()).toBe('300px')
+  })
+
+  test('the sidebar slides away while the pointer is still down, and comes back if it goes back', async () => {
+    await renderApp()
+    const el = edge()
+    fireEvent.pointerDown(el, { clientX: 232, button: 0, pointerId: 1 })
+    fireEvent.pointerMove(el, { clientX: 60, pointerId: 1 })
+    expect(win()).toHaveClass('sbhidden')
+    // The edge stays to finish the drag, with nothing kept yet.
+    expect(edge()).toHaveClass('on', 'closing', 'min')
+    expect(edge()).toHaveAttribute('aria-valuetext', 'Let go to close the sidebar')
+    expect(keptHidden()).toBeNull()
+    fireEvent.pointerMove(el, { clientX: 280, pointerId: 1 })
+    expect(win()).not.toHaveClass('sbhidden')
+    expect(edge()).not.toHaveClass('closing')
+    expect(shownWidth()).toBe('280px')
+    fireEvent.pointerUp(el, { pointerId: 1 })
+    expect(win()).not.toHaveClass('sbhidden')
+    expect(kept()).toBe('280')
+    expect(keptHidden()).toBeNull()
+  })
+
+  test('in a narrow window it closes the sidebar opened over the page', async () => {
+    setWindowWidth(900)
+    const { user } = await renderApp()
+    await user.click(sidebarButton())
+    expect(win()).toHaveClass('sbover')
+    expect(document.querySelector('.sidescrim')).not.toBeNull()
+    const el = edge()
+    fireEvent.pointerDown(el, { clientX: 232, button: 0, pointerId: 1 })
+    fireEvent.pointerMove(el, { clientX: 40, pointerId: 1 })
+    expect(win()).not.toHaveClass('sbover')
+    expect(document.querySelector('.sidescrim')).toBeNull()
+    fireEvent.pointerUp(el, { pointerId: 1 })
+    expect(win()).toHaveClass('sbhidden')
+    expect(win()).not.toHaveClass('sbover')
+    expect(noEdge()).toBeNull()
+    // A narrow window's sidebar was only opened over the page; nothing is kept hidden.
+    expect(keptHidden()).toBeNull()
+    expect(kept()).toBeNull()
+  })
+
+  test('⌃⌘S in the middle of a drag that would close it leaves the sidebar working', async () => {
+    await renderApp()
+    fireEvent.pointerDown(edge(), { clientX: 232, button: 0, pointerId: 1 })
+    fireEvent.pointerMove(edge(), { clientX: 40, pointerId: 1 })
+    menu('sidebar')
+    expect(await screen.findByRole('button', { name: 'Show the sidebar' })).toBeInTheDocument()
+    expect(noEdge()).toBeNull()
+    menu('sidebar')
+    expect(await screen.findByRole('separator', { name: 'Resize the sidebar' })).toBeInTheDocument()
+    expect(win()).not.toHaveClass('sbhidden')
+  })
+})
+
 describe('with the sidebar’s button and narrow windows', () => {
   test('goes while the sidebar is hidden, and the sidebar comes back at the width it had', async () => {
     const { user } = await renderApp()
@@ -234,6 +315,7 @@ describe('with the sidebar’s button and narrow windows', () => {
     expect(decl('.sidedrag', 'height')).toBe(top)
     expect(decl('.top', 'height')).toBe(top)
     // And the sidebar doesn't glide behind the pointer while it is dragged.
-    expect(decl('.win:has(> .sizer4.on) .side4, .win:has(> .sizer4.on) .side4 .in', 'transition')).toBe('none')
+    // (except as it closes, when it slides away as it does when hidden).
+    expect(decl('.win:has(> .sizer4.on:not(.closing)) .side4, .win:has(> .sizer4.on:not(.closing)) .side4 .in', 'transition')).toBe('none')
   })
 })

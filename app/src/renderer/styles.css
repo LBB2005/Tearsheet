@@ -213,7 +213,9 @@ button, input, textarea, select { font: inherit; color: inherit; }
    over an area that drags the window; no-drag besides, so a drag on it never moves the window. A
    faint line shows once the pointer rests on it, the accent line while it has the keyboard.
    At the narrowest or the widest, the cursor points the one way it can still go. App shows it
-   only while the sidebar does: beside the page, or opened over it in a narrow window. */
+   only while the sidebar does: beside the page, or opened over it in a narrow window. Dragged
+   well past the narrowest (.closing), the sidebar slides away as when it is hidden, and back
+   if the pointer goes back; the edge's line goes with it. */
 .sizer4 { position: absolute; z-index: 5; top: 52px; bottom: 0; left: calc(var(--sw) - 4px); width: 8px; cursor: col-resize; touch-action: none; outline: none; -webkit-app-region: no-drag; }
 .sizer4::after { content: ""; position: absolute; top: 0; bottom: 0; left: 3px; width: 2px; border-radius: calc(1px * var(--round)); background: transparent; transition: background .15s; }
 .sizer4:hover::after { background: rgb(var(--ink) / .1); transition-delay: .3s; }
@@ -222,9 +224,11 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .sizer4.min { cursor: e-resize; }
 .sizer4.max { cursor: w-resize; }
 .narrow .sizer4 { z-index: 26; }
-/* While it is dragged: the sidebar follows the pointer with no glide, the cursor stays whatever
-   it passes over, and the report's frame never takes the pointer. */
-.win:has(> .sizer4.on) .side4, .win:has(> .sizer4.on) .side4 .in { transition: none; }
+/* While it is dragged: the sidebar follows the pointer with no glide (it glides only as it
+   closes), the cursor stays whatever it passes over, and the report's frame never takes the
+   pointer. */
+.win:has(> .sizer4.on:not(.closing)) .side4, .win:has(> .sizer4.on:not(.closing)) .side4 .in { transition: none; }
+.sizer4.closing::after { background: transparent; }
 .win:has(> .sizer4.on), .win:has(> .sizer4.on) * { cursor: col-resize !important; user-select: none; -webkit-user-select: none; }
 .win:has(> .sizer4.on.min), .win:has(> .sizer4.on.min) * { cursor: e-resize !important; }
 .win:has(> .sizer4.on.max), .win:has(> .sizer4.on.max) * { cursor: w-resize !important; }

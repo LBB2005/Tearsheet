@@ -3,12 +3,14 @@ import { describe, expect, test, vi } from 'vitest'
 import {
   applySidebarWidth,
   clampWidth,
+  dragCloses,
   dragWidth,
   keyWidth,
   onSidebarWidth,
   setSidebarWidth,
   showSidebarWidth,
   SIDEBAR_BIG_STEP,
+  SIDEBAR_CLOSE_AT,
   SIDEBAR_DEFAULT,
   SIDEBAR_MAX,
   SIDEBAR_MIN,
@@ -169,4 +171,15 @@ test('a drag moves the width by as far as the pointer has gone, inside the limit
   expect(dragWidth(300, 300, 250)).toBe(250)
   expect(dragWidth(232, 230, 2000)).toBe(SIDEBAR_MAX)
   expect(dragWidth(232, 230, 0)).toBe(SIDEBAR_MIN)
+})
+
+test('a drag closes the sidebar only once it has gone well past the narrowest', () => {
+  expect(SIDEBAR_CLOSE_AT).toBeLessThan(SIDEBAR_MIN)
+  expect(SIDEBAR_CLOSE_AT).toBeGreaterThan(0)
+  expect(dragCloses(232, 232, SIDEBAR_MIN - 40)).toBe(false)
+  expect(dragCloses(232, 232, SIDEBAR_CLOSE_AT)).toBe(false)
+  expect(dragCloses(232, 232, SIDEBAR_CLOSE_AT - 1)).toBe(true)
+  // Wherever on the edge it was grabbed.
+  expect(dragCloses(300, 296, SIDEBAR_CLOSE_AT - 4)).toBe(false)
+  expect(dragCloses(300, 296, SIDEBAR_CLOSE_AT - 5)).toBe(true)
 })

@@ -72,6 +72,8 @@ export function App() {
   // An earlier version kept the chart's last width; it opens at Half now.
   useEffect(() => forgetOldChartPrefs(), [])
   const [sideOver, setSideOver] = useState(false)
+  // True while a drag on the sidebar's edge would close it (shell/SidebarSizer.tsx).
+  const [sideClosing, setSideClosing] = useState(false)
   const [lookUp, setLookUp] = useState(false)
   // The look-up box opened from the line's Add a company: a pick joins the line.
   const lookUpAdds = useRef(false)
@@ -321,6 +323,12 @@ export function App() {
 
   // Wide windows hide and show the sidebar in place; narrow ones open it over the page.
   const toggleSidebar = () => (wide ? setSideHidden((h) => !h) : setSideOver((o) => !o))
+  // A drag on its edge let go well past the narrowest closes it, as its button does.
+  const closeSidebar = () => {
+    setSideClosing(false)
+    if (wide) setSideHidden(true)
+    else setSideOver(false)
+  }
   useEffect(() => {
     if (wide) setSideOver(false)
   }, [wide])
@@ -503,7 +511,15 @@ export function App() {
     )
 
   const sideShown = page !== 'setup' && (wide ? !sideHidden : sideOver)
-  const cls = ['win', `on-${page}`, wide ? '' : 'narrow', sideShown ? '' : 'sbhidden', !wide && sideOver ? 'sbover' : '', opening ? 'opening' : ''].filter(Boolean).join(' ')
+  // A drag cut short while it would close the sidebar (⌃⌘S hid it meanwhile) leaves nothing behind.
+  useEffect(() => {
+    if (!sideShown) setSideClosing(false)
+  }, [sideShown])
+  // While a drag on the edge would close it, the sidebar already looks closed.
+  const sideOpen = sideShown && !sideClosing
+  const cls = ['win', `on-${page}`, wide ? '' : 'narrow', sideOpen ? '' : 'sbhidden', !wide && sideOver && !sideClosing ? 'sbover' : '', opening ? 'opening' : '']
+    .filter(Boolean)
+    .join(' ')
 
   // Until the settings answer: empty glass for a moment, then "Starting Tearsheet…", then why
   // the engine can't start and what to do. The window is never left blank.
@@ -583,8 +599,8 @@ export function App() {
         }}
       />
       {/* The sidebar's right edge, which sets its width, while the sidebar shows. */}
-      {sideShown && <SidebarSizer />}
-      {!wide && sideOver && <div className="sidescrim" onMouseDown={() => setSideOver(false)} />}
+      {sideShown && <SidebarSizer onClosing={setSideClosing} onClose={closeSidebar} />}
+      {!wide && sideOver && !sideClosing && <div className="sidescrim" onMouseDown={() => setSideOver(false)} />}
       <div className="mainarea">
         {page === 'setup' ? (
           <Setup settings={bootSettings} leaving={leaving} safety={safety} onSafetyStarted={safetyBegan} onFinish={setupFinished}>
@@ -629,7 +645,7 @@ export function App() {
       </div>
       {/* After the sidebar and the toolbar, whose top strips drag the window under it: where drag
           areas overlap, the later one in the page wins (shell/sidebar.test.ts). */}
-      {page !== 'setup' && <SidebarButton shown={sideShown} onClick={toggleSidebar} />}
+      {page !== 'setup' && <SidebarButton shown={sideOpen} onClick={toggleSidebar} />}
       <div className="toasts" aria-live="polite">
         {notice && <Toast key={notice.id} notice={notice} onDone={() => setNotice((n) => (n && n.id === notice.id ? null : n))} />}
       </div>
