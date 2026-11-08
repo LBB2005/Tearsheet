@@ -9,8 +9,11 @@
    colour is typed into a rule anywhere else. Light mode and the other looks set every one. */
 
 :root {
-  /* Grounds: the sidebar and window, and the main area under its glow (and the report frame). */
+  /* Grounds: the window, the sidebar, and the main area under its glow (and the report frame).
+     The sidebar is the window's colour lifted toward the text: "Raised", Liam's pick of five
+     (8 Nov 2026), at his 50% (appearance/tokens.ts sideOf; Sidebar contrast on Appearance). */
   --bg: #0A0D14;
+  --side: #1B1E25;
   --base: #070B14;
   --base-rgb: 7 11 20;
   /* What thin lines, panels, hovers and shadows are made of, as r g b. A light look uses a dark
@@ -116,8 +119,8 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .sbt:focus-visible { outline: 2px solid var(--accent); }
 .sbt svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.6; }
 
-/* ---------- the sidebar: flat dark, no boxes, pills or borders ---------- */
-.side4 { position: relative; z-index: 2; width: var(--sw); flex: none; height: 100%; overflow: hidden; background: var(--bg); user-select: none; transition: width .34s var(--slide), visibility 0s; }
+/* ---------- the sidebar: flat, a step lighter than the page, no boxes, pills or borders ---------- */
+.side4 { position: relative; z-index: 2; width: var(--sw); flex: none; height: 100%; overflow: hidden; background: var(--side); user-select: none; transition: width .34s var(--slide), visibility 0s; }
 .side4 .in { width: var(--sw); height: 100%; display: flex; flex-direction: column; padding: 54px 10px 12px; gap: 1px; transition: opacity .2s, transform .34s var(--slide), width .34s var(--slide); }
 .sidedrag { position: absolute; top: 0; left: 0; right: 0; height: 52px; -webkit-app-region: drag; }
 .row4 { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 10px; width: 100%; padding: 7px 10px; border-radius: calc(8px * var(--round)); color: var(--text2); cursor: pointer; font-size: 13.5px; white-space: nowrap; transition: background .15s, color .15s; }

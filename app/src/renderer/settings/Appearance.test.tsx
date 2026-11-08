@@ -37,9 +37,9 @@ const button = (name: string | RegExp) => screen.getByRole('button', { name })
 const slider = (name: string) => screen.getByRole('slider', { name })
 
 describe('the looks', () => {
-  test('six looks, then Import a theme; one goes on at once and is named', async () => {
+  test('six looks, More looks, then Import a theme; one goes on at once and is named', async () => {
     const { user } = await openAppearance()
-    expect(looks().getAllByRole('button').map((b) => b.querySelector('.nm')?.firstChild?.textContent)).toEqual(['Tearsheet', 'Graphite', 'Evergreen', 'Amber', 'Dusk', 'High contrast', 'Import a theme…'])
+    expect(looks().getAllByRole('button').map((b) => b.querySelector('.nm')?.firstChild?.textContent)).toEqual(['Tearsheet', 'Graphite', 'Evergreen', 'Amber', 'Dusk', 'High contrast', 'More looks', 'Import a theme…'])
     expect(card('Tearsheet')).toHaveAttribute('aria-pressed', 'true')
     await user.click(card('Graphite'))
     expect(card('Graphite')).toHaveAttribute('aria-pressed', 'true')
@@ -69,6 +69,47 @@ describe('the looks', () => {
   })
 })
 
+describe('More looks', () => {
+  const more = () => within(screen.getByRole('group', { name: 'More looks' }))
+
+  test('a card of its own opens twenty to scroll through, and one goes on at once with its font, corners and glow', async () => {
+    const { user } = await openAppearance()
+    expect(card('More looks')).toHaveTextContent('20 more')
+    await user.click(card('More looks'))
+    expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('More looks')
+    const names = more().getAllByRole('button').map((b) => b.querySelector('.nm')?.firstChild?.textContent)
+    expect(names).toHaveLength(20)
+    expect([names[0], names[19]]).toEqual(['Midnight', 'Desert'])
+    await user.click(more().getByRole('button', { name: /^Aurora/ }))
+    expect(more().getByRole('button', { name: /^Aurora/ })).toHaveAttribute('aria-pressed', 'true')
+    expect(token('--accent')).toBe('#7EF0C9')
+    expect(token('--glow')).toBe('.85')
+    // Still on More looks, so the next can be tried straight away.
+    await user.click(more().getByRole('button', { name: /^Terminal/ }))
+    expect(token('--ui')).toContain('SF Mono')
+    expect(token('--round')).toBe('.1429')
+    // Light or dark is here too.
+    await user.click(within(screen.getByRole('group', { name: 'Light or dark' })).getByRole('button', { name: 'Light' }))
+    expect(token('--base')).toBe('#F3F7F3')
+    await user.click(button('‹ Appearance'))
+    // The card now shows the look in use; the six aren't picked.
+    expect(card('More looks')).toHaveTextContent('Terminal')
+    expect(card('More looks')).toHaveTextContent('From More looks')
+    expect(card('Tearsheet')).toHaveAttribute('aria-pressed', 'false')
+    expect(JSON.parse(localStorage.getItem('appearance.look')!)['based-on']).toBe('terminal')
+  })
+
+  test('back to one of the six brings today’s font, corners and glow back', async () => {
+    const { user } = await openAppearance()
+    await user.click(card('More looks'))
+    await user.click(more().getByRole('button', { name: /^Signal/ }))
+    expect(token('--glow')).toBe('0')
+    await user.click(button('‹ Appearance'))
+    await user.click(card('Tearsheet'))
+    expect([token('--glow'), token('--round'), token('--ui')]).toEqual(['.4', '1', '"Avenir Next", "Helvetica Neue", sans-serif'])
+  })
+})
+
 describe('the common choices', () => {
   test('glow and text size, with their values beside them', async () => {
     await openAppearance()
@@ -78,6 +119,24 @@ describe('the common choices', () => {
     expect(screen.getByText('70%')).toBeInTheDocument()
     fireEvent.change(slider('Text size'), { target: { value: '120' } })
     expect(bridge.setLook).toHaveBeenLastCalledWith({ zoom: 1.2, background: '#0A0D14' })
+  })
+
+  test('Sidebar contrast lifts the sidebar in dark mode, Raised at 50% to begin with', async () => {
+    const { user } = await openAppearance()
+    expect(slider('Sidebar contrast')).toHaveValue('50')
+    expect(token('--side')).toBe('#1B1E25')
+    fireEvent.change(slider('Sidebar contrast'), { target: { value: '0' } })
+    expect(token('--side')).toBe('#0A0D14')
+    fireEvent.change(slider('Sidebar contrast'), { target: { value: '100' } })
+    expect(token('--side')).toBe('#2C2F36')
+    expect(JSON.parse(localStorage.getItem('appearance.look')!)['sidebar-contrast']).toBe(100)
+    // A sidebar colour picked by hand is drawn as picked, and the slider says why it's off.
+    await user.click(button('Customize…'))
+    fireEvent.change(screen.getByLabelText('Sidebar', { selector: 'input[type="color"]' }), { target: { value: '#202830' } })
+    expect(token('--side')).toBe('#202830')
+    await user.click(button('‹ Appearance'))
+    expect(slider('Sidebar contrast')).toBeDisabled()
+    expect(screen.getByText(/Off while you use your own sidebar colour/)).toBeInTheDocument()
   })
 
   test('a swatch the same as the look’s own accent isn’t shown twice', async () => {

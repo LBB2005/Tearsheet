@@ -33,8 +33,10 @@ Over six rounds of mockups, Liam settled on:
 
 ## The window
 
-*   **Sidebar** (232 px, flat dark at about `#0A0D14`). It has no boxes, pills or borders, and
-    no desktop color shows through. From top to bottom:
+*   **Sidebar** (232 px, flat, "Raised": a step lighter than the page, `#1B1E25` in the dark
+    Tearsheet look, Liam's pick of five on Nov 8; Sidebar contrast on Appearance sets how much,
+    and light mode keeps its grey sidebar). It has no boxes, pills or borders, and no desktop
+    color shows through. From top to bottom:
     *   New report (⌘N) and Look up (⌘K) as plain rows;
     *   a small "Reports" label with Search and a sort and filter button, then one row per
         company (look 3 of the sidebar mockups, picked by Liam on Nov 7): the ticker, a tick for
@@ -136,6 +138,12 @@ Over six rounds of mockups, Liam settled on:
         chart's lines, with a warning when text gets hard to read. Theme files (Import…, Export…,
         a `.tearsheet-theme` file read as untrusted), Save as a look, and Reset, each with Undo. The
         report's frame follows the look; a report file keeps the dark look at full glow.
+        Also since Nov 8: a **More looks** card after the six opens a page of twenty more to
+        scroll through (Midnight, Terminal, Ledger, Glacier, Rosewood, Cobalt, Moss, Ultraviolet,
+        Lavender, Coral, Copper, Signal, Aurora, Sunset, Espresso, Carbon, Neon, Newsprint, Mono,
+        Desert), each dark and light with its own font, corners and glow; picking one brings
+        those three unless you changed them yourself. **Sidebar contrast** (next to Glow, 50% by
+        default) sets how much lighter the sidebar is than the page in dark mode.
     *   **AI tools:** each tool's job and version, its safety check, and "Look for AI tools
         again". The paths and the lock-down details are behind "Show details".
     *   **Data keys:** Massive, FRED and Alpha Vantage.

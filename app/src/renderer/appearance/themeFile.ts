@@ -8,7 +8,8 @@
 //   { "tearsheet-theme": 1, "name": "Night shift", "based-on": "dusk", "mode": "dark",
 //     "accent": "pink", "colours": { "text": "#EFE9F7" },
 //     "text": { "font": "sf", "size": 100, "boldness": 0 },
-//     "glow": 40, "corners": 14, "glass": "frosted", "lines": "standard", "ratings": "standard" }
+//     "glow": 40, "sidebar-contrast": 50, "corners": 14, "glass": "frosted", "lines": "standard",
+//     "ratings": "standard" }
 // Animations are not in it: how much moves is a person's own need, not part of a look.
 
 import { isHex } from './colour'
@@ -32,13 +33,16 @@ export interface Appearance {
   size: number // percent: 85 to 130, in steps of 5
   boldness: Boldness
   glow: number // percent of the glows' first strength: 0 to 100, in steps of 5
+  // How far the sidebar is lifted toward the text colour in dark mode, in percent: 0 to 100, in
+  // steps of 5. 50 is Liam's pick, "Raised" (8 Nov 2026); 0 is the flat sidebar from before.
+  sidebarContrast: number
   corners: number // the panels' corner in px: 0 to 22
   glass: Glass
   lines: Lines
   ratings: RatingSet
 }
 
-// Today's look, with Liam's 40% glow (7 Nov 2026).
+// Today's look, with Liam's 40% glow (7 Nov 2026) and Raised sidebar (8 Nov 2026).
 export const DEFAULT_APPEARANCE: Appearance = {
   basedOn: 'tearsheet',
   mode: 'dark',
@@ -48,6 +52,7 @@ export const DEFAULT_APPEARANCE: Appearance = {
   size: 100,
   boldness: 0,
   glow: 40,
+  sidebarContrast: 50,
   corners: 14,
   glass: 'frosted',
   lines: 'standard',
@@ -60,6 +65,7 @@ export const LINES: Lines[] = ['soft', 'standard', 'strong']
 export const BOLDNESS: Boldness[] = [-100, 0, 100, 200]
 export const SIZE = { min: 85, max: 130, step: 5 }
 export const GLOW = { min: 0, max: 100, step: 5 }
+export const SIDEBAR_CONTRAST = { min: 0, max: 100, step: 5 }
 export const CORNERS = { min: 0, max: 22, step: 1 }
 
 export const THEME_MARK = 'tearsheet-theme'
@@ -104,6 +110,7 @@ export function readTheme(data: Record<string, unknown>): ReadTheme {
     else if (key === 'mode') take(pick(value, MODES), (v) => (look.mode = v))
     else if (key === 'accent') take(pick(value, ACCENTS.map((a) => a.id)), (v) => (look.accent = v))
     else if (key === 'glow') take(inRange(value, GLOW), (v) => (look.glow = v))
+    else if (key === 'sidebar-contrast') take(inRange(value, SIDEBAR_CONTRAST), (v) => (look.sidebarContrast = v))
     else if (key === 'corners') take(inRange(value, CORNERS), (v) => (look.corners = v))
     else if (key === 'glass') take(pick(value, GLASSES), (v) => (look.glass = v))
     else if (key === 'lines') take(pick(value, LINES), (v) => (look.lines = v))
@@ -151,7 +158,7 @@ export function themeData(look: Appearance, name: string): Record<string, unknow
   const data: Record<string, unknown> = { [THEME_MARK]: THEME_VERSION, name: cleanName(name) || 'My look', 'based-on': look.basedOn, mode: look.mode, accent: look.accent }
   const colours = Object.fromEntries(COLOUR_KEYS.filter((k) => look.colours[k]).map((k) => [k, look.colours[k]]))
   if (Object.keys(colours).length) data.colours = colours
-  Object.assign(data, { text: { font: look.font, size: look.size, boldness: look.boldness }, glow: look.glow, corners: look.corners, glass: look.glass, lines: look.lines, ratings: look.ratings })
+  Object.assign(data, { text: { font: look.font, size: look.size, boldness: look.boldness }, glow: look.glow, 'sidebar-contrast': look.sidebarContrast, corners: look.corners, glass: look.glass, lines: look.lines, ratings: look.ratings })
   return data
 }
 

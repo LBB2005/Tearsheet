@@ -136,6 +136,41 @@ describe('the looks', () => {
     expect(store.appearanceNow().look.basedOn).toBe('graphite')
   })
 
+  test('a More look brings its own font, corners and glow, and the first six bring today’s back', async () => {
+    const store = await fresh()
+    store.pickLook('terminal')
+    let look = store.appearanceNow().look
+    expect([look.basedOn, look.font, look.corners, look.glow]).toEqual(['terminal', 'mono', 2, 15])
+    expect(store.lookName()).toBe('Terminal')
+    expect(store.canSave()).toBe(false)
+    expect(token('--ui')).toContain('SF Mono')
+    store.pickLook('aurora')
+    look = store.appearanceNow().look
+    expect([look.font, look.corners, look.glow]).toEqual(['avenir', 16, 85])
+    store.pickLook('tearsheet')
+    look = store.appearanceNow().look
+    expect([look.font, look.corners, look.glow]).toEqual(['avenir', 14, 40])
+    expect(store.appearanceNow().picked).toBe('tearsheet')
+  })
+
+  test('a font, corners or glow the person changed stays when they pick another look', async () => {
+    const store = await fresh()
+    store.setLook({ ...store.appearanceNow().look, font: 'ny', glow: 70 })
+    store.pickLook('signal')
+    const look = store.appearanceNow().look
+    // Signal comes with SF Pro, 4 px corners and no glow: the corners follow it, the rest stay.
+    expect([look.font, look.corners, look.glow]).toEqual(['ny', 4, 70])
+  })
+
+  test('the stored look keeps a More look across a restart', async () => {
+    let store = await fresh()
+    store.pickLook('midnight')
+    store = await fresh()
+    expect(store.appearanceNow().picked).toBe('midnight')
+    expect(store.appearanceNow().look.basedOn).toBe('midnight')
+    expect(token('--accent')).toBe('#E8C36A')
+  })
+
   test('High contrast turns the lines strong, and the next look puts them back', async () => {
     const store = await fresh()
     store.pickLook('contrast')

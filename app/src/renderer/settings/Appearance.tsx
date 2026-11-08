@@ -5,15 +5,19 @@
 // every colour, the font and boldness, corners and glass, and the chart's lines. At the bottom,
 // theme files (Import…, Export…) and Reset. Every change shows at once, in the window and the
 // report (appearance/store.ts), and a look that makes text hard to read says so.
+//
+// 8 Nov 2026: the twenty More looks live on a page of their own, opened from the gallery's More
+// looks card, so the Appearance page stays as it was (Liam: "instead of crowding up the
+// appearance page"). Sidebar contrast, next to Glow, sets how far the Raised sidebar is lifted.
 
 import '../settings/appearance.css'
 
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 
 import { contrast, isHex } from '../appearance/colour'
-import { ACCENTS, FONTS, LOOKS, RATINGS, type AccentId, type FontId, type RatingSet } from '../appearance/looks'
+import { ACCENTS, FONTS, LOOKS, RATINGS, styleOf, type AccentId, type FontId, type RatingSet } from '../appearance/looks'
 import { canSave, importTheme, lookName, pickLook, removeSaved, resetLook, restore, saveCurrent, setLook, useAppearance, type AppearanceNow } from '../appearance/store'
-import { BOLDNESS, CORNERS, DEFAULT_APPEARANCE, GLASSES, GLOW, LINES, sameLook, SIZE, themeText, type Appearance, type Boldness, type ColourKey, type Glass, type Lines, type Mode } from '../appearance/themeFile'
+import { BOLDNESS, CORNERS, DEFAULT_APPEARANCE, GLASSES, GLOW, LINES, sameLook, SIDEBAR_CONTRAST, SIZE, themeText, type Appearance, type Boldness, type ColourKey, type Glass, type Lines, type Mode } from '../appearance/themeFile'
 import { pickerValue, readability, resolve, type Resolved } from '../appearance/tokens'
 import { Label, PopUp } from './General'
 import { MotionChoice } from './MotionChoice'
@@ -26,7 +30,7 @@ const systemDark = () => (typeof matchMedia === 'function' ? matchMedia('(prefer
 
 export function AppearancePage({ onNotify }: { onNotify?: Notify }) {
   const now = useAppearance()
-  const [page, setPage] = useState<'main' | 'customize'>('main')
+  const [page, setPage] = useState<'main' | 'customize' | 'more'>('main')
   const [tab, setTab] = useState<Tab>('colours')
   const [problem, setProblem] = useState<string | null>(null)
   const notify: Notify = onNotify ?? (() => undefined)
@@ -53,6 +57,28 @@ export function AppearancePage({ onNotify }: { onNotify?: Notify }) {
     )
   }
 
+  const modes = <Segmented label="Light or dark" value={now.look.mode} options={[['dark', 'Dark'], ['light', 'Light'], ['auto', 'Match the Mac']]} onChange={(mode: Mode) => change({ mode })} />
+
+  if (page === 'more') {
+    return (
+      <>
+        <button className="lk apback" onClick={() => setPage('main')}>
+          ‹ Appearance
+        </button>
+        <div className="aphead">
+          <div>
+            <h2 className="sh2">More looks</h2>
+            <p className="slead">Twenty more, each with its own font, corners and glow. Click one to try it. Your text size, boldness and Buy, Hold and Sell colours stay as they are.</p>
+          </div>
+          {modes}
+        </div>
+        <HardToRead resolved={now.resolved} />
+        <MoreGallery now={now} />
+      </>
+    )
+  }
+
+  const customSidebar = Boolean(now.look.colours.sidebar)
   return (
     <>
       <div className="aphead">
@@ -60,10 +86,10 @@ export function AppearancePage({ onNotify }: { onNotify?: Notify }) {
           <h2 className="sh2">Appearance</h2>
           <p className="slead">Pick a look, then make it yours.</p>
         </div>
-        <Segmented label="Light or dark" value={now.look.mode} options={[['dark', 'Dark'], ['light', 'Light'], ['auto', 'Match the Mac']]} onChange={(mode: Mode) => change({ mode })} />
+        {modes}
       </div>
       <HardToRead resolved={now.resolved} />
-      <Gallery now={now} notify={notify} onProblem={setProblem} />
+      <Gallery now={now} notify={notify} onProblem={setProblem} onMore={() => setPage('more')} />
       <LookLine now={now} notify={notify} />
       <div className="sgrp">
         <div className="sline">
@@ -72,6 +98,16 @@ export function AppearancePage({ onNotify }: { onNotify?: Notify }) {
         </div>
         <RangeRow id="ap-size" title="Text size" help="Everything grows together, the report too." value={now.look.size} range={SIZE} unit="%" onChange={(size) => change({ size })} />
         <RangeRow id="ap-glow" title="Glow" help="The soft light behind every page and the report." value={now.look.glow} range={GLOW} unit="%" onChange={(glow) => change({ glow })} />
+        <RangeRow
+          id="ap-sidebar"
+          title="Sidebar contrast"
+          help={customSidebar ? 'Off while you use your own sidebar colour (Customize → Colours).' : 'In dark mode, how much lighter the sidebar is than the page.'}
+          value={now.look.sidebarContrast}
+          range={SIDEBAR_CONTRAST}
+          unit="%"
+          disabled={customSidebar}
+          onChange={(sidebarContrast) => change({ sidebarContrast })}
+        />
         <RatingsRow look={now.look} change={change} />
         <MotionChoice />
         {/* Kept for the home backgrounds being made in another session, which will fill it. */}
@@ -102,7 +138,7 @@ function Thumb({ r, glow }: { r: Resolved; glow: number }) {
   const g = Math.max(glow, 25) / 100
   const rgb = (hex: string, a: number) => `rgb(${parseInt(hex.slice(1, 3), 16)} ${parseInt(hex.slice(3, 5), 16)} ${parseInt(hex.slice(5, 7), 16)} / ${a.toFixed(2)})`
   return (
-    <span className="thumb" aria-hidden="true" style={{ background: c.bg }}>
+    <span className="thumb" aria-hidden="true" style={{ background: r.side }}>
       <span className="th-side">
         <i style={{ background: c.muted, width: '80%' }} />
         <i style={{ background: c.muted, width: '60%', opacity: 0.7 }} />
@@ -119,15 +155,25 @@ function Thumb({ r, glow }: { r: Resolved; glow: number }) {
   )
 }
 
-function Gallery({ now, notify, onProblem }: { now: AppearanceNow; notify: Notify; onProblem: (why: string | null) => void }) {
+// A look's card picture, in its own colours and glow, with the person's other settings.
+const lookCard = (now: AppearanceNow, id: (typeof LOOKS)[number]['id'], dark: boolean) => {
+  const l = LOOKS.find((x) => x.id === id) ?? LOOKS[0]
+  return { id: l.id, name: l.name, note: l.note, glow: styleOf(l).glow, r: resolve({ ...now.look, basedOn: l.id, accent: 'look', colours: {} }, dark) }
+}
+
+function Gallery({ now, notify, onProblem, onMore }: { now: AppearanceNow; notify: Notify; onProblem: (why: string | null) => void; onMore: () => void }) {
   const dark = systemDark()
   const cards = useMemo(
     () => [
-      ...LOOKS.map((l) => ({ id: l.id, name: l.name, note: l.note, r: resolve({ ...now.look, basedOn: l.id, accent: 'look', colours: {} }, dark) })),
-      ...now.saved.map((s) => ({ id: `saved:${s.id}`, name: s.name, note: 'Yours', r: resolve({ ...s.look, mode: now.look.mode }, dark) }))
+      ...LOOKS.filter((l) => !l.more).map((l) => lookCard(now, l.id, dark)),
+      ...now.saved.map((s) => ({ id: `saved:${s.id}`, name: s.name, note: 'Yours', glow: s.look.glow, r: resolve({ ...s.look, mode: now.look.mode }, dark) }))
     ],
-    [now.look, now.saved, dark]
+    [now, dark]
   )
+  // The More looks card shows the one in use, if it's one of them; otherwise four of them.
+  const inUse = LOOKS.find((l) => l.more && l.id === now.picked)
+  const shown = useMemo(() => (inUse ? [] : LOOKS.filter((l) => l.more).slice(0, 4).map((l) => lookCard(now, l.id, dark))), [now, dark, inUse])
+  const current = inUse ? lookCard(now, inUse.id, dark) : null
   return (
     <div className="lgrid" role="group" aria-label="Looks">
       {cards.map((c) => (
@@ -139,6 +185,23 @@ function Gallery({ now, notify, onProblem }: { now: AppearanceNow; notify: Notif
           </span>
         </button>
       ))}
+      <button className={current ? 'lcard on' : 'lcard'} aria-label={current ? `More looks: ${current.name} is in use` : 'More looks: 20 more'} onClick={onMore}>
+        {current ? (
+          <Thumb r={current.r} glow={now.look.glow} />
+        ) : (
+          <span className="thumb mosaic" aria-hidden="true">
+            {shown.map((c) => (
+              <span key={c.id} style={{ background: `linear-gradient(90deg, ${c.r.side} 34%, ${c.r.colours.base} 34%)` }}>
+                <i style={{ background: c.r.colours.accent }} />
+              </span>
+            ))}
+          </span>
+        )}
+        <span className="nm">
+          {current ? current.name : 'More looks'}
+          <small>{current ? 'From More looks' : '20 more'}</small>
+        </span>
+      </button>
       <ImportButton className="lcard" notify={notify} onProblem={onProblem}>
         <span className="thumb add" aria-hidden="true">
           +
@@ -147,6 +210,26 @@ function Gallery({ now, notify, onProblem }: { now: AppearanceNow; notify: Notif
           Import a theme…<small>From a file</small>
         </span>
       </ImportButton>
+    </div>
+  )
+}
+
+// The twenty More looks, to scroll through. A click puts one on and stays here, so the next can be
+// tried straight after.
+function MoreGallery({ now }: { now: AppearanceNow }) {
+  const dark = systemDark()
+  const cards = useMemo(() => LOOKS.filter((l) => l.more).map((l) => lookCard(now, l.id, dark)), [now, dark])
+  return (
+    <div className="lgrid more" role="group" aria-label="More looks">
+      {cards.map((c) => (
+        <button key={c.id} className={now.picked === c.id ? 'lcard on' : 'lcard'} aria-pressed={now.picked === c.id} onClick={() => pickLook(c.id)}>
+          <Thumb r={c.r} glow={c.glow} />
+          <span className="nm">
+            {c.name}
+            <small>{c.note}</small>
+          </span>
+        </button>
+      ))}
     </div>
   )
 }
@@ -227,12 +310,12 @@ function Segmented<T extends string>({ label, value, options, onChange }: { labe
   )
 }
 
-function RangeRow({ id, title, help, value, range, unit, onChange }: { id: string; title: string; help?: ReactNode; value: number; range: { min: number; max: number; step: number }; unit: string; onChange: (value: number) => void }) {
+function RangeRow({ id, title, help, value, range, unit, disabled, onChange }: { id: string; title: string; help?: ReactNode; value: number; range: { min: number; max: number; step: number }; unit: string; disabled?: boolean; onChange: (value: number) => void }) {
   return (
     <div className="sline">
       <Label id={id} title={title} help={help} />
-      <span className="aprange">
-        <input type="range" aria-labelledby={id} min={range.min} max={range.max} step={range.step} value={value} onChange={(e) => onChange(Number(e.target.value))} />
+      <span className={disabled ? 'aprange off' : 'aprange'}>
+        <input type="range" aria-labelledby={id} min={range.min} max={range.max} step={range.step} value={value} disabled={disabled} onChange={(e) => onChange(Number(e.target.value))} />
         <output>
           {value}
           {unit}
@@ -341,7 +424,7 @@ function readsAs(key: ColourKey, r: Resolved): { text: string; ok: boolean } | n
   const c = r.colours
   const pair: Partial<Record<ColourKey, [string, string, number]>> = {
     background: [c.text, c.base, 4.5],
-    sidebar: [c.text, c.bg, 4.5],
+    sidebar: [c.text, r.side, 4.5],
     text: [c.text, c.base, 4.5],
     'secondary-text': [c.muted, c.base, 4.5],
     accent: [c.accent, c.base, 3]

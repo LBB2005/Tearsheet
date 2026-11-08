@@ -8,10 +8,10 @@ import { join, relative } from 'node:path'
 
 import { describe, expect, test } from 'vitest'
 
-import { contrast } from './colour'
-import { LOOKS, RATINGS } from './looks'
-import { DEFAULT_APPEARANCE, type Appearance } from './themeFile'
-import { EXACT, num, pickerValue, readability, resolve, TOKEN_NAMES } from './tokens'
+import { contrast, luminance, mix } from './colour'
+import { FONTS, LOOKS, PLAIN_STYLE, RATINGS, styleOf } from './looks'
+import { CORNERS, DEFAULT_APPEARANCE, GLOW, type Appearance } from './themeFile'
+import { EXACT, num, pickerValue, readability, resolve, SIDEBAR_LIFT, TOKEN_NAMES } from './tokens'
 
 const RENDERER = new URL('..', import.meta.url).pathname
 const css = (path: string) => readFileSync(join(RENDERER, path), 'utf8')
@@ -132,6 +132,9 @@ describe('the choices', () => {
     const r = resolve({ ...DEFAULT_APPEARANCE, colours: { background: '#101010', sidebar: '#202020', text: '#F0F0F0', 'secondary-text': '#A0A0A0', 'second-accent': '#FFAA00', 'glow-1': '#FF0000' } })
     expect(r.tokens['--base']).toBe('#101010')
     expect(r.tokens['--bg']).toBe('#202020')
+    // A sidebar colour picked by hand is drawn exactly as picked, with no lift.
+    expect(r.tokens['--side']).toBe('#202020')
+    expect(pickerValue(r, 'sidebar')).toBe('#202020')
     expect(r.tokens['--text']).toBe('#F0F0F0')
     expect(r.tokens['--muted']).toBe('#A0A0A0')
     expect(r.tokens['--accent2']).toBe('#FFAA00')
@@ -179,6 +182,73 @@ describe('the choices', () => {
 
   test('numbers are written as the CSS writes them', () => {
     expect([num(0.4), num(1), num(0), num(0.55), num(-0.5), num(22 / 14)]).toEqual(['.4', '1', '0', '.55', '-.5', '1.5714'])
+  })
+})
+
+describe('the Raised sidebar (Liam’s pick of five, 8 Nov 2026)', () => {
+  test('lifts the sidebar 7.5% toward the text by default, and leaves the window’s own colour', () => {
+    const r = resolve(DEFAULT_APPEARANCE)
+    expect(DEFAULT_APPEARANCE.sidebarContrast).toBe(50)
+    expect(r.tokens['--side']).toBe('#1B1E25')
+    expect(r.side).toBe('#1B1E25')
+    expect(r.tokens['--bg']).toBe('#0A0D14')
+    expect(r.background).toBe('#0A0D14')
+    // About 18% apart from the page, where it was 1%.
+    expect(contrast(r.side, r.colours.base)).toBeGreaterThan(1.15)
+    expect(contrast(r.colours.bg, r.colours.base)).toBeLessThan(1.02)
+  })
+
+  test('0% is the flat sidebar from before, 100% twice the lift', () => {
+    expect(resolve({ ...DEFAULT_APPEARANCE, sidebarContrast: 0 }).tokens['--side']).toBe('#0A0D14')
+    expect(resolve({ ...DEFAULT_APPEARANCE, sidebarContrast: 100 }).tokens['--side']).toBe(mix('#0A0D14', '#EAF1F7', 100 * SIDEBAR_LIFT))
+  })
+
+  test('light mode keeps its grey sidebar on a white page', () => {
+    const r = resolve({ ...DEFAULT_APPEARANCE, mode: 'light', sidebarContrast: 100 })
+    expect(r.tokens['--side']).toBe('#E8EDF2')
+  })
+
+  test('the colour picker shows the sidebar as drawn, and readability checks it', () => {
+    const r = resolve(DEFAULT_APPEARANCE)
+    expect(pickerValue(r, 'sidebar')).toBe('#1B1E25')
+    const sidebar = readability(r).find((x) => x.what === 'Text in the sidebar')
+    expect(sidebar?.ratio).toBeCloseTo(contrast('#EAF1F7', '#1B1E25'), 5)
+  })
+
+  test.each(LOOKS.map((l) => [l.name, l.id] as const))('%s stays easy to read with the sidebar at full lift, and stands apart at 50%', (_name, id) => {
+    const full = resolve({ ...DEFAULT_APPEARANCE, basedOn: id, sidebarContrast: 100 })
+    expect(contrast(full.colours.text, full.side)).toBeGreaterThanOrEqual(4.5)
+    // The sidebar's small labels (Pinned, Today) are the secondary text a step dimmer.
+    expect(contrast(full.tokens['--faint2'], full.side)).toBeGreaterThanOrEqual(3.5)
+    for (const c of [full.colours.up, full.colours.hold, full.colours.down]) expect(contrast(c, full.side)).toBeGreaterThanOrEqual(3)
+    const half = resolve({ ...DEFAULT_APPEARANCE, basedOn: id })
+    expect(contrast(half.side, half.colours.base)).toBeGreaterThanOrEqual(1.08)
+  })
+})
+
+describe('the More looks (8 Nov 2026)', () => {
+  test('twenty, after the first six, each with its own font, corners and glow', () => {
+    const more = LOOKS.filter((l) => l.more)
+    expect(more).toHaveLength(20)
+    expect(LOOKS.slice(0, 6).every((l) => !l.more && !l.style)).toBe(true)
+    expect(new Set(LOOKS.map((l) => l.id)).size).toBe(LOOKS.length)
+    expect(new Set(LOOKS.map((l) => l.name)).size).toBe(LOOKS.length)
+    for (const l of more) {
+      expect(FONTS.map((f) => f.id), l.name).toContain(l.style?.font)
+      expect(l.style!.corners).toBeGreaterThanOrEqual(CORNERS.min)
+      expect(l.style!.corners).toBeLessThanOrEqual(CORNERS.max)
+      expect(l.style!.glow % GLOW.step).toBe(0)
+      for (const shade of ['dark', 'light'] as const) for (const v of Object.values(l[shade])) expect(v, `${l.name} ${shade}`).toMatch(/^#[0-9A-F]{6}$/)
+    }
+  })
+
+  test('the six first come with today’s font, corners and glow, the default’s', () => {
+    expect(styleOf(LOOKS[0])).toEqual(PLAIN_STYLE)
+    expect([DEFAULT_APPEARANCE.font, DEFAULT_APPEARANCE.corners, DEFAULT_APPEARANCE.glow]).toEqual([PLAIN_STYLE.font, PLAIN_STYLE.corners, PLAIN_STYLE.glow])
+  })
+
+  test('a light look keeps its sidebar darker than its page', () => {
+    for (const l of LOOKS.filter((x) => x.more)) expect(luminance(l.light.bg), l.name).toBeLessThan(luminance(l.light.base))
   })
 })
 

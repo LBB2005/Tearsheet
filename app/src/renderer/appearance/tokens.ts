@@ -114,6 +114,8 @@ const COLOUR_INPUT: Partial<Record<ColourKey, keyof Core>> = {
 export interface Resolved {
   shade: Shade
   colours: Inputs
+  // The sidebar's ground as drawn (--side): the look's sidebar colour, lifted in dark mode.
+  side: string
   chart: { company: string; peers: string; spy: string }
   // The CSS names to set on <html>, with their values.
   tokens: Record<string, string>
@@ -124,7 +126,7 @@ export interface Resolved {
 
 // Every name the window's look can set, so a name left over from an earlier look is taken off.
 export const TOKEN_NAMES = [
-  '--bg', '--base', '--ink', '--text', '--muted', '--accent', '--accent2', '--up', '--hold', '--down', '--g1', '--g2', '--g3',
+  '--bg', '--side', '--base', '--ink', '--text', '--muted', '--accent', '--accent2', '--up', '--hold', '--down', '--g1', '--g2', '--g3',
   '--base-rgb', '--text-rgb', '--accent-rgb', '--accent2-rgb', '--up-rgb', '--hold-rgb', '--down-rgb',
   ...Object.keys(RULES),
   '--glow', '--wt', '--round', '--frost', '--panel-a', '--line-a', '--panel', '--ui', '--c-co', '--c-peer'
@@ -132,6 +134,17 @@ export const TOKEN_NAMES = [
 
 const PANEL_A = { clear: '.02', frosted: '.045', solid: '.045' }
 const LINE_A = { soft: '.055', standard: '.085', strong: '.2' }
+
+// The Raised sidebar (Liam's pick of five, 8 Nov 2026): in dark mode the sidebar is lifted toward
+// the text colour, 0.15% of the way per percent of Sidebar contrast, so his 50% is 7.5% and 0 is
+// the flat sidebar from before. A sidebar colour picked by hand is drawn exactly as picked, and
+// light mode keeps its grey sidebar on a white page.
+export const SIDEBAR_LIFT = 0.0015
+
+function sideOf(look: Appearance, c: Inputs, shade: Shade): string {
+  if (shade !== 'dark' || look.colours.sidebar) return c.bg
+  return mix(c.bg, c.text, SIDEBAR_LIFT * look.sidebarContrast)
+}
 
 // A number as the CSS writes it: ".4", "1", "1.5714".
 export function num(n: number): string {
@@ -156,8 +169,10 @@ export function resolve(look: Appearance, systemDark = true): Resolved {
   }
 
   const exact = base.id === 'tearsheet' && shade === 'dark'
+  const side = sideOf(look, c, shade)
   const tokens: Record<string, string> = {
     '--bg': c.bg,
+    '--side': side,
     '--base': c.base,
     '--ink': triple(c.ink),
     '--text': c.text,
@@ -202,6 +217,7 @@ export function resolve(look: Appearance, systemDark = true): Resolved {
   return {
     shade,
     colours: c,
+    side,
     chart: { company: company ?? c.accent, peers: peers ?? c.accent2, spy: tokens['--c-spy'] },
     tokens,
     zoom: look.size / 100,
@@ -228,7 +244,7 @@ export function readability(r: Resolved): Readability[] {
   }
   return [
     one('Text', c.text, c.base, 4.5),
-    one('Text in the sidebar', c.text, c.bg, 4.5),
+    one('Text in the sidebar', c.text, r.side, 4.5),
     one('Secondary text', c.muted, c.base, 4.5),
     one('The accent', c.accent, c.base, 3)
   ]
@@ -239,7 +255,7 @@ export function pickerValue(r: Resolved, key: ColourKey): string {
   const c = r.colours
   const value: Record<ColourKey, string> = {
     background: c.base,
-    sidebar: c.bg,
+    sidebar: r.side,
     text: c.text,
     'secondary-text': c.muted,
     accent: c.accent,
