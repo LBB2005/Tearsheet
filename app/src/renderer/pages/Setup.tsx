@@ -12,7 +12,7 @@ import '../setup/setup.css'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 
 import type { CallResult, ToolStatus } from '../../preload/api'
-import type { SettingsResult } from '../../shared/protocol'
+import type { Keys, SettingsResult } from '../../shared/protocol'
 import { leaveMs, reduced } from '../motion'
 import { Email, KeyStep, Ready } from '../setup/details'
 import { HowItWorks, Welcome } from '../setup/intro'
@@ -88,7 +88,7 @@ export function Setup({ settings: initialSettings, leaving, safety, onSafetyStar
   const T = TOOL_TEXT[kind]
   const alreadyPassed = safetyPassedFor(tool, settings?.lockdown?.[kind])
   const view = safetyView(safety, kind, alreadyPassed, startError)
-  const keys: Record<string, 'set' | 'missing'> = { ...(settings?.keys ?? {}) }
+  const keys: Keys = { ...(settings?.keys ?? {}) }
   if (proofs.massive) keys.massive = 'set'
   if (proofs.fred) keys.fred = 'set'
 

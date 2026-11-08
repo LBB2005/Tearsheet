@@ -56,6 +56,7 @@ def offline(request, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setattr(config, "DEFAULT_DATA_DIR", tmp_path / "default-data")
     monkeypatch.delenv(config.DATA_DIR_ENV, raising=False)
     keyring.set_keyring(MemoryKeyring())
+    monkeypatch.setattr(config, "_keychain_said_no", set())
 
 
 @pytest.fixture

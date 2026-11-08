@@ -484,7 +484,9 @@ class PriceDownload(Strict):
 
 
 class SettingsResult(Strict):
-    keys: dict[str, Literal["set", "missing"]]
+    # "locked": macOS wouldn't hand the stored key over this session (its Keychain question was
+    # answered no, or the Keychain is locked).
+    keys: dict[str, Literal["set", "missing", "locked"]]
     # Stored keys their service refused on the last call that used them (Settings, home).
     rejected_keys: list[str]
     raw_bytes: int

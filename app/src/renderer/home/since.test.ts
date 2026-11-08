@@ -239,3 +239,21 @@ describe('a key that stops working', () => {
     expect(sinceLines(input({ rejected: [] }))).toEqual(sinceLines(input()))
   })
 })
+
+describe('a key macOS wouldn’t hand over', () => {
+  it('says how to let the Massive key through, not to add one', () => {
+    const lines = sinceLines(input({ keys: { massive: 'locked', fred: 'set' } }))
+    expect(lines[0]).toEqual({
+      tone: 'down',
+      text: 'macOS didn’t let Tearsheet open your Massive key',
+      detail: 'New reports can’t be rated until it does. Quit Tearsheet, open it again, and click Always Allow when macOS asks.'
+    })
+    expect(lines.some((l) => l.text.startsWith('Prices aren’t connected'))).toBe(false)
+  })
+
+  it('says the same of the FRED key, as a warning', () => {
+    const lines = sinceLines(input({ keys: { massive: 'set', fred: 'locked' } }))
+    expect(lines).toContainEqual({ tone: 'hold', text: 'macOS didn’t let Tearsheet open your FRED key, so reports leave the economic figures out. Quit Tearsheet, open it again, and click Always Allow.' })
+    expect(lines.some((l) => l.text.startsWith('Economic figures aren’t connected'))).toBe(false)
+  })
+})

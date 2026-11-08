@@ -3,7 +3,7 @@
 // checked before they are saved.
 
 import type { ToolStatus } from '../../preload/api'
-import type { LockdownState } from '../../shared/protocol'
+import type { Keys, LockdownState } from '../../shared/protocol'
 import { safetyFailed, safetyUnfinished } from '../nav'
 import { isEmail, TOOL_TEXT, type SafetyState, type ToolKind } from '../setup/steps'
 
@@ -81,7 +81,8 @@ export interface HealthInput {
   lockdown: Record<string, LockdownState>
   // This session's safety check, if one ran.
   safety: SafetyState | null
-  keys: Record<string, 'set' | 'missing'>
+  // Set, missing, or locked (macOS didn't let Tearsheet open it this session).
+  keys: Keys
   // Stored keys their service refused on the last call that used them.
   rejected?: string[]
   rawBytes: number
@@ -109,16 +110,19 @@ export function healthTiles(h: HealthInput): Tile[] {
     ai = running ? { name: 'AI tool', tone: 'run', text: `Safety check, ${running.n} of ${running.total}` } : { name: 'AI tool', tone: 'ok', text: `${name} ready` }
   }
 
-  const missing = USED_KEYS.filter(([service]) => h.keys[service] !== 'set').map(([, label]) => label)
+  const locked = USED_KEYS.filter(([service]) => h.keys[service] === 'locked').map(([, label]) => `${label}’s`)
+  const missing = USED_KEYS.filter(([service]) => h.keys[service] !== 'set' && h.keys[service] !== 'locked').map(([, label]) => label)
   const refused = USED_KEYS.filter(([service]) => h.keys[service] === 'set' && h.rejected?.includes(service)).map(([, label]) => `${label}’s`)
-  const count = `${USED_KEYS.length - missing.length} of ${USED_KEYS.length} set`
+  const count = `${USED_KEYS.length - missing.length - locked.length} of ${USED_KEYS.length} set`
   const massiveOk = h.keys.massive === 'set' && !h.rejected?.includes('massive')
   const keys: Tile =
-    missing.length > 0
-      ? { name: 'Data keys', tone: massiveOk ? 'hold' : 'bad', text: `${count}, ${missing.join(' and ')} missing` }
-      : refused.length > 0
-        ? { name: 'Data keys', tone: massiveOk ? 'hold' : 'bad', text: refused.length === 1 ? `${refused[0]} key isn’t accepted` : `${refused.join(' and ')} keys aren’t accepted` }
-        : { name: 'Data keys', tone: 'ok', text: count }
+    locked.length > 0
+      ? { name: 'Data keys', tone: massiveOk ? 'hold' : 'bad', text: locked.length === 1 ? `${locked[0]} key is locked in the Keychain` : `${locked.join(' and ')} keys are locked in the Keychain` }
+      : missing.length > 0
+        ? { name: 'Data keys', tone: massiveOk ? 'hold' : 'bad', text: `${count}, ${missing.join(' and ')} missing` }
+        : refused.length > 0
+          ? { name: 'Data keys', tone: massiveOk ? 'hold' : 'bad', text: refused.length === 1 ? `${refused[0]} key isn’t accepted` : `${refused.join(' and ')} keys aren’t accepted` }
+          : { name: 'Data keys', tone: 'ok', text: count }
 
   const store = storage(h.rawBytes, h.rawCap)
   const space: Tile = { name: 'Storage', tone: store.tone, text: `${store.used} of ${store.cap}` }

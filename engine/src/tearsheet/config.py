@@ -6,6 +6,7 @@ docs/phase0-results.md, and is changed here once the live test settles it.
 
 from __future__ import annotations
 
+import logging
 import os
 import re
 import shutil
@@ -15,8 +16,11 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import keyring
+import keyring.errors
 
 from tearsheet import ENGINE_VERSION
+
+log = logging.getLogger(__name__)
 
 # --- Paths -------------------------------------------------------------------
 
@@ -66,15 +70,36 @@ def _check_key_service(service: str) -> None:
         raise ValueError(f"Unknown key '{service}'. Keys are: {', '.join(KEY_SERVICES)}.")
 
 
+# Keys macOS wouldn't hand over in this engine's run. A key saved by another program (the
+# development engine, say) puts a question on screen when this one reads it, and a read the
+# question answers no, or a locked Keychain, fails. That key then counts as missing until the
+# engine starts again or a key is saved, so the question isn't asked again at every read, and
+# the app can say why (key_locked).
+_keychain_said_no: set[str] = set()
+
+
 def get_key(service: str) -> str | None:
     """Read one data key from the Keychain. Keys are never logged or sent to the window."""
     _check_key_service(service)
-    return keyring.get_password(KEYCHAIN_SERVICE, service)
+    if service in _keychain_said_no:
+        return None
+    try:
+        return keyring.get_password(KEYCHAIN_SERVICE, service)
+    except keyring.errors.KeyringError as exc:
+        _keychain_said_no.add(service)
+        log.warning("The Keychain didn't give the %s key: %s", service, exc)
+        return None
+
+
+def key_locked(service: str) -> bool:
+    """Whether macOS refused this key in this run (see _keychain_said_no)."""
+    return service in _keychain_said_no
 
 
 def set_key(service: str, value: str) -> None:
     _check_key_service(service)
     keyring.set_password(KEYCHAIN_SERVICE, service, value)
+    _keychain_said_no.discard(service)
 
 
 # A stored key its service refused is remembered until a call with it works again or a new key

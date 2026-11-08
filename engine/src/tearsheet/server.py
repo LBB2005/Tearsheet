@@ -183,6 +183,17 @@ def backfill_stop_reason(exc: BaseException) -> str:
     return "Massive sent an unreadable answer"
 
 
+# A key macOS wouldn't hand over (config.key_locked), and what to do about it.
+KEY_LOCKED_FIX = "Quit Tearsheet, open it again, and click Always Allow when macOS asks."
+
+
+def _key_state(service: str) -> str:
+    """Settings' word for one data key: set, missing, or locked (in the Keychain this session)."""
+    if config.get_key(service):
+        return "set"
+    return "locked" if config.key_locked(service) else "missing"
+
+
 # The background price job's progress line, as _backfill writes it.
 _BACKFILL_PROGRESS = re.compile(r"^(\d+) of (\d+) sessions")
 
@@ -1027,6 +1038,11 @@ class Server:
         if not ticker:
             raise EngineError("ENGINE_ERROR", "This report's company has no ticker to look up.")
         if not config.get_key("massive"):
+            if config.key_locked("massive"):
+                raise EngineError(
+                    "ENGINE_ERROR",
+                    f"macOS didn’t let Tearsheet open your Massive key. {KEY_LOCKED_FIX}",
+                )
             raise EngineError(
                 "ENGINE_ERROR", "It needs a Massive key. Add yours in Settings, then try again."
             )
@@ -1290,7 +1306,7 @@ class Server:
         home = Path.home()
         in_icloud = any(backup == home / f or home / f in backup.parents for f in ICLOUD_FOLDERS)
         round_ = settings.get("goal1_round")
-        keys = {s: ("set" if config.get_key(s) else "missing") for s in config.KEY_SERVICES}
+        keys = {s: _key_state(s) for s in config.KEY_SERVICES}
         setup_done = settings.get("setup_done")
         if setup_done is None and self.db.conn.execute("SELECT 1 FROM reports LIMIT 1").fetchone():
             # Reports written before the app had a setup (the terminal, or the first app) mean
