@@ -611,7 +611,7 @@ function StoragePage({ s, onSaved }: { s: SettingsResult; onSaved: () => Promise
 function PrivacyPage({ services }: { services: SettingsResult['services'] }) {
   return (
     <>
-      <Head title="What leaves your Mac" lead="Tearsheet talks only to these services. Nothing else is sent." />
+      <Head title="Privacy" lead="What leaves your Mac: Tearsheet talks only to these services. Nothing else is sent." />
       <div className="sgrp">
         {services.map((x) => (
           <div key={x.name} className="sline">

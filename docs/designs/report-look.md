@@ -151,7 +151,8 @@ Over six rounds of mockups, Liam settled on:
         again". The paths and the lock-down details are behind "Show details".
     *   **Data keys:** Massive, FRED and Alpha Vantage.
     *   **Storage and backup:** the downloads bar, the storage limit, and the backup folder.
-    *   **Privacy:** "What leaves your Mac".
+    *   **Privacy:** "What leaves your Mac", the page's first line under its title, Privacy (every
+        topic's page has the topic's name).
     *   **Advanced:** the Goal 1 round, and how the 5Y and All ranges download.
     *   A topic that needs you gets a dot, red or amber. Together with General's notes, the dots
         replace the four health tiles.

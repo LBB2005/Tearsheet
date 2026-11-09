@@ -10,7 +10,8 @@
 
 /* The toolbar holds only the window's name, centred, and the safety chip once a check is asked for. */
 .setup .top.stp { justify-content: center; padding: 0 120px; border-bottom-color: transparent; }
-.setup .top .ttl { font-size: 12.5px; color: var(--muted); }
+/* Centred: no margin pushing it left, as the app's toolbar title has (styles.css .top .ttl). */
+.setup .top .ttl { margin: 0; font-size: 12.5px; color: var(--muted); }
 .setup .screen { flex: 1; min-height: 0; overflow: auto; position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: safe center; padding: 12px 60px 56px; }
 .setup .screen:focus { outline: none; }
 
@@ -84,7 +85,7 @@
 .setup .st.bad { color: var(--down); }
 .setup .st svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 2.4; flex: none; }
 .setup .field { display: flex; gap: 8px; width: 100%; }
-.setup .field input { flex: 1; min-width: 0; background: rgb(var(--shade) / calc(.3 * var(--shade-k))); border: 1px solid var(--line); border-radius: calc(10px * var(--round)); padding: 9px 12px; color: var(--text); font: 14px var(--mono); font-weight: calc(400 + var(--wt)); outline: none; transition: border-color .2s, box-shadow .2s; }
+.setup .field input { flex: 1; min-width: 0; background: rgb(var(--ink) / .06); border: 1px solid var(--line); border-radius: calc(10px * var(--round)); padding: 9px 12px; color: var(--text); font: 14px var(--mono); font-weight: calc(400 + var(--wt)); outline: none; transition: border-color .2s, box-shadow .2s; }
 .setup .field input:focus { border-color: var(--chipline); box-shadow: 0 0 0 3px rgb(var(--accent-rgb) / .12); }
 .setup .field input::placeholder { color: var(--edge); font-family: var(--ui); }
 
@@ -156,7 +157,7 @@
 .setup .keyask { display: flex; flex-direction: column; gap: 8px; }
 .setup .krow3 { display: flex; gap: 10px; align-items: center; }
 .setup .krow3 .btn2 { padding: 9px 15px; font-size: 14px; }
-.setup .kin, .setup .ein { flex: 1; min-width: 0; background: rgb(var(--shade) / calc(.3 * var(--shade-k))); border: 1px solid var(--line); border-radius: calc(10px * var(--round)); padding: 10px 14px; color: var(--text); font: 15px var(--mono); font-weight: calc(400 + var(--wt)); outline: none; transition: border-color .2s, box-shadow .2s; }
+.setup .kin, .setup .ein { flex: 1; min-width: 0; background: rgb(var(--ink) / .06); border: 1px solid var(--line); border-radius: calc(10px * var(--round)); padding: 10px 14px; color: var(--text); font: 15px var(--mono); font-weight: calc(400 + var(--wt)); outline: none; transition: border-color .2s, box-shadow .2s; }
 .setup .ein { font-size: 14px; padding: 8px 12px; }
 .setup .kin:focus, .setup .ein:focus { border-color: var(--chipline); box-shadow: 0 0 0 3px rgb(var(--accent-rgb) / .12); }
 .setup .kin::placeholder, .setup .ein::placeholder { color: var(--edge); font-family: var(--ui); }

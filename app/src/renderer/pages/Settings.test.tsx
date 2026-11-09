@@ -30,7 +30,7 @@ describe('the topic list', () => {
       ['AI tools', 'AI tools'],
       ['Data keys', 'Data keys'],
       ['Storage and backup', 'Storage and backup'],
-      ['Privacy', 'What leaves your Mac'],
+      ['Privacy', 'Privacy'],
       ['Advanced', 'Advanced'],
       ['About and help', 'About and help'],
       ['General', 'General']
@@ -66,7 +66,7 @@ describe('the topic list', () => {
     await user.click(topic('Privacy'))
     menu('new')
     menu('settings')
-    expect(await screen.findByRole('heading', { level: 2 })).toHaveTextContent('What leaves your Mac')
+    expect(await screen.findByRole('heading', { level: 2 })).toHaveTextContent('Privacy')
   })
 
   test('a topic that needs you has a dot, and General has a note whose button opens it', async () => {
@@ -474,7 +474,7 @@ describe('About and help', () => {
     await user.click(screen.getByRole('button', { name: 'FRED’s terms' }))
     expect(bridge.openExternal).toHaveBeenCalledWith('https://fred.stlouisfed.org/docs/api/terms_of_use.html')
     await user.click(screen.getByRole('button', { name: 'Open Privacy' }))
-    expect(pageHeading()).toHaveTextContent('What leaves your Mac')
+    expect(pageHeading()).toHaveTextContent('Privacy')
   })
 
   test('opens even while the engine is down', async () => {
