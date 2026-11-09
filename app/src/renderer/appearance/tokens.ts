@@ -20,6 +20,20 @@ const surface = (c: Inputs, shade: Shade) => (shade === 'dark' ? mix(c.base, c.i
 const onAccent = (accent: string, k: number) => (luminance(accent) > 0.3 ? mix(accent, '#000000', k) : '#FFFFFF')
 const see = (hex: string, alpha: string) => `rgb(${triple(hex)} / ${alpha})`
 
+// In light mode the quieter greys (made by mixing the secondary text into the page) faded too far:
+// sidebar prices, shortcut hints and placeholders fell to 2.3-3.9:1. There each is pulled toward
+// the text colour until it reads on both the page and the sidebar: 4.5:1 for small text, 3:1 for
+// placeholders and box edges (WCAG AA). Dark mode keeps its designed values.
+export const LIGHT_FLOOR: Record<string, number> = { '--faint': 4.5, '--faint2': 4.5, '--dim': 4.5, '--dim2': 4.5, '--edge': 3 }
+function readable(name: string, fg: string, c: Inputs, shade: Shade): string {
+  const min = LIGHT_FLOOR[name]
+  if (shade === 'dark' || !min) return fg
+  const worst = (hex: string) => Math.min(contrast(hex, c.base), contrast(hex, c.bg))
+  let out = fg
+  for (let step = 1; step <= 50 && worst(out) < min; step++) out = mix(fg, c.text, step / 50)
+  return out
+}
+
 const RULES: Record<string, Rule> = {
   '--shade': { deps: [], make: (_c, s) => (s === 'dark' ? '0 0 0' : '16 24 40') },
   '--shade-k': { deps: [], make: (_c, s) => (s === 'dark' ? '1' : '.35') },
@@ -41,11 +55,11 @@ const RULES: Record<string, Rule> = {
   '--soft': { deps: ['muted', 'text'], make: (c) => mix(c.muted, c.text, 0.4) },
   '--soft3': { deps: ['muted', 'text'], make: (c) => mix(c.muted, c.text, 0.32) },
   '--icon': { deps: ['muted', 'base'], make: (c) => mix(c.muted, c.base, 0.06) },
-  '--faint': { deps: ['muted', 'base'], make: (c) => mix(c.muted, c.base, 0.07) },
-  '--faint2': { deps: ['muted', 'base'], make: (c) => mix(c.muted, c.base, 0.16) },
-  '--dim': { deps: ['muted', 'base'], make: (c) => mix(c.muted, c.base, 0.31) },
-  '--dim2': { deps: ['muted', 'base'], make: (c) => mix(c.muted, c.base, 0.34) },
-  '--edge': { deps: ['muted', 'base'], make: (c) => mix(c.muted, c.base, 0.38) },
+  '--faint': { deps: ['muted', 'base'], make: (c, s) => readable('--faint', mix(c.muted, c.base, 0.07), c, s) },
+  '--faint2': { deps: ['muted', 'base'], make: (c, s) => readable('--faint2', mix(c.muted, c.base, 0.16), c, s) },
+  '--dim': { deps: ['muted', 'base'], make: (c, s) => readable('--dim', mix(c.muted, c.base, 0.31), c, s) },
+  '--dim2': { deps: ['muted', 'base'], make: (c, s) => readable('--dim2', mix(c.muted, c.base, 0.34), c, s) },
+  '--edge': { deps: ['muted', 'base'], make: (c, s) => readable('--edge', mix(c.muted, c.base, 0.38), c, s) },
   '--accent-text': { deps: ['accent', 'ink'], make: (c) => mix(c.accent, c.ink, 0.69) },
   '--accent-hover': { deps: ['accent', 'ink'], make: (c) => mix(c.accent, c.ink, 0.3) },
   '--on-accent': { deps: ['accent'], make: (c) => onAccent(c.accent, 0.87) },

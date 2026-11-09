@@ -11,7 +11,7 @@ import { describe, expect, test } from 'vitest'
 import { contrast, luminance, mix } from './colour'
 import { FONTS, LOOKS, PLAIN_STYLE, RATINGS, styleOf } from './looks'
 import { CORNERS, DEFAULT_APPEARANCE, GLOW, type Appearance } from './themeFile'
-import { EXACT, num, pickerValue, readability, resolve, SIDEBAR_LIFT, TOKEN_NAMES } from './tokens'
+import { EXACT, LIGHT_FLOOR, num, pickerValue, readability, resolve, SIDEBAR_LIFT, TOKEN_NAMES } from './tokens'
 
 const RENDERER = new URL('..', import.meta.url).pathname
 const css = (path: string) => readFileSync(join(RENDERER, path), 'utf8')
@@ -90,6 +90,15 @@ describe('every look', () => {
 
   test.each(looks)('%s is easy to read', (_name, look) => {
     for (const r of readability(resolve(look))) expect(r.ok, `${r.what} ${r.ratio.toFixed(2)}`).toBe(true)
+  })
+
+  // Sidebar prices, shortcut hints, counts and placeholders use these quieter greys.
+  test.each(LOOKS.map((l) => [l.name, l.id]))('%s in light mode keeps its quieter greys readable on the page and the sidebar', (_name, id) => {
+    const r = resolve({ ...DEFAULT_APPEARANCE, basedOn: id, mode: 'light' })
+    for (const [name, min] of Object.entries(LIGHT_FLOOR)) {
+      expect(contrast(r.tokens[name], r.colours.base), `${name} on the page`).toBeGreaterThanOrEqual(min)
+      expect(contrast(r.tokens[name], r.side), `${name} on the sidebar`).toBeGreaterThanOrEqual(min)
+    }
   })
 
   test.each(looks)('%s keeps the Buy, Hold and Sell colours readable on its background', (_name, look) => {
