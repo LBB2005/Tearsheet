@@ -2,10 +2,35 @@ import { describe, expect, it } from 'vitest'
 
 import { USUAL } from '../../shared/pace'
 import type { LineItem, LineState } from '../../shared/protocol'
-import { doneCount, inLine, isList, joinNames, lineGoing, linePlace, lineTime, newlyUnstarted, officialNote, outcomeText, splitQueries, usualReport } from './line'
+import {
+  aboutLong,
+  callsPerReportOf,
+  clockTime,
+  doneCount,
+  inLine,
+  isList,
+  joinNames,
+  lineCost,
+  lineGoing,
+  linePlace,
+  lineProgress,
+  lineTime,
+  newlyUnstarted,
+  officialNote,
+  officialWarning,
+  outcomeText,
+  pastedList,
+  perReportOf,
+  skipGroups,
+  someNames,
+  splitQueries,
+  usualReport,
+  waitsByItself,
+  waitText
+} from './line'
 
 const item = (ticker: string, over: Partial<LineItem> = {}): LineItem => ({ ticker, name: ticker, official: true, run_id: null, outcome: null, report_id: null, code: null, message: null, ...over })
-const state = (over: Partial<LineState> = {}): LineState => ({ waiting: [], writing: null, finished: [], paused: null, limit: 10, ...over })
+const state = (over: Partial<LineState> = {}): LineState => ({ waiting: [], writing: null, finished: [], paused: null, typical: null, ...over })
 
 describe('a typed list', () => {
   it('is any text with a comma, semicolon or new line, and names keep their spaces', () => {
@@ -14,6 +39,99 @@ describe('a typed list', () => {
     expect(isList('JPM, O')).toBe(true)
     expect(isList('JPM,')).toBe(true)
     expect(splitQueries(' JPM, Bank of America ;O\nXOM,, ')).toEqual(['JPM', 'Bank of America', 'O', 'XOM'])
+  })
+
+  it('takes tickers in capitals with spaces between them, and pasted columns', () => {
+    expect(isList('AAPL MSFT NVDA')).toBe(true)
+    expect(isList('BRK.B  JPM')).toBe(true)
+    expect(isList('Ford Motor')).toBe(false)
+    expect(isList('aapl msft')).toBe(false)
+    expect(isList('AAPL\tMSFT')).toBe(true)
+    expect(splitQueries('AAPL MSFT, Bank of America, BRK.B JPM')).toEqual(['AAPL', 'MSFT', 'Bank of America', 'BRK.B', 'JPM'])
+    expect(pastedList('AAPL\r\nMSFT\n\n NVDA \tJPM\n')).toBe('AAPL, MSFT, NVDA, JPM')
+  })
+})
+
+describe('a big line', () => {
+  const typical = { seconds: 240, ai_calls: 34, runs: 20 }
+
+  it('takes one report’s time and AI calls from Liam’s own runs, or the usual ones', () => {
+    expect(perReportOf(state({ typical }))).toBe(240)
+    expect(perReportOf(state(), 300)).toBe(300)
+    expect(perReportOf(null, 300)).toBe(300)
+    expect(callsPerReportOf(state({ typical }))).toBe(34)
+    expect(callsPerReportOf(null)).toBe(35)
+  })
+
+  it('says how far it has got and about how long is left', () => {
+    const big = state({ finished: Array.from({ length: 37 }, (_, i) => item(`D${i}`)), writing: item('W'), waiting: Array.from({ length: 174 }, (_, i) => item(`T${i}`)) })
+    expect(lineProgress(big, 240)).toBe('37 of 212 done, about 12 hours left')
+    expect(lineProgress(state({ finished: [item('A'), item('B')] }), 240)).toBe('2 of 2 done')
+    expect(lineCost(212, 240, 34)).toBe('about 14 hours and about 7,208 AI calls')
+  })
+
+  it('counts long times in hours, then days', () => {
+    expect(aboutLong(600)).toBe('about 10 min')
+    expect(aboutLong(5 * 3600)).toBe('about 5 hours')
+    expect(aboutLong(35 * 3600)).toBe('about 35 hours')
+    expect(aboutLong(100 * 3600)).toBe('about 4 days')
+    expect(lineTime(500, 250)).toBe('about 35 hours')
+  })
+
+  it('warns how many new official predictions a line will log', () => {
+    expect(officialWarning([item('A'), item('B'), item('C', { official: false })])).toBe('Each first report is an official prediction for 30 days. 2 new ones will be logged.')
+    expect(officialWarning([item('A')])).toBe('Each first report is an official prediction for 30 days. 1 new one will be logged.')
+    expect(officialWarning([item('A', { official: false })])).toBe('')
+    const many = Array.from({ length: 20 }, (_, i) => item(`T${i}`, { official: false }))
+    expect(officialNote([item('X'), ...many])).toBe('1 of these will be a new official prediction in your log. T0, T1, T2, T3, T4, T5 and 14 more were rated in the last 30 days, so they won’t be.')
+  })
+
+  it('names a few, and counts the rest', () => {
+    expect(someNames(['A', 'B', 'C'])).toBe('A, B and C')
+    expect(someNames(['A', 'B', 'C', 'D', 'E', 'F', 'G'])).toBe('A, B, C, D, E, F and G')
+    expect(someNames(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'], 2)).toBe('A, B and 6 more')
+  })
+
+  it('groups what was left out by why', () => {
+    const groups = skipGroups([
+      { query: 'MSFT', reason: 'MSFT is already in the line.', kind: 'in_line' },
+      { query: 'JPM', reason: 'JPM has a report from Nov 2.', kind: 'recent' },
+      { query: 'O', reason: 'O has a report from Nov 3.', kind: 'recent' },
+      { query: 'zz', reason: 'No match.', kind: 'unknown' }
+    ])
+    expect(groups.map((g) => [g.kind, g.head, g.skips.length])).toEqual([
+      ['unknown', '1 company wasn’t found', 1],
+      ['recent', '2 companies have a report from the last 30 days', 2],
+      ['in_line', '1 company is already in the line', 1]
+    ])
+    expect(skipGroups([])).toEqual([])
+  })
+})
+
+describe('waiting for the plan', () => {
+  const now = new Date(2026, 10, 8, 14, 0)
+  const at = (h: number, m = 0, day = 8) => new Date(2026, 10, day, h, m).toISOString()
+
+  it('says times on Liam’s clock, with the day when it isn’t today', () => {
+    expect(clockTime(at(15, 40), now)).toBe('3:40 pm')
+    expect(clockTime(at(9, 5, 9), now)).toBe('9:05 am tomorrow')
+    expect(clockTime(at(9, 5, 11), now)).toMatch(/^9:05 am on Wed,? 11 Nov$/)
+    expect(clockTime('soon', now)).toBe('soon')
+  })
+
+  it('says what a paused line waits for', () => {
+    const pause = { code: 'USAGE_LIMIT', message: 'Limit.', reset_at: '3:40pm', fix_command: null, run_id: 'r1', wait_until: at(15, 42), used: null }
+    expect(waitsByItself(pause)).toBe(true)
+    expect(waitsByItself({ ...pause, wait_until: null })).toBe(false)
+    expect(waitsByItself(null)).toBe(false)
+    expect(waitText(pause, now)).toBe('Waiting for your usage limit to reset at 3:42 pm. The line carries on by itself then.')
+    expect(waitText({ ...pause, reset_at: null, wait_until: at(15) }, now)).toBe('Your plan’s usage limit is reached. Trying again at 3:00 pm.')
+    expect(waitText({ ...pause, code: 'USAGE_HIGH', used: 0.84, wait_until: at(16, 2) }, now)).toBe(
+      'Your plan’s 5-hour usage is at 84%. Waiting for it to reset at 4:02 pm, so you keep the rest. The line carries on by itself then.'
+    )
+    expect(waitText({ ...pause, code: 'USAGE_WEEK', used: 0.81, wait_until: null }, now)).toBe('Your plan’s weekly usage is at 81%. Carry on writing the line?')
+    expect(waitText({ ...pause, code: 'USAGE_WEEK', used: null, wait_until: null }, now)).toBe('Your plan’s weekly usage is close to its limit. Carry on writing the line?')
+    expect(waitText({ ...pause, code: 'AUTH_EXPIRED', wait_until: null }, now)).toBe('Limit.')
   })
 })
 

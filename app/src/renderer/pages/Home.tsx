@@ -3,18 +3,19 @@
 // the bundled S&P 500 list. Below it, "Try" companies for a new user, or "Recent" ones and
 // "Since you were last here" for a returning one. A problem shows at the top, in a red box with
 // its fix. Starting a company replaces the page with the run view (App.tsx). Several companies
-// separated by commas are checked by the engine first, then written one after another (the line,
-// home/line.ts). Ported from docs/designs/opening-and-setup.html (S.home, ddInner, since) in A.
+// separated by commas, new lines or spaces (tickers) are checked by the engine first, then written
+// one after another (the line, home/line.ts); so are the quick adds under the field (the whole
+// S&P 500, a sector, or the rest without a report). Ported from docs/designs/opening-and-setup.html (S.home, ddInner, since) in A.
 // Settle only.
 
 import '../home/home.css'
 
-import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from 'react'
+import { useEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent, type ReactNode, type RefObject } from 'react'
 
 import type { ToolStatus } from '../../preload/api'
-import type { CompanyRow, LinePlan, PredictionSummary, SearchHit, SettingsResult } from '../../shared/protocol'
-import { isList, plural, splitQueries } from '../home/line'
-import { LinePlanCard } from '../home/LineParts'
+import type { CompanyRow, PredictionSummary, SearchHit, SettingsResult } from '../../shared/protocol'
+import { isList, pastedList, plural, splitQueries, type PlanAsk } from '../home/line'
+import { LinePlanCard, QuickAdd, useLinePlan } from '../home/LineParts'
 import { greeting, sinceLines, type SinceLine } from '../home/since'
 import { Mark } from '../mark/Mark'
 import { freshHits, peerRule, shortDate } from '../nav'
@@ -65,8 +66,8 @@ export function Home({ companies, tool, fieldRef, refresh, onStart, onStartLine,
   const [starting, setStarting] = useState<string | null>(null)
   const [why, setWhy] = useState<string | null>(null)
   // Several companies: the engine's check of them, shown before anything starts.
-  const [plan, setPlan] = useState<LinePlan | null>(null)
-  const [checking, setChecking] = useState(false)
+  const linePlan = useLinePlan()
+  const { plan, checking } = linePlan
   const [predictions, setPredictions] = useState<PredictionSummary[] | null>(null)
   const [settings, setSettings] = useState<SettingsResult | null>(null)
   const latest = useRef(0)
@@ -103,14 +104,27 @@ export function Home({ companies, tool, fieldRef, refresh, onStart, onStartLine,
 
   // Return on a list: the engine looks each company up, and says which would be new official
   // predictions. Nothing starts until Start.
-  const check = async (text: string) => {
+  const check = async (ask: PlanAsk) => {
     if (checking) return
-    setChecking(true)
     setWhy(null)
-    const reply = await window.tearsheet.planLine(splitQueries(text))
-    setChecking(false)
-    if (reply.ok && reply.result) setPlan(reply.result)
-    else setWhy(reply.error?.message || 'The companies couldn’t be checked.')
+    const problem = await linePlan.ask(ask)
+    if (problem) setWhy(problem)
+  }
+
+  // A list pasted from a column or a spreadsheet: its new lines become commas, as the field is
+  // one line.
+  const onPaste = (e: ClipboardEvent<HTMLInputElement>) => {
+    const text = e.clipboardData.getData('text/plain')
+    if (!/[\r\n\t]/.test(text.trim())) return
+    e.preventDefault()
+    const field = e.currentTarget
+    const start = field.selectionStart ?? query.length
+    const end = field.selectionEnd ?? query.length
+    const before = query.slice(0, start).replace(/[\s,]+$/, '')
+    const after = query.slice(end).replace(/^[\s,]+/, '')
+    setQuery([before, pastedList(text), after].filter(Boolean).join(', '))
+    setWhy(null)
+    linePlan.clear()
   }
 
   const beginLine = async (queries: string[]) => {
@@ -120,7 +134,7 @@ export function Home({ companies, tool, fieldRef, refresh, onStart, onStartLine,
     // Once the line's first report starts, the run view takes this page's place; behind a paused
     // line, the companies just join it, and the box at the top says so.
     setStarting(null)
-    setPlan(null)
+    linePlan.clear()
     if (problem) setWhy(problem)
     else setQuery('')
   }
@@ -164,7 +178,7 @@ export function Home({ companies, tool, fieldRef, refresh, onStart, onStartLine,
     } else if (e.key === 'Enter') {
       e.preventDefault()
       if (listed) {
-        if (listed.length && !plan) void check(q)
+        if (listed.length && !plan) void check({ queries: splitQueries(q) })
         return
       }
       const hit = shown[sel]
@@ -210,8 +224,9 @@ export function Home({ companies, tool, fieldRef, refresh, onStart, onStartLine,
           onChange={(e) => {
             setQuery(e.target.value)
             setWhy(null)
-            setPlan(null)
+            linePlan.clear()
           }}
+          onPaste={onPaste}
           onKeyDown={onKey}
         />
         <kbd>⌘K</kbd>
@@ -240,7 +255,7 @@ export function Home({ companies, tool, fieldRef, refresh, onStart, onStartLine,
             ))}
             {/* The company, its sector (above) and the peer-group rule, as the engine words it. */}
             {peerRule(shown, sel) && <div className="rule">{peerRule(shown, sel)}</div>}
-            {shown.length > 0 && <div className="ft">Return starts the report. The up and down arrows move. Several at once? Separate them with commas.</div>}
+            {shown.length > 0 && <div className="ft">Return starts the report. The up and down arrows move. Several at once? Separate them with commas, or paste a list.</div>}
             {lookFailed && <div className="none">{lookFailed}</div>}
             {!lookFailed && current && shown.length === 0 && <div className="none">No S&amp;P 500 company matches “{searched}”. Tearsheet covers the S&amp;P 500 only.</div>}
           </div>
@@ -251,7 +266,26 @@ export function Home({ companies, tool, fieldRef, refresh, onStart, onStartLine,
           {checking ? 'Checking…' : `Return checks ${listed.length === 1 ? 'this company' : `these ${plural(listed.length, 'company', 'companies')}`}, then writes the reports one after another.`}
         </p>
       )}
-      {plan && <LinePlanCard plan={plan} starting={starting === 'line'} onStart={() => void beginLine(plan.items.map((item) => item.ticker))} onCancel={() => setPlan(null)} />}
+      {companies !== null && !first && !plan && !listed && q === '' && (
+        <QuickAdd
+          disabled={starting !== null || checking}
+          onAsk={(ask) => {
+            setQuery('')
+            void check(ask)
+          }}
+        />
+      )}
+      {checking && !listed && <p className="fine listhint mv">Checking…</p>}
+      {plan && (
+        <LinePlanCard
+          plan={plan}
+          starting={starting === 'line'}
+          skipRecent={linePlan.skipRecent}
+          onSkipRecent={linePlan.changeSkip}
+          onStart={() => void beginLine(plan.items.map((item) => item.ticker))}
+          onCancel={linePlan.clear}
+        />
+      )}
       {why && (
         <p className="why mv" style={at(0)} role="alert">
           {why}

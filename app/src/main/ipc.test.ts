@@ -37,6 +37,7 @@ test('the sidebar’s delete and pin calls reach the engine', () => {
   expect(engineMethod('removeFromLine')).toBe('remove_from_line')
   expect(engineMethod('clearLine')).toBe('clear_line')
   expect(engineMethod('carryOnLine')).toBe('carry_on_line')
+  expect(engineMethod('lineGroups')).toBe('line_groups')
 })
 
 test('a new or changed query starts a find session, and the same query steps through it', () => {

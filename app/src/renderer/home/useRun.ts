@@ -89,10 +89,22 @@ export function useRun({ page, target, go, notify, loadCompanies, loadTools, ope
       setLineState(next)
       for (const item of newlyUnstarted(before, next)) notify(`${item.ticker} didn’t start`, item.message ?? undefined, 'stop')
       const writing = next.writing
-      if (!writing?.run_id || cancelled.current.has(writing.run_id) || current.current?.runId === writing.run_id) return
+      if (!writing?.run_id || cancelled.current.has(writing.run_id)) return
+      const r = current.current
+      if (r?.runId === writing.run_id) {
+        // The engine resumed the stopped report itself, once the plan's usage limit had reset
+        // (batch.py): the run view follows the replay, as after Resume.
+        if (r.failure && before?.paused && !next.paused && resumingId.current !== r.runId) {
+          const notes = early.current?.runId === r.runId ? early.current.notes : freshNotes(Date.now())
+          early.current = null
+          track({ ...r, ...notes, reportId: null, readyAt: null, failure: null })
+          setReadyHold(false)
+        }
+        return
+      }
       begin({ run_id: writing.run_id, ticker: writing.ticker, name: writing.name }, false)
     },
-    [begin, notify]
+    [begin, notify, track]
   )
 
   // The line as the engine has it when the window opens: it may come back paused from last

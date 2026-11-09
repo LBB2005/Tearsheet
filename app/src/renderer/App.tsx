@@ -13,8 +13,8 @@ import { leftText, pace, usualTimes } from '../shared/pace'
 import type { CompanyRow, GradeResult, SearchHit, SettingsResult } from '../shared/protocol'
 import { bootView, GIVE_UP_AFTER_MS, STARTING_AFTER_MS } from './boot'
 import { forgetOldChartPrefs, setSidebarHidden, sidebarHidden } from './chart/prefs'
-import { usualReport } from './home/line'
-import { LinePaused, LineStrip } from './home/LineParts'
+import { perReportOf, usualReport, waitText } from './home/line'
+import { LineAdder, LinePaused, LineStrip } from './home/LineParts'
 import { runTitle } from './home/run'
 import { RunView } from './home/RunView'
 import { useRun } from './home/useRun'
@@ -479,12 +479,14 @@ export function App() {
         onResume={() => void report.resume()}
         onRecheck={() => void recheck().then((problem) => problem && notify('The safety check didn’t start', problem, 'stop'))}
         onOpen={report.openReady}
+        waiting={report.line?.paused?.wait_until && report.line.paused.run_id === runView.runId ? waitText(report.line.paused) : undefined}
         strip={
           report.line && (
             <LineStrip
               line={report.line}
               runId={runView.runId}
-              perReport={usualReport(usualTimes(runView.tally))}
+              perReport={perReportOf(report.line, usualReport(usualTimes(runView.tally)))}
+              adder={<LineAdder perReport={perReportOf(report.line, usualReport(usualTimes(runView.tally)))} onAdd={report.startLine} />}
               onRemove={(ticker) => void report.removeFromLine(ticker)}
               onAdd={() => {
                 lookUpAdds.current = true

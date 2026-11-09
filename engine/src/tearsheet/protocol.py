@@ -144,8 +144,16 @@ class PinParams(Strict):
 
 
 class QueriesParams(Strict):
-    # Tickers or names, one company each (the line: batch.py).
-    queries: list[str]
+    # Tickers or names, one company each (the line: batch.py); spaces may separate tickers.
+    queries: list[str] = Field(default_factory=list)
+    # A quick add, before the queries: the whole S&P 500, one sector (`sector`), or the rest
+    # (every company without a finished report yet).
+    group: Literal["all", "sector", "rest"] | None = None
+    # Its own title, so the generated TypeScript names of the other `sector` fields stay put.
+    sector: str | None = Field(default=None, title="LineSector")
+    # Leave out companies with a finished report or an official prediction from the last 30
+    # days. Off for Refresh, which writes a company again on purpose.
+    skip_recent: bool = False
 
 
 class TickerParams(Strict):
@@ -186,6 +194,7 @@ METHODS: dict[str, type[Strict]] = {
     "remove_from_line": TickerParams,
     "clear_line": NoParams,
     "carry_on_line": NoParams,
+    "line_groups": NoParams,
 }
 
 
@@ -828,10 +837,12 @@ class LineItem(Strict):
 
 
 class LineSkip(Strict):
-    """A company left out of the line, and why."""
+    """A company left out of the line, and why. `kind` groups them: not found, listed twice,
+    already in the line, or a report from the last 30 days."""
 
     query: str
     reason: str
+    kind: Literal["unknown", "twice", "in_line", "recent"]
 
 
 class LinePause(Strict):
@@ -844,6 +855,21 @@ class LinePause(Strict):
     fix_command: str | None = None
     # The stopped report that Resume carries on with, if there is one.
     run_id: str | None = None
+    # When the line carries on by itself (ISO, UTC): a usage limit's reset (USAGE_LIMIT), or
+    # the plan's 5-hour window past 80% (USAGE_HIGH). None: it waits for Liam, as after the
+    # weekly window passes 80% (USAGE_WEEK) or Tearsheet opening again.
+    wait_until: str | None = None
+    # The plan's usage behind a USAGE_HIGH or USAGE_WEEK pause, 0 to 1; None when the AI tool
+    # only warned.
+    used: float | None = None
+
+
+class LineTypical(Strict):
+    """One of Liam's reports, as his latest finished runs went (their median)."""
+
+    seconds: int
+    ai_calls: int
+    runs: int
 
 
 class LineState(Strict):
@@ -854,8 +880,22 @@ class LineState(Strict):
     # What this line has finished so far, in order, for its Done list.
     finished: list[LineItem]
     paused: LinePause | None
-    # The most companies waiting at a time.
-    limit: int
+    # How long a report usually takes, for the time left; None until a few have finished.
+    typical: LineTypical | None = None
+
+
+class LineGroup(Strict):
+    name: str
+    count: int
+
+
+class LineGroups(Strict):
+    """The line's quick adds, with how many companies each holds."""
+
+    all: int
+    # Companies without a finished report yet.
+    rest: int
+    sectors: list[LineGroup]
 
 
 class LinePlan(Strict):
@@ -929,6 +969,8 @@ ALL_MODELS: tuple[type[BaseModel], ...] = (
     LinePause,
     LineState,
     LinePlan,
+    LineTypical,
+    LineGroups,
 )
 
 

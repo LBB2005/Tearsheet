@@ -620,11 +620,31 @@ class CodexConnector:
     @staticmethod
     def _rate_limit(snapshot: Mapping[str, Any]) -> dict[str, Any]:
         primary = snapshot.get("primary") or {}
+        # Each window with how much of it is used, for the line's 80% rule (batch.py): Codex's
+        # primary window is the 5-hour one and its secondary the weekly one, as their lengths say.
+        windows = []
+        for slot, usual in (("primary", "5h"), ("secondary", "week")):
+            window = snapshot.get(slot)
+            if not isinstance(window, Mapping) or window.get("usedPercent") is None:
+                continue
+            minutes = window.get("windowDurationMins")
+            kind = usual
+            if isinstance(minutes, int | float):
+                kind = "5h" if minutes <= 6 * 60 else "week" if minutes >= 6 * 24 * 60 else ""
+            if kind:
+                windows.append(
+                    {
+                        "window": kind,
+                        "used": float(window["usedPercent"]) / 100,
+                        "resets_at": window.get("resetsAt"),
+                    }
+                )
         return {
             "status": "rejected" if snapshot.get("rateLimitReachedType") else "allowed",
             "type": snapshot.get("limitName") or snapshot.get("limitId"),
             "utilization": primary.get("usedPercent"),
             "resets_at": primary.get("resetsAt"),
+            "windows": windows,
         }
 
     # --- calls -----------------------------------------------------------------------

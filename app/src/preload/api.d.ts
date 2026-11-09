@@ -68,8 +68,13 @@ export interface TearsheetApi {
   eraseReports(reportIds: string[]): Promise<CallResult<import('../shared/protocol').EraseResult>>
   pinCompany(cik: number, pinned: boolean): Promise<CallResult<{ ok: boolean }>>
   // The line: several reports written one after another. planLine changes nothing; it says which
-  // companies were found and which would make a new official prediction.
-  planLine(queries: string[]): Promise<CallResult<import('../shared/protocol').LinePlan>>
+  // companies were found and which would make a new official prediction. A quick add (`group`:
+  // the whole S&P 500, a `sector`, or the rest without a finished report) comes before the
+  // queries; `skipRecent` leaves out companies with a report from the last 30 days.
+  planLine(
+    queries: string[],
+    opts?: { group?: 'all' | 'sector' | 'rest'; sector?: string; skipRecent?: boolean }
+  ): Promise<CallResult<import('../shared/protocol').LinePlan>>
   addToLine(queries: string[]): Promise<CallResult<import('../shared/protocol').LinePlan>>
   getLine(): Promise<CallResult<import('../shared/protocol').LineState>>
   removeFromLine(ticker: string): Promise<CallResult<import('../shared/protocol').LineState>>
@@ -77,6 +82,8 @@ export interface TearsheetApi {
   clearLine(): Promise<CallResult<import('../shared/protocol').LineState>>
   // Goes on with the companies waiting, past a stopped report or after Tearsheet opened again.
   carryOnLine(): Promise<CallResult<import('../shared/protocol').LineState>>
+  // The quick adds, with how many companies each holds.
+  lineGroups(): Promise<CallResult<import('../shared/protocol').LineGroups>>
   listPredictions(): Promise<CallResult<import('../shared/protocol').PredictionSummary[]>>
   flagClaim(claimId: string, note: string): Promise<CallResult<{ review_id: string }>>
   rereadFiling(accession: string): Promise<CallResult<{ deleted: number }>>

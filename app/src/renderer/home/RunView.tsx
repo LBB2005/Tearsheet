@@ -50,9 +50,12 @@ export interface RunViewProps {
   onOpen: () => void
   // The line's strip (home/LineParts.tsx): what is up next, or how each of its reports went.
   strip?: ReactNode
+  // The line waits for the plan's usage limit to reset and then resumes this report by itself:
+  // what it waits for, in a sentence (home/line.ts's waitText).
+  waiting?: string
 }
 
-export function RunView({ run, ready, resuming, safety, onResume, onRecheck, onOpen, strip }: RunViewProps) {
+export function RunView({ run, ready, resuming, safety, onResume, onRecheck, onOpen, strip, waiting }: RunViewProps) {
   const done = runStep(run, ready) === TOTAL
   const failure = run.failure
   const now = useNow(!done && !failure)
@@ -96,7 +99,8 @@ export function RunView({ run, ready, resuming, safety, onResume, onRecheck, onO
           <div>
             <b>{title}</b>
             <span>{failure.message}</span>
-            {failure.resetAt && <span>Your usage resets at {resetTime(failure.resetAt)}.</span>}
+            {failure.resetAt && !waiting && <span>Your usage resets at {resetTime(failure.resetAt)}.</span>}
+            {waiting && <span>{waiting} Or resume it now.</span>}
             {failure.fix && (
               <span>
                 Sign in again in Terminal: <code>{failure.fix}</code>

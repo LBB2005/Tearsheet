@@ -42,7 +42,8 @@ export const CALLS: Record<string, string> = {
   getLine: 'get_line',
   removeFromLine: 'remove_from_line',
   clearLine: 'clear_line',
-  carryOnLine: 'carry_on_line'
+  carryOnLine: 'carry_on_line',
+  lineGroups: 'line_groups'
 }
 
 // The closed allowlist: only the names above, never inherited object properties.

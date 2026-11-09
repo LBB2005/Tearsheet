@@ -8,7 +8,7 @@ import { ageText, CALLS_PER_REPORT, refreshNote, refreshText } from './refresh'
 const NOW = new Date(2026, 10, 8, 15, 0)
 
 const item = (ticker: string, official = true): LineItem => ({ ticker, name: `${ticker} Inc.`, official, run_id: null, outcome: null, report_id: null, code: null, message: null })
-const plan = (items: LineItem[], skipped: LinePlan['skipped'] = []): LinePlan => ({ items, skipped, line: { waiting: items, writing: null, finished: [], paused: null, limit: 10 } })
+const plan = (items: LineItem[], skipped: LinePlan['skipped'] = []): LinePlan => ({ items, skipped, line: { waiting: items, writing: null, finished: [], paused: null, typical: null } })
 
 describe('ageText', () => {
   it('counts whole days on the calendar, not 24-hour spans', () => {
@@ -61,7 +61,7 @@ describe('refreshText for one company', () => {
   })
 
   it('one that can’t be added says why, with no Start', () => {
-    const t = refreshText(asked, plan([], [{ query: 'AAPL', reason: 'AAPL is already in the line.' }]), { busy: true, now: NOW })
+    const t = refreshText(asked, plan([], [{ query: 'AAPL', reason: 'AAPL is already in the line.', kind: 'in_line' as const }]), { busy: true, now: NOW })
     expect(t.title).toBe('AAPL can’t be refreshed now')
     expect(t.lines).toEqual(['AAPL is already in the line.'])
     expect(t.skipped).toEqual([])
@@ -93,7 +93,7 @@ describe('refreshText for several companies', () => {
   })
 
   it('keeps the ones left out, and only counts the ones that will be written', () => {
-    const skipped = [{ query: 'MSFT', reason: 'MSFT is already in the line.' }]
+    const skipped = [{ query: 'MSFT', reason: 'MSFT is already in the line.', kind: 'in_line' as const }]
     const t = refreshText(asked, plan([item('AAPL'), item('JPM')], skipped), { busy: true, now: NOW, perReport: 300 })
     expect(t.title).toBe('Refresh 2 reports?')
     expect(t.ages.map((a) => a.ticker)).toEqual(['AAPL', 'JPM'])
@@ -103,7 +103,7 @@ describe('refreshText for several companies', () => {
   })
 
   it('none that can be added says so, with no Start', () => {
-    const skipped = asked.map((a) => ({ query: a.ticker, reason: `${a.ticker} is already in the line.` }))
+    const skipped = asked.map((a) => ({ query: a.ticker, reason: `${a.ticker} is already in the line.`, kind: 'in_line' as const }))
     const t = refreshText(asked, plan([], skipped), { busy: true, now: NOW })
     expect(t.title).toBe('None of these can be refreshed now')
     expect(t.lines).toEqual([])
