@@ -41,6 +41,7 @@ from tearsheet.ai.claude_code import ENV_ALLOWLIST as CLAUDE_ENV_ALLOWLIST
 from tearsheet.ai.client import (
     AIAuthError,
     AIError,
+    AILockdownFailed,
     AIToolUseAttempt,
     AIUnavailable,
     CallRequest,
@@ -75,6 +76,20 @@ DISABLED_FEATURES = (
     "sleep_tool",
     "goals",
 )
+# Fail closed (security audit, 9 Nov 2026): the switches above were checked against one
+# version only, so before each turn the connector asks Codex which features are on for the new
+# thread (`experimentalFeature/list` with its threadId) and refuses the thread unless every name
+# above is one Codex knows and is off, and every command or code runner below is off. Codex
+# 0.165.0 itself also stops at start-up on an unknown `--disable` name ("Unknown feature flag").
+# `shell_tool` is the master switch for every shell tool, so Codex must list it.
+COMMAND_FEATURES = ("shell_tool", "code_mode", "js_repl")
+# Switches Codex reports as still on after `--disable`. Measured on codex-cli 0.165.0 with an
+# empty CODEX_HOME (no user settings, no AI calls): `unified_exec` stays on whatever the flags
+# say. It only picks which shell tool runs when `shell_tool` is on, and `shell_tool` goes off.
+STICKY_FEATURES = frozenset({"unified_exec"})
+UNKNOWN_FEATURE_TEXT = "Unknown feature flag"
+FEATURE_LIST_PAGE = 500
+FEATURE_LIST_PAGES_MAX = 20
 # Configuration overrides at start-up (`-c key=value`, values parsed as TOML): no project
 # instruction files, no web search, no history file, no patch tool. Overrides are merged into
 # the user's settings, not swapped for them, so `mcp_servers={}` would remove nothing: the
@@ -215,6 +230,29 @@ def enabled_plugins(reply: Mapping[str, Any]) -> list[str]:
     return sorted(set(found))
 
 
+def lockdown_problems(features: Mapping[str, bool]) -> list[str]:
+    """What stops a thread from running, from its `experimentalFeature/list` (name -> enabled).
+    Empty when the thread is locked down."""
+    problems = [
+        f"Codex doesn't know the switch `{n}`" for n in DISABLED_FEATURES if n not in features
+    ]
+    on = {
+        n
+        for n in (*DISABLED_FEATURES, *COMMAND_FEATURES)
+        if features.get(n) and n not in STICKY_FEATURES
+    }
+    return problems + [f"`{n}` is still on" for n in sorted(on)]
+
+
+def lockdown_error(problems: list[str]) -> AILockdownFailed:
+    return AILockdownFailed(
+        "Codex's tools couldn't be confirmed off ("
+        + "; ".join(problems)
+        + "). The AI steps stopped. A Codex update may have changed its switches.",
+        raw=" | ".join(problems),
+    )
+
+
 def error_text(error: Mapping[str, Any] | None) -> str:
     """One searchable line from a JSON-RPC error or a turn error. The code is ignored: Codex
     uses -32600 for every error."""
@@ -257,6 +295,7 @@ class _Thread:
     tokens: dict[str, int] | None = None
     status: str | None = None
     seen: set[str] = field(default_factory=set)
+    sticky_on: list[str] = field(default_factory=list)
 
     def item(self, item: Mapping[str, Any], *, completed: bool) -> None:
         kind = str(item.get("type"))
@@ -405,21 +444,59 @@ class CodexConnector:
             asyncio.create_task(self._read_stdout()),
             asyncio.create_task(self._read_stderr()),
         ]
-        hello = await self._request(
-            "initialize",
-            {
-                "clientInfo": {
-                    "name": "tearsheet",
-                    "title": "Tearsheet",
-                    "version": ENGINE_VERSION,
+        try:
+            hello = await self._request(
+                "initialize",
+                {
+                    "clientInfo": {
+                        "name": "tearsheet",
+                        "title": "Tearsheet",
+                        "version": ENGINE_VERSION,
+                    },
+                    "capabilities": {"experimentalApi": False},
                 },
-                "capabilities": {"experimentalApi": False},
-            },
-            time_limit_s=self._init_time_limit_s,
-        )
+                time_limit_s=self._init_time_limit_s,
+            )
+        except AIError:
+            # Codex stops at start-up on a `--disable` name it doesn't know: that is a lock-down
+            # failure, not a temporary error.
+            await self._drain_stderr()
+            unknown = [line for line in self.stderr if UNKNOWN_FEATURE_TEXT in line]
+            if unknown:
+                raise lockdown_error([unknown[-1].strip()[:200]]) from None
+            raise
         self.user_agent = hello.get("userAgent")
         self.codex_home = hello.get("codexHome")
         await self._send({"method": "initialized"})
+
+    async def _drain_stderr(self) -> None:
+        """Wait a moment for the standard-error reader to finish after the program stopped."""
+        if len(self._readers) > 1 and self._process is not None:
+            try:
+                await asyncio.wait_for(asyncio.shield(self._readers[1]), 1)
+            except (TimeoutError, asyncio.CancelledError):
+                pass
+
+    async def thread_features(self, thread_id: str) -> dict[str, bool]:
+        """Every feature Codex lists for one thread, with whether it is on. A Codex without the
+        request can't show its tools are off, so the error stops the thread."""
+        features: dict[str, bool] = {}
+        cursor: str | None = None
+        for _ in range(FEATURE_LIST_PAGES_MAX):
+            params: dict[str, Any] = {"threadId": thread_id, "limit": FEATURE_LIST_PAGE}
+            if cursor:
+                params["cursor"] = cursor
+            try:
+                reply = await self._request("experimentalFeature/list", params)
+            except AIError as exc:
+                raise lockdown_error([f"Codex didn't list its features ({exc})"]) from None
+            for feature in reply.get("data") or []:
+                if isinstance(feature, Mapping) and feature.get("name"):
+                    features[str(feature["name"])] = bool(feature.get("enabled"))
+            cursor = reply.get("nextCursor")
+            if not cursor:
+                break
+        return features
 
     async def _list_setup(self) -> tuple[list[str], list[str]]:
         """The user's switched-on plugins, and the tool servers from their own settings."""
@@ -693,6 +770,11 @@ class CodexConnector:
             thread_id = str((started.get("thread") or {}).get("id"))
             thread = _Thread(thread_id, request.allow_web_search, started)
             self._threads[thread_id] = thread
+            features = await self.thread_features(thread_id)
+            problems = lockdown_problems(features)
+            if problems:
+                raise lockdown_error(problems)
+            thread.sticky_on = sorted(n for n in STICKY_FEATURES if features.get(n))
             turn = await self._request("turn/start", self.turn_params(request, thread_id))
             thread.turn_id = (turn.get("turn") or {}).get("id") or thread.turn_id
             try:
@@ -759,6 +841,7 @@ class CodexConnector:
                 "servers_switched_off": list(self.servers_off),
                 "ephemeral": (started.get("thread") or {}).get("ephemeral"),
                 "refused_requests": list(self.refused),
+                "features_still_on": list(thread.sticky_on),
             },
             rate_limit=self.rate_limit,
         )
