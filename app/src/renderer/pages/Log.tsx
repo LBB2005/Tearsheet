@@ -330,7 +330,7 @@ export function Log({ grading, refresh, onGrade, onSubtitle, onOpenReport }: Log
                   const on = chosen.includes(r.p.cik) && r.newest
                   return (
                     <button key={r.p.prediction_id} type="button" className={`pcard${on ? ' on' : ''}${r.good ? ' good' : ''}`} aria-pressed={on} disabled={!r.newest} onClick={() => tick(r.p.cik)} title={r.newest ? `Add ${r.p.ticker} to the chart` : 'An older prediction for this company'}>
-                      <span className="top">
+                      <span className="pchead">
                         <span className="tk">{r.p.ticker}</span>
                         <span className={`pill ${ratingTone(r.p.rating)}`}>{r.p.rating}</span>
                       </span>

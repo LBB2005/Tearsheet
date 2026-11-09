@@ -54,8 +54,8 @@
 .logv .pcard.good { border-color: rgb(var(--accent-rgb) / .28); }
 .logv .pcard.on { border-color: var(--accent); background: rgb(var(--accent-rgb) / .08); }
 .logv .pcard:disabled { cursor: default; opacity: .6; }
-.logv .pcard .top, .logv .pcard .foot { display: flex; justify-content: space-between; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
-.logv .pcard .top .tk { color: var(--text); font-size: 14px; font-weight: calc(600 + var(--wt)); letter-spacing: .3px; }
+.logv .pcard .pchead, .logv .pcard .foot { display: flex; justify-content: space-between; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.logv .pcard .pchead .tk { color: var(--text); font-size: 14px; font-weight: calc(600 + var(--wt)); letter-spacing: .3px; }
 .logv .pcard .big { font-size: 20px; line-height: 1.2; font-weight: calc(600 + var(--wt)); }
 .logv .up { color: var(--up); }
 .logv .down { color: var(--down); }

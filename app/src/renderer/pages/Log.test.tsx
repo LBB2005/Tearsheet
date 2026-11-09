@@ -9,6 +9,7 @@ import { beforeEach, describe, expect, test } from 'vitest'
 import type { PredictionSummary } from '../../shared/protocol'
 import { renderApp } from '../test/app'
 import { bridge, ok } from '../test/bridge'
+import { dragAreas, describe as named } from '../test/dragMap'
 
 const p = (ticker: string, cik: number, over: Partial<PredictionSummary> = {}): PredictionSummary => ({
   prediction_id: `p-${ticker}`,
@@ -55,6 +56,17 @@ async function openLog() {
 const tickers = () => within(screen.getByRole('region', { name: 'Predictions' })).getAllByRole('row').slice(1).map((r) => r.querySelector('td.tk')?.textContent)
 const cards = () => within(screen.getByRole('region', { name: 'Good picks' })).queryAllByRole('button').map((b) => b.querySelector('.tk')?.textContent)
 const legend = () => [...document.querySelectorAll('.legend li b')].map((b) => b.textContent)
+
+describe('the page and the window', () => {
+  // A card's parts once borrowed the toolbar's class name, .top, and with it the toolbar's height,
+  // line and window dragging: a real click on a card's ticker moved the window.
+  test('nothing on the page drags the window, cards included', async () => {
+    await openLog()
+    expect(cards().length).toBeGreaterThan(0)
+    const page = document.querySelector('.pagebody') as Element
+    expect(dragAreas(page).map(named)).toEqual([])
+  })
+})
 
 describe('the good-pick consensus', () => {
   test('shows every prediction, the good picks as cards, and charts them first', async () => {
