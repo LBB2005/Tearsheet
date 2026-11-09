@@ -8,9 +8,10 @@ import { describe, expect, test, vi } from 'vitest'
 import { App } from './App'
 import { openReport, renderApp, win } from './test/app'
 import { bridge, download, emit, fail, flag, menu, ok, PREDICTIONS, settings } from './test/bridge'
-import { setWindowWidth } from './test/screen'
+import { setSize, setWindowWidth, sizeReportPage } from './test/screen'
 
 const sidebar = () => within(screen.getByRole('complementary', { name: 'Sidebar' }))
+const chartPane = () => screen.getByRole('region', { name: 'Price chart' })
 const toolbarTitle = () => document.querySelector('.top .ttl')?.textContent
 const frameHeading = () => {
   const frame = document.querySelector('iframe.report-frame.on') as HTMLIFrameElement | null
@@ -143,16 +144,41 @@ describe('the report page', () => {
     await waitFor(() => expect(frameHeading()).toBe('AAPL summary text'))
   })
 
-  test('a narrow window asks for the narrow layout, and the chart takes the whole window', async () => {
+  test('a narrow window asks for the narrow layout, and the chart stays beside the report', async () => {
     setWindowWidth(900)
     const { user } = await renderApp()
     await user.click(screen.getByRole('button', { name: 'Show the sidebar' }))
     await openReport(user)
+    sizeReportPage(900)
     expect(bridge.getReport).toHaveBeenLastCalledWith('r-aapl-2', expect.objectContaining({ narrow: true }))
     menu('chart')
-    expect(screen.getByRole('region', { name: 'Price chart' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Full' })).toBeNull()
+    expect(chartPane().style.width).toBe('450px')
+    expect(screen.getByRole('separator', { name: 'Resize the chart' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Full' })).toBeInTheDocument()
+    expect(document.querySelector('.rpage')).not.toHaveClass('full')
     expect(screen.queryByRole('group', { name: 'Beside the chart' })).toBeNull()
+  })
+
+  test('resizing the window keeps the chart beside the report at its share, with no glide', async () => {
+    const { user } = await renderApp()
+    sizeReportPage()
+    await openReport(user)
+    menu('chart')
+    const page = () => document.querySelector('.rpage') as HTMLElement
+    expect(chartPane().style.width).toBe('524px')
+    // Across the 1,100 px line, where the sidebar goes over the page: still beside the report, at half.
+    for (const [windowW, pageW] of [[1100, 868], [1099, 1099], [960, 960], [1280, 1048]]) {
+      setWindowWidth(windowW)
+      setSize('.rpage', pageW, 760)
+      expect(chartPane().style.width).toBe(`${Math.round(pageW / 2)}px`)
+      expect(screen.getByRole('separator', { name: 'Resize the chart' })).toBeInTheDocument()
+      // The chart follows the window at once: its width doesn't glide (chart.css).
+      expect(page()).toHaveClass('resizing')
+    }
+    // A width button still glides the divider to its place.
+    await user.click(screen.getByRole('button', { name: 'Wide' }))
+    expect(chartPane().style.width).toBe('699px')
+    expect(page()).not.toHaveClass('resizing')
   })
 
   test('a report that doesn’t open says why, and Try again asks again', async () => {

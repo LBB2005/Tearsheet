@@ -533,7 +533,7 @@ describe('the panel itself', () => {
     await waitFor(() => expect(bridge.getReport).toHaveBeenCalledWith('r-msft-1', expect.anything()))
   })
 
-  test('a link in a narrow window opens the view over the whole window, with no width buttons', async () => {
+  test('a link with no room beside the report opens the view over the whole page, with no width buttons', async () => {
     const { setWindowWidth } = await import('../test/screen')
     setWindowWidth(700)
     const { user } = await renderApp()

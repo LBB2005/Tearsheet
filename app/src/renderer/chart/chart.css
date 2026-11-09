@@ -2,7 +2,8 @@
    Class names, colours and spacing follow docs/designs/report-look-c-chart-split.html (.divider,
    .cpane5, .cph, .tg, .ibtn, .chartwrap, .loadbox, .cnote5, the c- chart parts). Motion is
    A. Settle: the split slides in from the right as it opens and away as it closes, resizes live
-   while the divider is dragged (no transitions), and settles into Half or Full as it snaps. The
+   while the divider is dragged (no transitions), and settles into Half or Full as it snaps. A
+   resized window or sidebar moves it at once, with no glide, in a window of any width. The
    line draws in as the chart opens; on a range or toggle change it glides. Under Reduce motion
    nothing moves (styles.css). */
 
@@ -38,19 +39,20 @@
    it never takes the pointer. Snapping into Half or Full settles. */
 .dragging .cpane, .dragging .divider i { transition: none; }
 .dragging.snapped .cpane { transition: width .2s var(--settle); }
+/* The window or the sidebar resized (pages/Report.tsx marks the render whose width changed): the
+   chart moves with it at once, as a Mac window's parts do, never gliding behind the edge. After
+   the rules above, so it wins over a snap's glide. */
+.rpage.resizing .cpane { transition: none; }
 .dragging, .dragging * { cursor: col-resize !important; user-select: none; -webkit-user-select: none; }
 .dragshield { position: absolute; inset: 0; z-index: 2; }
-/* In Full the report is hidden; dragging the divider brings it back. */
-/* Behind a Full chart the report keeps the whole width, never squeezed to nothing, so it keeps
-   its place (pages/Report.tsx). */
+/* In Full the report is hidden; dragging the divider brings it back. Behind a Full chart (or one
+   alone, with no room beside the report) the report keeps the whole width, never squeezed to
+   nothing, so it keeps its place (pages/Report.tsx). */
 .rpage.full .rmain { position: absolute; inset: 0; visibility: hidden; }
 
-/* A narrow window: the chart takes the whole window, sliding over from the right. */
-.narrow .cpane { animation-name: cp-in; animation-duration: .42s; }
-.narrow .cpane.swap { animation: none; }
-.narrow .closing .cpane { animation: cp-out .26s cubic-bezier(.5, 0, .8, .4) forwards; }
-@keyframes cp-in { from { transform: translateX(104%); } }
-@keyframes cp-out { to { transform: translateX(104%); } }
+/* A narrow window keeps the split, opening and closing as a wide one does. (It used to give the
+   chart the whole window with an opening of its own, which played again each time the window
+   crossed 1,100 px.) */
 
 /* ---------- the pane's head: name, readout, ranges and toggles ---------- */
 .cph { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 18px; row-gap: 8px; flex: none; }

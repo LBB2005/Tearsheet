@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { CHART_MIN, DIV, presetSplit, snapWidth, splitWidth, TEXT_MIN } from './split'
+import { CHART_MIN, DIV, fitsBeside, presetSplit, snapWidth, splitWidth, TEXT_MIN } from './split'
 
 // A 1,280 px window with the 232 px sidebar shown.
 const AVAIL = 1280 - 232
@@ -80,5 +80,28 @@ describe('splitWidth', () => {
     const half = splitWidth({ mode: 'half', width: 0 }, avail)
     expect(half).toBeGreaterThanOrEqual(CHART_MIN)
     expect(avail - half - DIV).toBeGreaterThanOrEqual(TEXT_MIN)
+  })
+})
+
+describe('fitsBeside', () => {
+  it('fits the chart beside the report down to both their limits', () => {
+    expect(fitsBeside(CHART_MIN + TEXT_MIN + DIV)).toBe(true)
+    expect(fitsBeside(CHART_MIN + TEXT_MIN + DIV - 1)).toBe(false)
+  })
+
+  it('fits in every window Tearsheet allows, so a narrow window keeps the split', () => {
+    // The narrowest window (820 px, main/index.ts), with the sidebar over the page.
+    expect(fitsBeside(820)).toBe(true)
+    // The narrowest wide window (1,100 px) beside the widest sidebar (360 px).
+    expect(fitsBeside(1100 - 360)).toBe(true)
+  })
+})
+
+describe('the split as the window changes', () => {
+  it('keeps Half at half, frame by frame, as a window is dragged across 1,100 px', () => {
+    for (let avail = 1048; avail >= 820; avail -= 4) {
+      const w = splitWidth({ mode: 'half', width: 524 }, avail)
+      expect(Math.abs(w - avail / 2)).toBeLessThanOrEqual(0.5)
+    }
   })
 })

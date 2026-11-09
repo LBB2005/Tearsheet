@@ -24,10 +24,7 @@ iframe.report-frame.fadein { animation: fade .15s ease-out both; background: tra
 .rerror { display: flex; align-items: center; gap: 14px; margin: 14px 16px 0; }
 .rerror span { flex: 1; min-width: 0; }
 .rerror b { color: var(--bad-text2); font-weight: calc(600 + var(--wt)); }
-/* A narrow window gives the chart the whole window. */
-/* The report stays loaded behind it, at the whole width, so it keeps its place for when the
-   chart closes. */
-.narrow .rpage.chartopen .rmain { position: absolute; inset: 0; visibility: hidden; }
+/* A narrow window keeps the report beside the chart, as a wide one does (chart/chart.css). */
 
 /* ---------- the toolbar: the Chart button and the Numbers / Text switch ---------- */
 .top .cbtn { all: unset; display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px; border-radius: calc(8px * var(--round)); border: 1px solid var(--line); color: var(--text); cursor: pointer; background: rgb(var(--ink) / .04); font-size: 13px; white-space: nowrap; transition: background .2s, border-color .2s, color .2s; }

@@ -31,8 +31,11 @@ export interface Split {
   width: number
 }
 
-// Too narrow for the chart and the report side by side: the chart takes it all.
-const tooNarrow = (avail: number) => avail < CHART_MIN + TEXT_MIN + DIV
+// Room for the chart and the report side by side, each at its limit. Every window Tearsheet
+// allows has it (820 px at the narrowest, main/index.ts), so a narrow window keeps the split;
+// only a page narrower than both gives the chart all of it.
+export const fitsBeside = (avail: number) => avail >= CHART_MIN + TEXT_MIN + DIV
+const tooNarrow = (avail: number) => !fitsBeside(avail)
 // The widest the chart goes with the report still beside it.
 const widest = (avail: number) => avail - TEXT_MIN - DIV
 const halfOf = (avail: number) => Math.min(widest(avail), Math.max(CHART_MIN, Math.round(avail / 2)))
