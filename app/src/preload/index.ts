@@ -49,6 +49,9 @@ contextBridge.exposeInMainWorld('tearsheet', {
   clearLine: () => call('clearLine', {}),
   carryOnLine: () => call('carryOnLine', {}),
   listPredictions: () => call('listPredictions', {}),
+  predictionPrices: (ciks: number[], since: string) => call('predictionPrices', { ciks, since }),
+  // The prediction log's Export: a CSV the window made, saved to ~/Downloads (main/downloads.ts).
+  saveCsv: (name: string, text: string) => ipcRenderer.invoke('tearsheet:saveCsv', name, text),
   flagClaim: (claimId: string, note: string) => call('flagClaim', { claim_id: claimId, note }),
   rereadFiling: (accession: string) => call('rereadFiling', { accession }),
   getTools: (force = false) => ipcRenderer.invoke('tearsheet:getTools', force),

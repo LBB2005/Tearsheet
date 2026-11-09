@@ -1434,8 +1434,10 @@ class Server:
         return {"ok": True}
 
     async def m_list_predictions(self, p) -> list[dict[str, Any]]:
+        from tearsheet.predictions import summary_extras
+
         out = []
-        for r in self.db.conn.execute("SELECT * FROM predictions ORDER BY run_at DESC"):
+        for r in self.db.conn.execute("SELECT * FROM predictions ORDER BY run_at DESC").fetchall():
             grades = [
                 _grade(g)
                 for g in self.db.conn.execute(
@@ -1458,8 +1460,14 @@ class Server:
                     )
                 }
                 | {"grades": grades}
+                | summary_extras(self.db.conn, r)
             )
         return out
+
+    async def m_prediction_prices(self, p) -> dict[str, Any]:
+        from tearsheet.predictions import compare_prices
+
+        return compare_prices(self.db.conn, p.ciks, p.since)
 
     async def m_flag_claim(self, p) -> dict[str, Any]:
         from tearsheet.goal1 import add_review

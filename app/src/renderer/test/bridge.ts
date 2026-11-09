@@ -12,7 +12,7 @@ import { vi, type Mock } from 'vitest'
 import type { MenuCommand } from '../../main/menu'
 import type { ViewId } from '../../main/navigation'
 import type { CallResult, EngineNotification, TearsheetApi, ToolStatus } from '../../preload/api'
-import type { ChartSeries, CompanyRow, LineItem, LinePlan, LineState, PredictionSummary, ReportBar, ReportNumbers, ReportResult, ReportSummary, SearchHit, SettingsResult } from '../../shared/protocol'
+import type { ChartSeries, CompanyRow, LineItem, LinePlan, LineState, PredictionPrices, PredictionSummary, ReportBar, ReportNumbers, ReportResult, ReportSummary, SearchHit, SettingsResult } from '../../shared/protocol'
 import { analysts } from './analysts'
 
 export type FakeBridge = { [K in keyof TearsheetApi]: Mock<TearsheetApi[K]> }
@@ -87,8 +87,14 @@ export function search(query: string): SearchHit[] {
 }
 
 export const PREDICTIONS: PredictionSummary[] = [
-  { prediction_id: 'p-aapl', cik: 320193, ticker: 'AAPL', run_at: '2026-08-01T14:00:00Z', rating: 'Buy', bear: 190, base: 250, bull: 290, grades: [] }
+  { prediction_id: 'p-aapl', cik: 320193, ticker: 'AAPL', run_at: '2026-08-01T14:00:00Z', rating: 'Buy', bear: 190, base: 250, bull: 290, grades: [], name: 'Apple Inc.', sector: 'Information Technology', share_class: '', score: 72, probability: 0.61, uncertainty: 'medium', report_id: 'rep-aapl', price: 212.4, price_date: '2026-11-06' }
 ]
+
+// The log's compare chart: each company's total return and the S&P 500 on the chart's days.
+export function comparePrices(ciks: number[]): PredictionPrices {
+  const days = chart(30).dates
+  return { dates: days, spy: days.map((_, i) => 100 + i * 0.1), series: ciks.map((cik) => ({ cik, total: days.map((_, i) => 100 + i * (cik % 7)) })) }
+}
 
 // A year of trading days up to Nov 6, 2026, rising gently, with peers, the S&P 500 and filings.
 export function chart(days = 260): ChartSeries {
@@ -247,6 +253,8 @@ function makeBridge(): FakeBridge {
       return ok({ ok: true })
     }),
     listPredictions: vi.fn<TearsheetApi['listPredictions']>(async () => ok(PREDICTIONS)),
+    predictionPrices: vi.fn<TearsheetApi['predictionPrices']>(async (ciks: number[]) => ok(comparePrices(ciks))),
+    saveCsv: vi.fn<TearsheetApi['saveCsv']>(async (name: string) => ({ ok: true as const, name, path: `/Users/liam/Downloads/${name}` })),
     flagClaim: vi.fn<TearsheetApi['flagClaim']>(async () => ok({ review_id: 'rv-1' })),
     rereadFiling: vi.fn<TearsheetApi['rereadFiling']>(async () => ok({ deleted: 3 })),
     getTools: vi.fn<TearsheetApi['getTools']>(async () => TOOLS),

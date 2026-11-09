@@ -84,6 +84,13 @@ export function failureMessage(error: unknown): string {
   return message ? `It couldn’t be made: ${message}` : 'It couldn’t be made. Please try again.'
 }
 
+// The prediction log's CSV name, kept to plain characters and always ending .csv.
+export function csvName(name: unknown): string {
+  const plain = typeof name === 'string' ? basename(name).replace(/[^A-Za-z0-9 .()_-]/g, '').trim() : ''
+  const stem = plain.toLowerCase().endsWith('.csv') ? plain.slice(0, -4).trim() : plain
+  return `${stem && !stem.startsWith('.') ? stem : 'Tearsheet predictions'}.csv`
+}
+
 export class Downloads {
   private busy = new Set<string>()
   // The files saved this session: only these can be shown in Finder.
@@ -93,6 +100,20 @@ export class Downloads {
 
   isSaved(path: unknown): path is string {
     return typeof path === 'string' && this.saved.has(path)
+  }
+
+  // Saves a CSV the window made (the prediction log's Export), never replacing a file.
+  async saveCsv(name: unknown, text: unknown): Promise<{ ok: true; name: string; path: string } | { ok: false; message: string }> {
+    if (typeof text !== 'string' || text.length > 20_000_000) return { ok: false, message: 'There was nothing to save.' }
+    try {
+      const file = freeName(csvName(name), (n) => this.deps.exists(join(this.deps.dir, n)))
+      const path = join(this.deps.dir, file)
+      await this.deps.write(path, Buffer.from(text, 'utf8'))
+      this.saved.add(path)
+      return { ok: true, name: file, path }
+    } catch (error) {
+      return { ok: false, message: failureMessage(error) }
+    }
   }
 
   // Makes one file. A second click on the same file while it is being made is ignored.

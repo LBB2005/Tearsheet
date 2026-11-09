@@ -1,19 +1,109 @@
-/* The prediction log (pages/Log.tsx). Class names, colours and spacing follow
-   docs/designs/report-look-c-chart-split.html (logPage: .notice, .three, .stat, table.t), without
-   its example panels or their stripes. The shared panels, pills and tables are in styles.css
-   (.panels). Everything is scoped under .logv. Under Reduce motion nothing moves (styles.css). */
+/* The prediction log (pages/Log.tsx), version B of the redesign
+   (docs/superpowers/specs/2026-11-08-prediction-log-page-design.md): a filter column, good-pick
+   cards, the table with its bear-to-bull bars, and the compare chart. The shared panels, pills
+   and tables are in styles.css (.panels); every colour is one of its names, so each look and
+   light mode work. Everything is scoped under .logv. Under Reduce motion nothing moves. */
 
-.logv .tiles3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
-.logv .stat b { display: block; font: 26px/1.3 var(--ui); font-weight: calc(600 + var(--wt)); }
-.logv .stat span { color: var(--muted); font-size: 12.5px; }
-@container (max-width: 700px) { .logv .tiles3 { grid-template-columns: minmax(0, 1fr); } }
+.logv { max-width: 1240px; }
+.logv .split { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start; }
+.logv .side { flex: 1 1 220px; max-width: 250px; display: grid; gap: 2px; }
+.logv .main { flex: 999 1 560px; min-width: 0; display: grid; gap: 14px; }
 
+/* the filter column */
+.logv .fs { border: 0; margin: 0; padding: 10px 2px 8px; min-width: 0; border-top: 1px solid var(--line); }
+.logv .fs:first-child { border-top: 0; padding-top: 2px; }
+.logv .fs legend { padding: 0; margin-bottom: 6px; font: 11.5px var(--ui); font-weight: calc(600 + var(--wt)); letter-spacing: .6px; text-transform: uppercase; color: var(--muted); }
+.logv .ck { display: flex; align-items: center; gap: 9px; padding: 3px 0; font-size: 13px; cursor: pointer; }
+.logv .ck span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.logv .ck em { margin-left: auto; font-style: normal; color: var(--dim); font-size: 12px; }
+.logv .ck.inline { padding: 0; font-size: 12.5px; color: var(--muted); font-weight: calc(400 + var(--wt)); }
+.logv input[type=checkbox], .logv input[type=radio] { accent-color: var(--accent); width: 15px; height: 15px; margin: 0; flex: none; }
+.logv input[type=range] { accent-color: var(--accent); width: 100%; margin: 2px 0 0; }
+.logv .chips { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.logv .chip { all: unset; cursor: pointer; font-size: 12.5px; line-height: 1.5; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--text2); white-space: nowrap; }
+.logv .chip:hover { background: rgb(var(--ink) / .07); }
+.logv .chip.on { color: var(--accent-text); border-color: var(--chipline); background: rgb(var(--accent-rgb) / .12); }
+.logv .chip:focus-visible, .logv .link:focus-visible, .logv .pcard:focus-visible, .logv .open:focus-visible, .logv .x:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.logv .rl { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 0 8px; margin: 8px 0 0; font-size: 12.5px; color: var(--muted); }
+.logv .rl.buy { display: flex; }
+.logv .lead { margin: 0 0 6px; font-size: 12.5px; color: var(--muted); }
+.logv .chips .chip { min-width: 14px; text-align: center; }
+.logv .rl b { color: var(--text); font-weight: calc(600 + var(--wt)); }
+.logv .rl input { grid-column: 1 / -1; }
+.logv .rl i, .logv .sq i { display: inline-block; width: 9px; height: 9px; border-radius: calc(2px * var(--round)); background: rgb(var(--ink) / .13); margin-right: 5px; vertical-align: 0; }
+.logv .rl i.on, .logv .sq i.on { background: var(--accent); }
+.logv .sq i { margin-right: 3px; }
+.logv .link { all: unset; cursor: pointer; color: var(--accent); font-size: 12.5px; }
+.logv .link:disabled { color: var(--dim); cursor: default; }
+.logv .side > .link { margin-top: 8px; justify-self: start; }
+
+/* headers */
+.logv .p h4 .acts { display: inline-flex; gap: 8px; flex-wrap: wrap; }
 .logv .p h4 .btn2 { padding: 4px 11px; font-size: 12.5px; }
+.logv .p h4 em.rule { font-style: normal; color: var(--dim); margin-left: 6px; }
+.logv .sortby { margin-left: 12px; display: inline-flex; align-items: center; gap: 6px; }
+.logv select { background: var(--option-bg); border: 1px solid var(--line); border-radius: calc(8px * var(--round)); padding: 3px 8px; color: var(--text); font: inherit; font-size: 12.5px; }
 .logv .gline { margin: -2px 0 6px; font-size: 12.5px; color: var(--muted); }
+.logv .fine b, .logv .ngy b { color: var(--text); }
+.logv .ngy { margin: 0 0 6px; font-size: 12.5px; color: var(--muted); }
+
+/* good-pick cards */
+.logv .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.logv .pcard { all: unset; box-sizing: border-box; cursor: pointer; display: grid; gap: 4px; padding: 10px 12px; border-radius: calc(12px * var(--round)); border: 1px solid var(--line); background: var(--panel); min-width: 0; }
+.logv .pcard:hover { background: rgb(var(--ink) / .07); }
+.logv .pcard.good { border-color: rgb(var(--accent-rgb) / .28); }
+.logv .pcard.on { border-color: var(--accent); background: rgb(var(--accent-rgb) / .08); }
+.logv .pcard:disabled { cursor: default; opacity: .6; }
+.logv .pcard .top, .logv .pcard .foot { display: flex; justify-content: space-between; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.logv .pcard .top .tk { color: var(--text); font-size: 14px; font-weight: calc(600 + var(--wt)); letter-spacing: .3px; }
+.logv .pcard .big { font-size: 20px; line-height: 1.2; font-weight: calc(600 + var(--wt)); }
+.logv .up { color: var(--up); }
+.logv .down { color: var(--down); }
+
+/* the table */
+.logv .tablebox { overflow-x: auto; max-height: 720px; overflow-y: auto; }
+.logv table.t th, .logv table.t td { padding-left: 6px; padding-right: 6px; }
+.logv table.t td { white-space: nowrap; vertical-align: middle; }
+.logv table.t td.pb span { color: var(--muted); font-size: 11.5px; }
 .logv table.t td.tk { font-weight: calc(600 + var(--wt)); letter-spacing: .3px; }
-.logv table.t td { white-space: nowrap; }
-.logv table.t td.grades { white-space: normal; }
-.logv .grades .gr { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 12.5px; }
-.logv .grades .gr + .gr, .logv .grades .gr + .pill { margin-top: 5px; }
-.logv .grades .gm { min-width: 64px; color: var(--muted); }
-.logv .grades .gd { color: var(--muted); }
+.logv table.t tr.good td.tk { color: var(--accent-text); }
+.logv table.t tr.on td { background: rgb(var(--accent-rgb) / .05); }
+.logv table.t td.co { white-space: normal; min-width: 140px; max-width: 210px; }
+.logv .co .nm, .logv .co .sub { display: block; }
+.logv .co .sub { font-size: 11.5px; color: var(--muted); }
+.logv .cks .star { color: var(--accent); }
+.logv .upv { font-weight: calc(600 + var(--wt)); }
+.logv .grades { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 4px; }
+.logv .grades .gr { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; font-size: 12px; }
+.logv .grades .gm, .logv .grades .gd, .logv .grades .made { color: var(--muted); font-size: 11.5px; }
+.logv th.barh { min-width: 150px; position: relative; }
+.logv .ticks { position: relative; display: block; height: 16px; }
+.logv .ticks span { position: absolute; transform: translateX(-50%); font-weight: calc(400 + var(--wt)); }
+.logv .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.logv .bar { display: block; min-width: 150px; }
+.logv .bar .track { position: relative; display: block; height: 16px; }
+.logv .bar .today { position: absolute; top: -3px; bottom: -3px; width: 1px; background: rgb(var(--text-rgb) / .35); }
+.logv .bar .range { position: absolute; top: 5px; height: 6px; border-radius: 3px; background: linear-gradient(90deg, rgb(var(--down-rgb) / .55), rgb(var(--hold-rgb) / .35) 50%, rgb(var(--up-rgb) / .55)); }
+.logv .bar .base { position: absolute; top: 0; width: 3px; height: 16px; margin-left: -1.5px; border-radius: 2px; background: var(--text); }
+.logv .bar .ends { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); }
+.logv .nobar { font-size: 12px; color: var(--dim); }
+.logv .open { all: unset; cursor: pointer; display: grid; place-items: center; width: 24px; height: 24px; border-radius: calc(6px * var(--round)); color: var(--icon); }
+.logv .open:hover { background: rgb(var(--ink) / .07); color: var(--text); }
+.logv .open svg { fill: none; stroke: currentColor; stroke-width: 1.6; }
+
+/* the compare chart */
+.logv .compare .cplot { display: block; width: 100%; height: auto; }
+.logv .compare .gy { stroke: rgb(var(--ink) / .07); }
+.logv .compare .gz { stroke: rgb(var(--ink) / .24); }
+.logv .compare .gl { fill: var(--muted); font-size: 11px; }
+.logv .compare path { fill: none; stroke-linejoin: round; }
+.logv .compare path.line { stroke-width: 2.2; }
+.logv .compare path.spy { stroke-width: 1.5; stroke-dasharray: 4 4; }
+.logv .compare .cempty { margin: 30px auto; max-width: 560px; text-align: center; color: var(--muted); }
+.logv .legend { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12.5px; }
+.logv .legend li { display: inline-flex; align-items: center; gap: 6px; }
+.logv .legend i { width: 12px; height: 3px; border-radius: 2px; }
+.logv .x { all: unset; cursor: pointer; color: var(--dim); padding: 0 3px; }
+.logv .x:hover { color: var(--text); }
+
+@container (max-width: 700px) { .logv .side { max-width: none; } }

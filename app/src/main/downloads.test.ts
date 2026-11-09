@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { Downloads, failureMessage, footerTemplate, freeName, safeName, type DownloadDeps, type DownloadNote } from './downloads'
+import { csvName, Downloads, failureMessage, footerTemplate, freeName, safeName, type DownloadDeps, type DownloadNote } from './downloads'
 
 const DIR = '/Users/liam/Downloads'
 
@@ -131,5 +131,31 @@ describe('making a download', () => {
     expect(downloads.isSaved(note?.path)).toBe(true)
     expect(downloads.isSaved('/etc/passwd')).toBe(false)
     expect(downloads.isSaved(42)).toBe(false)
+  })
+})
+
+describe('the prediction log’s CSV', () => {
+  it('saves it to Downloads under a plain, free .csv name, then Show in Finder works', async () => {
+    const { all, written } = deps({}, new Set([`${DIR}/Tearsheet predictions 8 Nov 2026.csv`]))
+    const downloads = new Downloads(all)
+    const saved = await downloads.saveCsv('Tearsheet predictions 8 Nov 2026.csv', 'a,b\n1,2\n')
+    expect(saved).toEqual({ ok: true, name: 'Tearsheet predictions 8 Nov 2026 (2).csv', path: `${DIR}/Tearsheet predictions 8 Nov 2026 (2).csv` })
+    expect(written.get(`${DIR}/Tearsheet predictions 8 Nov 2026 (2).csv`)?.toString()).toBe('a,b\n1,2\n')
+    expect(downloads.isSaved(saved.ok ? saved.path : '')).toBe(true)
+  })
+
+  it('never lets the name leave the folder or drop .csv', () => {
+    expect(csvName('../../etc/passwd')).toBe('passwd.csv')
+    expect(csvName('x.CSV')).toBe('x.csv')
+    expect(csvName('')).toBe('Tearsheet predictions.csv')
+    expect(csvName(7)).toBe('Tearsheet predictions.csv')
+  })
+
+  it('says why when it can’t save, and refuses what isn’t text', async () => {
+    const { all } = deps({ write: vi.fn(async () => Promise.reject(Object.assign(new Error('no'), { code: 'EPERM' }))) })
+    const downloads = new Downloads(all)
+    const failed = await downloads.saveCsv('a.csv', 'x')
+    expect(failed.ok).toBe(false)
+    expect(await downloads.saveCsv('a.csv', 42)).toEqual({ ok: false, message: 'There was nothing to save.' })
   })
 })

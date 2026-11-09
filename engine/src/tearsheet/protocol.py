@@ -69,6 +69,13 @@ class ChartParams(Strict):
     report_id: str
 
 
+class PredictionPricesParams(Strict):
+    """The prediction log's compare chart: these companies' and SPY's closes from `since`."""
+
+    ciks: list[int] = Field(max_length=12)
+    since: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+
+
 class HistoryParams(Strict):
     report_id: str
 
@@ -171,6 +178,7 @@ METHODS: dict[str, type[Strict]] = {
     "list_companies": NoParams,
     "search_companies": SearchParams,
     "get_chart": ChartParams,
+    "prediction_prices": PredictionPricesParams,
     "fetch_history": HistoryParams,
     "get_report_numbers": NumbersParams,
     "get_analysts": AnalystsParams,
@@ -616,6 +624,30 @@ class PredictionSummary(Strict):
     base: float | None
     bull: float | None
     grades: list[Grade]
+    # For the log's filters and good-pick checks (docs/superpowers/specs/
+    # 2026-11-08-prediction-log-page-design.md). `price` is the newest stored close in the
+    # prediction's shares (a split since is undone), so it compares with bear, base and bull.
+    name: str | None = None
+    sector: str | None = None
+    share_class: str = ""
+    score: float | None = None
+    probability: float | None = None
+    uncertainty: str | None = None
+    report_id: str | None = None
+    price: float | None = None
+    price_date: str | None = None
+
+
+class PriceLine(Strict):
+    cik: int
+    # Total-return index from 100 on `dates` (None before its first close).
+    total: list[float | None]
+
+
+class PredictionPrices(Strict):
+    dates: list[str]
+    spy: list[float | None]
+    series: list[PriceLine]
 
 
 class ReviewResult(Strict):
@@ -907,6 +939,8 @@ ALL_MODELS: tuple[type[BaseModel], ...] = (
     EraseResult,
     Grade,
     PredictionSummary,
+    PriceLine,
+    PredictionPrices,
     ReviewResult,
     RereadResult,
     GradeResult,

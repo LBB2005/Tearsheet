@@ -126,6 +126,7 @@ async function createWindow(): Promise<void> {
       if (!window.isDestroyed() && !window.webContents.isDestroyed()) window.webContents.send('tearsheet:download', note)
     }
   })
+  ipcMain.handle('tearsheet:saveCsv', (_event, name: unknown, text: unknown) => downloads.saveCsv(name, text))
   ipcMain.handle('tearsheet:showDownload', (_event, path: unknown) => {
     if (!downloads.isSaved(path)) return false
     shell.showItemInFolder(path)

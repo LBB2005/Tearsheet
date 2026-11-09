@@ -267,6 +267,8 @@ describe('the prediction log', () => {
     const row = (await screen.findByRole('cell', { name: 'AAPL' })).closest('tr') as HTMLElement
     expect(within(row).getByText('Buy')).toBeInTheDocument()
     expect(within(row).getByText('$250.00')).toBeInTheDocument()
+    // The row's arrow opens its report.
+    expect(within(row).getByRole('button', { name: 'Open the AAPL report' })).toBeInTheDocument()
     expect(toolbarTitle()).toBe('Prediction log1 logged, 0 graded')
     expect(screen.getByText('Nothing graded yet')).toBeInTheDocument()
 

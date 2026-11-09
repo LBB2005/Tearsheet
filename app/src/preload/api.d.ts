@@ -78,6 +78,10 @@ export interface TearsheetApi {
   // Goes on with the companies waiting, past a stopped report or after Tearsheet opened again.
   carryOnLine(): Promise<CallResult<import('../shared/protocol').LineState>>
   listPredictions(): Promise<CallResult<import('../shared/protocol').PredictionSummary[]>>
+  // The prediction log's compare chart: total-return lines on SPY's days from `since` (read only).
+  predictionPrices(ciks: number[], since: string): Promise<CallResult<import('../shared/protocol').PredictionPrices>>
+  // Saves the log's CSV to ~/Downloads under a free name; then showDownload(path) works on it.
+  saveCsv(name: string, text: string): Promise<{ ok: true; name: string; path: string } | { ok: false; message: string }>
   flagClaim(claimId: string, note: string): Promise<CallResult<{ review_id: string }>>
   rereadFiling(accession: string): Promise<CallResult<{ deleted: number }>>
   getTools(force?: boolean): Promise<ToolStatus[]>

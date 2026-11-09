@@ -26,6 +26,24 @@ export type Tool1 = "claude" | "codex";
 export type Query1 = string;
 export type Limit1 = number;
 export type ReportId1 = string;
+/**
+ * @maxItems 12
+ */
+export type Ciks =
+  | []
+  | [number]
+  | [number, number]
+  | [number, number, number]
+  | [number, number, number, number]
+  | [number, number, number, number, number]
+  | [number, number, number, number, number, number]
+  | [number, number, number, number, number, number, number]
+  | [number, number, number, number, number, number, number, number]
+  | [number, number, number, number, number, number, number, number, number]
+  | [number, number, number, number, number, number, number, number, number, number]
+  | [number, number, number, number, number, number, number, number, number, number, number]
+  | [number, number, number, number, number, number, number, number, number, number, number, number];
+export type Since = string;
 export type ReportId2 = string;
 export type ReportId3 = string;
 export type ReportId4 = string;
@@ -267,11 +285,25 @@ export type Bear2 = number | null;
 export type Base2 = number | null;
 export type Bull2 = number | null;
 export type Grades = Grade[];
+export type Name9 = string | null;
+export type Sector2 = string | null;
+export type ShareClass = string;
+export type Score = number | null;
+export type Probability = number | null;
+export type Uncertainty = string | null;
+export type ReportId13 = string | null;
+export type Price1 = number | null;
+export type PriceDate1 = string | null;
+export type Cik7 = number;
+export type Total2 = (number | null)[];
+export type Dates1 = string[];
+export type Spy1 = (number | null)[];
+export type Series1 = PriceLine[];
 export type ReviewId = string;
 export type Deleted = number;
 export type Graded = number;
 export type Note2 = string | null;
-export type Name9 = string;
+export type Name10 = string;
 export type Key5 = string;
 export type Cost = string;
 export type Sent = string;
@@ -302,8 +334,8 @@ export type Proof = string;
 export type Started = boolean;
 export type Tool2 = "claude" | "codex";
 export type N1 = number;
-export type Total2 = number;
-export type Name10 = string;
+export type Total3 = number;
+export type Name11 = string;
 export type Ok2 = boolean;
 export type Tool3 = "claude" | "codex";
 export type Passed1 = boolean;
@@ -330,7 +362,7 @@ export type Facts = number | null;
 export type Filings1 = number | null;
 export type Rates = boolean | null;
 export type Insider = number | null;
-export type Score = number | null;
+export type Score1 = number | null;
 export type Rating4 = string | null;
 export type Articles = number | null;
 export type ReadsDone = number | null;
@@ -345,7 +377,7 @@ export type ClaimsRemoved = number | null;
 export type Now = string[] | null;
 export type RunId5 = string;
 export type RunId6 = string;
-export type ReportId13 = string;
+export type ReportId14 = string;
 export type RunId7 = string;
 export type Step1 = string | null;
 export type Message = string;
@@ -364,11 +396,11 @@ export type Code1 =
 export type ResetAt = string | null;
 export type FixCommand = string | null;
 export type Ticker10 = string;
-export type Name11 = string;
+export type Name12 = string;
 export type Official1 = boolean;
 export type RunId8 = string | null;
 export type Outcome = ("ready" | "stopped" | "failed" | "cancelled") | null;
-export type ReportId14 = string | null;
+export type ReportId15 = string | null;
 export type Code2 = string | null;
 export type Message1 = string | null;
 export type Query2 = string;
@@ -491,6 +523,16 @@ export interface SearchParams {
  */
 export interface ChartParams {
   report_id: ReportId1;
+}
+/**
+ * The prediction log's compare chart: these companies' and SPY's closes from `since`.
+ *
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "PredictionPricesParams".
+ */
+export interface PredictionPricesParams {
+  ciks: Ciks;
+  since: Since;
 }
 /**
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
@@ -1042,6 +1084,32 @@ export interface PredictionSummary {
   base: Base2;
   bull: Bull2;
   grades: Grades;
+  name?: Name9;
+  sector?: Sector2;
+  share_class?: ShareClass;
+  score?: Score;
+  probability?: Probability;
+  uncertainty?: Uncertainty;
+  report_id?: ReportId13;
+  price?: Price1;
+  price_date?: PriceDate1;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "PriceLine".
+ */
+export interface PriceLine {
+  cik: Cik7;
+  total: Total2;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "PredictionPrices".
+ */
+export interface PredictionPrices {
+  dates: Dates1;
+  spy: Spy1;
+  series: Series1;
 }
 /**
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
@@ -1070,7 +1138,7 @@ export interface GradeResult {
  * via the `definition` "Service".
  */
 export interface Service2 {
-  name: Name9;
+  name: Name10;
   key: Key5;
   cost: Cost;
   sent: Sent;
@@ -1161,8 +1229,8 @@ export interface SafetyStarted {
 export interface SafetyProgress {
   tool: Tool2;
   n: N1;
-  total: Total2;
-  name: Name10;
+  total: Total3;
+  name: Name11;
   ok: Ok2;
 }
 /**
@@ -1214,7 +1282,7 @@ export interface Tally {
   filings?: Filings1;
   rates?: Rates;
   insider?: Insider;
-  score?: Score;
+  score?: Score1;
   rating?: Rating4;
   articles?: Articles;
   reads_done?: ReadsDone;
@@ -1242,7 +1310,7 @@ export interface RunTally {
  */
 export interface ReportReady {
   run_id: RunId6;
-  report_id: ReportId13;
+  report_id: ReportId14;
 }
 /**
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
@@ -1264,11 +1332,11 @@ export interface RunFailedNote {
  */
 export interface LineItem {
   ticker: Ticker10;
-  name: Name11;
+  name: Name12;
   official: Official1;
   run_id?: RunId8;
   outcome?: Outcome;
-  report_id?: ReportId14;
+  report_id?: ReportId15;
   code?: Code2;
   message?: Message1;
 }

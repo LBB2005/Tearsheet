@@ -141,3 +141,62 @@ def export_log(conn: sqlite3.Connection, folder: Path) -> tuple[Path, Path]:
 
 def as_dict(p: Prediction) -> dict:
     return asdict(p)
+
+
+# --- the prediction log page (docs/superpowers/specs/2026-11-08-prediction-log-page-design.md) ---
+
+
+def summary_extras(conn: sqlite3.Connection, row: sqlite3.Row) -> dict:
+    """What the log page shows beside a prediction: the company, the run's numbers, its report,
+    and today's price in the prediction's shares. Reads only."""
+    from tearsheet.data.prices import PriceStore, split_factor_after
+
+    company = conn.execute(
+        "SELECT name, sector FROM companies WHERE cik = ?", (row["cik"],)
+    ).fetchone()
+    report = conn.execute(
+        "SELECT report_id FROM reports WHERE run_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 1",
+        (row["run_id"],),
+    ).fetchone()
+    store = PriceStore(conn)
+    share_class = row["share_class"] or ""
+    latest = store.latest_close(row["cik"], share_class)
+    price = price_date = None
+    if latest is not None:
+        made = datetime.fromisoformat(row["run_at"]).date()
+        # New shares per old share since the prediction: multiply to get back to its shares.
+        factor = split_factor_after(store.splits(row["cik"], share_class), made, up_to=latest[0])
+        price, price_date = round(latest[1] * factor, 6), latest[0].isoformat()
+    return {
+        "name": company[0] if company else None,
+        "sector": company[1] if company else None,
+        "share_class": share_class,
+        "score": row["score"],
+        "probability": row["probability"],
+        "uncertainty": row["uncertainty"],
+        "report_id": report[0] if report else None,
+        "price": price,
+        "price_date": price_date,
+    }
+
+
+def compare_prices(conn: sqlite3.Connection, ciks: list[int], since: str) -> dict:
+    """The compare chart's lines: SPY's trading days from `since`, and each company's and SPY's
+    total-return index on them (splits and dividends, as grading counts them). Reads only."""
+    from tearsheet.charts import SPY_CIK, _index
+    from tearsheet.data.prices import PriceStore
+
+    store = PriceStore(conn)
+    dates = [
+        r[0]
+        for r in conn.execute(
+            "SELECT date FROM prices_daily WHERE cik = ? AND share_class = '' AND date >= ? ORDER BY date",
+            (SPY_CIK, since),
+        )
+    ]
+    unique = list(dict.fromkeys(ciks))
+    return {
+        "dates": dates,
+        "spy": _index(store, [SPY_CIK], dates),
+        "series": [{"cik": cik, "total": _index(store, [cik], dates)} for cik in unique],
+    }

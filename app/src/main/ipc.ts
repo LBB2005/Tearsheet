@@ -27,6 +27,7 @@ export const CALLS: Record<string, string> = {
   listCompanies: 'list_companies',
   searchCompanies: 'search_companies',
   getChart: 'get_chart',
+  predictionPrices: 'prediction_prices',
   getReportNumbers: 'get_report_numbers',
   getAnalysts: 'get_analysts',
   fetchHistory: 'fetch_history',

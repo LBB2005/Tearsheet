@@ -122,3 +122,122 @@ def test_export_writes_csv_and_json(database, tmp_path):
     data = json.loads(json_path.read_text())
     assert data["predictions"][0]["accessions"] == ["0000320193-26-000026"]
     assert data["grades"] == []
+
+
+# --- the prediction log page -------------------------------------------------------------------
+
+
+def _log_page_db(conn, *, split=False):
+    from tests.test_charts import _actions, seed
+    from tests.test_db import insert_prediction
+
+    seed(conn)
+    with conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO companies (cik, name, sector) VALUES (1, 'One Co', 'Energy')"
+        )
+        insert_prediction(
+            conn,
+            cik=1,
+            ticker="ONE",
+            run_id="run-1",
+            run_at="2026-10-27T20:00:00+00:00",
+            bear=8.0,
+            base=15.0,
+            bull=30.0,
+            probability=0.6,
+            score=55.0,
+            uncertainty="high",
+        )
+    if split:
+        _actions(conn, 1, [("2026-10-29", "split", 2.0)])
+
+
+def _counts(conn):
+    return [
+        conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0] for t in ("predictions", "grades")
+    ]
+
+
+def test_summary_extras_name_the_company_report_and_price(database):
+    from tearsheet.predictions import summary_extras
+
+    conn = database.conn
+    _log_page_db(conn)
+    row = conn.execute("SELECT * FROM predictions").fetchone()
+    before = _counts(conn)
+    extras = summary_extras(conn, row)
+    assert extras == {
+        "name": "One Co",
+        "sector": "Energy",
+        "share_class": "",
+        "score": 55.0,
+        "probability": 0.6,
+        "uncertainty": "high",
+        "report_id": "rep-1",
+        "price": 11.0,
+        "price_date": "2026-10-30",
+    }
+    assert _counts(conn) == before
+
+
+def test_todays_price_is_put_back_into_the_predictions_shares(database):
+    from tearsheet.predictions import summary_extras
+
+    conn = database.conn
+    _log_page_db(conn, split=True)
+    row = conn.execute("SELECT * FROM predictions").fetchone()
+    # A 2-for-1 split after the prediction: 11 in today's shares is 22 in the prediction's.
+    assert summary_extras(conn, row)["price"] == 22.0
+
+
+def test_summary_extras_without_company_report_or_prices(database):
+    from tearsheet.predictions import summary_extras
+    from tests.test_db import insert_prediction
+
+    conn = database.conn
+    with conn:
+        insert_prediction(conn, cik=999, run_id="nowhere")
+    row = conn.execute("SELECT * FROM predictions").fetchone()
+    extras = summary_extras(conn, row)
+    assert extras["name"] is None and extras["report_id"] is None
+    assert extras["price"] is None and extras["price_date"] is None
+
+
+def test_compare_prices_gives_each_line_on_spys_days(database):
+    from tearsheet.predictions import compare_prices
+    from tests.test_charts import DAYS
+
+    conn = database.conn
+    _log_page_db(conn)
+    before = _counts(conn)
+    out = compare_prices(conn, [1, 2, 1], "2026-10-27")
+    assert out["dates"] == DAYS[1:]
+    assert [s["cik"] for s in out["series"]] == [1, 2]
+    assert out["spy"][0] == 100.0 and round(out["spy"][-1], 6) == round(100 * 103 / 101, 6)
+    one = out["series"][0]["total"]
+    assert one[0] == 100.0 and round(one[-1], 6) == 110.0
+    assert compare_prices(conn, [42], "2026-10-27")["series"][0]["total"] == [None] * 4
+    assert _counts(conn) == before
+
+
+def test_the_log_methods_answer_on_the_protocol(tmp_path):
+    from tearsheet.protocol import PredictionPrices, PredictionSummary
+    from tests.test_protocol import Harness, run
+
+    h = Harness(tmp_path)
+    _log_page_db(h.server.db.conn)
+
+    async def go():
+        listed = await h.call("list_predictions", {})
+        prices = await h.call("prediction_prices", {"ciks": [1], "since": "2026-10-26"}, id_=2)
+        bad = await h.call("prediction_prices", {"ciks": [1], "since": "soon"}, id_=3)
+        return listed, prices, bad
+
+    listed, prices, bad = run(go())
+    [row] = listed["result"]
+    PredictionSummary.model_validate(row)
+    assert row["sector"] == "Energy" and row["price"] == 11.0 and row["report_id"] == "rep-1"
+    PredictionPrices.model_validate(prices["result"])
+    assert bad["error"]["code"] == -32602
+    h.server.close()

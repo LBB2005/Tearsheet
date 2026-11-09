@@ -519,7 +519,18 @@ export function App() {
       />
     )
   else if (page === 'report') content = <Report page={reportPage} wide={wide} />
-  else if (page === 'log') content = <Log grading={grading} refresh={graded} onGrade={gradeDue} onSubtitle={setLogLine} />
+  else if (page === 'log') content = (
+      <Log
+        grading={grading}
+        refresh={graded}
+        onGrade={gradeDue}
+        onSubtitle={setLogLine}
+        onOpenReport={(reportId) => {
+          setOpenReport(reportId)
+          go('report')
+        }}
+      />
+    )
   else if (page === 'settings')
     content = (
       <Settings
