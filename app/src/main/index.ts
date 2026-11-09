@@ -27,6 +27,7 @@ import { menuTemplate } from './menu'
 import { navigationAction } from './navigation'
 import { Probe } from './probe'
 import { createSetupLog } from './setupLog'
+import { sweepStaleTemp } from './tempSweep'
 import { stepRules } from './toolSteps'
 import { testMode } from './tools'
 import { ToolWatch } from './toolWatch'
@@ -123,6 +124,8 @@ async function createWindow(): Promise<void> {
   setupLog.log('test_rules', { test_mode: inTestMode, no_real_installers: rules.noRealInstallers })
   if (droppedHooks.length) setupLog.log('dev_hooks_ignored', { value: droppedHooks.length })
   void installSwitch.read()
+  // Old temporary folders a stopped copy left behind (tempSweep.ts).
+  void sweepStaleTemp()
   const { command, args, cwd } = engineCommand({
     packaged: app.isPackaged,
     resourcesPath: process.resourcesPath,

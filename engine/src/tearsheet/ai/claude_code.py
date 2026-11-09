@@ -18,6 +18,7 @@ through a small launcher script that clears everything but the allowlist. The fa
 from __future__ import annotations
 
 import asyncio
+import atexit
 import json
 import os
 import shlex
@@ -119,6 +120,18 @@ DENIED_TOOLS = (
 MAX_TURNS = 2
 LINK_SEARCH_MAX_TURNS = 10
 STDERR_LINES_KEPT = 50
+
+
+# Every launcher folder still open, removed when the engine exits even if its connector was
+# never closed (security audit, 9 Nov 2026).
+_LAUNCHER_DIRS: set[Path] = set()
+
+
+@atexit.register
+def _remove_launchers() -> None:
+    for folder in list(_LAUNCHER_DIRS):
+        shutil.rmtree(folder, ignore_errors=True)
+    _LAUNCHER_DIRS.clear()
 
 
 def default_calls_root() -> Path:
@@ -367,9 +380,13 @@ class ClaudeCodeConnector:
         return build_env(self._environ, api_billing=self.api_billing, extra=self._extra_env)
 
     def launcher(self) -> Path:
-        """The launcher script, written once per connector in a private temp folder."""
+        """The launcher script, written once per connector in a private temp folder. Written
+        again if the folder has gone (the start-up sweep removes old ones, tempfiles.py)."""
+        if self._launcher_dir is not None and not (self._launcher_dir / "claude").exists():
+            self.close()
         if self._launcher_dir is None:
             self._launcher_dir = Path(tempfile.mkdtemp(prefix="tearsheet-launcher-"))
+            _LAUNCHER_DIRS.add(self._launcher_dir)
             names = [*ENV_ALLOWLIST, *SDK_ENV, *self._extra_env]
             if self.api_billing:
                 names.append("ANTHROPIC_API_KEY")
@@ -381,6 +398,7 @@ class ClaudeCodeConnector:
     def close(self) -> None:
         if self._launcher_dir is not None:
             shutil.rmtree(self._launcher_dir, ignore_errors=True)
+            _LAUNCHER_DIRS.discard(self._launcher_dir)
             self._launcher_dir = None
 
     # --- calls -----------------------------------------------------------------------

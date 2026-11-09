@@ -4,6 +4,7 @@ the real data folder and the real `claude` program are all out of reach."""
 from __future__ import annotations
 
 import socket
+import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -35,6 +36,10 @@ class MemoryKeyring(keyring.backend.KeyringBackend):
 
 @pytest.fixture(autouse=True)
 def offline(request, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    # Temporary folders (launchers, AI call folders) go in the test's own folder, which pytest
+    # removes, never in the Mac's temp folder.
+    (tmp_path / "tmp").mkdir(exist_ok=True)
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path / "tmp"))
     if request.node.get_closest_marker("live"):
         # Live tests (tests/live/, run only with -m live) use the real AI tool on purpose. They
         # still keep to their own temporary data folder.

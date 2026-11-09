@@ -1959,6 +1959,10 @@ async def serve(paths: config.Paths) -> int:
         out.write(json.dumps(message, separators=(",", ":")) + "\n")
         out.flush()
 
+    # Temporary folders an engine that was killed left behind (tempfiles.py).
+    from tearsheet.tempfiles import sweep_stale
+
+    sweep_stale()
     server = Server(paths, write=write)
     await server.start()
     loop = asyncio.get_running_loop()
