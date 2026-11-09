@@ -82,7 +82,8 @@ SERVICES = [
         "cost": "Your existing plan",
         "sent": "The text of filings and press releases, the numbers sent with that text, draft "
         "sections, and a web search for recent news about the company. Your plan's own privacy "
-        "terms apply",
+        "terms apply. Codex also loads your own ~/.codex/AGENTS.md and sends it to OpenAI with "
+        "each call (Codex has no setting to stop it)",
     },
     {
         "name": "News sites",

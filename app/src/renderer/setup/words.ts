@@ -112,7 +112,9 @@ export const WORDS = {
   connectStep: 'Step 1 of 3',
   connectTitle: 'Connect the AI that writes your reports',
   connectLead: 'Neither Claude Code nor Codex is on this Mac yet. Pick the plan you pay for.',
-  connectFine: 'Tearsheet runs the official installers, then your browser opens so you can sign in. About a minute. With both, Claude Code writes your reports and Codex checks each draft.',
+  // Says whose installer runs and where it comes from (security audit, 9 Nov 2026): the Install
+  // button runs each maker's own install script (toolSteps.ts, INSTALL_COMMANDS).
+  connectFine: 'Tearsheet runs the official installer from Anthropic (claude.ai) or OpenAI (chatgpt.com), then your browser opens so you can sign in. About a minute. With both, Claude Code writes your reports and Codex checks each draft.',
   pasteFine: 'In Terminal, press',
   pasteFineAfter: 'and sign in when your browser opens.',
   commandsHead: 'These are the commands Tearsheet runs',
@@ -191,7 +193,8 @@ export function dataSentence({ writer, checker, installed, news }: DataInput): s
     const C = TOOL_TEXT[checker]
     parts.push(`${C.name} checks each draft on your ${C.plan}, so ${C.maker} sees the drafts too.`)
   }
-  parts.push('SEC gets your email with each filing download. Massive gets your key and the price requests. iShares gives the S&P 500 list. GitHub gives Tearsheet one small file at each launch, with nothing about you.')
+  if (writer === 'codex' || checker === 'codex') parts.push('Codex also sends your own ~/.codex/AGENTS.md file to OpenAI with each call.')
+  parts.push('SEC gets your email with each filing download. Massive and FRED get your keys and the price and economy requests. GitHub gives Tearsheet one small file at each launch, with nothing about you.')
   if (news) parts.push('The news sites on the allowlist get a request for each article a report reads.')
   const sites = (['claude', 'codex'] as const).filter((k) => installed.includes(k)).map((k) => TOOL_TEXT[k].site)
   if (sites.length) parts.push(`The install ${sites.length > 1 ? 'scripts' : 'script'} came from ${sites.join(' and ')}.`)

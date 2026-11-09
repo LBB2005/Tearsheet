@@ -4,7 +4,7 @@
 
 Handled in other sessions, so not covered here: first-run setup, packaging (signing, notarization, auto-update), and the AI tools' terms (the Anthropic email, OpenAI's terms).
 
-Already fine: every key is in the Keychain; the app sends nothing to Liam (no usage stats, no crash reports, no update check); SEC gets each person's own email; Claude Code and Codex run with session history off; the PDF and the deck carry the "not investment advice" line on every page.
+Already fine: every key is in the Keychain; the app sends nothing to Liam (no usage stats, no crash reports, no update check; its one request of its own is the off-switch file from GitHub at each launch, with no personal data); SEC gets each person's own email; Claude Code and Codex run with session history off; the PDF and the deck carry the "not investment advice" line on every page.
 
 ## Status
 
@@ -21,7 +21,7 @@ Still open:
 
 - M1 (the lawyer) and M11 (the Massive email) are Liam's to do.
 - **The feedback address.** `FEEDBACK_EMAIL` in `app/src/main/about.ts` is empty, so the email opens with the To line blank.
-- **Setup's own "What leaves your Mac" card** still says "article text Claude reads". The first-run setup session is rewriting that screen.
+- **The online off switch needs a public home (security audit, 9 Nov 2026).** `SWITCH_URL` in `app/src/shared/flags.ts` points at `release/install-button.txt` on raw.githubusercontent.com, but the repository is private, so every launch gets a 404 and the switch can't turn the Install button off. The app treats that quietly (logged as `install_switch_read` with `http_status`; the last saved value, or the build's setting, stays). Before launch, either make the repository public or move the file to a public host (a secret gist was the design's first choice), and check one launch reads `on`.
 
 ## The checklist
 
@@ -176,16 +176,21 @@ Not used. Its overview endpoint went premium in Phase 0. [Its terms](https://www
 
 ## 3. Privacy: what leaves the Mac
 
+Synced with the code on 9 Nov 2026 (`SERVICES` in `engine/src/tearsheet/server.py`, which Settings → Privacy shows, and the README's table).
+
 | Goes to | What | Why |
 |:--|:--|:--|
 | SEC (sec.gov) | Your contact email (in every request), your internet address, and which companies' filings (the company and its peers) | Filings; SEC asks every program for a contact |
-| Massive | Your key, your address, and the tickers (company, peers, SPY; the background fill asks for whole-market daily prices) | Prices |
+| Massive | Your key, your address, and the tickers (company, peers, SPY; the background fill asks for whole-market daily prices). The key goes only to Massive's own API address | Prices |
 | FRED (St. Louis Fed) | Your key, your address, and the 5 series names | Economy figures in section 8 |
-| iShares (BlackRock) | Your address, and a request for the holdings file (to be removed, M3) | The S&P 500 list |
-| News sites on the allowlist | Your address, and a request for each article page | News section (to change, M2) |
-| Your AI tool: Anthropic (Claude Code) or OpenAI (Codex) | Filing and article text, the numbers sent with it, draft sections, and a web search for news about the company. Under your own plan's privacy terms and training setting. Tearsheet turns session history off in both tools. | Reading and writing the report |
+| News sites on the allowlist | Nothing unless you open a link: articles are listed as links and not downloaded. With `news_articles` on, your address and a request for each article page | News section |
+| Your AI tool: Anthropic (Claude Code) or OpenAI (Codex) | Filing and press-release text, the numbers sent with it, draft sections, and a web search for news about the company. Under your own plan's privacy terms and training setting. Tearsheet turns session history off in both tools. Codex also loads your own `~/.codex/AGENTS.md` and sends it to OpenAI with each call; Codex has no setting to stop it (`ai/codex.py`, `USER_INSTRUCTION_FILES`) | Reading and writing the report |
+| GitHub (raw.githubusercontent.com) | Your address, and one plain request for the off-switch file at each launch | The Install button's online off switch |
+| claude.ai and chatgpt.com | Your address, and a download of Claude Code's or Codex's official install script, only when you press Install | Installing the AI tool |
 | Apple | Only if you point the backup folder at an iCloud folder | Your choice |
 | **Liam** | **Nothing** | — |
+
+No longer contacted: iShares (the S&P 500 list ships with each release, M3), Alpha Vantage and Benzinga.
 
 **Stays on the Mac:** reports, the prediction log, raw downloads, settings, keys (Keychain), logs and saved downloads.
 
@@ -196,11 +201,7 @@ Not used. Its overview endpoint went premium in Phase 0. [Its terms](https://www
 - Keychain items named "Tearsheet", plus "Tearsheet Safe Storage" if Electron made one.
 - Files saved to `~/Downloads`.
 
-**Fixes for the in-app list (M10):**
-
-- add Codex (OpenAI), and say the AI also searches the web for links;
-- say the email goes only to SEC;
-- in the README, remove Alpha Vantage and Benzinga.
+**Fixes for the in-app list (M10):** done 8 Nov 2026; the GitHub, install-script and `AGENTS.md` lines were added on 9 Nov 2026.
 
 ## 4. What a stranger would miss
 

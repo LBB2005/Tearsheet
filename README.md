@@ -62,17 +62,21 @@ cd app && npm run package
 
 It makes `app/dist/mac-arm64/Tearsheet.app` (about 760 MB), with the engine and its own Python 3.12 inside (`scripts/build-engine.sh`), so it needs no `uv` or Python to run. Drag it to Applications. It uses the same data folder and Keychain entries as `npm run dev`; run one or the other, not both. This build is signed ad hoc, so it is for the Mac it was built on. Signing with an Apple Developer ID, notarization and auto-update come in Phase 3.
 
+A packaged build ignores the development and test switches (`TEARSHEET_DATA_DIR`, stand-in AI tools, hidden windows and the rest). For hidden checks on a copy of the data, make a test build instead with `npm run package:test`; [docs/test-builds.md](docs/test-builds.md) says how the two differ.
+
 ## What leaves your Mac
 
-Nothing leaves your Mac except what this table lists (design, Technical Plan §12; Settings → Privacy shows the same list). Tearsheet sends nothing to its author: no accounts, no usage tracking, no crash reports. Reports, the prediction log, raw downloads and keys stay on your computer.
+Nothing leaves your Mac except what this table lists (design, Technical Plan §12; Settings → Privacy shows the same list, from `SERVICES` in `engine/src/tearsheet/server.py`). Tearsheet sends nothing to its author: no accounts, no usage tracking, no crash reports. Reports, the prediction log, raw downloads and keys stay on your computer.
 
 | Service | Key needed | Cost | What is sent |
 | :-- | :-- | :-- | :-- |
 | SEC EDGAR | None. Each request carries your contact email, which goes only to SEC | Free | Requests for the company's and its peers' filings |
 | Massive | Your free key | Free plan | The tickers researched and their peers, and whole-market daily prices |
 | FRED | Your free key | Free | Requests for five economic series |
-| Claude Code (Anthropic) or Codex (OpenAI) | Your own sign-in | Your existing plan | The text of filings and press releases, the numbers sent with that text, draft sections, and a web search for recent news about the company. Your plan's own privacy terms apply. Tearsheet turns each tool's session history off. |
+| Claude Code (Anthropic) or Codex (OpenAI) | Your own sign-in | Your existing plan | The text of filings and press releases, the numbers sent with that text, draft sections, and a web search for recent news about the company. Your plan's own privacy terms apply. Codex also loads your own `~/.codex/AGENTS.md` and sends it to OpenAI with each call (Codex has no setting to stop it). Tearsheet turns each tool's session history off. |
 | News sites | None | Free | Nothing unless you open a link. Tearsheet lists their articles as links and doesn't download them. |
+| GitHub (Tearsheet's off switch) | None | Free | One plain request at each launch, with no personal data |
+| claude.ai and chatgpt.com install scripts | None | Free | A download of Claude Code's or Codex's install script, only when you press Install |
 
 Most news sites' terms forbid automated reading, so by default section 7 reads only the company's own press releases from SEC and lists other coverage as links. `tearsheet-engine set-setting news_articles on` turns article reading back on for the allowlisted sites; use it only where their terms allow it. Tearsheet also no longer downloads the iShares holdings file (BlackRock's site terms forbid automated copying): the S&P 500 list ships with each release. The checks behind these choices are in [docs/launch/launch-readiness.md](docs/launch/launch-readiness.md).
 
