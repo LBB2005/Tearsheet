@@ -31,15 +31,19 @@
 .btn2:disabled { opacity: .45; cursor: default; transform: none; }
 .top .btn2 { padding: 5px 12px; }
 
-/* The Terminal line under "Sign in again", as in setup. */
-.homev .signin { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
-.homev .code { display: flex; align-items: center; gap: 10px; background: rgb(var(--shade) / calc(.35 * var(--shade-k))); border: 1px solid var(--line); border-radius: calc(10px * var(--round)); padding: 6px 6px 6px 14px; font: 13px var(--mono); font-weight: calc(400 + var(--wt)); color: var(--accent-text); min-height: 40px; }
-.homev .code span { flex: 1; color: inherit; font-size: inherit; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; user-select: text; }
-.homev .cbtn { all: unset; cursor: pointer; font: 12px var(--ui); font-weight: calc(500 + var(--wt)); color: var(--text); background: rgb(var(--ink) / .08); border-radius: calc(7px * var(--round)); padding: 5px 11px; transition: background .15s; }
-.homev .cbtn:hover { background: rgb(var(--ink) / .14); }
-.homev .cbtn:focus-visible { outline: 2px solid var(--accent); }
-.homev .st { display: inline-flex; align-items: center; gap: 8px; }
-.homev .sp { width: 13px; height: 13px; border-radius: 50%; border: 2px solid rgb(var(--accent-rgb) / .25); border-top-color: var(--accent); animation: home-spin .9s linear infinite; flex: none; display: inline-block; }
+/* The paste command's steps under "Sign in again" (home/paste.tsx), on the home page, in the run
+   view's red box and under a tool's row on Settings → AI tools. */
+:is(.homev, .runv, .setv) .signin { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+:is(.homev, .runv, .setv) .signin > span { color: var(--muted); font-size: 13px; }
+:is(.runv, .setv) .signin .row, .runv .alert .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.setv .signin { margin-top: 0; }
+:is(.homev, .runv, .setv) .code { display: flex; align-items: center; gap: 10px; background: rgb(var(--shade) / calc(.35 * var(--shade-k))); border: 1px solid var(--line); border-radius: calc(10px * var(--round)); padding: 6px 6px 6px 14px; font: 13px var(--mono); font-weight: calc(400 + var(--wt)); color: var(--accent-text); min-height: 40px; }
+:is(.homev, .runv, .setv) .code span { flex: 1; color: inherit; font-size: inherit; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; user-select: text; }
+:is(.homev, .runv, .setv) .cbtn { all: unset; cursor: pointer; font: 12px var(--ui); font-weight: calc(500 + var(--wt)); color: var(--text); background: rgb(var(--ink) / .08); border-radius: calc(7px * var(--round)); padding: 5px 11px; transition: background .15s; }
+:is(.homev, .runv, .setv) .cbtn:hover { background: rgb(var(--ink) / .14); }
+:is(.homev, .runv, .setv) .cbtn:focus-visible { outline: 2px solid var(--accent); }
+:is(.homev, .runv) .st { display: inline-flex; align-items: center; gap: 8px; }
+:is(.homev, .runv) .sp { width: 13px; height: 13px; border-radius: 50%; border: 2px solid rgb(var(--accent-rgb) / .25); border-top-color: var(--accent); animation: home-spin .9s linear infinite; flex: none; display: inline-block; }
 @keyframes home-spin { to { transform: rotate(360deg); } }
 
 /* ---------- the home page ---------- */
@@ -82,6 +86,13 @@
 .homev .sr > i.accent { background: var(--accent); }
 .homev .sr > i.hold { background: var(--hold); }
 .homev .sr .btn2 { margin-left: auto; padding: 4px 10px; font-size: 12px; }
+/* A since line with small print under it: the FRED prompt, with FRED's own notice and terms. */
+.homev .sr .srt { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.homev .sr .srt small { font-size: 12px; color: var(--muted); }
+.homev .sr .fredn { color: var(--dim); }
+.homev .lk { all: unset; cursor: pointer; color: var(--accent); }
+.homev .lk:hover { text-decoration: underline; }
+.homev .lk:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* ---------- the run view: "Receipt" (home/RunView.tsx) ----------
    One card that writes down each stage as it happens. Its only motion: the working stage's

@@ -7,8 +7,8 @@ import { lockdownText } from './lockdown'
 // The words come from views/Connections.tsx as it was before the restyle, pinned here so they
 // can't drift.
 
-const CLAUDE: ToolStatus = { kind: 'claude', name: 'Claude Code', path: '/usr/local/bin/claude', available: true, version: '2.1.317 (Claude Code)', loggedIn: true, reason: null }
-const CODEX: ToolStatus = { kind: 'codex', name: 'Codex', path: '/usr/local/bin/codex', available: true, version: 'codex-cli 0.165.0', loggedIn: true, reason: null }
+const CLAUDE: ToolStatus = { kind: 'claude', name: 'Claude Code', path: '/usr/local/bin/claude', available: true, version: '2.1.317 (Claude Code)', loggedIn: true, reason: null, state: 'ready', plan: 'max', email: null }
+const CODEX: ToolStatus = { kind: 'codex', name: 'Codex', path: '/usr/local/bin/codex', available: true, version: 'codex-cli 0.165.0', loggedIn: true, reason: null, state: 'ready', plan: null, email: null }
 
 const state = (s: Partial<LockdownState>): LockdownState => ({ version: '2.1.317 (Claude Code)', passed: true, form: 'full', checked_at: '2026-11-04T22:52:56+00:00', blocked_reason: null, ...s })
 

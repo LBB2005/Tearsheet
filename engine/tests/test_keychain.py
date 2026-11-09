@@ -91,3 +91,49 @@ def test_loading_the_price_history_says_how_to_let_the_key_through(tmp_path):
     )
     assert http.calls == []
     h.server.close()
+
+
+# --- a test copy's own Keychain name (first-run design §6, Goal 7) --------------------------------
+
+
+def test_a_test_keychain_name_is_used_for_reading_and_saving_and_never_tearsheet(
+    monkeypatch, tmp_path, capsys
+):
+    from tearsheet import cli
+
+    backend = MemoryKeyring()
+    keyring.set_keyring(backend)
+    backend.store[("Tearsheet", "massive")] = "the-real-key"
+    monkeypatch.setenv(config.KEYCHAIN_SERVICE_ENV, "Tearsheet-test")
+    reads: list[str] = []
+    real_get = backend.get_password
+
+    def get_password(service: str, username: str) -> str | None:
+        reads.append(service)
+        return real_get(service, username)
+
+    monkeypatch.setattr(backend, "get_password", get_password)
+
+    assert config.keychain_service() == "Tearsheet-test"
+    assert config.get_key("massive") is None  # the real key is never seen
+    config.set_key("fred", "test-fred-key")
+    monkeypatch.setattr(cli.getpass, "getpass", lambda prompt: "test-massive-key")
+    assert cli.main(["--data-dir", str(tmp_path), "set-key", "massive"]) == 0
+    assert "service 'Tearsheet-test'" in capsys.readouterr().out
+
+    assert config.get_key("fred") == "test-fred-key"
+    assert config.get_key("massive") == "test-massive-key"
+    assert reads and set(reads) == {"Tearsheet-test"}
+    assert backend.store[("Tearsheet", "massive")] == "the-real-key"  # never replaced
+    assert {service for service, _ in backend.store} == {"Tearsheet", "Tearsheet-test"}
+    assert [k for k in backend.store if k[0] == "Tearsheet"] == [("Tearsheet", "massive")]
+
+
+def test_without_the_test_name_the_keys_are_tearsheets(monkeypatch):
+    backend = MemoryKeyring()
+    keyring.set_keyring(backend)
+    assert config.keychain_service() == "Tearsheet"
+    config.set_key("massive", "k")
+    assert backend.store == {("Tearsheet", "massive"): "k"}
+    monkeypatch.setenv(config.KEYCHAIN_SERVICE_ENV, "")  # set but empty: still Tearsheet
+    assert config.keychain_service() == "Tearsheet"

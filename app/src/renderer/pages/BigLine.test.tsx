@@ -215,7 +215,7 @@ describe('waiting for the plan, on the home page', () => {
     const user = userEvent.setup()
     const onCarryOn = vi.fn()
     const waiting = line({ waiting: [lineItem('NVDA'), lineItem('MSFT')], paused: pause({ code: 'USAGE_WEEK', used: 0.82, message: 'x' }) })
-    render(<LinePaused line={waiting} onCarryOn={onCarryOn} onClear={vi.fn()} />)
+    render(<LinePaused line={waiting} onCarryOn={onCarryOn} onClear={vi.fn()} onRecheck={vi.fn()} onCancelAll={vi.fn()} />)
     expect(screen.getByText('Your weekly usage is past 80%')).toBeInTheDocument()
     expect(screen.getByText('Your plan’s weekly usage is at 82%. Carry on writing the line? NVDA and MSFT are waiting.')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Carry on' }))
@@ -224,11 +224,11 @@ describe('waiting for the plan, on the home page', () => {
 
   test('a wait that ends by itself says when, and a long list is counted', () => {
     const waiting = line({ waiting: many(30), paused: pause({ code: 'USAGE_HIGH', wait_until: at(), used: null }) })
-    const { rerender } = render(<LinePaused line={waiting} onCarryOn={vi.fn()} onClear={vi.fn()} />)
+    const { rerender } = render(<LinePaused line={waiting} onCarryOn={vi.fn()} onClear={vi.fn()} onRecheck={vi.fn()} onCancelAll={vi.fn()} />)
     expect(screen.getByText('The line is waiting')).toBeInTheDocument()
     expect(screen.getByText(/^Your plan’s 5-hour usage is close to its limit\. Waiting for it to reset at .*T0, T1, T2, T3, T4, T5 and 24 more are waiting\.$/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Carry on now' })).toBeInTheDocument()
-    rerender(<LinePaused line={line({ waiting: many(1), paused: pause({ wait_until: at(), reset_at: '3am', run_id: 'run-1' }) })} onCarryOn={vi.fn()} onClear={vi.fn()} />)
+    rerender(<LinePaused line={line({ waiting: many(1), paused: pause({ wait_until: at(), reset_at: '3am', run_id: 'run-1' }) })} onCarryOn={vi.fn()} onClear={vi.fn()} onRecheck={vi.fn()} onCancelAll={vi.fn()} />)
     expect(screen.getByText(/^Waiting for your usage limit to reset at .*The line carries on by itself then\. T0 is waiting\.$/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Skip it and carry on' })).toBeInTheDocument()
   })

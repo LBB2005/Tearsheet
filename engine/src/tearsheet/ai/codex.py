@@ -136,9 +136,9 @@ SUBSCRIPTION_SIGN_IN = frozenset({"chatgpt"})
 # How structured output is asked for: "prompt" (the JSON schema is in the message) or
 # "output_schema" (turn/start's outputSchema field).
 STRUCTURED_OUTPUT = "prompt"
-# The environment allowlist: the same as Claude Code's, plus CODEX_HOME when the user set it,
-# so Codex finds its own sign-in.
-ENV_ALLOWLIST = (*CLAUDE_ENV_ALLOWLIST, "CODEX_HOME")
+# The environment allowlist: the same as Claude Code's (without its own sign-in folder), plus
+# CODEX_HOME when the user set it, so Codex finds its own sign-in.
+ENV_ALLOWLIST = (*(n for n in CLAUDE_ENV_ALLOWLIST if n != "CLAUDE_CONFIG_DIR"), "CODEX_HOME")
 # ---------------------------------------------------------------------------------------------
 
 INIT_TIME_LIMIT_S = 15
@@ -352,6 +352,12 @@ class CodexConnector:
         return out.decode("utf-8", errors="replace").strip()
 
     # --- the app-server process ----------------------------------------------------------
+
+    async def start(self) -> None:
+        """Start the app-server, if it isn't running, and read the sign-in in use
+        (`account/read`, kept in `account_type`), so the client can turn down a sign-in that
+        isn't a plan before any call. A signed-out Codex raises AIAuthError here."""
+        await self._start()
 
     async def _start(self) -> None:
         async with self._start_lock:

@@ -8,7 +8,7 @@ import { useState } from 'react'
 import type { Keys } from '../../shared/protocol'
 import { KEY_TEXT, KeyCard } from '../setup/KeyCard'
 import { at, Changes, ExternalIcon, Spinner } from '../setup/parts'
-import type { KeyService } from '../setup/steps'
+import type { KeyService } from '../setup/helpers'
 import { Label } from './General'
 
 const KEYS: { service: KeyService | 'alphavantage'; name: string; what: string }[] = [
@@ -80,6 +80,8 @@ function KeyRow({ service, name, what, state, onSaved }: { service: KeyService; 
             service={service}
             i={0}
             heading={null}
+            checkOnPaste
+            showCheck
             onWorks={(p) => {
               setProof(p)
               void onSaved()

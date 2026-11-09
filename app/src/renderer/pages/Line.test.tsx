@@ -200,6 +200,20 @@ describe('adding to the line while a report is written', () => {
     expect(win()).toHaveClass('on-home')
   })
 
+  test('during a safety check, the company waits for the check, and the toast says so', async () => {
+    const { user } = await renderApp()
+    emit('safety_progress', { tool: 'claude', n: 3, total: 25 })
+    menu('settings')
+    menu('lookup')
+    await user.keyboard('n')
+    const box = within(await screen.findByRole('dialog', { name: 'Look up a company' }))
+    await user.click(await box.findByRole('button', { name: /NVDA/ }))
+    expect(bridge.runReport).not.toHaveBeenCalled()
+    expect(bridge.addToLine).toHaveBeenCalledWith(['NVDA'])
+    expect(await screen.findByText('NVDA is in the line')).toBeInTheDocument()
+    expect(screen.getByText('It starts when the safety check finishes.')).toBeInTheDocument()
+  })
+
   test('a company that can’t join says why', async () => {
     const { user } = await renderApp()
     await user.type(field(), 'a')
@@ -250,6 +264,63 @@ describe('a line left from last time', () => {
     await renderApp()
     expect(await screen.findByRole('region', { name: 'Report progress' })).toBeInTheDocument()
     expect(strip().getByText('Report 1 of 2')).toBeInTheDocument()
+  })
+
+  const pausedBy = (code: string, message: string) => line({ waiting: [lineItem('NVDA')], paused: { code, message, reset_at: null, fix_command: null, run_id: null } })
+
+  test('a line the stopped safety check paused offers only the check again or Cancel all', async () => {
+    bridge.getLine.mockResolvedValue(ok(pausedBy('SAFETY_CHECK_STOPPED', 'You stopped the safety check.')))
+    const { user } = await renderApp()
+    expect(await screen.findByText('The line is paused')).toBeInTheDocument()
+    expect(screen.getByText('You stopped the safety check. Reports wait until it passes. NVDA is waiting.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Carry on' })).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Run it again' }))
+    expect(bridge.runSafetyCheck).toHaveBeenCalledWith('claude')
+    // While the check runs, the report waits for it; a pass carries the line on by itself.
+    expect(await screen.findByText('Starts when the safety check finishes (0 of 25).')).toBeInTheDocument()
+    emit('safety_done', { tool: 'claude', passed: false, finished: false, reason: 'You stopped the safety check.' })
+    await user.click(await screen.findByRole('button', { name: 'Cancel all' }))
+    expect(bridge.clearLine).toHaveBeenCalled()
+    expect(await screen.findByText('Cancelled the line')).toBeInTheDocument()
+  })
+
+  test('a check that couldn’t finish says why, and one that won’t start again says so', async () => {
+    bridge.getLine.mockResolvedValue(ok(pausedBy('SAFETY_CHECK_UNFINISHED', 'The check couldn’t finish: you hit your usage limit')))
+    bridge.runSafetyCheck.mockResolvedValue(fail('A report is running.'))
+    const { user } = await renderApp()
+    expect(await screen.findByText('The safety check couldn’t finish: you hit your usage limit. NVDA is waiting.')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Run it again' }))
+    expect(await screen.findByText('The safety check didn’t start')).toBeInTheDocument()
+    expect(screen.getByText('A report is running.')).toBeInTheDocument()
+  })
+
+  test('a line a failed check paused gives the check’s reason, waits while it runs again, and carries on after a pass', async () => {
+    bridge.getLine.mockResolvedValue(ok(pausedBy('LOCKDOWN_FAILED', 'Claude Code is blocked because its lock-down check failed.')))
+    const { user } = await renderApp()
+    expect(await screen.findByText('Claude Code is blocked because its lock-down check failed. NVDA is waiting.')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Run it again' }))
+    // A failed check's pause stays while it runs again: its report waits for Resume or Carry on.
+    expect(await screen.findByRole('button', { name: 'Checking…' })).toBeDisabled()
+    emit('safety_done', { tool: 'claude', passed: false, finished: true, reason: 'It read a file.' })
+    expect(await screen.findByText('It read a file. NVDA is waiting.')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Run it again' }))
+    emit('safety_done', { tool: 'claude', passed: true, finished: true })
+    await user.click(await screen.findByRole('button', { name: 'Carry on' }))
+    expect(bridge.carryOnLine).toHaveBeenCalled()
+  })
+
+  test('under the run view, a safety pause hides Skip it and carry on, and offers the check', async () => {
+    bridge.getLine.mockResolvedValue(ok(line({ writing: NVDA(), waiting: [MSFT()] })))
+    const { user } = await renderApp()
+    await screen.findByRole('region', { name: 'Report progress' })
+    emit('line_changed', line({ finished: [NVDA({ outcome: 'ready', report_id: 'r-aapl-2' })], waiting: [MSFT()], paused: { code: 'SAFETY_CHECK_STOPPED', message: 'You stopped the safety check.', reset_at: null, fix_command: null, run_id: null } }))
+    expect(strip().getByText('You stopped the safety check. Reports wait until it passes.')).toBeInTheDocument()
+    expect(strip().queryByRole('button', { name: 'Skip it and carry on' })).toBeNull()
+    await user.click(strip().getByRole('button', { name: 'Run it again' }))
+    expect(bridge.runSafetyCheck).toHaveBeenCalledWith('claude')
+    // While it runs, there is nothing to press but Cancel all.
+    expect(strip().queryByRole('button', { name: 'Run it again' })).toBeNull()
+    expect(strip().getByRole('button', { name: 'Cancel all' })).toBeInTheDocument()
   })
 
   test('a carry on or clear the engine refuses says so', async () => {

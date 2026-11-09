@@ -1,21 +1,40 @@
 // The safety check (the lock-down check, Technical Plan §4) at the top right of setup's toolbar,
-// from step 5 on: "Safety check, 7 of 25" with a small ring. Clicking it lists the six things
-// being checked, in plain words, with a tick as each one passes. Its state comes from the
-// engine's safety_progress and safety_done notes, which App keeps (applySafetyNote) so the
-// sidebar's status line can follow the same check after setup.
+// from step 5 on, and of the app's toolbar after setup while a check runs (first-run design CUJ 6):
+// "Safety check, 7 of 25" with a small ring and the minutes so far. Clicking it lists the six
+// things being checked, in plain words, with a tick as each one passes, and "Stop the check"
+// while it runs. Its state comes from the engine's safety_progress and safety_done notes, which
+// App keeps (applySafetyNote) so the sidebar's status line can follow the same check after setup.
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { CheckIcon, Ring, Spinner } from './parts'
-import { checkText, checksPassed, SAFETY_CHECKS, type SafetyView, type ToolText } from './steps'
+import { checksPassed, SAFETY_CHECKS, safetyMinutes, type SafetyView } from './state/safety'
+import { checkText, type ToolText } from './words'
+
+// The clock for the minutes so far: read again every 15 seconds while the check runs.
+const TICK_MS = 15_000
+
+function useClock(on: boolean): number {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    if (!on) return
+    setNow(Date.now())
+    const timer = window.setInterval(() => setNow(Date.now()), TICK_MS)
+    return () => window.clearInterval(timer)
+  }, [on])
+  return now
+}
 
 export function SafetyChip({ view, open, onToggle }: { view: SafetyView; open: boolean; onToggle: () => void }) {
+  const now = useClock(view.state === 'running' && view.startedAt !== null)
+  const minutes = view.state === 'running' ? safetyMinutes(view.startedAt, now) : null
   let label
   if (view.state === 'running') {
     label = (
       <>
         <Ring p={view.total > 0 ? view.n / view.total : 0} size={18} width={3} />
         Safety check, {view.n} of {view.total}
+        {minutes && <span className="mins">· {minutes}</span>}
       </>
     )
   } else if (view.state === 'passed') {
@@ -48,7 +67,7 @@ export function SafetyChip({ view, open, onToggle }: { view: SafetyView; open: b
     )
   }
   return (
-    <button className={view.state === 'failed' ? 'chip cnew bad' : 'chip cnew'} aria-haspopup="dialog" aria-expanded={open} aria-label={`${chipText(view)}. Show what it checks.`} onClick={onToggle}>
+    <button className={view.state === 'failed' ? 'chip cnew bad' : 'chip cnew'} aria-haspopup="dialog" aria-expanded={open} aria-label={`${chipText(view)}${minutes ? `, ${minutes} so far` : ''}. Show what it checks.`} onClick={onToggle}>
       {label}
     </button>
   )
@@ -68,9 +87,12 @@ export interface SafetyPopoverProps {
   tool: ToolText
   onRetry: () => void
   onClose: () => void
+  // Stop the check: the call in progress ends, then it stops (cancel_safety_check). Without it,
+  // the popover offers no stop.
+  onStop?: () => void
 }
 
-export function SafetyPopover({ view, tool, onRetry, onClose }: SafetyPopoverProps) {
+export function SafetyPopover({ view, tool, onRetry, onClose, onStop }: SafetyPopoverProps) {
   const box = useRef<HTMLDivElement>(null)
   const close = useRef(onClose)
   close.current = onClose
@@ -129,7 +151,23 @@ export function SafetyPopover({ view, tool, onRetry, onClose }: SafetyPopoverPro
           </div>
         </>
       ) : (
-        <p className="last">About 3 minutes, and a small part of one usage window. It runs again by itself whenever {tool.name} updates.</p>
+        <>
+          <p className="last">About 3 minutes, and a small part of one usage window. It runs again by itself whenever {tool.name} updates.</p>
+          {view.state === 'running' && onStop && (
+            <div className="row">
+              {view.stopping ? (
+                <span className="stopping">
+                  <Spinner />
+                  Stopping after this call
+                </span>
+              ) : (
+                <button className="btn2" onClick={onStop}>
+                  Stop the check
+                </button>
+              )}
+            </div>
+          )}
+        </>
       )}
     </div>
   )

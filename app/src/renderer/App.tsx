@@ -4,17 +4,20 @@
 // keeps its state in report/useReport.ts, so the toolbar, the menus and the flag sheet share it.
 // The prediction log grades through the same gradeDue as the launch, so the sidebar's status line
 // follows it; Settings shares the AI tools and this session's safety check with the sidebar.
+// The AI tools arrive from the main process as tools_changed notes, so nothing here polls. After
+// setup, a safety check under way shows its chip in the toolbar, with Stop the check (CUJ 6).
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import type { MenuCommand } from '../main/menu'
 import type { CallResult, EngineNotification, ToolStatus } from '../preload/api'
 import { leftText, pace, usualTimes } from '../shared/pace'
+import type { ToolKind } from '../shared/tools'
 import type { CompanyRow, GradeResult, SearchHit, SettingsResult } from '../shared/protocol'
 import { bootView, GIVE_UP_AFTER_MS, STARTING_AFTER_MS } from './boot'
 import { forgetOldChartPrefs, setSidebarHidden, sidebarHidden } from './chart/prefs'
-import { perReportOf, usualReport, waitText } from './home/line'
-import { LineAdder, LinePaused, LineStrip } from './home/LineParts'
+import { perReportOf, usualReport, waitsForCheck, waitText } from './home/line'
+import { LineAdder, LinePaused, LineStrip, LineWaiting } from './home/LineParts'
 import { runTitle } from './home/run'
 import { RunView } from './home/RunView'
 import { useRun } from './home/useRun'
@@ -36,7 +39,9 @@ import { ReportBar, reportDateLabel } from './report/ReportBar'
 import { useReport } from './report/useReport'
 import { topicName, type Topic } from './settings/topics'
 import { nextView, reportSubtitle } from './report/view'
-import { applySafetyNote, SAFETY_CALLS, safetyStarted, type SafetyState, type ToolKind } from './setup/steps'
+import { SafetyChip, SafetyPopover } from './setup/SafetyChip'
+import { applySafetyNote, SAFETY_CALLS, safetyFromRunning, safetyStarted, safetyView, type SafetyState } from './setup/state/safety'
+import { TOOL_TEXT } from './setup/words'
 import type { Refreshing } from './shell/refresh'
 import { Sidebar, SidebarButton } from './shell/Sidebar'
 import { SidebarSizer } from './shell/SidebarSizer'
@@ -89,6 +94,12 @@ export function App() {
   const [logLine, setLogLine] = useState<string | undefined>(undefined)
   // The Settings topic shown. It stays put between visits, and the toolbar names it.
   const [settingsTopic, setSettingsTopic] = useState<Topic>('general')
+  // The safety chip's popover in the toolbar, after setup.
+  const [chipOpen, setChipOpen] = useState(false)
+  // "The button is on" (first-run design item 29): asked of the main process once at start, so
+  // setup, the home page, the run view and Settings show the Install button or the paste command.
+  // No window file reads the build switch itself.
+  const [buttonOn, setButtonOn] = useState<boolean | null>(null)
 
   // The page being shown, or the one on its way in while the old one leaves.
   const target = useRef<Page>('home')
@@ -156,6 +167,14 @@ export function App() {
   useEffect(() => {
     loadCompanies()
     loadTools()
+    let live = true
+    window.tearsheet.getInstallButton().then(
+      (on) => live && setButtonOn(on === true),
+      () => live && setButtonOn(false)
+    )
+    return () => {
+      live = false
+    }
   }, [loadCompanies, loadTools])
 
   // Ask the engine for the settings: setup until it is finished (Ruling 3), else home. Try
@@ -175,6 +194,9 @@ export function App() {
           return
         }
         setPrimaryTool(r.result.primary_tool)
+        // A check under way (a window that reloaded mid-check) shows its real count.
+        const running = r.result.safety_running
+        setSafety((s) => safetyFromRunning(s, running))
         const first: Page = r.result.setup_done ? 'home' : 'setup'
         target.current = first
         setPage(first)
@@ -193,13 +215,56 @@ export function App() {
     }
   }, [booted, bootTry, gradeDue])
 
+  // The AI tool reports are written with: the main one (primary_tool), else the first found.
+  const tool = tools.find((t) => t.kind === (primaryTool ?? 'claude')) ?? tools.find((t) => t.available) ?? tools[0]
+  const toolKind: ToolKind = tool?.kind ?? 'claude'
+
   // The engine's gate found the tool failing its safety check during a run: the red status line
   // and the home page's red box show at once, as for a check that failed here.
   const kindNow = useRef<ToolKind>('claude')
+  kindNow.current = toolKind
   const lockdownFailed = useCallback((message: string) => {
-    setSafety({ tool: kindNow.current, n: 0, total: SAFETY_CALLS, done: true, passed: false, stopped: false, reason: message })
+    setSafety({ tool: kindNow.current, n: 0, total: SAFETY_CALLS, done: true, passed: false, stopped: false, reason: message, stopping: false, startedAt: null })
   }, [])
-  const report = useRun({ page, target, go, notify, loadCompanies, loadTools, openReport: setOpenReport, onLockdownFailed: lockdownFailed })
+
+  // A safety check started (setup, Settings, the home page, or a first report on a brand-new
+  // install); it counts from 0 until the engine's first note.
+  const safetyBegan = useCallback((tool: ToolKind) => {
+    setSafety((s) => (s && s.tool === tool && !s.done ? s : safetyStarted(tool)))
+  }, [])
+  // Starts the full check; gives what went wrong, or null once it has started (or already runs).
+  const startSafetyCheck = useCallback(
+    async (kind: ToolKind): Promise<string | null> => {
+      const reply = await window.tearsheet.runSafetyCheck(kind).catch(() => null)
+      if (reply?.ok || reply?.error?.code === 'SAFETY_CHECK_RUNNING') {
+        safetyBegan(kind)
+        return null
+      }
+      return reply?.error?.message || 'The safety check didn’t start.'
+    },
+    [safetyBegan]
+  )
+  // Stop the check, from the chip: the call in progress ends, then the check stops.
+  const stopSafety = useCallback(async () => {
+    const reply = await window.tearsheet.cancelSafetyCheck().catch(() => null)
+    if (!reply?.ok) return notify('The safety check didn’t stop', reply?.error?.message || 'Tearsheet’s engine didn’t answer.', 'stop')
+    if (reply.result?.stopping) setSafety((s) => (s && !s.done ? { ...s, stopping: true } : s))
+  }, [notify])
+
+  const report = useRun({
+    page,
+    target,
+    go,
+    notify,
+    loadCompanies,
+    loadTools,
+    openReport: setOpenReport,
+    onLockdownFailed: lockdownFailed,
+    writer: toolKind,
+    safety,
+    lockdown: bootSettings?.lockdown ?? {},
+    startSafetyCheck
+  })
   const { run, onNote } = report
   const reportPage = useReport({ reportId: openReport, wide, active: page === 'report', notify, refresh: companies })
   // The sidebar's row for the report on show, which may be one of the company's older reports.
@@ -243,6 +308,11 @@ export function App() {
         void window.tearsheet.getSettings().then((r) => r.ok && r.result && setBootSettings(r.result))
       } else if (note.method === 'safety_progress' || note.method === 'safety_done') {
         setSafety((s) => applySafetyNote(s, note.method, note.params))
+        // A finished check may be stored now: the first report's rule reads the stored checks.
+        if (note.method === 'safety_done') void window.tearsheet.getSettings().then((r) => r.ok && r.result && setBootSettings(r.result))
+      } else if (note.method === 'tools_changed') {
+        // The main process read the tools again and something changed (main/toolWatch.ts).
+        if (Array.isArray(note.params.tools)) setTools(note.params.tools as ToolStatus[])
       } else if (note.method === 'engine_restarted') {
         onNote(note)
         setSafety((s) => applySafetyNote(s, note.method, note.params))
@@ -255,11 +325,6 @@ export function App() {
       }
     })
   }, [notify, onNote])
-
-  // Setup started the safety check; it counts from 0 until the engine's first note.
-  const safetyBegan = useCallback((tool: ToolKind) => {
-    setSafety((s) => (s && s.tool === tool && !s.done ? s : safetyStarted(tool)))
-  }, [])
 
   // Open Tearsheet, at the end of setup: the tool may be new, so look again, then grade and go
   // home with the sidebar.
@@ -311,16 +376,9 @@ export function App() {
     if (problem) notify('The report didn’t start', problem, 'stop')
   }
 
-  // "Run the check again", from the home page's red box.
-  const recheck = async (): Promise<string | null> => {
-    const kind = tool?.kind ?? 'claude'
-    const reply = await window.tearsheet.runSafetyCheck(kind)
-    if (reply.ok || reply.error?.code === 'SAFETY_CHECK_RUNNING') {
-      safetyBegan(kind)
-      return null
-    }
-    return reply.error?.message || 'The safety check didn’t start.'
-  }
+  // "Run the check again", from the home page's red box, the run view and the paused line.
+  const recheck = (): Promise<string | null> => startSafetyCheck(tool?.kind ?? 'claude')
+  const recheckOrSay = () => void recheck().then((problem) => problem && notify('The safety check didn’t start', problem, 'stop'))
 
   const currentTicker = () => (target.current === 'report' ? openRow?.ticker ?? null : null)
   const step = (dir: 1 | -1) => {
@@ -403,13 +461,18 @@ export function App() {
     [notify]
   )
 
-  const tool = tools.find((t) => t.kind === (primaryTool ?? 'claude')) ?? tools.find((t) => t.available) ?? tools[0]
-  const toolKind: ToolKind = tool?.kind ?? 'claude'
-  kindNow.current = toolKind
   const toolName = tool?.name ?? 'Claude Code'
-  const signedOut = tool?.available === true && tool.loggedIn === false
+  const signedOut = tool?.state === 'signed_out'
   const checkFailed = safetyFailed(safety, toolKind, bootSettings?.lockdown?.[toolKind])
   const checkUnfinished = safetyUnfinished(safety, toolKind)
+  // A check under way, whichever tool it is for: its chip shows in the toolbar after setup.
+  const checking = safety !== null && !safety.done
+  useEffect(() => {
+    if (!checking) setChipOpen(false)
+  }, [checking])
+  const chipView = safety && checking ? safetyView(safety, safety.tool, false, null) : null
+  // This session's check of the writing tool, for the paused line.
+  const writerCheck = safety && safety.tool === toolKind && safety.done ? safety : null
   const runLabel = run ? (run.ticker ?? run.name ?? 'New report') : ''
   // How far the run has got, paced by time (shared/pace.ts), for the sidebar and the toolbar.
   const paced = run ? pace(run.steps, run.times, run.tally, Date.now(), run.seen) : null
@@ -476,8 +539,10 @@ export function App() {
         ready={report.readyHold}
         resuming={report.resuming}
         safety={checkFailed ? 'failed' : safety && !safety.done ? 'running' : 'ok'}
+        tool={toolKind}
+        buttonOn={buttonOn === true}
         onResume={() => void report.resume()}
-        onRecheck={() => void recheck().then((problem) => problem && notify('The safety check didn’t start', problem, 'stop'))}
+        onRecheck={recheckOrSay}
         onOpen={report.openReady}
         waiting={report.line?.paused?.wait_until && report.line.paused.run_id === runView.runId ? waitText(report.line.paused) : undefined}
         strip={
@@ -498,6 +563,7 @@ export function App() {
                 setOpenReport(reportId)
                 go('report')
               }}
+              onRecheck={checking ? undefined : recheckOrSay}
             />
           )
         }
@@ -507,16 +573,31 @@ export function App() {
         companies={listed ? companies : null}
         tool={{ kind: toolKind, name: toolName, signedOut, safetyFailed: checkFailed, safetyUnfinished: checkUnfinished }}
         fieldRef={homeField}
+        buttonOn={buttonOn === true}
         refresh={graded}
         onStart={report.start}
         onStartLine={report.startLine}
-        notice={report.line?.paused && report.line.waiting.length > 0 ? <LinePaused line={report.line} onCarryOn={() => void report.carryOn()} onClear={() => void report.clearLine()} /> : undefined}
+        notice={
+          report.line && safety && waitsForCheck(report.line, checking) ? (
+            <LineWaiting line={report.line} n={safety.n} total={safety.total} />
+          ) : report.line?.paused && report.line.waiting.length > 0 ? (
+            <LinePaused
+              line={report.line}
+              onCarryOn={() => void report.carryOn()}
+              onClear={() => void report.clearLine()}
+              onRecheck={recheckOrSay}
+              onCancelAll={() => void report.cancelAll()}
+              checking={checking}
+              checkReason={writerCheck && !writerCheck.passed && !writerCheck.stopped ? writerCheck.reason : null}
+              checkPassed={Boolean(writerCheck?.passed)}
+            />
+          ) : undefined
+        }
         onOpen={openCompany}
         onKeys={() => {
           setSettingsTopic('keys')
           go('settings')
         }}
-        onTools={setTools}
         onRecheck={recheck}
       />
     )
@@ -527,6 +608,7 @@ export function App() {
       <Settings
         tools={tools}
         onTools={setTools}
+        buttonOn={buttonOn === true}
         safety={safety}
         onSafetyStarted={safetyBegan}
         onSettings={(s) => {
@@ -636,9 +718,11 @@ export function App() {
       {!wide && sideOver && !sideClosing && <div className="sidescrim" onMouseDown={() => setSideOver(false)} />}
       <div className="mainarea">
         {page === 'setup' ? (
-          <Setup settings={bootSettings} leaving={leaving} safety={safety} onSafetyStarted={safetyBegan} onFinish={setupFinished}>
-            {fatalNotice}
-          </Setup>
+          buttonOn !== null && (
+            <Setup settings={bootSettings} leaving={leaving} safety={safety} onSafetyStarted={safetyBegan} onStopSafety={() => void stopSafety()} buttonOn={buttonOn} onFinish={setupFinished}>
+              {fatalNotice}
+            </Setup>
+          )
         ) : (
           <>
             <Toolbar
@@ -650,6 +734,11 @@ export function App() {
               findFocus={findFocus}
               onFindClose={() => setFinding(false)}
             >
+              {chipView && (
+                <div className="tsafe">
+                  <SafetyChip view={chipView} open={chipOpen} onToggle={() => setChipOpen((o) => !o)} />
+                </div>
+              )}
               {runView && report.running && (
                 <button className="btn2" onClick={() => void report.cancel()}>
                   Cancel run
@@ -657,6 +746,11 @@ export function App() {
               )}
               {page === 'report' && <ReportTools page={reportPage} wide={wide} onRefresh={refreshShown ? () => setRefreshing([refreshShown]) : undefined} />}
             </Toolbar>
+            {chipView && safety && chipOpen && (
+              <div className="tsafe">
+                <SafetyPopover view={chipView} tool={TOOL_TEXT[safety.tool]} onRetry={recheckOrSay} onStop={() => void stopSafety()} onClose={() => setChipOpen(false)} />
+              </div>
+            )}
             {fatalNotice}
             <main key={shownKey} className={frameClass} data-page={page}>
               {content}

@@ -12,14 +12,21 @@
 // The run is kept in a ref as well as in state, and both change together (`track`), so a note
 // handled straight after another sees what the first one did: a stopped run's `run_failed`
 // comes just before its report so far (`report_ready`). The line is kept the same way.
+//
+// The safety check (first-run design §5): a report asked for while a check runs joins the line,
+// which waits for it, instead of being refused. On a brand-new install, where the writing tool
+// has never been checked and no check has passed while the app has been open, starting a report
+// starts the full check first, and the report waits in the line for it.
 
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react'
 
 import type { EngineNotification } from '../../preload/api'
-import type { LineState, RunStarted } from '../../shared/protocol'
+import type { LineState, LockdownState, RunStarted } from '../../shared/protocol'
 import { pageLeaveMs } from '../motion'
 import type { Page } from '../nav'
 import type { Notice } from '../overlays/Toast'
+import type { ToolKind } from '../../shared/tools'
+import type { SafetyState } from '../setup/state/safety'
 import { refreshNote } from '../shell/refresh'
 import { lineGoing, newlyUnstarted, PAUSES, REOPENED } from './line'
 import { freshNotes, refusal, withNote, type RunNotes, type RunState } from './run'
@@ -41,9 +48,17 @@ export interface RunDeps {
   openReport: (reportId: string) => void
   // The AI tool's safety check failed during the run (the engine's gate).
   onLockdownFailed: (message: string) => void
+  // The writing tool (primary_tool, or Claude Code): the one whose check a new install waits for.
+  writer: ToolKind
+  // App's safety state: this session's check, from the engine's notes.
+  safety: SafetyState | null
+  // The settings' stored checks, by tool (get_settings' lockdown).
+  lockdown: Record<string, LockdownState>
+  // Starts the full safety check for a tool; gives what went wrong, or null once it has started.
+  startSafetyCheck: (tool: ToolKind) => Promise<string | null>
 }
 
-export function useRun({ page, target, go, notify, loadCompanies, loadTools, openReport, onLockdownFailed }: RunDeps) {
+export function useRun({ page, target, go, notify, loadCompanies, loadTools, openReport, onLockdownFailed, writer, safety, lockdown, startSafetyCheck }: RunDeps) {
   const [run, setRun] = useState<RunState | null>(null)
   // Holds the run view on screen with its Done card until Open the report (or another page).
   const [readyHold, setReadyHold] = useState(false)
@@ -58,6 +73,11 @@ export function useRun({ page, target, go, notify, loadCompanies, loadTools, ope
   const resumingId = useRef<string | null>(null)
   const cancelled = useRef(new Set<string>())
   const cancelledAt = useRef(0)
+  // The tools whose full check has passed while the app has been open (a test copy's check is
+  // never stored, so the settings alone can't say).
+  const passedNow = useRef(new Set<ToolKind>())
+  if (safety?.done && safety.passed) passedNow.current.add(safety.tool)
+  const checking = safety !== null && !safety.done
 
   const track = useCallback((next: RunState | null) => {
     current.current = next
@@ -190,24 +210,35 @@ export function useRun({ page, target, go, notify, loadCompanies, loadTools, ope
   }
 
   // Start a report for a ticker or name. Gives what went wrong, or null once it has started.
-  // While a report is being written (or the line has more to come), it joins the line instead.
+  // While a report is being written (or the line has more to come), or a safety check runs, it
+  // joins the line instead. On a brand-new install the full check starts first, and the report
+  // waits in the line for it.
   const start = async (query: string): Promise<string | null> => {
-    if (isBusy()) return addOne(query)
+    if (isBusy() || checking) return addOne(query, checking)
+    if (!lockdown[writer] && !passedNow.current.has(writer)) {
+      const problem = await startSafetyCheck(writer)
+      return problem ?? addOne(query, true)
+    }
     const reply = await window.tearsheet.runReport(query)
     if (reply.ok && reply.result) {
       begin(reply.result)
       return null
     }
+    // A check the window hadn't heard of yet: the line waits for it.
+    if (reply.error?.code === 'SAFETY_CHECK_RUNNING') return addOne(query, true)
     return refusal(reply.error?.code, reply.error?.message, Date.now() - cancelledAt.current < STOPPING_MS)
   }
 
-  const addOne = async (query: string): Promise<string | null> => {
+  // `check`: a safety check runs, so the line waits for it first.
+  const addOne = async (query: string, check = false): Promise<string | null> => {
     const reply = await window.tearsheet.addToLine([query])
     if (!reply.ok || !reply.result) return reply.error?.message || 'It couldn’t join the line.'
     const added = reply.result.items[0]
     if (!added) return reply.result.skipped[0]?.reason ?? 'It couldn’t join the line.'
     const waiting = reply.result.line.waiting.length
-    notify(`${added.ticker} is in the line`, waiting > 1 ? `${waiting} waiting. It starts when the ones before it are done.` : 'It starts when this report is done.')
+    let text = waiting > 1 ? `${waiting} waiting. It starts when the ones before it are done.` : 'It starts when this report is done.'
+    if (check) text = waiting > 1 ? `${waiting} waiting. It starts when the safety check finishes and the ones before it are done.` : 'It starts when the safety check finishes.'
+    notify(`${added.ticker} is in the line`, text)
     return null
   }
 
@@ -297,7 +328,10 @@ export function useRun({ page, target, go, notify, loadCompanies, loadTools, ope
       return
     }
     early.current = null
-    if (!reply.ok) notify('The report didn’t resume', refusal(reply.error?.code, reply.error?.message, false), 'stop')
+    if (!reply.ok) {
+      const why = reply.error?.code === 'SAFETY_CHECK_RUNNING' ? 'The safety check is running. Resume the report once it finishes.' : refusal(reply.error?.code, reply.error?.message, false)
+      notify('The report didn’t resume', why, 'stop')
+    }
   }
 
   // Cancel run: the engine stops it at the next step. Nothing more is heard of it. In the line,

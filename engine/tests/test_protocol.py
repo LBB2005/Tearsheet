@@ -385,3 +385,56 @@ def test_the_app_with_injected_test_data_logs_nothing(tmp_path):
 
     assert run(go())["result"] == []
     h.server.close()
+
+
+def test_the_safety_checks_stop_and_progress_and_the_test_copy_code():
+    """First-run design item 17."""
+    from pydantic import ValidationError
+
+    from tearsheet.protocol import (
+        ALL_MODELS,
+        CancelSafetyCheckResult,
+        NoParams,
+        RunFailedNote,
+        SafetyRunning,
+        SettingsResult,
+    )
+
+    assert METHODS["cancel_safety_check"] is NoParams
+    assert CancelSafetyCheckResult(stopping=True).stopping is True
+    running = SafetyRunning(tool="codex", n=3, total=25, started_at="2026-11-08T20:00:00+00:00")
+    assert running.model_dump() == {
+        "tool": "codex",
+        "n": 3,
+        "total": 25,
+        "started_at": "2026-11-08T20:00:00+00:00",
+    }
+    with pytest.raises(ValidationError):
+        SafetyRunning(tool="other", n=0, total=25, started_at="x")
+    assert {CancelSafetyCheckResult, SafetyRunning} <= set(ALL_MODELS)
+    defs = schema()["$defs"]
+    assert "CancelSafetyCheckResult" in defs and "SafetyRunning" in defs
+    note = RunFailedNote(run_id="r", step=None, message="Reports are off.", code="TEST_COPY")
+    assert note.code == "TEST_COPY"
+    # Raised to 4 for these messages, and to 5 for the big line's (batch.py).
+    assert PROTOCOL_VERSION >= 4
+    assert schema()["description"] == f"App-engine protocol, version {PROTOCOL_VERSION}."
+    # Settings from an engine before the field (and the app's fixtures) still parse.
+    old = {
+        "keys": {"massive": "set"},
+        "rejected_keys": [],
+        "raw_bytes": 0,
+        "raw_cap": 5.0,
+        "backup_dir": "/b",
+        "backup_in_icloud": False,
+        "primary_tool": None,
+        "sec_contact_email": None,
+        "goal1_round": 1,
+        "setup_done": False,
+        "fred_skipped": False,
+        "services": [],
+        "price_download": {"state": "no_key", "companies_ready": 0, "companies": 500},
+    }
+    assert SettingsResult.model_validate(old).safety_running is None
+    with_check = SettingsResult.model_validate({**old, "safety_running": running.model_dump()})
+    assert with_check.safety_running == running

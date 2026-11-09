@@ -12,19 +12,19 @@ import '../home/home.css'
 
 import { useEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent, type ReactNode, type RefObject } from 'react'
 
-import type { ToolStatus } from '../../preload/api'
 import type { CompanyRow, PredictionSummary, SearchHit, SettingsResult } from '../../shared/protocol'
 import { isList, pastedList, plural, splitQueries, type PlanAsk } from '../home/line'
 import { LinePlanCard, QuickAdd, useLinePlan } from '../home/LineParts'
+import { useFix } from '../home/fix'
 import { greeting, sinceLines, type SinceLine } from '../home/since'
 import { Mark } from '../mark/Mark'
 import { freshHits, peerRule, shortDate } from '../nav'
-import { at, CodeLine, Spinner } from '../setup/parts'
-import { TOOL_TEXT, type ToolKind } from '../setup/steps'
+import { FRED_NOTICE, FRED_TERMS } from '../settings/About'
+import { at } from '../setup/parts'
+import type { ToolKind } from '../../shared/tools'
 import { ICONS, money } from '../shell/Sidebar'
 
 const LIMIT = 5
-const POLL_MS = 2000
 
 // For a new user: four companies to try.
 const TRY: [string, string][] = [
@@ -40,24 +40,25 @@ export interface HomeProps {
   tool: { kind: ToolKind; name: string; signedOut: boolean; safetyFailed: boolean; safetyUnfinished: boolean }
   // ⌘K on this page puts the cursor here.
   fieldRef: RefObject<HTMLInputElement>
+  // "The button is on": Sign in again runs inside Tearsheet; off, it copies the paste command.
+  buttonOn: boolean
   // Changes when grading finishes, so the predictions are asked for again.
   refresh: number
   // Starts a report; gives what went wrong, or null once it has started.
   onStart: (ticker: string) => Promise<string | null>
   // Starts the line with the companies checked; gives what went wrong, or null once it has started.
   onStartLine: (queries: string[]) => Promise<string | null>
-  // A note at the top, before the problems: reports that were waiting when Tearsheet closed.
+  // A note at the top, before the problems: reports waiting in a paused line, or waiting for the
+  // safety check.
   notice?: ReactNode
   onOpen: (row: CompanyRow) => void
   // Settings, to add a missing key.
   onKeys: () => void
-  // The AI tools, looked at again while waiting for a sign-in.
-  onTools: (tools: ToolStatus[]) => void
   // Runs the safety check again; gives what went wrong, or null once it has started.
   onRecheck: () => Promise<string | null>
 }
 
-export function Home({ companies, tool, fieldRef, refresh, onStart, onStartLine, notice, onOpen, onKeys, onTools, onRecheck }: HomeProps) {
+export function Home({ companies, tool, fieldRef, buttonOn, refresh, onStart, onStartLine, notice, onOpen, onKeys, onRecheck }: HomeProps) {
   const [query, setQuery] = useState('')
   const [hits, setHits] = useState<SearchHit[]>([])
   const [searched, setSearched] = useState('')
@@ -144,11 +145,11 @@ export function Home({ companies, tool, fieldRef, refresh, onStart, onStartLine,
     setStarting(ticker)
     setWhy(null)
     const problem = await onStart(ticker)
-    // Once it has started, the run view takes this page's place.
-    if (problem) {
-      setStarting(null)
-      setWhy(problem)
-    }
+    // Once it has started, the run view takes this page's place. A report that joined the line
+    // to wait for the safety check leaves this page up, so the field is free again.
+    setStarting(null)
+    if (problem) setWhy(problem)
+    else setQuery('')
   }
 
   const q = query.trim()
@@ -194,7 +195,7 @@ export function Home({ companies, tool, fieldRef, refresh, onStart, onStartLine,
     <div className="homev">
       {notice}
       {problems.map((line) => (
-        <Problem key={line.action ?? line.text} line={line} login={TOOL_TEXT[tool.kind].login} onTools={onTools} onRecheck={onRecheck} onKeys={onKeys} />
+        <Problem key={line.action ?? line.text} line={line} kind={tool.kind} buttonOn={buttonOn} onRecheck={onRecheck} onKeys={onKeys} />
       ))}
       {companies !== null && (
         <div className="hello mv" style={at(0)}>
@@ -323,7 +324,22 @@ export function Home({ companies, tool, fieldRef, refresh, onStart, onStartLine,
           {since.map((line) => (
             <div key={line.text} className="sr">
               <i className={line.tone} />
-              {line.text}
+              {line.detail || line.fredNotice ? (
+                <span className="srt">
+                  {line.text}
+                  {line.detail && <small>{line.detail}</small>}
+                  {line.fredNotice && (
+                    <small className="fredn">
+                      {FRED_NOTICE}{' '}
+                      <button className="lk" onClick={() => void window.tearsheet.openExternal(FRED_TERMS)}>
+                        FRED’s terms
+                      </button>
+                    </small>
+                  )}
+                </span>
+              ) : (
+                line.text
+              )}
               {line.action === 'addFred' && (
                 <button className="btn2" onClick={onKeys}>
                   Add the key
@@ -337,44 +353,14 @@ export function Home({ companies, tool, fieldRef, refresh, onStart, onStartLine,
   )
 }
 
-// A problem, in red at the top of the page, with its fix. "Sign in again" shows the one Terminal
-// line and notices by itself, looking again every 2 seconds; the box goes once it is fixed.
-function Problem({
-  line,
-  login,
-  onTools,
-  onRecheck,
-  onKeys
-}: {
-  line: SinceLine
-  login: string
-  onTools: (tools: ToolStatus[]) => void
-  onRecheck: () => Promise<string | null>
-  onKeys: () => void
-}) {
-  const [signing, setSigning] = useState(false)
+// A problem, in red at the top of the page, with its fix. "Sign in again" runs the sign-in inside
+// Tearsheet when the button is on, with its progress in this box, or copies the paste command and
+// opens Terminal when it is off (home/fix.tsx); the window then waits on the person, so the main
+// process notices the sign-in by itself (tools_changed) and the box goes once it is fixed.
+function Problem({ line, kind, buttonOn, onRecheck, onKeys }: { line: SinceLine; kind: ToolKind; buttonOn: boolean; onRecheck: () => Promise<string | null>; onKeys: () => void }) {
+  const fix = useFix(kind, buttonOn, 'signIn')
   const [busy, setBusy] = useState(false)
   const [failed, setFailed] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!signing) return
-    let live = true
-    let timer: number | undefined
-    const look = () => {
-      const again = () => {
-        if (live) timer = window.setTimeout(look, POLL_MS)
-      }
-      window.tearsheet.getTools(true).then((tools) => {
-        if (live) onTools(tools)
-        again()
-      }, again)
-    }
-    timer = window.setTimeout(look, POLL_MS)
-    return () => {
-      live = false
-      window.clearTimeout(timer)
-    }
-  }, [signing, onTools])
 
   const recheck = async () => {
     setBusy(true)
@@ -389,25 +375,11 @@ function Problem({
       <div>
         <b>{line.text}</b>
         <span>{line.detail}</span>
-        {signing && (
-          <div className="signin">
-            <span>Paste this in Terminal and press Return. Your browser opens so you can sign in.</span>
-            <CodeLine text={login} />
-            <div className="row">
-              <button className="btn2" onClick={() => void window.tearsheet.openTerminal()}>
-                Open Terminal
-              </button>
-              <span className="st">
-                <Spinner />
-                Waiting for you to sign in
-              </span>
-            </div>
-          </div>
-        )}
+        {fix.below}
         {failed && <span className="bad">{failed}</span>}
       </div>
-      {line.action === 'signIn' && !signing && (
-        <button className="btn2" onClick={() => setSigning(true)}>
+      {line.action === 'signIn' && !fix.active && (
+        <button className="btn2" onClick={fix.start}>
           Sign in again
         </button>
       )}

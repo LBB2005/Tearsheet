@@ -12,7 +12,9 @@ import { vi, type Mock } from 'vitest'
 import type { MenuCommand } from '../../main/menu'
 import type { ViewId } from '../../main/navigation'
 import type { CallResult, EngineNotification, TearsheetApi, ToolStatus } from '../../preload/api'
+import type { InstallProgress, InstallStatus, RunResult } from '../../shared/install'
 import type { ChartSeries, CompanyRow, LineGroups, LineItem, LinePlan, LineState, PredictionSummary, ReportBar, ReportNumbers, ReportResult, ReportSummary, SearchHit, SettingsResult } from '../../shared/protocol'
+import { toolFlags, type ToolCommands, type ToolKind, type ToolState } from '../../shared/tools'
 import { analysts } from './analysts'
 
 export type FakeBridge = { [K in keyof TearsheetApi]: Mock<TearsheetApi[K]> }
@@ -23,9 +25,57 @@ export const fail = (message: string, code?: string): CallResult<never> => ({ ok
 // ---------- what the engine answers with ----------
 
 export const TOOLS: ToolStatus[] = [
-  { kind: 'claude', name: 'Claude Code', path: '/Users/test/.local/bin/claude', available: true, version: '2.1.3 (Claude Code)', loggedIn: true, reason: null },
-  { kind: 'codex', name: 'Codex', path: null, available: false, version: null, loggedIn: null, reason: 'Not found on this Mac' }
+  { kind: 'claude', name: 'Claude Code', path: '/Users/test/.local/bin/claude', available: true, version: '2.1.3 (Claude Code)', loggedIn: true, reason: null, state: 'ready', plan: 'max', email: 'liam@example.com' },
+  { kind: 'codex', name: 'Codex', path: null, available: false, version: null, loggedIn: null, reason: 'Not found on this Mac', state: 'missing', plan: null, email: null }
 ]
+
+// A tool as the status read would give it in another state: its state, with `available` and
+// `loggedIn` worked out from it as the main process does (shared/tools.ts).
+export function inState(tool: ToolStatus, state: ToolState, over: Partial<ToolStatus> = {}): ToolStatus {
+  return { ...tool, state, ...toolFlags(state), ...over }
+}
+
+// A ToolStatus for each state, for each tool (first-run design item 28): Claude Code at the
+// official folder with a Max plan and an email, Codex there too with a ChatGPT sign-in. A missing
+// tool has no path or version; a too-old Claude Code is 2.1.300.
+function fixtures(kind: ToolKind): Record<ToolState, ToolStatus> {
+  const claude = kind === 'claude'
+  const base: ToolStatus = {
+    kind,
+    name: claude ? 'Claude Code' : 'Codex',
+    path: `/Users/test/.local/bin/${kind}`,
+    version: claude ? '2.1.317 (Claude Code)' : 'codex-cli 0.165.0',
+    reason: null,
+    plan: claude ? 'max' : null,
+    email: claude ? 'you@example.com' : null,
+    state: 'ready',
+    ...toolFlags('ready')
+  }
+  const at = (state: ToolState, over: Partial<ToolStatus> = {}): ToolStatus => ({ ...base, state, ...toolFlags(state), ...over })
+  return {
+    missing: at('missing', { path: null, version: null, plan: null, email: null, reason: 'Not found on this Mac' }),
+    too_old: at('too_old', { version: claude ? '2.1.300 (Claude Code)' : 'codex-cli 0.1.0', plan: null, email: null }),
+    cant_tell: at('cant_tell', { plan: null, email: null }),
+    signed_out: at('signed_out', { plan: null, email: null }),
+    api_key: at('api_key', { plan: null, email: null }),
+    free_plan: at('free_plan', { plan: 'free' }),
+    ready: at('ready')
+  }
+}
+
+export const CLAUDE: Record<ToolState, ToolStatus> = fixtures('claude')
+export const CODEX: Record<ToolState, ToolStatus> = fixtures('codex')
+// Both tools at once: a brand-new Mac, and both already set up.
+export const NEITHER: ToolStatus[] = [CLAUDE.missing, CODEX.missing]
+export const BOTH: ToolStatus[] = [CLAUDE.ready, CODEX.ready]
+export const tools = (claude: ToolState, codex: ToolState): ToolStatus[] => [CLAUDE[claude], CODEX[codex]]
+
+// What commandsFor answers for these tools: the sign-in (or the installer, then the sign-in) as
+// the main process would build it from TOOLS, joined into one paste command.
+export function commands(kinds: ToolKind[]): ToolCommands {
+  const steps = kinds.map((tool) => ({ tool, kind: 'signIn' as const, command: tool === 'claude' ? '/Users/test/.local/bin/claude auth login' : '/Users/test/.local/bin/codex login' }))
+  return { steps, blocked: [], paste: steps.length ? steps.map((s) => s.command).join(' && ') : null }
+}
 
 export function settings(over: Partial<SettingsResult> = {}): SettingsResult {
   return {
@@ -209,6 +259,10 @@ function marks() {
   return { hidden, erased, pinned, companies, reports, keeps }
 }
 
+// The Install button's runs that haven't answered yet, oldest first: install() answers only when
+// a test ends it (endInstall), after sending its install_progress messages (progress).
+let installs: ((r: RunResult) => void)[] = []
+
 function makeBridge(): FakeBridge {
   const m = marks()
   return {
@@ -224,7 +278,20 @@ function makeBridge(): FakeBridge {
     fetchHistory: vi.fn<TearsheetApi['fetchHistory']>(async () => ok({ first_date: '2021-11-08', days: 1260 })),
     checkKey: vi.fn<TearsheetApi['checkKey']>(async (service: 'massive' | 'fred') => ok({ proof: service === 'massive' ? 'Works: AAPL closed at $230.10 on Nov 6' : 'Works: inflation was 2.9% in September' })),
     runSafetyCheck: vi.fn<TearsheetApi['runSafetyCheck']>(async () => ok({ started: true })),
-    openTerminal: vi.fn<TearsheetApi['openTerminal']>(async () => undefined),
+    cancelSafetyCheck: vi.fn<TearsheetApi['cancelSafetyCheck']>(async () => ok({ stopping: true })),
+    install: vi.fn<TearsheetApi['install']>(
+      () =>
+        new Promise<RunResult>((resolve) => {
+          installs.push(resolve)
+        })
+    ),
+    cancelInstall: vi.fn<TearsheetApi['cancelInstall']>(async () => true),
+    openSignInPage: vi.fn<TearsheetApi['openSignInPage']>(async () => true),
+    getInstallButton: vi.fn<TearsheetApi['getInstallButton']>(async () => true),
+    windowState: vi.fn<TearsheetApi['windowState']>(async () => undefined),
+    copyAndOpenTerminal: vi.fn<TearsheetApi['copyAndOpenTerminal']>(async () => ({ copied: true, opened: true })),
+    commandsFor: vi.fn<TearsheetApi['commandsFor']>(async (kinds: ToolKind[]) => commands(kinds)),
+    showSetupLog: vi.fn<TearsheetApi['showSetupLog']>(async () => true),
     openExternal: vi.fn<TearsheetApi['openExternal']>(async () => true),
     about: vi.fn<TearsheetApi['about']>(async () => ({ app: '0.1.0', engine: '0.1.0', macos: '26.1', electron: '33.2.0' })),
     sendFeedback: vi.fn<TearsheetApi['sendFeedback']>(async () => true),
@@ -290,12 +357,14 @@ export function installBridge(): FakeBridge {
   listeners.flag.clear()
   listeners.open.clear()
   listeners.download.clear()
+  installs = []
   bridge = makeBridge()
   Object.defineProperty(window, 'tearsheet', { configurable: true, value: bridge })
   return bridge
 }
 
-// The engine sends a note (progress, report_ready, safety_done, engine_restarted…).
+// The engine sends a note (progress, report_ready, safety_done, engine_restarted…), or the main
+// process does (tools_changed).
 export function emit(method: string, params: object = {}): void {
   act(() => {
     for (const fn of listeners.note) fn({ method, params: params as Record<string, unknown> })
@@ -327,5 +396,19 @@ export function openView(view: ViewId, item: string | null = null): void {
 export function download(note: DownloadNote): void {
   act(() => {
     for (const fn of listeners.download) fn(note)
+  })
+}
+
+// One install_progress message from the main process (main/installer.ts).
+export function progress(tool: ToolKind, step: InstallProgress['step'], status: InstallStatus, reason?: string): void {
+  emit('install_progress', reason === undefined ? { tool, step, status } : { tool, step, status, reason })
+}
+
+// The oldest Install run that hasn't answered yet answers.
+export async function endInstall(result: RunResult = { outcome: 'done' }): Promise<void> {
+  const resolve = installs.shift()
+  if (!resolve) throw new Error('No install is running')
+  await act(async () => {
+    resolve(result)
   })
 }

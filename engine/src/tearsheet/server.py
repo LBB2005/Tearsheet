@@ -26,7 +26,7 @@ from collections.abc import Callable
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 from pydantic import BaseModel, ValidationError
 
@@ -91,6 +91,19 @@ SERVICES = [
         "sent": "Nothing unless you open a link. Tearsheet lists their articles as links and "
         "doesn't download them",
     },
+    {
+        "name": "GitHub (Tearsheet's off switch)",
+        "key": "None",
+        "cost": "Free",
+        "sent": "One plain request at each launch, with no personal data",
+    },
+    {
+        "name": "claude.ai and chatgpt.com install scripts",
+        "key": "None",
+        "cost": "Free",
+        "sent": "A download of Claude Code's or Codex's install script, only when you press "
+        "Install",
+    },
 ]
 # The news row when the `news_articles` setting is on.
 NEWS_READ = {
@@ -124,6 +137,11 @@ LINE_POLL_S = 1.0
 LINE_SLEEP_S = 60.0
 # How often the open app checks for a newly closed session to add to the stored prices.
 KEEP_CURRENT_EVERY_S = 1800.0
+# A test copy (config.test_mode(), first-run design §6): its canned safety check takes a step
+# every fifth of a second, and its reports end before any data or AI call.
+CANNED_CHECK_STEP_S = 0.2
+TEST_COPY = "TEST_COPY"
+TEST_COPY_MESSAGE = "Reports are off in a test copy."
 
 
 class EngineError(Exception):
@@ -224,6 +242,16 @@ def _key_state(service: str) -> str:
 _BACKFILL_PROGRESS = re.compile(r"^(\d+) of (\d+) sessions")
 
 
+class _CheckEnd(NamedTuple):
+    """How a safety check ended: its verdict, whether it gave one, and the code a pause of the
+    reports waiting uses (none for a pass or a recorded failure)."""
+
+    passed: bool
+    finished: bool
+    reason: str | None = None
+    pause_code: str | None = None
+
+
 class Server:
     def __init__(
         self,
@@ -254,6 +282,11 @@ class Server:
         self.http_factory = http_factory or self._live_http
         self.safety_connector_factory = safety_connector_factory or self._live_connector
         self.safety_job: asyncio.Task | None = None
+        # The check under way: the stop cancel_safety_check sets (read before each probe), and
+        # its progress, which get_settings sends so a reloaded window shows the real count.
+        self.safety_stop = False
+        self.safety_state: dict[str, Any] | None = None
+        self.canned_check_step_s = CANNED_CHECK_STEP_S
         # Live runs from the app log official predictions (item 35). With injected (test) data
         # nothing is logged unless a test asks for it.
         self.log_predictions = data_factory is None if log_predictions is None else log_predictions
@@ -267,8 +300,11 @@ class Server:
         self._massive_limiter = None
         self.active = None  # the Run in progress
         # The one-time price backfill (Technical Plan §5): on for the live engine; tests with
-        # injected data ask for it.
-        self.backfill_enabled = data_factory is None if backfill is None else backfill
+        # injected data ask for it. Never in a test copy, so it doesn't share the free Massive
+        # key's calls a minute with the real app.
+        self.backfill_enabled = (
+            data_factory is None if backfill is None else backfill
+        ) and not config.test_mode()
         self.backfill_job: asyncio.Task | None = None
         # None makes the price job one pass (tests); the app checks every half hour.
         self.keep_current_every_s: float | None = KEEP_CURRENT_EVERY_S
@@ -865,7 +901,8 @@ class Server:
             resolved.set()
 
     async def m_run_report(self, p) -> dict[str, Any]:
-        self._refuse_during_safety_check()
+        if not config.test_mode():  # a test copy's report ends at once (TEST_COPY)
+            self._refuse_during_safety_check()
         if self._busy():
             raise EngineError(
                 "RUN_IN_PROGRESS", "A report is already running. Wait for it, or cancel it."
@@ -879,6 +916,8 @@ class Server:
         checked that nothing else is running (run_report, or the line)."""
         from tearsheet.pipeline import Run, new_run_id
 
+        if config.test_mode():
+            return self._begin_test_copy()
         ai = self.ai_factory(self.db.conn, tool)
         checker = self.checker_factory(self.db.conn, ai) if ai is not None else None
         now = self.now()
@@ -905,6 +944,26 @@ class Server:
 
         await self._start_job(run_id, make_run, wait_for_resolve=True)
         return {"run_id": run_id, **self._run_company(run_id)}
+
+    def _begin_test_copy(self) -> dict[str, Any]:
+        """A test copy's report: it ends before any data or AI call, with TEST_COPY, as a
+        `run_failed` sent just after the reply (and, in the line, as that company's ending)."""
+        from tearsheet.pipeline import new_run_id
+
+        run_id = new_run_id(self.now())
+
+        async def end() -> None:
+            self.last_end = (
+                run_id,
+                {"how": "failed", "code": TEST_COPY, "message": TEST_COPY_MESSAGE},
+            )
+            self.notify(
+                "run_failed",
+                RunFailedNote(run_id=run_id, step=None, message=TEST_COPY_MESSAGE, code=TEST_COPY),
+            )
+
+        self.job = asyncio.create_task(end())
+        return {"run_id": run_id, "ticker": None, "name": None}
 
     async def m_resume(self, p) -> dict[str, Any]:
         from tearsheet.pipeline import prepare_resume
@@ -1596,7 +1655,9 @@ class Server:
     async def m_grade_due(self, p) -> dict[str, Any]:
         """Grading is a job like a run (item 48): it waits for any report, and nothing that
         would overlap it starts until it is done. It is answered off the request loop (OFF_LOOP);
-        a second ask while it goes gets the same answer."""
+        a second ask while it goes gets the same answer. A test copy grades nothing."""
+        if config.test_mode():
+            return {"graded": 0, "note": "Nothing is due: grading is off in a test copy."}
         if not self._grading():
             self.grading_job = asyncio.create_task(self._grade())
         return await asyncio.shield(self.grading_job)
@@ -1651,41 +1712,80 @@ class Server:
         return {"proof": proof}
 
     async def m_run_safety_check(self, p) -> dict[str, Any]:
+        from tearsheet.ai.lockdown import FULL_PROBES, LINK_PROBES
+
         if self._busy():
             raise EngineError(
                 "RUN_IN_PROGRESS", "A report is running. Wait for it before the safety check."
             )
         self._refuse_during_safety_check()
         self._refuse_during_grading()
-        connector = self.safety_connector_factory(self.db.conn, p.tool)
+        # A test copy's check is a canned one, with no AI tool at all.
+        connector = (
+            None if config.test_mode() else self.safety_connector_factory(self.db.conn, p.tool)
+        )
+        self.safety_stop = False
+        self.safety_state = {
+            "tool": p.tool,
+            "n": 0,
+            "total": FULL_PROBES + LINK_PROBES,
+            "started_at": self.now().isoformat(timespec="seconds"),
+        }
         self.safety_job = asyncio.create_task(self._safety_job(p.tool, connector))
         return {"started": True}
 
+    async def m_cancel_safety_check(self, p) -> dict[str, Any]:
+        """Stop the safety check after the call in progress. That call ends normally: the
+        check is never cancelled, so no AI tool is stopped part way. Nothing is recorded."""
+        if not self._safety_running():
+            return {"stopping": False}
+        self.safety_stop = True
+        return {"stopping": True}
+
+    def _safety_step(self, tool: str, n: int, total: int, name: str, *, ok: bool) -> None:
+        if self.safety_state is not None:
+            self.safety_state.update(n=n, total=total)
+        self.notify(
+            "safety_progress", SafetyProgress(tool=tool, n=n, total=total, name=name, ok=ok)
+        )
+
     async def _safety_job(self, tool: str, connector) -> None:
+        """The full check, or a test copy's canned one (no connector). Before it returns, so
+        the line (which looks again every second) can't start a report first, a check that
+        didn't pass may pause the reports waiting, and a pass carries them on."""
+        try:
+            if connector is None:
+                end = await self._canned_check(tool)
+            else:
+                end = await self._full_check(tool, connector)
+            self._line_after_check(tool, end)
+        finally:
+            self.safety_state = None
+            self.safety_stop = False
+        self.notify(
+            "safety_done",
+            SafetyDone(tool=tool, passed=end.passed, reason=end.reason, finished=end.finished),
+        )
+
+    async def _full_check(self, tool: str, connector) -> _CheckEnd:
         from tearsheet.ai import api_billing, close_connector
         from tearsheet.ai.client import ToolState
-        from tearsheet.ai.lockdown import run_check
+        from tearsheet.ai.lockdown import STOPPED, run_check
+        from tearsheet.batch import SAFETY_CHECK_STOPPED, SAFETY_CHECK_UNFINISHED
 
         def on_probe(n: int, total: int, probe) -> None:
-            self.notify(
-                "safety_progress",
-                SafetyProgress(
-                    tool=tool,
-                    n=n,
-                    total=total,
-                    name=probe.name,
-                    ok=not probe.problems and probe.error is None,
-                ),
-            )
+            ok = not probe.problems and probe.error is None
+            self._safety_step(tool, n, total, probe.name, ok=ok)
 
-        passed, reason, finished = False, None, True
         try:
             report = await run_check(
                 connector,
                 form="full",
                 api_billing=api_billing(tool, config.Settings(self.db.conn)),
                 on_probe=on_probe,
+                should_stop=lambda: self.safety_stop,
             )
+            self._save_check_report(tool, report)
             if report.inconclusive is None:
                 ToolState(self.db.conn, tool).record_check(
                     version=report.program_version,
@@ -1693,23 +1793,100 @@ class Server:
                     form="full",
                     passed=report.passed,
                 )
-            passed = report.passed
+            if report.inconclusive == STOPPED:
+                return _CheckEnd(False, False, f"{STOPPED}.", SAFETY_CHECK_STOPPED)
             if report.inconclusive:
                 reason = f"The check couldn't finish: {report.inconclusive}"
-                finished = False
-            elif not report.passed:
+                return _CheckEnd(False, False, reason, SAFETY_CHECK_UNFINISHED)
+            if not report.passed:
+                # Recorded as failed: its block ends the next report with LOCKDOWN_FAILED.
                 reason = "; ".join(report.problems[:3]) or "The check did not pass."
+                return _CheckEnd(False, True, reason)
+            return _CheckEnd(True, True)
         except Exception as exc:  # noqa: BLE001 - reported to the app, logged to standard error
             log.exception("safety check on %s failed", tool)
-            passed, reason, finished = False, str(exc) or "The check stopped unexpectedly.", False
+            reason = str(exc) or "The check stopped unexpectedly."
+            return _CheckEnd(False, False, reason, SAFETY_CHECK_UNFINISHED)
         finally:
             try:
                 await close_connector(connector)
             except Exception:  # noqa: BLE001 - cleanup only
                 log.exception("closing the AI tool after the safety check")
-        self.notify(
-            "safety_done", SafetyDone(tool=tool, passed=passed, reason=reason, finished=finished)
-        )
+
+    def _save_check_report(self, tool: str, report) -> None:
+        """The check's report file, named as the command-line check names it, with each call's
+        plan-usage reading."""
+        stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+        path = self.paths.logs / f"lockdown-{tool}-{report.form}-{stamp}.json"
+        try:
+            path.write_text(report.to_json())
+        except OSError:
+            log.exception("writing the safety check's report file")
+
+    async def _canned_check(self, tool: str) -> _CheckEnd:
+        """A test copy's check: the real probes' names, a step every fifth of a second, and no
+        AI call. It ends as `check=` in the test folder's state file says (pass, the default;
+        fail; or unfinished), and is never recorded, so it can't mark a real tool as checked."""
+        from tearsheet.ai.lockdown import STOPPED, load_prompts
+        from tearsheet.batch import SAFETY_CHECK_STOPPED, SAFETY_CHECK_UNFINISHED
+
+        prompts = load_prompts()
+        names = [probe.name for probe in prompts.probes + prompts.link_probes]
+        for n, name in enumerate(names, start=1):
+            if self.safety_stop:
+                return _CheckEnd(False, False, f"{STOPPED}.", SAFETY_CHECK_STOPPED)
+            await asyncio.sleep(self.canned_check_step_s)
+            self._safety_step(tool, n, len(names), name, ok=True)
+        ending = config.test_state().get("check") or "pass"
+        if ending == "fail":
+            reason = "The test copy's check was set to fail (check=fail in its state file)."
+            return _CheckEnd(False, True, reason, "LOCKDOWN_FAILED")
+        if ending == "unfinished":
+            reason = (
+                "The check couldn't finish: the test copy's check was set to unfinished "
+                "(check=unfinished in its state file)."
+            )
+            return _CheckEnd(False, False, reason, SAFETY_CHECK_UNFINISHED)
+        if ending != "pass":
+            log.warning("the test copy's state file says check=%s; the check passes", ending)
+        return _CheckEnd(True, True)
+
+    def _writing_tool(self) -> str | None:
+        """The tool the line's reports are written with (primary_tool, as client_for picks)."""
+        from tearsheet.ai.client import AIUnavailable, choose_tool
+
+        try:
+            return choose_tool(None, config.Settings(self.db.conn))
+        except AIUnavailable:
+            return None
+
+    def _line_after_check(self, tool: str, end: _CheckEnd) -> None:
+        """What a safety check's ending does to the reports waiting (first-run design §5).
+
+        A pass on the writing tool carries on a line the check paused. A stop, or a check that
+        couldn't finish, pauses the reports waiting when the writing tool has never had a check
+        recorded (a brand-new install); a tool checked before keeps its short check before the
+        next report. A failed check pauses nothing here: its block ends the next report with
+        LOCKDOWN_FAILED. A test copy records nothing, so each ending that doesn't pass pauses
+        the line with its code."""
+        from tearsheet.ai.client import ToolState
+        from tearsheet.batch import SAFETY_PAUSES
+
+        paused = self.line.paused
+        if end.passed:
+            if paused is not None and paused.code in SAFETY_PAUSES and tool == self._writing_tool():
+                self.line.carry_on()
+                self._line_changed()
+                self._kick_line()
+            return
+        if end.pause_code is None:
+            return
+        if not config.test_mode() and (
+            tool != self._writing_tool() or ToolState(self.db.conn, tool).row() is not None
+        ):
+            return
+        if self.line.pause(end.pause_code, end.reason or "The safety check didn't finish."):
+            self._line_changed()
 
     async def m_get_settings(self, p) -> dict[str, Any]:
         settings = config.Settings(self.db.conn)
@@ -1739,6 +1916,10 @@ class Server:
             "fred_skipped": settings.get("fred_skipped") == "1",
             "services": services(settings),
             "price_download": self._price_download(settings, have_key=keys["massive"] == "set"),
+            # The check under way, so a window that reloads mid-check shows the real count.
+            "safety_running": dict(self.safety_state)
+            if self._safety_running() and self.safety_state is not None
+            else None,
             "lockdown": {
                 r["tool"]: {
                     "version": r["version"],

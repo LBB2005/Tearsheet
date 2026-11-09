@@ -1,0 +1,14 @@
+{
+  "about": "Status outputs the probe tests replay (probe.test.ts), each on the stream it came on. 'recorded' ones were run on the owner's Mac on 2026-11-08 (Claude Code 2.1.317, codex-cli 0.165.0) with every identifier replaced by a fixed fake before it was written: the email is you@example.com, the organisation ID and name are fakes, and the home folder is /Users/you. 'copied' ones are the messages in codex-rs/cli/src/login.rs, run_login_status, at tag rust-v0.165.0 (https://github.com/openai/codex/blob/rust-v0.165.0/codex-rs/cli/src/login.rs), which the owner can't produce; the masked API key is a fake.",
+  "fixtures": [
+    { "file": "claude-max.stdout", "tool": "claude", "stream": "stdout", "source": "recorded: claude auth status --json", "state": "ready", "plan": "max", "email": "you@example.com" },
+    { "file": "codex-chatgpt.stderr", "tool": "codex", "stream": "stderr", "source": "recorded: codex login status", "state": "ready" },
+    { "file": "codex-not-logged-in.stderr", "tool": "codex", "stream": "stderr", "source": "recorded: codex login status, with CODEX_HOME set to an empty throwaway folder (a read only; the real sign-in was not touched)", "state": "signed_out" },
+    { "file": "codex-api-key.stderr", "tool": "codex", "stream": "stderr", "source": "copied: login.rs lines 472-473 (API key configured - <safe_format_key>, then API_KEY_AUTHENTICATION_NOTICE)", "state": "api_key" },
+    { "file": "codex-access-token.stderr", "tool": "codex", "stream": "stderr", "source": "copied: login.rs line 489 (AuthMode::AgentIdentity)", "state": "api_key" },
+    { "file": "codex-personal-access-token.stderr", "tool": "codex", "stream": "stderr", "source": "copied: login.rs line 493 (AuthMode::PersonalAccessToken)", "state": "api_key" },
+    { "file": "codex-bedrock-api-key.stderr", "tool": "codex", "stream": "stderr", "source": "copied: login.rs line 497 (AuthMode::BedrockApiKey)", "state": "api_key" },
+    { "file": "codex-bedrock-access-keys.stderr", "tool": "codex", "stream": "stderr", "source": "copied: login.rs line 501 (AuthMode::BedrockAccessKeys)", "state": "api_key" },
+    { "file": "codex-workload-identity.stderr", "tool": "codex", "stream": "stderr", "source": "copied: login.rs line 454 (workload identity selected)", "state": "api_key" }
+  ]
+}

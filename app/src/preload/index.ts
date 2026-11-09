@@ -28,7 +28,20 @@ contextBridge.exposeInMainWorld('tearsheet', {
   fetchHistory: (reportId: string) => call('fetchHistory', { report_id: reportId }),
   checkKey: (service: string, key: string) => call('checkKey', { service, key }),
   runSafetyCheck: (tool: string) => call('runSafetyCheck', { tool }),
-  openTerminal: () => ipcRenderer.invoke('tearsheet:openTerminal'),
+  cancelSafetyCheck: () => call('cancelSafetyCheck', {}),
+  // First-run setup (first-run design item 15). The window names the tools; the main process
+  // builds every command itself.
+  windowState: (state: { waiting: boolean }) => ipcRenderer.invoke('tearsheet:windowState', { waiting: state?.waiting === true }),
+  copyAndOpenTerminal: (kinds: string[]) => ipcRenderer.invoke('tearsheet:copyAndOpenTerminal', kinds),
+  commandsFor: (kinds: string[]) => ipcRenderer.invoke('tearsheet:commandsFor', kinds),
+  showSetupLog: () => ipcRenderer.invoke('tearsheet:showSetupLog'),
+  // The Install button (first-run design item 29). Progress arrives as install_progress
+  // notifications. With the build's switch off, install, cancelInstall and openSignInPage have no
+  // handler in the main process, so they reject; getInstallButton then answers false.
+  install: (kinds: string[]) => ipcRenderer.invoke('tearsheet:install', kinds),
+  cancelInstall: () => ipcRenderer.invoke('tearsheet:cancelInstall'),
+  openSignInPage: () => ipcRenderer.invoke('tearsheet:openSignInPage'),
+  getInstallButton: () => ipcRenderer.invoke('tearsheet:getInstallButton'),
   openExternal: (url: string) => ipcRenderer.invoke('tearsheet:openExternal', url),
   about: () => ipcRenderer.invoke('tearsheet:about'),
   sendFeedback: () => ipcRenderer.invoke('tearsheet:sendFeedback'),
