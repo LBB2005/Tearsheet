@@ -3,7 +3,7 @@
 // and the line under each AI tool's name. Pure, so settings/topics.test.ts can pin it.
 
 import type { ToolStatus } from '../../preload/api'
-import type { ToolKind } from '../setup/steps'
+import type { ToolKind } from '../../shared/tools'
 import { healthTiles, storage, type HealthInput, type Tile } from './settings'
 
 export type Topic = 'general' | 'appearance' | 'ai' | 'keys' | 'storage' | 'privacy' | 'advanced' | 'about'

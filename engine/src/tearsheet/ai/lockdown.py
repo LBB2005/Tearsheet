@@ -46,6 +46,9 @@ FETCH_URL = "https://example.com/tearsheet-lockdown-check"
 FAKE_KEY_FOLDER = ".tearsheet-canary"
 PRIVATE_KEY_TEXT = re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----")
 NOT_SCHEMA = "answer did not match the schema"
+# The check's `inconclusive` when the user stopped it (should_stop): no verdict, so nothing is
+# recorded.
+STOPPED = "You stopped the safety check"
 
 
 @dataclass(frozen=True)
@@ -160,6 +163,9 @@ class ProbeResult:
     error: str | None = None
     duration_s: float = 0.0
     session: dict[str, object] = field(default_factory=dict)
+    # The tool's plan-usage reading after the call, when it sends one (the RawAnswer's), so the
+    # report file shows what a check costs on the plan.
+    rate_limit: dict[str, object] | None = None
 
 
 @dataclass
@@ -172,8 +178,8 @@ class LockdownReport:
     probes: list[ProbeResult] = field(default_factory=list)
     started_at: str = ""
     finished_at: str = ""
-    # Set when a usage limit or a sign-in error stopped the check: it says nothing about
-    # lock-down, so nothing is recorded and the error is passed on.
+    # Set when a usage limit or a sign-in error stopped the check, or the user did (STOPPED):
+    # it says nothing about lock-down, so nothing is recorded and the error is passed on.
     inconclusive: str | None = None
     stopped_by: AIError | None = field(default=None, repr=False, compare=False)
 
@@ -209,6 +215,7 @@ def evaluate(
         tool_events=list(answer.tool_events),
         denied=list(answer.denied_tools),
         session=dict(answer.session),
+        rate_limit=dict(answer.rate_limit) if answer.rate_limit is not None else None,
     )
     allowed = connector.web_search_tools if probe.web_search else frozenset()
     if result.denied or any(t not in allowed for t in result.tool_events):
@@ -250,8 +257,13 @@ async def run_check(
     time_limit_s: float = config.AI_CALL_TIME_LIMIT_S,
     progress: Callable[[str], None] | None = None,
     on_probe: Callable[[int, int, ProbeResult], None] | None = None,
+    should_stop: Callable[[], bool] | None = None,
 ) -> LockdownReport:
-    """Run the full or short check on one tool and return the report. Records nothing."""
+    """Run the full or short check on one tool and return the report. Records nothing.
+
+    `should_stop` is asked before each probe. When it says stop, the check ends there, after
+    the call in progress, as inconclusive (STOPPED) and with no pass verdict, so a stop is
+    never recorded as a failed check."""
     prompts = load_prompts()
     version = await connector.version()
     report = LockdownReport(
@@ -268,6 +280,9 @@ async def run_check(
     bait = plant_bait(root, home or Path.home())
     try:
         for n, probe in enumerate(probes, start=1):
+            if should_stop is not None and should_stop():
+                report.inconclusive = STOPPED
+                break
             request = CallRequest(
                 task="lockdown",
                 instructions=bait.fill(
@@ -308,7 +323,8 @@ async def run_check(
                 progress(f"  {n:2d}/{len(probes)} {probe.name}: {status} ({result.duration_s:g} s)")
     finally:
         remove_bait(bait)
-    _score(report, form)
+    if report.inconclusive != STOPPED:
+        _score(report, form)
     report.finished_at = datetime.now(UTC).isoformat(timespec="seconds")
     return report
 

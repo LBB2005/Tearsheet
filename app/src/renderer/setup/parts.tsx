@@ -22,15 +22,6 @@ export function ExternalIcon() {
   )
 }
 
-export function TerminalIcon() {
-  return (
-    <svg viewBox="0 0 32 32" aria-hidden="true">
-      <path d="M8 10l6 6-6 6" />
-      <path d="M17 23h8" />
-    </svg>
-  )
-}
-
 // A small spinning ring, for waiting. It stands still under Reduce motion.
 export function Spinner() {
   return <span className="sp" aria-hidden="true" />

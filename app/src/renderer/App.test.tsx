@@ -7,7 +7,7 @@ import { describe, expect, test, vi } from 'vitest'
 
 import { App } from './App'
 import { openReport, renderApp, win } from './test/app'
-import { bridge, download, emit, fail, flag, menu, ok, PREDICTIONS, settings } from './test/bridge'
+import { bridge, download, emit, fail, flag, inState, menu, ok, PREDICTIONS, settings, TOOLS } from './test/bridge'
 import { setSize, setWindowWidth, sizeReportPage } from './test/screen'
 
 const sidebar = () => within(screen.getByRole('complementary', { name: 'Sidebar' }))
@@ -331,6 +331,89 @@ describe('the engine’s notes', () => {
     bridge.getSettings.mockResolvedValue(ok(settings({ rejected_keys: ['massive'] })))
     emit('run_failed', { run_id: 'someone-else', message: 'x', code: 'ENGINE_ERROR' })
     expect(await screen.findByText('Massive key not accepted')).toBeInTheDocument()
+  })
+})
+
+describe('the AI tools and the safety check', () => {
+  const chip = (name: RegExp) => screen.getByRole('button', { name })
+  const details = () => within(screen.getByRole('dialog', { name: 'Safety check details' }))
+
+  test('the tools arrive from the main process when they change, and the window never polls', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      await renderApp({ advanceTimers: vi.advanceTimersByTime })
+      expect(sidebar().getByText('Claude Code ready')).toBeInTheDocument()
+      const asked = bridge.getTools.mock.calls.length
+      await act(() => vi.advanceTimersByTimeAsync(10_000))
+      expect(bridge.getTools.mock.calls.length).toBe(asked)
+      emit('tools_changed', { tools: [inState(TOOLS[0], 'signed_out'), TOOLS[1]] })
+      expect(sidebar().getByText('Claude Code signed out')).toBeInTheDocument()
+      expect(screen.getByRole('alert')).toHaveTextContent('Claude Code is signed out')
+      // Something else in the note changes nothing.
+      emit('tools_changed', { tools: 'none' })
+      expect(sidebar().getByText('Claude Code signed out')).toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  test('only a signed-out state counts as signed out', async () => {
+    bridge.getTools.mockResolvedValue([inState(TOOLS[0], 'cant_tell'), TOOLS[1]])
+    await renderApp()
+    expect(sidebar().getByText('Claude Code ready')).toBeInTheDocument()
+    expect(screen.queryByText('Claude Code is signed out')).toBeNull()
+  })
+
+  test('a check under way when the window opens shows its real count and minutes, and Stop the check stops it after this call', async () => {
+    const started = new Date(Date.now() - 3 * 60_000 - 5_000).toISOString()
+    bridge.getSettings.mockResolvedValue(ok(settings({ safety_running: { tool: 'claude', n: 8, total: 25, started_at: started } })))
+    const { user } = await renderApp()
+    expect(sidebar().getByText('Safety check, 8 of 25')).toBeInTheDocument()
+    await user.click(chip(/^Safety check, 8 of 25, 3 min so far\. Show what it checks\.$/))
+    expect(details().getByText('Tearsheet sends Claude 25 short test requests and makes sure that:')).toBeInTheDocument()
+    await user.click(details().getByRole('button', { name: 'Stop the check' }))
+    expect(bridge.cancelSafetyCheck).toHaveBeenCalledTimes(1)
+    expect(await details().findByText('Stopping after this call')).toBeInTheDocument()
+    // The calls go on until the one in progress ends; the stop is kept.
+    emit('safety_progress', { tool: 'claude', n: 9, total: 25 })
+    expect(details().getByText('Stopping after this call')).toBeInTheDocument()
+    // Once it ends, the chip goes, and the stored checks are read again.
+    const asked = bridge.getSettings.mock.calls.length
+    emit('safety_done', { tool: 'claude', passed: false, finished: false, reason: 'You stopped the safety check.' })
+    expect(screen.queryByRole('dialog', { name: 'Safety check details' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /^Safety check, / })).toBeNull()
+    await waitFor(() => expect(bridge.getSettings.mock.calls.length).toBeGreaterThan(asked))
+  })
+
+  test('the chip’s details close with a click elsewhere, and a stop the engine refuses says so', async () => {
+    const { user } = await renderApp()
+    emit('safety_progress', { tool: 'codex', n: 2, total: 25 })
+    await user.click(chip(/^Safety check, 2 of 25/))
+    expect(details().getByText(/Tearsheet sends Codex 25 short test requests/)).toBeInTheDocument()
+    await user.click(chip(/^Safety check, 2 of 25/))
+    expect(screen.queryByRole('dialog', { name: 'Safety check details' })).toBeNull()
+    await user.click(chip(/^Safety check, 2 of 25/))
+    bridge.cancelSafetyCheck.mockResolvedValueOnce(fail('The engine is busy.'))
+    await user.click(details().getByRole('button', { name: 'Stop the check' }))
+    expect(await screen.findByText('The safety check didn’t stop')).toBeInTheDocument()
+    expect(screen.getByText('The engine is busy.')).toBeInTheDocument()
+    // A check that had already ended: nothing to stop.
+    bridge.cancelSafetyCheck.mockResolvedValueOnce(ok({ stopping: false }))
+    await user.click(details().getByRole('button', { name: 'Stop the check' }))
+    expect(details().getByRole('button', { name: 'Stop the check' })).toBeInTheDocument()
+    bridge.cancelSafetyCheck.mockRejectedValueOnce(new Error('gone'))
+    await user.click(details().getByRole('button', { name: 'Stop the check' }))
+    expect(await screen.findByText('Tearsheet’s engine didn’t answer.')).toBeInTheDocument()
+    fireEvent.mouseDown(document.body)
+    expect(screen.queryByRole('dialog', { name: 'Safety check details' })).toBeNull()
+  })
+
+  test('a safety check whose start is refused says why', async () => {
+    bridge.getSettings.mockResolvedValue(ok(settings({ lockdown: { claude: { version: '2.1.3', passed: false, form: null, checked_at: null, blocked_reason: 'lockdown_failed' } } })))
+    bridge.runSafetyCheck.mockRejectedValue(new Error('gone'))
+    const { user } = await renderApp()
+    await user.click(await screen.findByRole('button', { name: 'Run the check again' }))
+    expect(await screen.findByText('The safety check didn’t start.')).toBeInTheDocument()
   })
 })
 

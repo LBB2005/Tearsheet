@@ -1,13 +1,18 @@
-// The two key cards of setup's Prices and Economic figures steps: Get a free key, which opens
-// the service's site in the browser, and Paste it here, which checks the key with one call
-// (checkKey) and shows a real number as proof. The engine saves the key to the Keychain only
-// when the check works; the window then forgets it and never shows it again. Settings uses the
-// same Paste it here card for its data keys, with its own heading.
+// The paste-and-check card for a data key (first-run design item 36), shared by the setup
+// screen's price key and Settings → Data keys. It does the whole check, and its page only learns
+// that the key works:
+//   - a local shape check runs before any call (helpers.ts keyShape);
+//   - with `checkOnPaste`, the check runs as soon as a key is pasted, and the masked key shows;
+//   - one check at a time, and only the latest answer counts;
+//   - a rejected key is cleared and the field focused;
+//   - "Try again" appears when the service can't be reached.
+// The engine saves the key to the Keychain only when the check works; the window then forgets it
+// and never shows it again. `showCheck` adds a Check button (Settings); setup has none (D7).
 
-import { useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ClipboardEvent, type ReactNode, type RefObject } from 'react'
 
+import { keyProblem, keyShape, maskKey, SERVICE_NAME, type KeyService } from './helpers'
 import { Card, CheckIcon, Changes, ExternalIcon, Spinner } from './parts'
-import { keyProblem, SERVICE_NAME, type KeyService } from './steps'
 
 export interface KeyText {
   title: string
@@ -41,54 +46,80 @@ export const KEY_TEXT: Record<KeyService, KeyText> = {
   }
 }
 
-export function GetKeyCard({ service, i }: { service: KeyService; i: number }) {
-  const text = KEY_TEXT[service]
-  return (
-    <Card i={i}>
-      <h4>
-        <span className="n">1</span>Get a free key
-      </h4>
-      <p>{text.how}</p>
-      <div className="row">
-        <button className="btn2" onClick={() => void window.tearsheet.openExternal(text.url)}>
-          Open {text.site} <ExternalIcon />
-        </button>
-      </div>
-    </Card>
-  )
-}
-
-type Status = { kind: 'idle' } | { kind: 'checking' } | { kind: 'works'; proof: string } | { kind: 'bad'; text: string }
+type Status = { kind: 'idle' } | { kind: 'checking'; masked: string } | { kind: 'works'; proof: string } | { kind: 'bad'; text: string; retry: boolean }
 
 export interface KeyCardProps {
   service: KeyService
   i: number
   // The line from a check that already worked, if any.
   proof?: string
-  // In place of setup's numbered "Paste it here"; null for none.
+  // In place of the numbered "Paste it here"; null for none.
   heading?: ReactNode
+  // The check runs as soon as a key is pasted.
+  checkOnPaste?: boolean
+  // A Check button beside the field.
+  showCheck?: boolean
+  // Setup's version: "Get a free key" beside the field, with no card around them.
+  getKey?: { onOpen?: () => void }
+  placeholder?: string
+  inputRef?: RefObject<HTMLInputElement>
   onWorks: (proof: string) => void
 }
 
-// Paste it here.
-export function KeyCard({ service, i, proof, heading, onWorks }: KeyCardProps) {
+export function KeyCard({ service, i, proof, heading, checkOnPaste = false, showCheck = false, getKey, placeholder, inputRef, onWorks }: KeyCardProps) {
   const [value, setValue] = useState('')
   const [status, setStatus] = useState<Status>(proof ? { kind: 'works', proof } : { kind: 'idle' })
+  const own = useRef<HTMLInputElement>(null)
+  const field = inputRef ?? own
+  // Only the latest check's answer counts.
+  const latest = useRef(0)
+  // The key a check that couldn't reach the service was sent, for Try again.
+  const last = useRef('')
+  const live = useRef(true)
+  useEffect(
+    () => () => {
+      live.current = false
+    },
+    []
+  )
   const name = SERVICE_NAME[service]
+  const text = KEY_TEXT[service]
   const checking = status.kind === 'checking'
 
-  const check = async () => {
-    const key = value.trim()
-    if (checking) return
-    if (!key) return setStatus({ kind: 'bad', text: 'Paste your key first.' })
-    setStatus({ kind: 'checking' })
+  const reject = (problem: string, retry = false) => {
+    setValue('')
+    setStatus({ kind: 'bad', text: problem, retry })
+    if (!retry) window.setTimeout(() => field.current?.focus(), 0)
+  }
+
+  const check = async (raw: string) => {
+    const key = raw.trim()
+    const shape = keyShape(key)
+    if (shape) return reject(shape)
+    const ask = ++latest.current
+    last.current = key
+    setStatus({ kind: 'checking', masked: maskKey(key) })
     const reply = await window.tearsheet.checkKey(service, key).catch(() => ({ ok: false as const, result: undefined, error: undefined }))
+    if (!live.current || ask !== latest.current) return
     if (reply.ok && reply.result) {
       // Saved in the Keychain by the engine; the window lets go of it.
       setValue('')
+      last.current = ''
       setStatus({ kind: 'works', proof: reply.result.proof })
       onWorks(reply.result.proof)
-    } else setStatus({ kind: 'bad', text: keyProblem(service, reply.error?.code) })
+    } else {
+      const code = reply.error?.code
+      reject(keyProblem(service, code), code === 'SERVICE_UNREACHABLE')
+    }
+  }
+
+  const paste = (e: ClipboardEvent<HTMLInputElement>) => {
+    if (!checkOnPaste) return
+    const pasted = e.clipboardData.getData('text')
+    if (!pasted) return
+    e.preventDefault()
+    setValue(pasted.trim())
+    void check(pasted)
   }
 
   const works = Boolean(proof) || status.kind === 'works'
@@ -97,7 +128,7 @@ export function KeyCard({ service, i, proof, heading, onWorks }: KeyCardProps) {
     line = (
       <>
         <Spinner />
-        Checking with {name}…
+        Checking <span className="mono">{status.masked}</span> with {name}…
       </>
     )
   } else if (status.kind === 'works') {
@@ -107,9 +138,74 @@ export function KeyCard({ service, i, proof, heading, onWorks }: KeyCardProps) {
         {status.proof}
       </>
     )
-  } else if (status.kind === 'bad') line = status.text
+  } else if (status.kind === 'bad') {
+    line = (
+      <>
+        {status.text}
+        {status.retry && (
+          <button className="link" onClick={() => void check(last.current)}>
+            Try again
+          </button>
+        )}
+      </>
+    )
+  }
   const tone = status.kind === 'works' ? 'st ok' : status.kind === 'bad' ? 'st bad' : 'st'
 
+  const row = (
+    <div className={getKey ? 'krow3' : 'field'}>
+      {getKey && (
+        <button
+          className="btn2"
+          onClick={() => {
+            getKey.onOpen?.()
+            void window.tearsheet.openExternal(text.url)
+          }}
+        >
+          Get a free key <ExternalIcon />
+        </button>
+      )}
+      <input
+        ref={field}
+        className={getKey ? 'kin' : undefined}
+        type="password"
+        placeholder={placeholder ?? text.placeholder}
+        aria-label={text.placeholder}
+        autoComplete="off"
+        spellCheck={false}
+        value={value}
+        disabled={checking}
+        onChange={(e) => setValue(e.target.value)}
+        onPaste={paste}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault()
+            if (!checking) void check(value)
+          }
+        }}
+      />
+      {showCheck && (
+        <button className="btn2" disabled={checking} onClick={() => void check(value)}>
+          Check
+        </button>
+      )}
+    </div>
+  )
+  const note = (
+    <Changes k={status.kind === 'bad' ? `bad:${status.text}` : status.kind} className={tone} live>
+      {line}
+    </Changes>
+  )
+
+  if (getKey) {
+    return (
+      <div className="keyask">
+        {row}
+        {note}
+        <p className="fine">Saved in your Mac’s Keychain, never in a file.</p>
+      </div>
+    )
+  }
   return (
     <Card i={i} className={works ? 'done' : undefined}>
       {heading === undefined ? (
@@ -119,30 +215,8 @@ export function KeyCard({ service, i, proof, heading, onWorks }: KeyCardProps) {
       ) : (
         heading
       )}
-      <div className="field">
-        <input
-          type="password"
-          placeholder={KEY_TEXT[service].placeholder}
-          aria-label={KEY_TEXT[service].placeholder}
-          autoComplete="off"
-          spellCheck={false}
-          value={value}
-          disabled={checking}
-          onChange={(e) => setValue(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault()
-              void check()
-            }
-          }}
-        />
-        <button className="btn2" disabled={checking} onClick={() => void check()}>
-          Check
-        </button>
-      </div>
-      <Changes k={status.kind === 'bad' ? `bad:${status.text}` : status.kind} className={tone} live>
-        {line}
-      </Changes>
+      {row}
+      {note}
       <p className="fine">Saved in your Mac’s Keychain, never in a file.</p>
     </Card>
   )

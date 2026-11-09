@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { CompanyRow, SearchHit } from '../shared/protocol'
 import type { LockdownState } from '../shared/protocol'
 import { freshHits, nextCompany, peerRule, safetyFailed, safetyUnfinished, shortDate, statusLine } from './nav'
-import { safetyStarted, type SafetyState } from './setup/steps'
+import { safetyStarted, type SafetyState } from './setup/state/safety'
 
 const row = (ticker: string): CompanyRow => ({
   cik: ticker.length,

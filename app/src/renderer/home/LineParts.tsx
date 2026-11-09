@@ -6,10 +6,13 @@
 //   the line is done, how each report went, each one opening from the list.
 // - LinePaused, at the top of the home page: reports waiting in a paused line (left from when
 //   Tearsheet closed, or behind a problem such as the plan's usage limit), to carry on or clear.
+//   Behind a safety check that didn't pass, only the check again or Cancel all.
+// - LineWaiting, in the same place: reports waiting for the safety check under way, before any
+//   report has been written (first-run design §5).
 
 import type { LineItem, LinePlan, LineState } from '../../shared/protocol'
 import { at } from '../setup/parts'
-import { doneCount, joinNames, lineTime, linePlace, officialNote, outcomeText, plural, REOPENED } from './line'
+import { doneCount, joinNames, lineTime, linePlace, officialNote, outcomeText, plural, REOPENED, SAFETY_PAUSES, safetyPause, safetyPauseText } from './line'
 
 export function LinePlanCard({ plan, starting, onStart, onCancel }: { plan: LinePlan; starting: boolean; onStart: () => void; onCancel: () => void }) {
   const n = plan.items.length
@@ -64,11 +67,17 @@ export interface LineStripProps {
   onCancelAll: () => void
   onCarryOn: () => void
   onOpen: (reportId: string) => void
+  // Behind a stopped or unfinished safety check: run it again.
+  onRecheck?: () => void
 }
 
-export function LineStrip({ line, runId, perReport, onRemove, onAdd, onCancelAll, onCarryOn, onOpen }: LineStripProps) {
+export function LineStrip({ line, runId, perReport, onRemove, onAdd, onCancelAll, onCarryOn, onOpen, onRecheck }: LineStripProps) {
   const ours = line.writing?.run_id === runId || line.finished.some((item) => item.run_id === runId)
   const paused = line.paused !== null && line.paused.code !== REOPENED
+  // A safety pause: carrying on would skip the full check. A stopped or unfinished check paused
+  // no report of its own, so it says why and offers the check; a failed one's run has its box.
+  const safe = paused && safetyPause(line.paused?.code)
+  const checkPause = paused && SAFETY_PAUSES.has(line.paused?.code ?? '')
   const going = line.writing !== null || line.waiting.length > 0
   if (going || paused) {
     const n = line.waiting.length
@@ -87,7 +96,7 @@ export function LineStrip({ line, runId, perReport, onRemove, onAdd, onCancelAll
         </div>
         {paused && (
           <p className="why">
-            The line is paused. Resume carries on with this report, then the {n === 1 ? 'one' : n} waiting.
+            {checkPause && line.paused ? safetyPauseText(line.paused.code, line.paused.message) : `The line is paused. Resume carries on with this report, then the ${n === 1 ? 'one' : n} waiting.`}
           </p>
         )}
         {n > 0 ? (
@@ -110,7 +119,12 @@ export function LineStrip({ line, runId, perReport, onRemove, onAdd, onCancelAll
               Add a company
             </button>
           )}
-          {paused && n > 0 && (
+          {checkPause && onRecheck && (
+            <button className="btn2" onClick={onRecheck}>
+              Run it again
+            </button>
+          )}
+          {paused && !safe && n > 0 && (
             <button className="btn2" onClick={onCarryOn}>
               Skip it and carry on
             </button>
@@ -154,9 +168,45 @@ function DoneRow({ item, onOpen }: { item: LineItem; onOpen: (reportId: string) 
   )
 }
 
-export function LinePaused({ line, onCarryOn, onClear }: { line: LineState; onCarryOn: () => void; onClear: () => void }) {
+export interface LinePausedProps {
+  line: LineState
+  onCarryOn: () => void
+  onClear: () => void
+  // Behind a safety check that didn't pass (line.ts safetyPause): the full check again, and the
+  // line's Cancel all. Carry on is hidden, since it would skip the check.
+  onRecheck: () => void
+  onCancelAll: () => void
+  // A check runs now, so Run it again waits for it.
+  checking?: boolean
+  // This session's reason for a failed check, said in place of the engine's message.
+  checkReason?: string | null
+  // The writing tool's check has passed since a LOCKDOWN_FAILED pause: going on is safe again,
+  // as it was before (the paused report's Resume, or Carry on).
+  checkPassed?: boolean
+}
+
+export function LinePaused({ line, onCarryOn, onClear, onRecheck, onCancelAll, checking = false, checkReason = null, checkPassed = false }: LinePausedProps) {
   const names = line.waiting.map((item) => item.ticker)
   const reopened = line.paused?.code === REOPENED
+  const pause = line.paused
+  if (pause && safetyPause(pause.code) && !(pause.code === 'LOCKDOWN_FAILED' && checkPassed)) {
+    return (
+      <div className={pause.code === 'LOCKDOWN_FAILED' ? 'card alert mv' : 'card alert note mv'} style={at(0)} role="status">
+        <div>
+          <b>The line is paused</b>
+          <span>
+            {safetyPauseText(pause.code, pause.message, checkReason)} {joinNames(names)} {names.length === 1 ? 'is' : 'are'} waiting.
+          </span>
+        </div>
+        <button className="btn2" disabled={checking} onClick={onRecheck}>
+          {checking ? 'Checking…' : 'Run it again'}
+        </button>
+        <button className="btn2" onClick={onCancelAll}>
+          Cancel all
+        </button>
+      </div>
+    )
+  }
   return (
     <div className="card alert note mv" style={at(0)} role="status">
       <div>
@@ -175,6 +225,24 @@ export function LinePaused({ line, onCarryOn, onClear }: { line: LineState; onCa
       <button className="btn2" onClick={onClear}>
         Clear
       </button>
+    </div>
+  )
+}
+
+// Reports waiting for the safety check under way, before any report runs: they start once it
+// passes (first-run design §5, CUJ 6).
+export function LineWaiting({ line, n, total }: { line: LineState; n: number; total: number }) {
+  const names = line.waiting.map((item) => item.ticker)
+  return (
+    <div className="card alert note mv" style={at(0)} role="status" aria-label="Waiting for the safety check">
+      <div>
+        <b>
+          {joinNames(names)} {names.length === 1 ? 'is' : 'are'} in the line
+        </b>
+        <span>
+          Starts when the safety check finishes ({n} of {total}).
+        </span>
+      </div>
     </div>
   )
 }

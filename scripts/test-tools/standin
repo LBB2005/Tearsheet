@@ -1,0 +1,216 @@
+#!/bin/sh
+# The stand-in for Claude Code and Codex (design: docs/designs/first-run/first-run-setup.md,
+# Stage 1, item 24). scripts/try-new-user.sh copies it into a test folder, and the stand-in
+# installers copy it to <test folder>/tools/claude or tools/codex. It knows which tool it is from
+# its own file name, and keeps its state in <test folder>/state (one key=value per line).
+#
+# It answers only what the app asks a tool, each in the real tool's format and on the real tool's
+# stream (checked against Claude Code 2.1.317 and Codex 0.165.0 on 2026-11-08):
+#
+#   claude --version            2.1.317 (Claude Code), or 2.1.300 when claude=too_old  (stdout)
+#   claude auth status [--json] the JSON `claude auth status` prints; exit 1 when signed out (stdout)
+#   claude auth login           the opening lines and link, 3 seconds, "Login successful." (stdout)
+#   codex --version             codex-cli 0.165.0                                        (stdout)
+#   codex login status          "Logged in using ChatGPT", "API key configured - sk-****" or
+#                               "Not logged in" (exit 1)                                 (stderr)
+#   codex login                 sets codex=signed_out first, as the real one clears the old
+#                               sign-in; the opening lines and link, 3 seconds, then
+#                               codex=signed_in and "Successfully logged in"             (stderr)
+#
+# A sign-in changes only the state file. With login=hang it prints its opening lines and waits
+# until it is stopped. Anything else fails with exit code 1 and "Stand-in: not a real Claude Code"
+# (or Codex). It never runs the real tools: it runs no program by name, only shell built-ins, and
+# a sign-in uses /bin/sleep and /bin/mv by their full paths.
+
+# Who am I, and where is my state file? (Built-ins only, so nothing is looked up on the PATH.)
+case $0 in
+  */*) here=${0%/*} ;;
+  *) here=. ;;
+esac
+me=${0##*/}
+state_file=$here/../state
+
+case $me in
+  claude) title='Claude Code' ;;
+  codex) title='Codex' ;;
+  *)
+    printf '%s\n' "Stand-in: not a real Claude Code or Codex. Copy me to tools/claude or tools/codex." >&2
+    exit 1
+    ;;
+esac
+
+refuse() {
+  printf '%s\n' "Stand-in: not a real $title" >&2
+  exit 1
+}
+
+# get KEY DEFAULT: sets $value to the last KEY= line of the state file, or to DEFAULT.
+get() {
+  value=$2
+  if [ -f "$state_file" ]; then
+    while IFS= read -r line || [ -n "$line" ]; do
+      case $line in
+        "$1="*) value=${line#*=} ;;
+      esac
+    done <"$state_file"
+  fi
+  # Trailing spaces or a carriage return from a hand edit don't count.
+  value=${value%"${value##*[![:space:]]}"}
+}
+
+# set_state KEY VALUE: changes that one line (or adds it), keeping every other line as it was.
+set_state() {
+  new=''
+  found=''
+  if [ -f "$state_file" ]; then
+    while IFS= read -r line || [ -n "$line" ]; do
+      case $line in
+        "$1="*)
+          if [ -z "$found" ]; then
+            new="$new$1=$2
+"
+            found=1
+          fi
+          ;;
+        *)
+          new="$new$line
+"
+          ;;
+      esac
+    done <"$state_file"
+  fi
+  if [ -z "$found" ]; then
+    new="$new$1=$2
+"
+  fi
+  printf '%s' "$new" >"$state_file.$$" && /bin/mv -f "$state_file.$$" "$state_file"
+}
+
+# pause SECONDS (or "forever"): waits, and when stopped, stops its sleep too and dies of the same
+# signal, as the real tools do.
+pause() {
+  if [ "$1" = forever ]; then
+    while :; do pause 3600; done
+  fi
+  /bin/sleep "$1" &
+  child=$!
+  trap 'kill "$child" 2>/dev/null; trap - TERM; kill -TERM $$' TERM
+  trap 'kill "$child" 2>/dev/null; trap - INT; kill -INT $$' INT
+  trap 'kill "$child" 2>/dev/null; trap - HUP; kill -HUP $$' HUP
+  wait "$child"
+  trap - TERM INT HUP
+}
+
+get "$me" signed_out
+tool_state=$value
+case $me:$tool_state in
+  claude:signed_out | claude:signed_in | claude:api_key | claude:too_old) ;;
+  codex:signed_out | codex:signed_in | codex:api_key) ;;
+  *)
+    printf '%s\n' "Stand-in: $me=$tool_state in the state file isn't a state the stand-in knows." >&2
+    exit 1
+    ;;
+esac
+get login normal
+login=$value
+
+claude_status() {
+  # The keys and their order are those of Claude Code 2.1.317's `auth status`, which prints
+  # JSON.stringify(status, null, 2). The email, organisation and folders are fixed fake values.
+  case $tool_state in
+    signed_out)
+      printf '%s\n' '{' \
+        '  "loggedIn": false,' \
+        '  "authMethod": "none",' \
+        '  "apiProvider": "firstParty",' \
+        '  "analyticsDisabled": false,' \
+        '  "projectsDirectory": "/Users/you/.claude/projects",' \
+        '  "configDirectory": "/Users/you/.claude"' \
+        '}'
+      exit 1
+      ;;
+    api_key)
+      printf '%s\n' '{' \
+        '  "loggedIn": true,' \
+        '  "authMethod": "api_key",' \
+        '  "apiProvider": "firstParty",' \
+        '  "analyticsDisabled": false,' \
+        '  "projectsDirectory": "/Users/you/.claude/projects",' \
+        '  "configDirectory": "/Users/you/.claude",' \
+        '  "apiKeySource": "ANTHROPIC_API_KEY"' \
+        '}'
+      exit 0
+      ;;
+    *)
+      printf '%s\n' '{' \
+        '  "loggedIn": true,' \
+        '  "authMethod": "claude.ai",' \
+        '  "apiProvider": "firstParty",' \
+        '  "analyticsDisabled": false,' \
+        '  "projectsDirectory": "/Users/you/.claude/projects",' \
+        '  "configDirectory": "/Users/you/.claude",' \
+        '  "email": "you@example.com",' \
+        '  "orgId": "00000000-0000-4000-8000-000000000000",' \
+        '  "orgName": "Stand-in organisation",' \
+        '  "subscriptionType": "max"' \
+        '}'
+      exit 0
+      ;;
+  esac
+}
+
+claude_login() {
+  # Claude Code 2.1.317's own lines, on standard output, with its link wrapped in terminal link
+  # codes as it does (ESC ] 8 ;; link ESC \).
+  url='https://claude.ai/oauth/authorize?standin=1'
+  printf '%s\n' 'Opening browser to sign in…'
+  printf 'If the browser didn'"'"'t open, visit: \033]8;;%s\033\\%s\033]8;;\033\\\n' "$url" "$url"
+  printf '%s' 'Paste code here if prompted > '
+  if [ "$login" = hang ]; then pause forever; fi
+  pause 3
+  # A too-old copy stays too old when it signs in; it reads as signed in already.
+  if [ "$tool_state" != too_old ]; then set_state claude signed_in; fi
+  printf '%s\n' 'Login successful.'
+  exit 0
+}
+
+codex_status() {
+  case $tool_state in
+    signed_in) printf '%s\n' 'Logged in using ChatGPT' >&2; exit 0 ;;
+    api_key) printf '%s\n' 'API key configured - sk-****' >&2; exit 0 ;;
+    *) printf '%s\n' 'Not logged in' >&2; exit 1 ;;
+  esac
+}
+
+codex_login() {
+  # Codex clears any sign-in before it starts, then prints login.rs's lines on standard error.
+  set_state codex signed_out
+  url='https://auth.openai.com/oauth/authorize?standin=1'
+  {
+    printf '%s\n' 'Starting local login server on http://localhost:1455.'
+    printf '%s\n\n%s\n\n' 'If your browser did not open, navigate to this URL to authenticate:' "$url"
+    printf '%s\n' 'On a remote or headless machine? Use `codex login --device-auth` instead.'
+  } >&2
+  if [ "$login" = hang ]; then pause forever; fi
+  pause 3
+  set_state codex signed_in
+  printf '%s\n' 'Successfully logged in' >&2
+  exit 0
+}
+
+case $me:$#:$* in
+  claude:1:--version)
+    if [ "$tool_state" = too_old ]; then
+      printf '%s\n' '2.1.300 (Claude Code)'
+    else
+      printf '%s\n' '2.1.317 (Claude Code)'
+    fi
+    exit 0
+    ;;
+  'claude:2:auth status' | 'claude:3:auth status --json') claude_status ;;
+  'claude:2:auth login') claude_login ;;
+  codex:1:--version) printf '%s\n' 'codex-cli 0.165.0'; exit 0 ;;
+  'codex:2:login status') codex_status ;;
+  codex:1:login) codex_login ;;
+  *) refuse ;;
+esac

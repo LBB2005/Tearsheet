@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { USUAL } from '../../shared/pace'
 import type { LineItem, LineState } from '../../shared/protocol'
-import { doneCount, inLine, isList, joinNames, lineGoing, linePlace, lineTime, newlyUnstarted, officialNote, outcomeText, splitQueries, usualReport } from './line'
+import { doneCount, inLine, isList, joinNames, lineGoing, linePlace, lineTime, newlyUnstarted, officialNote, outcomeText, safetyPause, safetyPauseText, splitQueries, usualReport, waitsForCheck } from './line'
 
 const item = (ticker: string, over: Partial<LineItem> = {}): LineItem => ({ ticker, name: ticker, official: true, run_id: null, outcome: null, report_id: null, code: null, message: null, ...over })
 const state = (over: Partial<LineState> = {}): LineState => ({ waiting: [], writing: null, finished: [], paused: null, limit: 10, ...over })
@@ -86,5 +86,38 @@ describe('how each report went', () => {
     expect(newlyUnstarted(before, after).map((i) => i.ticker)).toEqual(['ZZ'])
     expect(newlyUnstarted(null, after).map((i) => i.ticker)).toEqual(['ZZ'])
     expect(newlyUnstarted(after, after)).toEqual([])
+  })
+})
+
+describe('the safety check and the line', () => {
+  const pause = (code: string) => ({ code, message: 'm', reset_at: null, fix_command: null, run_id: null })
+
+  it('knows the pauses only the check can lift', () => {
+    for (const code of ['LOCKDOWN_FAILED', 'SAFETY_CHECK_STOPPED', 'SAFETY_CHECK_UNFINISHED']) expect(safetyPause(code)).toBe(true)
+    for (const code of ['USAGE_LIMIT', 'REOPENED', '', null, undefined]) expect(safetyPause(code)).toBe(false)
+  })
+
+  it('says why each one waits', () => {
+    expect(safetyPauseText('SAFETY_CHECK_STOPPED', 'You stopped the safety check.')).toBe('You stopped the safety check. Reports wait until it passes.')
+    expect(safetyPauseText('SAFETY_CHECK_UNFINISHED', 'The check couldn’t finish: you hit your usage limit')).toBe('The safety check couldn’t finish: you hit your usage limit.')
+    expect(safetyPauseText('SAFETY_CHECK_UNFINISHED', "The check couldn't finish: Claude Code is signed out.")).toBe('The safety check couldn’t finish: Claude Code is signed out.')
+    expect(safetyPauseText('SAFETY_CHECK_UNFINISHED', 'The check stopped unexpectedly.')).toBe('The safety check couldn’t finish: The check stopped unexpectedly.')
+    expect(safetyPauseText('SAFETY_CHECK_UNFINISHED', '')).toBe('The safety check couldn’t finish: it stopped part way.')
+    // A failed check: this session's reason, else the engine's message.
+    expect(safetyPauseText('LOCKDOWN_FAILED', 'Claude Code is blocked.', 'It read a file')).toBe('It read a file.')
+    expect(safetyPauseText('LOCKDOWN_FAILED', 'Claude Code is blocked.')).toBe('Claude Code is blocked.')
+    expect(safetyPauseText('LOCKDOWN_FAILED', '', null)).toBe('The safety check didn’t pass.')
+  })
+
+  it('waits for the check only with reports waiting, none written, and nothing else holding the line', () => {
+    const waiting = state({ waiting: [item('NVDA')] })
+    expect(waitsForCheck(waiting, true)).toBe(true)
+    expect(waitsForCheck(waiting, false)).toBe(false)
+    expect(waitsForCheck(null, true)).toBe(false)
+    expect(waitsForCheck(state(), true)).toBe(false)
+    expect(waitsForCheck(state({ waiting: [item('NVDA')], writing: item('AAPL') }), true)).toBe(false)
+    expect(waitsForCheck(state({ waiting: [item('NVDA')], paused: pause('SAFETY_CHECK_STOPPED') }), true)).toBe(true)
+    expect(waitsForCheck(state({ waiting: [item('NVDA')], paused: pause('USAGE_LIMIT') }), true)).toBe(false)
+    expect(waitsForCheck(state({ waiting: [item('NVDA')], paused: pause('LOCKDOWN_FAILED') }), true)).toBe(false)
   })
 })

@@ -5,7 +5,9 @@
 import type { ToolStatus } from '../../preload/api'
 import type { Keys, LockdownState } from '../../shared/protocol'
 import { safetyFailed, safetyUnfinished } from '../nav'
-import { isEmail, TOOL_TEXT, type SafetyState, type ToolKind } from '../setup/steps'
+import { isEmail, type ToolKind } from '../../shared/tools'
+import type { SafetyState } from '../setup/state/safety'
+import { TOOL_TEXT } from '../setup/words'
 
 // ok green, hold amber, bad red, run accent (something under way), off grey (nothing wrong).
 export type Tone = 'ok' | 'hold' | 'bad' | 'run' | 'off'
@@ -61,11 +63,16 @@ const storedNotUsable = (state: LockdownState | undefined) => Boolean(state && (
 
 const runningFor = (safety: SafetyState | null, kind: ToolKind) => (safety && safety.tool === kind && !safety.done ? safety : null)
 
-// The pill on each AI tool's row. This session's safety check, when one ran for the tool,
-// outranks the check stored before it.
+// The pill on each AI tool's row, by what its status read found (shared/tools.ts), so it agrees
+// with the row's action. This session's safety check, when one ran for the tool, outranks the
+// check stored before it.
 export function toolPill(tool: ToolStatus, stored: LockdownState | undefined, safety: SafetyState | null): { tone: Tone; text: string } {
-  if (!tool.available) return { tone: 'off', text: 'Not found' }
-  if (tool.loggedIn === false) return { tone: 'bad', text: 'Signed out' }
+  if (tool.state === 'missing') return { tone: 'off', text: 'Not found' }
+  if (tool.state === 'signed_out') return { tone: 'bad', text: 'Signed out' }
+  if (tool.state === 'too_old') return { tone: 'bad', text: 'Too old' }
+  if (tool.state === 'api_key') return { tone: 'bad', text: 'Not on a plan' }
+  if (tool.state === 'free_plan') return { tone: 'bad', text: 'Free plan' }
+  if (tool.state === 'cant_tell') return { tone: 'hold', text: 'Can’t tell' }
   if (runningFor(safety, tool.kind)) return { tone: 'run', text: 'Checking' }
   // A check that stopped part way gave no verdict, so the stored one stands.
   const session = safety && safety.tool === tool.kind && safety.done && !safety.stopped ? safety : null
@@ -87,6 +94,9 @@ export interface HealthInput {
   rejected?: string[]
   rawBytes: number
   rawCap: number
+  // Codex billed to an API key (codex_billing set to api). The settings don't say, and
+  // set-setting can't set it, so it is off unless a caller knows better.
+  codexApi?: boolean
 }
 
 // The keys reports use, in the order the tile names them. Alpha Vantage isn't used yet.
@@ -137,16 +147,14 @@ export function healthTiles(h: HealthInput): Tile[] {
   if (!other) skeptic = { name: 'Other-tool skeptic', tone: 'off', text: `Looking for ${otherName}…` }
   else if (!other.available) skeptic = { name: 'Other-tool skeptic', tone: 'off', text: `Off: ${otherName} isn’t installed` }
   else if (safetyFailed(h.safety, otherKind, h.lockdown[otherKind])) skeptic = { name: 'Other-tool skeptic', tone: 'bad', text: `Off: ${otherName} failed its check` }
-  else if (other.loggedIn === false) skeptic = { name: 'Other-tool skeptic', tone: 'hold', text: `Off: ${otherName} is signed out` }
+  else if (other.state === 'signed_out') skeptic = { name: 'Other-tool skeptic', tone: 'hold', text: `Off: ${otherName} is signed out` }
+  // Codex checks drafts only on a ChatGPT sign-in, unless it is billed to an API key: the
+  // engine's rule (ai/client.py), which steps down to the writing tool before any call.
+  else if (otherKind === 'codex' && other.state !== 'ready' && !h.codexApi) skeptic = { name: 'Other-tool skeptic', tone: 'hold', text: 'Off: Codex isn’t signed in with ChatGPT' }
   else if (checking) skeptic = { name: 'Other-tool skeptic', tone: 'run', text: `Checking ${otherName}, ${checking.n} of ${checking.total}` }
   else skeptic = { name: 'Other-tool skeptic', tone: 'ok', text: `On: ${otherName} checks the drafts` }
 
   return [ai, keys, space, skeptic]
-}
-
-// A folder in the home folder, written from ~ as the prototype does.
-export function tildePath(path: string): string {
-  return path.replace(/^\/Users\/[^/]+(?=\/|$)/, '~')
 }
 
 // The SEC email as the prototype shows it: the first letter and the domain.

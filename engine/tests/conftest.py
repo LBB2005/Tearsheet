@@ -55,6 +55,9 @@ def offline(request, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     # Nor touch the real data folder or Keychain.
     monkeypatch.setattr(config, "DEFAULT_DATA_DIR", tmp_path / "default-data")
     monkeypatch.delenv(config.DATA_DIR_ENV, raising=False)
+    # A test copy's switches (first-run design §6) are off unless a test sets them.
+    monkeypatch.delenv(config.KEYCHAIN_SERVICE_ENV, raising=False)
+    monkeypatch.delenv(config.TEST_TOOLS_ENV, raising=False)
     keyring.set_keyring(MemoryKeyring())
     monkeypatch.setattr(config, "_keychain_said_no", set())
 

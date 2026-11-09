@@ -61,8 +61,17 @@ def resolve_data_dir(cli_value: str | os.PathLike[str] | None = None) -> Path:
 
 # --- Keys (macOS Keychain) ---------------------------------------------------
 
-KEYCHAIN_SERVICE = "Tearsheet"
+DEFAULT_KEYCHAIN_SERVICE = "Tearsheet"
+# A test copy's own Keychain name (first-run design §6), so the real keys are never seen or
+# replaced.
+KEYCHAIN_SERVICE_ENV = "TEARSHEET_KEYCHAIN_SERVICE"
 KEY_SERVICES = ("massive", "fred", "alphavantage")
+
+
+def keychain_service() -> str:
+    """The Keychain service the keys are kept under: `TEARSHEET_KEYCHAIN_SERVICE` when it is
+    set, and `Tearsheet` otherwise."""
+    return os.environ.get(KEYCHAIN_SERVICE_ENV) or DEFAULT_KEYCHAIN_SERVICE
 
 
 def _check_key_service(service: str) -> None:
@@ -84,7 +93,7 @@ def get_key(service: str) -> str | None:
     if service in _keychain_said_no:
         return None
     try:
-        return keyring.get_password(KEYCHAIN_SERVICE, service)
+        return keyring.get_password(keychain_service(), service)
     except keyring.errors.KeyringError as exc:
         _keychain_said_no.add(service)
         log.warning("The Keychain didn't give the %s key: %s", service, exc)
@@ -98,7 +107,7 @@ def key_locked(service: str) -> bool:
 
 def set_key(service: str, value: str) -> None:
     _check_key_service(service)
-    keyring.set_password(KEYCHAIN_SERVICE, service, value)
+    keyring.set_password(keychain_service(), service, value)
     _keychain_said_no.discard(service)
 
 
@@ -332,6 +341,9 @@ CLAUDE_BIN_ENV = "TEARSHEET_CLAUDE_BIN"
 CODEX_BIN_ENV = "TEARSHEET_CODEX_BIN"
 PATH_ENV = "TEARSHEET_PATH"
 _PROGRAM_ENV = {"claude": CLAUDE_BIN_ENV, "codex": CODEX_BIN_ENV}
+# The test folder a test copy runs from (first-run design §6): its stand-in tools and the
+# state file. Set only by scripts/try-new-user.sh.
+TEST_TOOLS_ENV = "TEARSHEET_TEST_TOOLS"
 
 
 def tool_search_path() -> str:
@@ -340,9 +352,38 @@ def tool_search_path() -> str:
 
 
 def find_program(tool: str) -> Path | None:
-    """The app passes each program's path; in terminal mode it is looked up on PATH."""
+    """The app passes each program's path; in terminal mode it is looked up on PATH.
+
+    A passed path is final: it is used only if it is there and can run, and otherwise the tool
+    counts as not found, with no look on PATH. So a test copy never finds the real tools."""
     passed = os.environ.get(_PROGRAM_ENV[tool])
     if passed:
-        return Path(passed)
+        path = Path(passed).expanduser()
+        return path if path.is_file() and os.access(path, os.X_OK) else None
     found = shutil.which(tool, path=tool_search_path())
     return Path(found) if found else None
+
+
+def test_mode() -> bool:
+    """A test copy (first-run design §6): only when `TEARSHEET_TEST_TOOLS` is set. A program
+    path alone doesn't turn it on. The safety check is then a canned one, and reports, grading
+    and the price download are off."""
+    return bool(os.environ.get(TEST_TOOLS_ENV))
+
+
+def test_state() -> dict[str, str]:
+    """The test folder's state file (`<TEARSHEET_TEST_TOOLS>/state`, one `key=value` per
+    line). Empty outside test mode or when the file can't be read."""
+    folder = os.environ.get(TEST_TOOLS_ENV)
+    if not folder:
+        return {}
+    try:
+        text = (Path(folder).expanduser() / "state").read_text("utf-8")
+    except OSError:
+        return {}
+    state: dict[str, str] = {}
+    for line in text.splitlines():
+        key, sep, value = line.partition("=")
+        if sep and key.strip():
+            state[key.strip()] = value.strip()
+    return state

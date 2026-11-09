@@ -1,0 +1,74 @@
+How to open Tearsheet
+=====================
+
+Tearsheet isn't from the App Store, and Apple hasn't checked it, so your Mac
+blocks it the first time you open it. These steps get you past that. They
+take about two minutes.
+
+
+First, check that your Mac has Apple Silicon
+--------------------------------------------
+
+Tearsheet only works on Macs with Apple Silicon.
+
+1. Click the Apple menu (the apple at the top left of the screen).
+2. Click About This Mac.
+3. Look at Chip. It should say Apple M1, Apple M2, or another Apple M chip.
+
+If it says Intel, Tearsheet won't work on this Mac.
+
+
+Open Tearsheet the first time
+-----------------------------
+
+1. Open the .dmg file you downloaded. In its window, drag Tearsheet onto the
+   Applications folder.
+2. Open your Applications folder and double-click Tearsheet.
+3. A box says Apple couldn't check Tearsheet. Click Done.
+   Don't click Move to Trash.
+4. Open System Settings (Apple menu, then System Settings).
+5. Click Privacy & Security.
+6. Scroll down to Security. Next to the line about Tearsheet, click
+   Open Anyway. Do this soon after step 3, because the button doesn't stay
+   there for long.
+7. Your Mac asks once more. Click Open Anyway, and type your Mac password if
+   it asks for it. Tearsheet opens.
+
+
+If a second box names Tearsheet Engine
+--------------------------------------
+
+Tearsheet has a helper program called Tearsheet Engine. Your Mac may block
+it too, in a second box.
+
+1. Click Done. Don't click Move to Trash.
+2. Go back to System Settings, then Privacy & Security.
+3. Click Open Anyway next to the line about Tearsheet Engine.
+4. Quit Tearsheet (in the Tearsheet menu, click Quit Tearsheet), then open
+   it again.
+
+
+If your Mac says Tearsheet "is damaged"
+---------------------------------------
+
+This usually means your Mac is blocking the app, not that the download is
+broken. It can happen with the zip, or when the app is opened from the
+wrong place.
+
+1. Close the box. Don't click Move to Trash.
+2. Open the .dmg file and drag Tearsheet from its window onto the
+   Applications folder. If your Mac asks, click Replace.
+3. Open Tearsheet from your Applications folder.
+4. If it still says damaged, right-click Tearsheet in Applications, click
+   Open, then click Open in the box.
+
+
+Each time you update
+--------------------
+
+To update, download the new .dmg and drag Tearsheet onto Applications
+again. Click Replace. Your reports and settings stay.
+
+Each new version shows these boxes again, so do these steps again each time.
+Your Mac may also ask for your password so Tearsheet can use the keys it
+saved before. Type your Mac password and click Always Allow.

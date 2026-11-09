@@ -307,6 +307,7 @@ export type Name10 = string;
 export type Key5 = string;
 export type Cost = string;
 export type Sent = string;
+export type Stopping = boolean;
 export type Version = string | null;
 export type Passed = boolean;
 export type Form1 = string | null;
@@ -319,6 +320,10 @@ export type PausedFor = ("report" | "grading" | "history" | "safety") | null;
 export type StoppedBecause = string | null;
 export type CompaniesReady = number;
 export type Companies = number;
+export type RunningTool = "claude" | "codex";
+export type RunningN = number;
+export type RunningTotal = number;
+export type StartedAt = string;
 export type RejectedKeys = string[];
 export type RawBytes = number;
 export type RawCap = number;
@@ -392,7 +397,8 @@ export type Code1 =
   | "AI_UNAVAILABLE"
   | "BUDGET_EXHAUSTED"
   | "SEC_BLOCKED"
-  | "ENGINE_ERROR";
+  | "ENGINE_ERROR"
+  | "TEST_COPY";
 export type ResetAt = string | null;
 export type FixCommand = string | null;
 export type Ticker10 = string;
@@ -417,7 +423,7 @@ export type Items1 = LineItem[];
 export type Skipped = LineSkip[];
 
 /**
- * App-engine protocol, version 3.
+ * App-engine protocol, version 4.
  */
 export interface TearsheetProtocol {
   [k: string]: unknown;
@@ -1144,6 +1150,16 @@ export interface Service2 {
   sent: Sent;
 }
 /**
+ * cancel_safety_check's answer: True when a check was running, and stops after the call in
+ * progress.
+ *
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "CancelSafetyCheckResult".
+ */
+export interface CancelSafetyCheckResult {
+  stopping: Stopping;
+}
+/**
  * One AI tool's last lock-down check (Technical Plan §4).
  *
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
@@ -1183,6 +1199,19 @@ export interface PriceDownload {
   companies: Companies;
 }
 /**
+ * The safety check under way (get_settings), so a window that reloads mid-check shows the
+ * real count: `n` of `total` calls done, since `started_at`.
+ *
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "SafetyRunning".
+ */
+export interface SafetyRunning {
+  tool: RunningTool;
+  n: RunningN;
+  total: RunningTotal;
+  started_at: StartedAt;
+}
+/**
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
  * via the `definition` "SettingsResult".
  */
@@ -1201,6 +1230,7 @@ export interface SettingsResult {
   services: Services;
   price_download: PriceDownload;
   lockdown?: Lockdown;
+  safety_running?: SafetyRunning | null;
 }
 export interface Keys {
   [k: string]: "set" | "missing" | "locked";
@@ -1389,4 +1419,4 @@ export interface LinePlan {
   line: LineState;
 }
 
-export const PROTOCOL_VERSION = 3
+export const PROTOCOL_VERSION = 4

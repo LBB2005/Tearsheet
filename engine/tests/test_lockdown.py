@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from pathlib import Path
 
 import pytest
@@ -152,3 +153,51 @@ def test_a_usage_limit_in_the_automatic_check_does_not_block_the_tool(tmp_path, 
     row = state.row()
     assert (row["version"], row["blocked_reason"]) == ("1.0", None)
     assert not client.blocked and client.gate_set
+
+
+def test_each_probe_and_the_report_file_carry_the_plan_usage_reading(tmp_path):
+    reading = {"used_percent": 12.5, "resets_at": 1762400000, "window": "five_hour"}
+
+    def metered(request: CallRequest):
+        if request.allow_web_search:
+            return answer(
+                LINKS, tool_events=["WebSearch"], model_id="fake-large", rate_limit=reading
+            )
+        return answer(PROBE, rate_limit=reading)
+
+    report = check(tmp_path, FakeConnector(default=metered))
+    assert report.passed
+    assert all(p.rate_limit == reading for p in report.probes)
+    saved = json.loads(report.to_json())
+    assert all(p["rate_limit"] == reading for p in saved["probes"])
+    # A tool that sends no reading leaves it empty.
+    plain = check(tmp_path, FakeConnector(default=clean), form="short")
+    assert all(p.rate_limit is None for p in plain.probes)
+
+
+def test_a_stopped_check_is_inconclusive_and_records_nothing(tmp_path, database):
+    from tearsheet.ai.lockdown import STOPPED
+
+    connector = FakeConnector(default=clean)
+    asked = []
+
+    def should_stop() -> bool:
+        asked.append(len(connector.requests))
+        return len(connector.requests) >= 3  # the stop comes during the third call
+
+    report = asyncio.run(
+        run_check(
+            connector,
+            form="full",
+            home=tmp_path / "home",
+            calls_root=tmp_path / "tearsheet-calls",
+            should_stop=should_stop,
+        )
+    )
+    # Asked before each probe; the call in progress ends, and no other starts.
+    assert asked == [0, 1, 2, 3]
+    assert len(connector.requests) == 3 and len(report.probes) == 3
+    assert report.inconclusive == STOPPED and not report.passed
+    assert report.problems == []  # no verdict, so nothing reads as a failure
+    assert not (tmp_path / "home" / ".tearsheet-canary").exists()
+    assert ToolState(database.conn, "claude").row() is None

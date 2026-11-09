@@ -1,51 +1,43 @@
-// The first-time setup (the spec's "The first-time path"): nine screens inside the window, with
-// no sidebar. The toolbar holds the four-part progress line from step 3 and the safety chip from
-// step 5. Setup opens at the first step that isn't done (resumeStep), so an app that quit halfway
-// carries on where it stopped. Each screen settles in (A. Settle) and lifts away as the next one
-// comes; Open Tearsheet hands over to the app.
+// The first-time setup, version 6 of the design canvas (first-run design §4): one screen, with a
+// short list of three rows on top (Your AI, Price key, SEC email) and under it one question at a
+// time: connect the AI, then the price key, then the email and Start. It fills in what it can
+// find by itself and asks only for what it can't.
 //
-// Nothing here runs a command for the person: Open Terminal only opens Terminal, and each line is
-// pasted by them. Keys go straight to the engine's check and are never shown again.
+// The page only connects events to three pure state machines (setup/state/: the tool, the email
+// and the safety check, which App keeps) and renders what screenView (setup/view.ts) decides. The
+// AI tools come from the main process (getTools, then tools_changed); the Install button's
+// progress comes as install_progress. The window only ever names the tools to set up: the main
+// process builds and runs every command. Keys go straight to the engine's check and are never
+// shown again.
+//
+// The first click on any button or field is the go-ahead for the safety check (Goal 5): it starts
+// then if the writing tool is ready, or by itself the moment it becomes ready, and never when the
+// window opens. Start saves the tool and the email, then setup_done last.
 
 import '../setup/setup.css'
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react'
 
 import type { CallResult, ToolStatus } from '../../preload/api'
-import type { Keys, SettingsResult } from '../../shared/protocol'
-import { leaveMs, reduced } from '../motion'
-import { Email, KeyStep, Ready } from '../setup/details'
-import { HowItWorks, Welcome } from '../setup/intro'
-import { CheckIcon } from '../setup/parts'
+import type { InstallProgress, RunResult } from '../../shared/install'
+import type { SettingsResult } from '../../shared/protocol'
+import type { ToolCommands, ToolKind } from '../../shared/tools'
+import { CodeLine } from '../setup/parts'
+import { Keys, List } from '../setup/List'
+import { CopyNote, Question, type CopyState } from '../setup/Question'
 import { SafetyChip, SafetyPopover } from '../setup/SafetyChip'
-import {
-  AFTER_CONNECT,
-  hasProgress,
-  nextLabel,
-  nextStep,
-  ONE_CLICK_ENABLED,
-  progressSegment,
-  resumeStep,
-  safetyPassedFor,
-  safetyView,
-  TOOL_TEXT,
-  type KeyService,
-  type SafetyState,
-  type SetupStep,
-  type ToolKind
-} from '../setup/steps'
-import { Connected, Find, Install, OneClick } from '../setup/tool'
+import { emailReducer, emailStart } from '../setup/state/email'
+import { safetyPassedFor, type SafetyState } from '../setup/state/safety'
+import { phaseOf, toolReducer, toolStart, writerOf } from '../setup/state/tool'
+import { screenView, type KeyState } from '../setup/view'
+import { TOOL_TEXT, WORDS } from '../setup/words'
+import { useWaiting } from '../shell/waiting'
 
-// Step 4 checks for the tool again this often while it is open.
-const POLL_MS = 2000
-// The "Looking for Claude Code" screen stays at least this long, so it doesn't flash past.
-const SCAN_MIN_MS = 1500
-// The safety ring moves to the chip this long after step 5 opens.
-const DOCK_AFTER_MS = 2000
-// The email's "Saved" shows this long before the next screen.
-const SAVED_MS = 500
+// "Can't tell" shows what was found, with Try again and Show log, after this long (CUJ 5).
+const CANT_TELL_MS = 120_000
 
-const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms))
+// The news setting is on when the engine lists the news sites it reads (server.py NEWS_READ).
+const newsOn = (s: SettingsResult | null) => Boolean(s?.services?.some((x) => x.name === 'News sites on the allowlist'))
 
 export interface SetupProps {
   // The settings App opened with (it read them to choose setup); null if they couldn't be read.
@@ -55,331 +47,315 @@ export interface SetupProps {
   // This session's safety check, kept by App from the engine's notes.
   safety: SafetyState | null
   onSafetyStarted: (tool: ToolKind) => void
+  // The chip's Stop the check (App's cancel_safety_check).
+  onStopSafety?: () => void
+  // "The button is on" (App's getInstallButton): the Install buttons, or the paste command.
+  buttonOn: boolean
   // Setup is finished (setup_done is saved): go to the home page.
   onFinish: () => void
   // A notice to show under the toolbar, like the engine failing to start.
   children?: ReactNode
 }
 
-export function Setup({ settings: initialSettings, leaving, safety, onSafetyStarted, onFinish, children }: SetupProps) {
-  const [step, setStep] = useState<SetupStep | null>(null)
-  // Counts screen changes, so a screen shown again (Find, for the other tool) enters afresh.
-  const [visit, setVisit] = useState(0)
-  const [out, setOut] = useState(false)
-  const [kind, setKind] = useState<ToolKind>('claude')
-  const [tools, setTools] = useState<ToolStatus[]>([])
-  const [scanning, setScanning] = useState(true)
-  const [proofs, setProofs] = useState<Partial<Record<KeyService, string>>>({})
-  const [fredSkipped, setFredSkipped] = useState(false)
-  const [email, setEmail] = useState('')
-  const [manual, setManual] = useState(false)
-  const [docking, setDocking] = useState(false)
-  const [docked, setDocked] = useState(false)
-  const [popOpen, setPopOpen] = useState(false)
+const key = (kinds: ToolKind[]) => kinds.join('+')
+
+export function Setup({ settings, leaving, safety, onSafetyStarted, onStopSafety, buttonOn, onFinish, children }: SetupProps) {
+  const [tool, toTool] = useReducer(toolReducer, settings?.primary_tool === 'codex' || settings?.primary_tool === 'claude' ? settings.primary_tool : null, toolStart)
+  const [email, toEmail] = useReducer(emailReducer, settings?.sec_contact_email ?? null, (saved) => emailReducer(emailStart(), { type: 'saved', email: saved }))
+  const [keyState, setKeyState] = useState<KeyState>(settings?.keys?.massive === 'set' ? 'saved' : 'missing')
+  const [goAhead, setGoAhead] = useState(false)
+  const [startedFor, setStartedFor] = useState<ToolKind | null>(null)
   const [startError, setStartError] = useState<string | null>(null)
-  const screen = useRef<HTMLElement>(null)
-  const switching = useRef(false)
-  const startedFor = useRef<ToolKind | null>(null)
+  const [popOpen, setPopOpen] = useState(false)
+  const [waitedLong, setWaitedLong] = useState(false)
+  const [commands, setCommands] = useState<Record<string, ToolCommands>>({})
+  const [copy, setCopy] = useState<CopyState | null>(null)
+  const [commandShown, setCommandShown] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [problem, setProblem] = useState<string | null>(null)
+  const [note, setNote] = useState<string | null>(null)
+  const [away, setAway] = useState(false)
+  const keyRef = useRef<HTMLInputElement>(null)
+  const emailRef = useRef<HTMLInputElement>(null)
   const finish = useRef(onFinish)
   finish.current = onFinish
 
-  const settings = initialSettings
-  const tool = tools.find((t) => t.kind === kind)
-  const T = TOOL_TEXT[kind]
-  const alreadyPassed = safetyPassedFor(tool, settings?.lockdown?.[kind])
-  const view = safetyView(safety, kind, alreadyPassed, startError)
-  const keys: Keys = { ...(settings?.keys ?? {}) }
-  if (proofs.massive) keys.massive = 'set'
-  if (proofs.fred) keys.fred = 'set'
-
-  // What the next screen is decided from, read when a Continue is pressed.
-  const latest = useRef({ tool, keys, fredSkipped, email })
-  latest.current = { tool, keys, fredSkipped, email }
-
-  // Change screens: this one fades and lifts away, then the next settles in. `then` runs as the
-  // new screen arrives.
-  const goStep = useCallback((next: SetupStep, then?: () => void) => {
-    if (switching.current) return
-    if (next === 'done') return finish.current()
-    switching.current = true
-    setPopOpen(false)
-    setOut(true)
-    window.setTimeout(() => {
-      then?.()
-      setStep(next)
-      setVisit((v) => v + 1)
-      setOut(false)
-      switching.current = false
-    }, leaveMs())
+  // The tools: one read as the screen opens, then each change the main process sees, and the
+  // Install button's progress.
+  useEffect(() => {
+    let live = true
+    void window.tearsheet.getTools(false).then(
+      (tools) => live && toTool({ type: 'tools', tools }),
+      () => undefined
+    )
+    const off = window.tearsheet.onNotification((note) => {
+      if (note.method === 'tools_changed' && Array.isArray(note.params.tools)) toTool({ type: 'tools', tools: note.params.tools as ToolStatus[] })
+      else if (note.method === 'install_progress') toTool({ type: 'progress', progress: note.params as unknown as InstallProgress })
+    })
+    return () => {
+      live = false
+      off()
+    }
   }, [])
 
-  // From step 5 on, go to the next step that isn't done.
-  const advance = useCallback(
-    (from: SetupStep) => {
-      const { tool: t, keys: k, fredSkipped: skipped, email: e } = latest.current
-      goStep(nextStep(from, { tool: t, keys: k, fredSkipped: skipped, email: e }))
-    },
-    [goStep]
+  // Claude Code's email fills in the SEC email, unless one is saved or typed (the reducer decides).
+  const claudeEmail = tool.tools?.find((t) => t.kind === 'claude' && t.state === 'ready')?.email ?? null
+  useEffect(() => {
+    if (claudeEmail) toEmail({ type: 'suggest', email: claudeEmail })
+  }, [claudeEmail])
+
+  const writer = writerOf(tool)
+  const phase = phaseOf(tool)
+  const writerStatus = tool.tools?.find((t) => t.kind === writer)
+  const alreadyPassed = safetyPassedFor(writerStatus, settings?.lockdown?.[writer])
+
+  // "Can't tell" for 2 minutes.
+  useEffect(() => {
+    setWaitedLong(false)
+    if (phase !== 'cant_tell') return
+    const timer = window.setTimeout(() => setWaitedLong(true), CANT_TELL_MS)
+    return () => window.clearTimeout(timer)
+  }, [phase, writer])
+
+  // The exact commands for the connect card, from the main process; it only reads.
+  const wanted = useMemo<ToolKind[][]>(() => {
+    if (phase === 'missing') return [['claude'], ['codex'], ['claude', 'codex']]
+    if (phase === 'ready' || phase === 'cant_tell') return tool.copied ? [tool.copied] : []
+    return [tool.picked ?? [writer]]
+  }, [phase, tool.picked, tool.copied, writer])
+  const toolsKey = JSON.stringify(tool.tools?.map((t) => [t.kind, t.state, t.path]) ?? null)
+  useEffect(() => {
+    let live = true
+    for (const kinds of wanted) {
+      void window.tearsheet.commandsFor(kinds).then(
+        (c) => live && setCommands((all) => ({ ...all, [key(kinds)]: c })),
+        () => undefined
+      )
+    }
+    return () => {
+      live = false
+    }
+  }, [wanted, toolsKey])
+  const commandsOf = useCallback((kinds: ToolKind[]) => commands[key(kinds)] ?? null, [commands])
+  const blocked: Partial<Record<ToolKind, string>> = {}
+  const mine = commandsOf([writer])?.blocked.find((b) => b.tool === writer)
+  if (mine) blocked[writer] = mine.reason
+
+  const view = screenView(
+    { machine: tool, waitedLong, blocked },
+    keyState,
+    email,
+    { state: safety, alreadyPassed, startError, started: startedFor === writer },
+    { backFromMassive: away, elsewhere: false },
+    buttonOn,
+    newsOn(settings)
   )
 
-  // Open at the first step that isn't done, from the settings App opened with and the tools
-  // found (none, if the look fails; Find looks again). The settings are read once, as setup opens.
+  // While the tool isn't ready, the main process reads it every 5 seconds with the window in front.
+  useWaiting(phase !== 'ready')
+
+  // The safety check: after the go-ahead, once the writing tool is ready, unless a full check
+  // already passed for its version or this session already ran one for it.
+  const checkedNow = safety !== null && safety.tool === writer
+  const startCheck = useCallback(
+    (kind: ToolKind) => {
+      setStartedFor(kind)
+      setStartError(null)
+      void window.tearsheet.runSafetyCheck(kind).then(
+        (reply) => {
+          if (reply.ok || reply.error?.code === 'SAFETY_CHECK_RUNNING') onSafetyStarted(kind)
+          else setStartError(reply.error?.message || 'The safety check didn’t start.')
+        },
+        () => setStartError('The safety check didn’t start.')
+      )
+    },
+    [onSafetyStarted]
+  )
   useEffect(() => {
-    let live = true
-    const s = initialSettings
-    const k: ToolKind = s?.primary_tool === 'codex' ? 'codex' : 'claude'
-    const open = (list: ToolStatus[]) => {
-      if (!live) return
-      setTools(list)
-      setKind(k)
-      setFredSkipped(Boolean(s?.fred_skipped))
-      setEmail(s?.sec_contact_email ?? '')
-      const first = resumeStep({
-        setupDone: Boolean(s?.setup_done),
-        tool: list.find((t) => t.kind === k),
-        keys: s?.keys ?? {},
-        fredSkipped: Boolean(s?.fred_skipped),
-        email: s?.sec_contact_email ?? null,
-        anyProgress: s ? hasProgress(s) : false
-      })
-      if (first === 'done') finish.current()
-      else setStep(first)
-    }
-    void window.tearsheet.getTools(false).then(open, () => open([]))
-    return () => {
-      live = false
-    }
-  }, [])
+    if (!goAhead || phase !== 'ready' || alreadyPassed || checkedNow || startedFor === writer) return
+    startCheck(writer)
+  }, [goAhead, phase, alreadyPassed, checkedNow, startedFor, writer, startCheck])
 
-  // The new screen takes the focus, so the keyboard carries on from its top.
+  // Focus: once the key works, the email field when it is empty or being changed.
+  const lastFocus = useRef<string | null>(null)
   useEffect(() => {
-    if (visit > 0) screen.current?.focus({ preventScroll: true })
-  }, [visit])
-
-  // 3. Look for the tool. Found and signed in goes straight to step 5; found but signed out
-  // opens step 4 at its sign-in card. A look that fails is tried again after 2 s.
+    if (view.focus === 'email' && lastFocus.current !== 'email') emailRef.current?.focus()
+    lastFocus.current = view.focus
+  }, [view.focus])
+  // Back from massive.com: the key field, if the key is still missing and nothing else was focused.
+  const viewNow = useRef(view)
+  viewNow.current = view
   useEffect(() => {
-    if (step !== 'find') return
-    let live = true
-    let timer: number | undefined
-    setScanning(true)
-    const t0 = Date.now()
-    const look = async () => {
-      let list: ToolStatus[]
-      try {
-        list = await window.tearsheet.getTools(true)
-      } catch {
-        if (live) timer = window.setTimeout(() => void look(), POLL_MS)
-        return
-      }
-      const wait = SCAN_MIN_MS - (Date.now() - t0)
-      if (wait > 0) await sleep(wait)
-      if (!live) return
-      setTools(list)
-      const found = list.find((t) => t.kind === kind)
-      if (found?.available && found.loggedIn === true) goStep('connected')
-      else if (found?.available) goStep('install')
-      else setScanning(false)
+    if (!away) return
+    const back = () => {
+      setAway(false)
+      const active = document.activeElement
+      const elsewhere = active !== null && active !== document.body && active.tagName !== 'BUTTON'
+      if (viewNow.current.card === 'key' && !elsewhere) keyRef.current?.focus()
     }
-    void look()
-    return () => {
-      live = false
-      window.clearTimeout(timer)
+    window.addEventListener('focus', back)
+    return () => window.removeEventListener('focus', back)
+  }, [away])
+
+  // ---------- the handlers ----------
+
+  const install = (kinds: ToolKind[]) => {
+    setCopy(null)
+    setCommandShown(false)
+    toTool({ type: 'pick', kinds })
+    void window.tearsheet.install(kinds).then(
+      (result) => toTool({ type: 'result', result }),
+      () => toTool({ type: 'result', result: { outcome: 'failed' } as RunResult })
+    )
+  }
+
+  // The paste command: copies it and opens a new Terminal window. During a sign-in, the in-app
+  // sign-in stops first, so two sign-ins of one tool never run at once.
+  const copyCommand = async (kinds: ToolKind[]) => {
+    if (tool.running) await window.tearsheet.cancelInstall().catch(() => false)
+    const result = await window.tearsheet.copyAndOpenTerminal(kinds).catch(() => ({ copied: false, opened: false }))
+    let command: string | null = null
+    if (!result.copied) command = (await window.tearsheet.commandsFor(kinds).catch(() => null))?.paste ?? null
+    setCopy({ kinds, result, command })
+    if (result.copied) toTool({ type: 'copied', kinds })
+  }
+
+  const showLog = () =>
+    void window.tearsheet.showSetupLog().then(
+      (shown) => setNote(shown ? null : 'There’s no setup log yet.'),
+      () => setNote('The log didn’t open.')
+    )
+
+  const changeEmail = () => {
+    toEmail({ type: 'change' })
+    window.setTimeout(() => emailRef.current?.focus(), 0)
+  }
+
+  const start = async () => {
+    if (saving || !view.start.enabled) return
+    setSaving(true)
+    setProblem(null)
+    const save = (k: string, v: string): Promise<CallResult<unknown>> => window.tearsheet.setSetting(k, v).catch(() => ({ ok: false }))
+    const tried = await save('primary_tool', writer)
+    if (!tried.ok) {
+      setSaving(false)
+      return setProblem(tried.error?.message || WORDS.saveFailed)
     }
-  }, [step, visit, kind, goStep])
-
-  // 4. Check again every 2 seconds while the page is open; each card ticks itself off.
-  useEffect(() => {
-    if (step !== 'install') return
-    let live = true
-    let timer: number | undefined
-    // A look that fails doesn't stop the polling: the next one is 2 s later all the same.
-    const poll = () => {
-      void window.tearsheet
-        .getTools(true)
-        .then(
-          (list) => {
-            if (live) setTools(list)
-          },
-          () => undefined
-        )
-        .then(() => {
-          if (live) timer = window.setTimeout(poll, POLL_MS)
-        })
+    const mail = await save('sec_contact_email', email.value.trim())
+    if (!mail.ok) {
+      setSaving(false)
+      return toEmail({ type: 'refused', problem: mail.error?.message || WORDS.saveFailed })
     }
-    timer = window.setTimeout(poll, POLL_MS)
-    return () => {
-      live = false
-      window.clearTimeout(timer)
+    // setup_done last: a failure partway leaves setup open with what was saved.
+    const done = await save('setup_done', '1')
+    if (!done.ok) {
+      setSaving(false)
+      return setProblem(done.error?.message || WORDS.saveFailed)
     }
-  }, [step])
-
-  // 5. Remember which tool was connected, and move the safety ring to the chip after about 2 s.
-  useEffect(() => {
-    if (step !== 'connected') return
-    void window.tearsheet.setSetting('primary_tool', kind)
-    setDocking(false)
-    setDocked(false)
-    const fade = reduced() ? 0 : 350
-    const a = window.setTimeout(() => setDocking(true), DOCK_AFTER_MS)
-    const b = window.setTimeout(() => {
-      setDocked(true)
-      setDocking(false)
-    }, DOCK_AFTER_MS + fade)
-    return () => {
-      window.clearTimeout(a)
-      window.clearTimeout(b)
-      setDocked(true)
-      setDocking(false)
-    }
-  }, [step, kind])
-
-  // The safety check starts at step 5 (or wherever setup resumes after it), unless it has
-  // already passed for this version. It runs once per session; the chip offers to run it again.
-  const startCheck = useCallback(() => {
-    startedFor.current = kind
-    setStartError(null)
-    void window.tearsheet.runSafetyCheck(kind).then((reply) => {
-      if (reply.ok || reply.error?.code === 'SAFETY_CHECK_RUNNING') onSafetyStarted(kind)
-      else setStartError(reply.error?.message || 'The safety check didn’t start.')
-    })
-  }, [kind, onSafetyStarted])
-
-  const signedIn = tool?.available === true && tool.loggedIn === true
-  const checkedNow = safety !== null && safety.tool === kind
-  useEffect(() => {
-    if (!step || !AFTER_CONNECT.has(step) || !signedIn || alreadyPassed || checkedNow) return
-    if (startedFor.current === kind) return
-    startCheck()
-  }, [step, signedIn, alreadyPassed, checkedNow, kind, startCheck])
-
-  // Open Tearsheet: setup is finished only once that is saved. If it isn't, Ready says so and
-  // stays, so the next launch doesn't open setup again unexpectedly.
-  const openTearsheet = async (): Promise<string | null> => {
-    const failed = 'Tearsheet couldn’t save that setup is finished. Try again.'
-    const reply: CallResult<unknown> = await window.tearsheet.setSetting('setup_done', '1').catch(() => ({ ok: false }))
-    if (!reply.ok) return failed
     finish.current()
-    return null
   }
 
-  let content: ReactNode = null
-  switch (step) {
-    case 'welcome':
-      content = <Welcome onStart={() => goStep('connect')} />
-      break
-    case 'connect':
-      content = <HowItWorks onNext={() => goStep('find')} />
-      break
-    case 'find':
-      content = (
-        <Find
-          kind={kind}
-          scanning={scanning}
-          onHowTo={() => goStep('install')}
-          onSwitch={() =>
-            goStep('find', () => {
-              setKind(kind === 'claude' ? 'codex' : 'claude')
-              setScanning(true)
-            })
-          }
-        />
-      )
-      break
-    case 'install':
-      content =
-        ONE_CLICK_ENABLED && kind === 'claude' && !manual ? (
-          <OneClick kind={kind} tool={tool} onManual={() => goStep('install', () => setManual(true))} onContinue={() => goStep('connected')} />
-        ) : (
-          <Install kind={kind} tool={tool} onContinue={() => goStep('connected')} />
-        )
-      break
-    case 'connected':
-      content = (
-        <Connected
-          kind={kind}
-          tool={tool}
-          view={view}
-          docking={docking}
-          docked={docked}
-          nextLabel={nextLabel(nextStep('connected', { tool, keys, fredSkipped, email }))}
-          onNext={() => advance('connected')}
-        />
-      )
-      break
-    case 'prices':
-      content = <KeyStep service="massive" proof={proofs.massive} onWorks={(proof) => setProofs((p) => ({ ...p, massive: proof }))} onContinue={() => advance('prices')} />
-      break
-    case 'fred':
-      content = (
-        <KeyStep
-          service="fred"
-          proof={proofs.fred}
-          skipped={fredSkipped}
-          onWorks={(proof) => {
-            setProofs((p) => ({ ...p, fred: proof }))
-            if (fredSkipped) {
-              setFredSkipped(false)
-              void window.tearsheet.setSetting('fred_skipped', '0')
-            }
-          }}
-          onSkip={() => {
-            setFredSkipped(true)
-            void window.tearsheet.setSetting('fred_skipped', '1')
-          }}
-          onContinue={() => advance('fred')}
-        />
-      )
-      break
-    case 'email':
-      content = (
-        <Email
-          initial={email}
-          onSaved={(saved) => {
-            setEmail(saved)
-            latest.current = { ...latest.current, email: saved }
-            window.setTimeout(() => advance('email'), SAVED_MS)
-          }}
-        />
-      )
-      break
-    case 'ready':
-      content = <Ready kind={kind} tool={tool} view={view} fred={keys.fred === 'set' ? 'works' : 'skipped'} email={email} onOpen={openTearsheet} />
-      break
-  }
+  // ---------- what shows ----------
 
-  const seg = step ? progressSegment(step) : null
-  // The chip shows from step 5 on, once the large ring on step 5 has moved up to it.
-  const chipShown = step !== null && AFTER_CONNECT.has(step) && !(step === 'connected' && view.state === 'running' && !docking && !docked)
-  const names = [T.name, 'Prices', 'Details', 'Ready']
+  const pasteFor = tool.copied ?? tool.picked ?? [writer]
+  const pasteCommand = commandsOf(pasteFor)?.paste ?? copy?.command ?? null
+  let aiBelow: ReactNode = null
+  if (commandShown && view.rows.ai.actions.includes('show_command')) {
+    aiBelow = (
+      <div className="again">
+        {pasteCommand && <CodeLine text={pasteCommand} />}
+        <span className="fine">
+          {WORDS.pasteFine} <Keys />, {WORDS.pasteFineAfter}
+        </span>
+        <button className="btn2" onClick={() => void copyCommand(pasteFor)}>
+          {WORDS.copyAgain}
+        </button>
+        <CopyNote copy={copy} />
+      </div>
+    )
+  } else if (view.rows.ai.actions.includes('paste')) {
+    aiBelow = (
+      <div className="again">
+        <span className="fine">{WORDS.stuck}</span>
+        {pasteCommand && <CodeLine text={pasteCommand} />}
+        <button className="btn2" onClick={() => void copyCommand(pasteFor)}>
+          {WORDS.copyOpen}
+        </button>
+        <CopyNote copy={copy} />
+      </div>
+    )
+  }
 
   return (
-    <div className={leaving ? 'setup leaving' : 'setup'}>
+    <div
+      className={leaving ? 'setup leaving' : 'setup'}
+      onClickCapture={(e) => {
+        // The first click on any button or field is the go-ahead for the safety check.
+        if (!goAhead && e.target instanceof Element && e.target.closest('button, input')) setGoAhead(true)
+      }}
+    >
       <header className="top bare stp">
-        {seg !== null && (
-          <div className="prog" aria-label="Setup progress">
-            {names.map((name, k) => (
-              <span key={k} className={k < seg ? 'done' : k === seg ? 'on' : undefined} aria-current={k === seg ? 'step' : undefined}>
-                {k < seg && <CheckIcon />}
-                {name}
-              </span>
-            ))}
-          </div>
-        )}
-        {chipShown && <SafetyChip view={view} open={popOpen} onToggle={() => setPopOpen((o) => !o)} />}
+        <span className="ttl">Tearsheet</span>
+        {view.chip && <SafetyChip view={view.chip} open={popOpen} onToggle={() => setPopOpen((o) => !o)} />}
       </header>
       {children}
-      <main key={visit} ref={screen} tabIndex={-1} className={out ? 'screen leave' : 'screen setup-in'}>
-        {content}
+      <main className="screen setup-in">
+        <div className="col6">
+          <List
+            ai={view.rows.ai}
+            keyRow={view.rows.key}
+            email={view.rows.email}
+            commandShown={commandShown}
+            aiBelow={aiBelow}
+            onAi={(action) => {
+              if (action === 'show_command') setCommandShown((s) => !s)
+              else if (action === 'stop_sign_in') void window.tearsheet.cancelInstall()
+              else if (action === 'open_sign_in') void window.tearsheet.openSignInPage()
+            }}
+            onOtherKey={() => {
+              setKeyState('missing')
+              window.setTimeout(() => keyRef.current?.focus(), 0)
+            }}
+            onChangeEmail={changeEmail}
+          />
+          <Question
+            view={view}
+            commands={commandsOf}
+            copy={copy}
+            email={email}
+            keyRef={keyRef}
+            emailRef={emailRef}
+            saving={saving}
+            problem={problem}
+            note={note}
+            on={{
+              install,
+              copy: (kinds) => void copyCommand(kinds),
+              recheck: () =>
+                void window.tearsheet.getTools(true).then(
+                  (tools) => toTool({ type: 'tools', tools }),
+                  () => undefined
+                ),
+              showLog,
+              use: (kind) => toTool({ type: 'use', kind }),
+              keyWorks: () => setKeyState('works'),
+              toMassive: () => setAway(true),
+              typeEmail: (value) => toEmail({ type: 'type', value }),
+              changeEmail,
+              start: () => void start()
+            }}
+          />
+        </div>
       </main>
-      {popOpen && chipShown && (
+      {popOpen && view.chip && (
         <SafetyPopover
-          view={view}
-          tool={T}
+          view={view.chip}
+          tool={TOOL_TEXT[writer]}
           onRetry={() => {
             setPopOpen(false)
-            startCheck()
+            startCheck(writer)
           }}
+          onStop={onStopSafety}
           onClose={() => setPopOpen(false)}
         />
       )}

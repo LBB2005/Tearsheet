@@ -1,7 +1,7 @@
 // The engine process (design item 44). Starts `tearsheet-engine serve` (engineCommand says from
 // where), speaks JSON-RPC over its standard input and output, writes its standard error to the
 // log file, checks the hello line's protocol version, relays notifications, and restarts the
-// engine if it crashes. A call
+// engine if it crashes, up to 3 times in any 30 seconds (first-run design item 13). A call
 // never hangs: when the engine can't start, stops, or doesn't match, every waiting call and
 // every later one is answered with why (fatalMessage, or "The engine stopped.").
 
@@ -12,6 +12,7 @@ import { dirname, join, resolve } from 'node:path'
 import { createInterface } from 'node:readline'
 
 import { PROTOCOL_VERSION, type Hello } from '../shared/protocol'
+import { NO_LOG, type SetupLog } from './setupLog'
 
 export interface EngineCommand {
   command: string
@@ -54,6 +55,27 @@ export interface EngineOptions {
   cwd: string
   env: NodeJS.ProcessEnv
   logFile: string
+  // The setup log, for the restart cap's entry.
+  setupLog?: SetupLog
+}
+
+// The restart cap: the third stop within any 30 seconds ends the restarts. macOS stopping an app
+// it doesn't trust yet looks like this, and restarting it forever would only hide that.
+export const RESTART_CAP = 3
+export const RESTART_WINDOW_MS = 30_000
+
+// Whether a stop at `now`, after the earlier stops in `stops`, reaches the cap. Stops more than 30
+// seconds old don't count.
+export function reachesCap(stops: number[], now: number): boolean {
+  return stops.filter((at) => now - at < RESTART_WINDOW_MS).length + 1 >= RESTART_CAP
+}
+
+export function restartCapMessage(signal: string | null, code: number | null): string {
+  const how = signal ? `by ${signal}` : `with exit code ${code ?? 'unknown'}`
+  return (
+    `Tearsheet’s engine was stopped ${how} three times in 30 seconds, so Tearsheet stopped restarting it. ` +
+    'If macOS stopped it, follow the first-open steps in “How to open Tearsheet.txt”, then open Tearsheet again.'
+  )
 }
 
 export interface Notification {
@@ -81,6 +103,8 @@ export class Engine extends EventEmitter {
   private log: WriteStream
   hello: Hello | null = null
   lastRunId: string | null = null
+  // When the engine stopped by itself lately, for the restart cap.
+  private stops: number[] = []
   // Why the engine can't be used, once that is known: it couldn't start, or its version doesn't
   // match. It is kept, so a window that loads after the failure still learns of it.
   fatalMessage: string | null = null
@@ -121,8 +145,20 @@ export class Engine extends EventEmitter {
     }
     child.on('exit', (code, signal) => {
       this.log.write(`\n[engine exited: code ${code} signal ${signal}]\n`)
-      if (!gone(this.fatalMessage ?? 'The engine stopped.')) return
-      if (!this.stopping && spawned) {
+      if (this.child !== child) return
+      const crashed = !this.stopping && spawned
+      const now = Date.now()
+      const capped = crashed && reachesCap(this.stops, now)
+      if (crashed) this.stops = [...this.stops.filter((at) => now - at < RESTART_WINDOW_MS), now]
+      if (capped) this.fatalMessage = restartCapMessage(signal, code)
+      gone(this.fatalMessage ?? 'The engine stopped.')
+      if (capped) {
+        this.log.write(`[engine not restarted: ${RESTART_CAP} stops in ${RESTART_WINDOW_MS / 1000} seconds]\n`)
+        ;(this.options.setupLog ?? NO_LOG).log('engine_restart_cap', { signal, exit: code })
+        this.emit('fatal', this.fatalMessage)
+        return
+      }
+      if (crashed) {
         this.emit('crashed', this.lastRunId)
         setTimeout(() => {
           if (!this.stopping) this.start()
