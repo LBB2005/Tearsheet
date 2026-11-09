@@ -84,7 +84,10 @@ Over six rounds of mockups, Liam settled on:
     *   The sidebar is hidden, and its button opens it over the report.
     *   A row of five key-number tiles sits above the text: rating and score, price, estimated
         value, range, and the past year.
-    *   The chart, when open, takes the whole window.
+    *   The chart, when open, still sits beside the report, as in a wide window. (Until
+        2026-11-08 it took the whole window, and crossing 1,100 px made it jump; Liam chose to
+        keep the split.) Only a page too narrow for both (under 708 px, which no window
+        Tearsheet allows leaves) gives the chart all of it.
 
 ## Pages
 
@@ -396,6 +399,9 @@ the report appear with no motion.
     *   opening slides the split in from the right while the numbers column slides away;
     *   dragging the divider resizes it live;
     *   snapping settles it;
+    *   resizing the window or the sidebar moves it with them at once, with no glide, keeping
+        its share of the width, as in a Mac app (only a width button, a double-click or an
+        arrow key glides the divider);
     *   on range or toggle changes, the lines glide to their new shape in about a third of a
         second. The draw-in plays only as the chart opens (round two).
 *   **The sidebar** slides away, and the toolbar shifts to make room for the window buttons.

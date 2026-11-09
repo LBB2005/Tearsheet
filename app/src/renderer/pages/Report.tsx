@@ -4,12 +4,13 @@
 // the company's other reports under the subtitle, the Numbers / Text switch while the chart is
 // open, and the Chart button (⌘3). The chart opens from the right as a split beside the report,
 // with a divider between them (chart/split.ts): the report keeps the rest of the width, and in
-// Full it is hidden until the divider is dragged back. A narrow window gives the chart the whole
-// window. The panel shows one view at a time (panel/state.ts): the price chart, or a chart or table
-// a link in the report opened bigger, with the same switch, width buttons and close button. The
-// state lives in report/useReport.ts.
+// Full it is hidden until the divider is dragged back. A narrow window keeps the split, and a
+// resize moves it at once, with no glide. The panel shows one view at a time (panel/state.ts):
+// the price chart, or a chart or table a link in the report opened bigger, with the same switch,
+// width buttons and close button. The state lives in report/useReport.ts.
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from 'react'
+import { flushSync } from 'react-dom'
 
 import type { ViewId } from '../../main/navigation'
 import type { ReportSummary } from '../../shared/protocol'
@@ -17,7 +18,7 @@ import { reportCss, withLook } from '../appearance/report'
 import { useAppearance } from '../appearance/store'
 import { ChartPane } from '../chart/ChartPane'
 import { Divider } from '../chart/Divider'
-import { DIV, presetSplit, snapWidth, splitWidth, TEXT_MIN, type Preset, type Snap } from '../chart/split'
+import { DIV, fitsBeside, presetSplit, snapWidth, splitWidth, TEXT_MIN, type Preset, type Snap } from '../chart/split'
 import { PanelSize, PanelSwitch } from '../panel/PanelHead'
 import { viewTitle } from '../panel/titles'
 import { useReportNumbers } from '../panel/useReportNumbers'
@@ -42,7 +43,9 @@ const CHEVRON = (
   </svg>
 )
 
-// The width of an element, kept up to date as it changes.
+// The width of an element, kept up to date as it changes. A change is drawn in the frame whose
+// layout made it (flushSync), so the chart beside the report never lags a resized window by a
+// frame, and the split keeps its share as the window moves.
 function useWidth(ref: RefObject<HTMLElement>): number {
   const [width, setWidth] = useState(0)
   useLayoutEffect(() => {
@@ -50,7 +53,7 @@ function useWidth(ref: RefObject<HTMLElement>): number {
     if (!el) return
     const measure = () => setWidth(el.getBoundingClientRect().width)
     measure()
-    const watch = new ResizeObserver(measure)
+    const watch = new ResizeObserver(() => flushSync(measure))
     watch.observe(el)
     return () => watch.disconnect()
   }, [ref])
@@ -62,6 +65,14 @@ export function Report({ page, wide }: { page: ReportPage; wide: boolean }) {
   const box = useRef<HTMLDivElement>(null)
   // Everything right of the sidebar: the report page's own width.
   const avail = useWidth(box)
+  // The page's width changed in this render: the window or the sidebar was resized. The chart
+  // moves with it at once, as a Mac window's parts do, with no glide (chart.css .resizing). A
+  // width button, Half, an arrow key or a snap still glides the divider.
+  const lastAvail = useRef(avail)
+  const resizing = avail !== lastAvail.current
+  useLayoutEffect(() => {
+    lastAvail.current = avail
+  })
   // A drag of the divider, live: where it would snap, before it is let go.
   const [drag, setDrag] = useState<Snap | null>(null)
   const [dragging, setDragging] = useState(false)
@@ -74,13 +85,18 @@ export function Report({ page, wide }: { page: ReportPage; wide: boolean }) {
   })
 
   const at = drag ?? placed
-  const split = wide && chartOpen && at !== null
+  // The chart sits beside the report, with the divider, in a window of any width Tearsheet
+  // allows: narrowing past 1,100 px (where the sidebar goes over the page) doesn't change it.
+  // Only a page with no room for both (chart/split.ts) gives the chart all of it, alone.
+  const fits = fitsBeside(avail)
+  const split = chartOpen && at !== null && fits
   const full = split && at.mode === 'full'
-  const chartW = !chartOpen ? 0 : !wide ? avail : at ? splitWidth(at, avail) : 0
+  const alone = chartOpen && !fits
+  const chartW = !chartOpen ? 0 : !fits ? avail : at ? splitWidth(at, avail) : 0
   // In Full the divider stays at the left, so the report can be dragged back.
   const paneW = full ? Math.max(0, avail - DIV) : chartW
-  // The report's width. Hidden behind a Full chart, or a narrow window's, it keeps the whole
-  // width (report.css), so it never squeezes to nothing and keeps its place.
+  // The report's width. Hidden behind a Full chart, or one alone, it keeps the whole width
+  // (chart.css), so it never squeezes to nothing and keeps its place.
   const reportW = split && !full ? Math.max(0, avail - chartW - DIV) : avail
   const one = oneColumn(reportW)
   useLayoutEffect(() => {
@@ -114,8 +130,8 @@ export function Report({ page, wide }: { page: ReportPage; wide: boolean }) {
   }
   const onSize = (p: Preset) => page.setSplit(presetSplit(p, avail))
 
-  // The divider goes (the chart closing, or a narrow window) mid-drag: drop the drag, so the
-  // shield and the cursor never stick and a stale drag never decides the next opening.
+  // The divider goes (the chart closing, or no room beside the report) mid-drag: drop the drag,
+  // so the shield and the cursor never stick and a stale drag never decides the next opening.
   useEffect(() => {
     if (split) return
     dragNow.current = { on: false, snap: null }
@@ -124,7 +140,9 @@ export function Report({ page, wide }: { page: ReportPage; wide: boolean }) {
   }, [split])
 
   const snapped = drag !== null && (drag.mode === 'half' || drag.mode === 'full')
-  const cls = ['rpage', chartOpen && 'chartopen', chartClosing && 'closing', full && !chartClosing && 'full', dragging && 'dragging', snapped && 'snapped'].filter(Boolean).join(' ')
+  const cls = ['rpage', chartOpen && 'chartopen', chartClosing && 'closing', (full || alone) && !chartClosing && 'full', dragging && 'dragging', snapped && 'snapped', resizing && 'resizing']
+    .filter(Boolean)
+    .join(' ')
   const reportId = page.reportId
   const named = report ?? page.listed
   const text = report ? { key: page.textKey, html: report.html } : null
@@ -151,7 +169,7 @@ export function Report({ page, wide }: { page: ReportPage; wide: boolean }) {
   const size = split ? at.mode : null
   const chrome: PanelChrome = {
     switcher: <PanelSwitch view={panel.view} last={panel.last} title={titleOf} onShow={page.showView} />,
-    size: <PanelSize wide={wide} size={size} onSize={onSize} onClose={page.toggleChart} />
+    size: <PanelSize split={split} size={size} onSize={onSize} onClose={page.toggleChart} />
   }
 
   return (
@@ -226,7 +244,7 @@ export function Report({ page, wide }: { page: ReportPage; wide: boolean }) {
           ticker={named?.ticker ?? null}
           name={named?.name ?? null}
           width={paneW}
-          wide={wide}
+          split={split}
           size={size}
           onClose={page.toggleChart}
           onSize={onSize}

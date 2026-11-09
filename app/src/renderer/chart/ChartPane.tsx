@@ -17,6 +17,7 @@
 // width buttons and close button are the ones every view shares (panel/PanelHead.tsx).
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactElement, type ReactNode } from 'react'
+import { flushSync } from 'react-dom'
 
 import type { CallResult } from '../../preload/api'
 import type { ChartSeries } from '../../shared/protocol'
@@ -40,9 +41,9 @@ export interface ChartPaneProps {
   name: string | null
   // The pane's width; the content keeps it while the pane slides in or out.
   width: number
-  // A wide window shows the width buttons and the divider; a narrow one gives the chart the
-  // whole window.
-  wide: boolean
+  // The chart sits beside the report, with the divider: the width buttons show. A page with no
+  // room for both (chart/split.ts) gives the chart all of it, with neither.
+  split: boolean
   // The width button that is on: the split's mode (chart/split.ts), or none after a drag between.
   size: SnapMode | null
   onClose: () => void
@@ -524,7 +525,7 @@ function readout(sl: ChartSeries, range: Range, filled: boolean, hover: number |
 
 // ---------- the pane ----------
 
-export function ChartPane({ reportId, cik, ticker, name, width, wide, size, onClose, onSize, switcher, away = false, swap = false, rangeAsk = 0, onHistory }: ChartPaneProps) {
+export function ChartPane({ reportId, cik, ticker, name, width, split, size, onClose, onSize, switcher, away = false, swap = false, rangeAsk = 0, onHistory }: ChartPaneProps) {
   const company = cik === null ? `report:${reportId}` : `cik:${cik}`
   // As it was when the pane mounted: a class that came or went later would start, or cut short,
   // the pane's own animation.
@@ -609,13 +610,14 @@ export function ChartPane({ reportId, cik, ticker, name, width, wide, size, onCl
     }
   }, [reportId, attempt])
 
-  // The chart's box, which follows the pane as it is resized.
+  // The chart's box, which follows the pane as it is resized. A new size is drawn in the frame
+  // whose layout made it (flushSync), so the lines never lag the pane by a frame.
   useLayoutEffect(() => {
     const el = wrap.current
     if (!el) return
     const size = () => setBox({ W: Math.floor(el.clientWidth), H: Math.floor(el.clientHeight) })
     size()
-    const watch = new ResizeObserver(size)
+    const watch = new ResizeObserver(() => flushSync(size))
     watch.observe(el)
     return () => watch.disconnect()
   }, [])
@@ -943,7 +945,7 @@ export function ChartPane({ reportId, cik, ticker, name, width, wide, size, onCl
             {toggle('peers', 'Peers', 'var(--c-peer)', noPeers, 'No peer prices are stored for this report.')}
             {toggle('spy', 'S&P 500', 'var(--c-spy)', noSpy, 'No S&P 500 prices are stored.')}
             {toggle('volume', 'Volume', 'rgb(var(--accent-rgb) / .45)', false, '')}
-            <PanelSize wide={wide} size={size} onSize={onSize} onClose={onClose} />
+            <PanelSize split={split} size={size} onSize={onSize} onClose={onClose} />
           </div>
         </div>
         {long && !loading && historyLine && <p className="cline">{historyLine}</p>}
@@ -992,7 +994,7 @@ export function ChartPane({ reportId, cik, ticker, name, width, wide, size, onCl
             <i className="dot" />
             SEC filings the report read
           </span>
-          <span>{wide ? 'Hover for a day; drag across to measure; drag the divider to resize.' : 'Hover for a day; drag across to measure.'}</span>
+          <span>{split ? 'Hover for a day; drag across to measure; drag the divider to resize.' : 'Hover for a day; drag across to measure.'}</span>
         </div>
       </div>
     </section>
