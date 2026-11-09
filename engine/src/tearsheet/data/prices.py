@@ -16,7 +16,7 @@ from math import log
 from typing import Any
 
 from tearsheet import config
-from tearsheet.http import EASTERN, HttpClient
+from tearsheet.http import EASTERN, HttpClient, massive_next
 
 SOURCE = "massive"
 # Phase 0 (2026-11-04) saw that day's close available by 18:46 New York time.
@@ -368,7 +368,7 @@ async def fetch_history_actions(
                 store.store_splits(data, {ticker: (cik, share_class)})
             else:
                 store.store_dividends(cik, share_class, data)
-            url, params = data.get("next_url"), None
+            url, params = massive_next(data), None
 
 
 def long_history_start(today: date) -> date:
@@ -410,7 +410,7 @@ async def fetch_splits(
         fetched = await http.fetch("massive", url, kind="splits", params=params)
         data = fetched.json()
         store.store_splits(data, tickers)
-        url, params = data.get("next_url"), None
+        url, params = massive_next(data), None
 
 
 def needed_start(

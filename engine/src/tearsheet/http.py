@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import parse_qsl, urlencode, urljoin, urlsplit, urlunsplit
 from zoneinfo import ZoneInfo
 
+import httpcore
 import httpx
 
 from tearsheet import ENGINE_VERSION, config
@@ -152,17 +153,90 @@ for _name in ("httpx", "httpcore"):
 
 
 def is_local_ip(text: str) -> bool:
+    """Any address that isn't on the public internet: home networks, this Mac, carrier-grade
+    NAT (100.64.0.0/10), link-local, reserved, multicast and the rest."""
     ip = ipaddress.ip_address(text)
     if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped:
         ip = ip.ipv4_mapped
     return (
-        ip.is_private
+        not ip.is_global
+        or ip.is_private
         or ip.is_loopback
         or ip.is_link_local
         or ip.is_reserved
         or ip.is_multicast
         or ip.is_unspecified
     )
+
+
+MASSIVE_HOST = urlsplit(config.MASSIVE_BASE_URL).hostname
+
+
+def on_massive(url: str | None) -> bool:
+    """Whether an address is on Massive's own API host, over https: the only place the
+    Massive key is sent."""
+    if not url:
+        return False
+    parts = urlsplit(url)
+    return (
+        parts.scheme == "https"
+        and (parts.hostname or "").lower() == MASSIVE_HOST
+        and (parts.port in (None, 443))
+    )
+
+
+def massive_next(data: Any) -> str | None:
+    """The next page's address from a Massive answer, only when it is on Massive's API host.
+    Anything else is logged and not followed, so the key never goes to another site."""
+    url = data.get("next_url") if isinstance(data, dict) else None
+    if url and not on_massive(url):
+        log.warning("Massive's next page is off its API host; not followed: %s", redact_url(url))
+        return None
+    return url or None
+
+
+class PinnedBackend(httpcore.AsyncNetworkBackend):
+    """Connects each host only to the address its check passed, so a name that looked public
+    when checked can't point somewhere else when the page is downloaded (DNS rebinding)."""
+
+    def __init__(self) -> None:
+        self._base = httpcore.AnyIOBackend()
+        self.pins: dict[str, str] = {}
+
+    async def connect_tcp(
+        self,
+        host: str,
+        port: int,
+        timeout: float | None = None,
+        local_address: str | None = None,
+        socket_options: Any = None,
+    ) -> httpcore.AsyncNetworkStream:
+        address = self.pins.get(host.lower())
+        if address is None:
+            raise httpcore.ConnectError(f"{host} wasn't checked before connecting")
+        return await self._base.connect_tcp(
+            address,
+            port,
+            timeout=timeout,
+            local_address=local_address,
+            socket_options=socket_options,
+        )
+
+    async def connect_unix_socket(self, *args: Any, **kwargs: Any) -> httpcore.AsyncNetworkStream:
+        raise httpcore.ConnectError("no local sockets")
+
+    async def sleep(self, seconds: float) -> None:
+        await self._base.sleep(seconds)
+
+
+def pinned_transport(backend: PinnedBackend) -> httpx.AsyncHTTPTransport:
+    """httpx's own transport with its connection pool swapped for one that connects through
+    `backend`. httpx has no public setting for this, so the swap is checked in the tests."""
+    transport = httpx.AsyncHTTPTransport()
+    transport._pool = httpcore.AsyncConnectionPool(
+        ssl_context=httpx.create_ssl_context(), network_backend=backend
+    )
+    return transport
 
 
 async def resolve_host(host: str) -> list[str]:
@@ -368,6 +442,16 @@ class HttpClient:
         self._client = httpx.AsyncClient(
             transport=transport, timeout=DATA_TIME_LIMIT_S, follow_redirects=True
         )
+        # Article pages get their own client that connects only to checked addresses. A test's
+        # transport stands in for both.
+        self._pins = PinnedBackend()
+        self._page_client = (
+            self._client
+            if transport is not None
+            else httpx.AsyncClient(
+                transport=pinned_transport(self._pins), timeout=DATA_TIME_LIMIT_S
+            )
+        )
         massive_per_minute = (
             settings.number("massive_calls_per_minute", config.MASSIVE_CALLS_PER_MINUTE)
             if settings
@@ -410,6 +494,8 @@ class HttpClient:
 
     async def aclose(self) -> None:
         await self._client.aclose()
+        if self._page_client is not self._client:
+            await self._page_client.aclose()
 
     def wait_first(self, service: str, gate: Callable[[], Awaitable[Any]]) -> None:
         """Await `gate` before each of this client's calls to `service`, ahead of the rate
@@ -439,6 +525,8 @@ class HttpClient:
                 "tearsheet-engine set-setting sec_contact_email you@example.com"
             )
         full_url = str(httpx.URL(url, params=params)) if params else url
+        if service == "massive" and not on_massive(full_url):
+            raise HTTPFailure(service, full_url, "not Massive's API address; the key wasn't sent")
         attempt = 0
         while True:
             gate = self._gates.get(service)
@@ -544,6 +632,7 @@ class HttpClient:
                 raise PageRejected(url, "the site's name could not be found") from None
         if not addresses or any(is_local_ip(address) for address in addresses):
             raise PageRejected(url, "a local or home-network address")
+        self._pins.pins[host] = addresses[0]
 
     async def _fetch_page(
         self, url: str, is_allowed: Callable[[str], bool], max_bytes: int
@@ -553,7 +642,7 @@ class HttpClient:
             await self._check_page_address(current, is_allowed)
             self.requests[("article", "page")] += 1
             try:
-                async with self._client.stream(
+                async with self._page_client.stream(
                     "GET", current, headers={"User-Agent": PAGE_USER_AGENT}, follow_redirects=False
                 ) as response:
                     status = response.status_code

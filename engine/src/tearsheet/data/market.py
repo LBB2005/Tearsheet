@@ -34,7 +34,7 @@ from tearsheet.data.prices import (
     previous_session,
     sessions_between,
 )
-from tearsheet.http import HttpClient
+from tearsheet.http import HttpClient, massive_next
 
 # A stock counts as having the window's history when its first stored close is no later than
 # this many days after the window's first session (the per-stock fill starts on a calendar day,
@@ -117,7 +117,7 @@ async def paged(
             tally.reused += 1
             await asyncio.sleep(0)  # let requests be answered between stored pages
         yield data
-        next_url, next_params = data.get("next_url"), None
+        next_url, next_params = massive_next(data), None
 
 
 async def fetch_day(
