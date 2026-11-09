@@ -83,6 +83,11 @@
 .setv .pb.go:hover { background: rgb(var(--accent-rgb) / .08); }
 .setv .pb:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .setv .pb:disabled, .setv .pb:disabled:hover { opacity: .45; cursor: default; background: none; }
+/* The shared accent buttons on Settings' pages (the key card's Check, Sign in again) are pills too,
+   like .pb.go, so a page never mixes round and square buttons. */
+.setv .btn2 { padding: 4px 13px; border-radius: 999px; border-color: rgb(var(--accent-rgb) / .4); background: none; font-size: 12.5px; font-weight: calc(400 + var(--wt)); }
+.setv .btn2:hover { background: rgb(var(--accent-rgb) / .08); }
+.setv .btn2:active { transform: none; }
 .setv .acts { display: flex; gap: 8px; flex: none; }
 .setv .lkw { margin-top: 12px; }
 .setv .lk { all: unset; cursor: pointer; color: var(--accent); font-size: 12.5px; border-radius: calc(6px * var(--round)); }
@@ -109,10 +114,12 @@
 .setv .keyform .card.mv { animation: settle-in .4s var(--settle) backwards; animation-delay: 0s; }
 .setv .keyform .card.done { border-color: rgb(var(--up-rgb) / .28); }
 .setv .keyform .card .field { display: flex; gap: 8px; width: 100%; }
-.setv .keyform .card .field input { flex: 1; min-width: 0; padding: 8px 12px; border-radius: calc(10px * var(--round)); border: 1px solid var(--line); background: rgb(var(--shade) / calc(.3 * var(--shade-k))); color: var(--text); font: 13.5px var(--mono); font-weight: calc(400 + var(--wt)); outline: none; transition: border-color .2s, box-shadow .2s; }
+.setv .keyform .card .field input { flex: 1; min-width: 0; padding: 5px 12px; border-radius: calc(8px * var(--round)); border: 1px solid var(--line); background: rgb(var(--ink) / .06); color: var(--text); font: 13px var(--mono); font-weight: calc(400 + var(--wt)); outline: none; transition: border-color .2s, box-shadow .2s; }
 .setv .keyform .card .field input:focus { border-color: var(--chipline); box-shadow: 0 0 0 3px rgb(var(--accent-rgb) / .12); }
 .setv .keyform .card .field input::placeholder { color: var(--edge); font-family: var(--ui); }
 .setv .keyform .card .st { min-height: 18px; }
+/* An empty status line takes no room, so there's no gap above the card's small print. */
+.setv .keyform .card .st:empty { display: none; }
 
 /* ---------- storage: the bar grows as the page settles ---------- */
 .setv .sbarhead { display: flex; justify-content: space-between; gap: 12px; }

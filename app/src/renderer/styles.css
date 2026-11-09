@@ -157,10 +157,12 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .ri4 { position: relative; }
 .ri4 .row4 { gap: 8px; }
 .ri4 .row4 .off4 { width: 12px; height: 12px; stroke: var(--accent); stroke-width: 2; opacity: .9; }
-.tag4 { width: 38px; flex: none; text-align: center; padding: 1px 0; border-radius: calc(5px * var(--round)); font-size: 9.5px; font-weight: calc(700 + var(--wt)); letter-spacing: .6px; text-transform: uppercase; }
-.tag4.buy { color: var(--up); background: rgb(var(--up-rgb) / .13); }
-.tag4.hold { color: var(--hold); background: rgb(var(--hold-rgb) / .12); }
-.tag4.sell { color: var(--down); background: rgb(var(--down-rgb) / .14); }
+/* Buy, Hold or Sell: the round tag the log and the finished report use too (.panels .pill, .rcpt .pill),
+   a size down. */
+.tag4 { box-sizing: border-box; width: 38px; flex: none; text-align: center; padding: 0; border-radius: 999px; border: 1px solid var(--line); font-size: 10.5px; line-height: 1.6; font-weight: calc(500 + var(--wt)); }
+.tag4.buy { color: var(--up); border-color: rgb(var(--up-rgb) / .4); background: rgb(var(--up-rgb) / .07); }
+.tag4.hold { color: var(--hold); border-color: rgb(var(--hold-rgb) / .4); background: rgb(var(--hold-rgb) / .07); }
+.tag4.sell { color: var(--down); border-color: rgb(var(--down-rgb) / .4); background: rgb(var(--down-rgb) / .07); }
 .ri4 .px + .tag4 { margin-left: 0; }
 .ri4 .row4 b + .tag4, .ri4 .row4 .off4 + .tag4 { margin-left: auto; }
 .more4 { all: unset; position: absolute; top: 50%; right: 56px; width: 22px; height: 20px; margin-top: -10px; border-radius: calc(6px * var(--round)); display: grid; place-items: center; background: rgb(var(--ink) / .09); color: var(--text); cursor: pointer; opacity: 0; pointer-events: none; transition: opacity .12s; }
@@ -365,12 +367,21 @@ button, input, textarea, select { font: inherit; color: inherit; }
 code { font: 12.5px var(--mono); font-weight: calc(400 + var(--wt)); background: rgb(var(--ink) / .06); border: 1px solid var(--line); border-radius: calc(6px * var(--round)); padding: 1px 6px; }
 .pagebody input[type="text"], .pagebody input[type="password"], textarea { padding: 8px 11px; border-radius: calc(9px * var(--round)); border: 1px solid var(--line); background: rgb(var(--ink) / .06); color: var(--text); outline: none; transition: border-color .15s, box-shadow .15s; }
 .pagebody input[type="text"]:focus, .pagebody input[type="password"]:focus, textarea:focus { border-color: var(--chipline); box-shadow: 0 0 0 3px rgb(var(--accent-rgb) / .12); }
-button.primary, button.plain { padding: 7px 14px; border-radius: calc(8px * var(--round)); border: 1px solid var(--line); background: rgb(var(--ink) / .04); color: var(--text); cursor: pointer; transition: background .15s, border-color .15s; }
+/* The buttons, one set for every page, all one size: main (primary, filled with the accent; btn2
+   primary2 is the same), secondary (btn2, tinted with the accent) and plain. Setup's pages have a
+   big main button (setup.css .btn), and Settings draws its buttons as round pills (settings.css). */
+.btn2 { all: unset; }
+button.primary, button.plain, .btn2 { box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 7px 14px; border-radius: calc(9px * var(--round)); border: 1px solid var(--line); background: rgb(var(--ink) / .04); color: var(--text); font: 13px var(--ui); font-weight: calc(500 + var(--wt)); white-space: nowrap; cursor: pointer; transition: transform .12s, background .15s, border-color .15s, opacity .2s; }
 button.plain:hover { background: rgb(var(--ink) / .08); }
-button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: calc(600 + var(--wt)); }
-button.primary:hover { background: var(--accent-hover); }
-button:disabled, button:disabled:hover { opacity: .45; cursor: default; }
+.btn2 { background: rgb(var(--accent-rgb) / .10); border-color: var(--chipline); color: var(--accent); }
+.btn2:hover { background: rgb(var(--accent-rgb) / .18); }
+button.primary, .btn2.primary2 { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: calc(600 + var(--wt)); }
+button.primary:hover, .btn2.primary2:hover { background: var(--accent-hover); }
+:is(button.primary, button.plain, .btn2):active { transform: scale(.97); }
+:is(button.primary, button.plain, .btn2):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button:disabled, button:disabled:hover { opacity: .45; cursor: default; transform: none; }
 button.plain + button.plain { margin-left: 6px; }
+.top .btn2 { padding: 5px 12px; }
 .notice { margin: 12px 0; padding: 11px 14px; border-radius: var(--r); background: var(--panel); border: 1px solid var(--line); backdrop-filter: blur(calc(18px * var(--frost))); -webkit-backdrop-filter: blur(calc(18px * var(--frost))); box-shadow: inset 0 1px 0 rgb(var(--ink) / .05); }
 .notice.error { background: rgb(var(--down-rgb) / .08); border-color: rgb(var(--down-rgb) / .3); }
 .notice p:last-child { margin-bottom: 0; }
@@ -394,7 +405,7 @@ button.plain + button.plain { margin-left: 6px; }
 .panels .fine.bad { color: var(--bad-text); }
 .panels .fine.hold { color: var(--hold); }
 .panels .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-.panels .pill { display: inline-block; font-size: 11.5px; line-height: 1.6; border-radius: 999px; padding: 0 9px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.panels .pill { display: inline-block; font-size: 11.5px; line-height: 1.6; font-weight: calc(500 + var(--wt)); border-radius: 999px; padding: 0 9px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
 .panels .pill.ok { color: var(--up); border-color: rgb(var(--up-rgb) / .4); background: rgb(var(--up-rgb) / .07); }
 .panels .pill.bad { color: var(--down); border-color: rgb(var(--down-rgb) / .4); background: rgb(var(--down-rgb) / .07); }
 .panels .pill.hold { color: var(--hold); border-color: rgb(var(--hold-rgb) / .4); background: rgb(var(--hold-rgb) / .07); }
@@ -417,7 +428,8 @@ button.plain + button.plain { margin-left: 6px; }
 .panels .st.ok { color: var(--up); }
 .panels .st.bad { color: var(--bad-text); }
 .panels .st svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 2.4; flex: none; }
-.panels .sp { flex: none; display: inline-block; width: 13px; height: 13px; border-radius: 50%; border: 2px solid rgb(var(--accent-rgb) / .25); border-top-color: var(--accent); animation: spin .9s linear infinite; }
+/* The spinner, on every page. */
+.sp { flex: none; display: inline-block; width: 13px; height: 13px; border-radius: 50%; border: 2px solid rgb(var(--accent-rgb) / .25); border-top-color: var(--accent); animation: spin .9s linear infinite; }
 .panels .chg { animation: settle-in .4s var(--settle) backwards; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
