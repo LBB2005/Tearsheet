@@ -16,7 +16,7 @@ A Mac app for personal research. You type an S&P 500 company name or ticker, and
 
 *   macOS, with Python 3.12 and [`uv`](https://docs.astral.sh/uv/).
 *   Claude Code or Codex, installed and signed in (`claude auth login` or `codex login`). With both, each passes `lockdown-check --tool claude` or `--tool codex`, and the other tool checks each report's draft.
-*   Free keys for Massive (prices), FRED (economic series) and Alpha Vantage (analyst consensus). They are stored in the macOS Keychain under the service name `Tearsheet`, never in files.
+*   Free keys for Massive (prices) and FRED (economic series), each person's own. They are stored in the macOS Keychain under the service name `Tearsheet`, never in files.
 *   A contact email for SEC, which asks every program for one.
 
 ## Terminal mode
@@ -64,18 +64,19 @@ It makes `app/dist/mac-arm64/Tearsheet.app` (about 760 MB), with the engine and 
 
 ## What leaves your Mac
 
-Nothing leaves your Mac except what this table lists (design, Technical Plan §12). Reports, the prediction log and raw downloads stay on your computer.
+Nothing leaves your Mac except what this table lists (design, Technical Plan §12; Settings → Privacy shows the same list). Tearsheet sends nothing to its author: no accounts, no usage tracking, no crash reports. Reports, the prediction log, raw downloads and keys stay on your computer.
 
 | Service | Key needed | Cost | What is sent |
 | :-- | :-- | :-- | :-- |
-| SEC EDGAR | None (each request carries the contact email you enter) | Free | Requests for the company's and peers' filings |
-| iShares (BlackRock) | None | Free | A download of the IVV holdings file, at most once a day |
-| Massive | Your free key | Free plan | The tickers researched and their peers |
-| FRED | Your free key | Free | Requests for the listed economic series |
-| Alpha Vantage | Your free key | Free (25 calls a day) | The ticker researched (analyst consensus) |
-| Article sites on the allowlist | None | Free | Page requests |
-| Claude Code (Anthropic) or Codex (OpenAI) | Your own sign-in | Your existing subscription | Filing and article text, the computed numbers sent with that text, and draft sections. Whether each tool keeps its own session history of these calls is checked in Phase 0. |
-| Benzinga through Massive | Only if you choose the paid analyst option | $99/month | The ticker researched |
+| SEC EDGAR | None. Each request carries your contact email, which goes only to SEC | Free | Requests for the company's and its peers' filings |
+| Massive | Your free key | Free plan | The tickers researched and their peers, and whole-market daily prices |
+| FRED | Your free key | Free | Requests for five economic series |
+| Claude Code (Anthropic) or Codex (OpenAI) | Your own sign-in | Your existing plan | The text of filings and press releases, the numbers sent with that text, draft sections, and a web search for recent news about the company. Your plan's own privacy terms apply. Tearsheet turns each tool's session history off. |
+| News sites | None | Free | Nothing unless you open a link. Tearsheet lists their articles as links and doesn't download them. |
+
+Most news sites' terms forbid automated reading, so by default section 7 reads only the company's own press releases from SEC and lists other coverage as links. `tearsheet-engine set-setting news_articles on` turns article reading back on for the allowlisted sites; use it only where their terms allow it. Tearsheet also no longer downloads the iShares holdings file (BlackRock's site terms forbid automated copying): the S&P 500 list ships with each release. The checks behind these choices are in [docs/launch/launch-readiness.md](docs/launch/launch-readiness.md).
+
+This product uses the FRED® API but is not endorsed or certified by the Federal Reserve Bank of St. Louis. FRED's terms of use: <https://fred.stlouisfed.org/docs/api/terms_of_use.html>.
 
 ## Development
 
@@ -89,4 +90,4 @@ The tests run offline. Tests marked `live` are skipped unless you run `uv run py
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE). The software Tearsheet includes or adapts is listed in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).

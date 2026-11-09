@@ -6,7 +6,7 @@ import type { ToolStatus } from '../../preload/api'
 import type { ToolKind } from '../setup/steps'
 import { healthTiles, storage, type HealthInput, type Tile } from './settings'
 
-export type Topic = 'general' | 'appearance' | 'ai' | 'keys' | 'storage' | 'privacy' | 'advanced'
+export type Topic = 'general' | 'appearance' | 'ai' | 'keys' | 'storage' | 'privacy' | 'advanced' | 'about'
 
 // In the order the list shows them. General opens first.
 export const TOPICS: { id: Topic; name: string }[] = [
@@ -16,7 +16,8 @@ export const TOPICS: { id: Topic; name: string }[] = [
   { id: 'keys', name: 'Data keys' },
   { id: 'storage', name: 'Storage and backup' },
   { id: 'privacy', name: 'Privacy' },
-  { id: 'advanced', name: 'Advanced' }
+  { id: 'advanced', name: 'Advanced' },
+  { id: 'about', name: 'About and help' }
 ]
 
 export function topicName(topic: Topic): string {

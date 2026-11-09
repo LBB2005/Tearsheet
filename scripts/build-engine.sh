@@ -53,6 +53,14 @@ find "$out/bin" -mindepth 1 ! -name "Tearsheet Engine" -exec rm -rf {} +
 # it: it always runs the user's own `claude`, passed to the SDK as cli_path
 # (engine/src/tearsheet/ai/claude_code.py).
 rm -rf "$site/claude_agent_sdk/_bundled"
+# Unidecode is under the GPL. Only edgartools' company-name search uses it, which Tearsheet never
+# calls, so the bundle carries Tearsheet's own MIT stand-in instead (THIRD-PARTY-NOTICES.md).
+rm -rf "$site/unidecode" "$site"/[Uu]nidecode-*.dist-info
+cp -R "$root/scripts/bundle/unidecode" "$site/unidecode"
+"$engine" -I -B -c 'import unidecode, edgar.search.datasearch; assert unidecode.TEARSHEET_STAND_IN' \
+  || { echo "build-engine: edgartools didn't load with the Unidecode stand-in." >&2; exit 1; }
+# Every package in the bundle, with its version and licence, for THIRD-PARTY-NOTICES.md.
+"$engine" -I -B "$root/scripts/python_notices.py" "$site" >"$out/PYTHON-PACKAGES.md"
 
 # 3. Compile everything ahead of time. A handful of files in some packages are never imported
 # and don't compile; Python just reads those from source if they ever are, so that's not an error.

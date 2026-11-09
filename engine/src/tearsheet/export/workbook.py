@@ -126,7 +126,13 @@ class _Book:
 
     # --- scaffolding -------------------------------------------------------------------------
 
-    def sheet(self, name: str, subtitle: str, widths: dict[str, float], last_col: int):
+    def sheet(
+        self, name: str, subtitle: str, widths: dict[str, float], last_col: int, label_col: int = 1
+    ):
+        """A tab with the shared header: the company, the subtitle, the brand and the checks
+        light, a rule, and the "not investment advice" label on the first row under the frozen
+        header (row 4), from column `label_col`, so every tab shows it on screen as well as in
+        its printed footer."""
         d = self.d
         ws = self.wb.add_worksheet(name)
         ws.hide_gridlines(2)
@@ -145,6 +151,7 @@ class _Book:
         for col in range(1, last_col + 1):
             ws.write_blank(2, col, None, self.f["rule"])
         ws.set_row(2, 6)
+        ws.write(3, label_col, LABEL, self.f["small"])
         ws.set_landscape()
         ws.set_paper(1)
         ws.fit_to_pages(1, 0)
@@ -1407,7 +1414,8 @@ def _peers(b: _Book) -> None:
 def _sources(b: _Book) -> None:
     d = b.d
     sub = "Sources & checks · each check recomputes a figure from others in this file"
-    ws = b.sheet("Sources & checks", sub, {"B:B": 60, "C:F": 13, "G:G": 10}, 6)
+    # Row 4 holds "All checks" and its light in B and C, so the label starts in D.
+    ws = b.sheet("Sources & checks", sub, {"B:B": 60, "C:F": 13, "G:G": 10}, 6, label_col=3)
     ws.write(3, 1, "All checks", b.f["bold"])
     master = b.master()
     first = 6

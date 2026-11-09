@@ -365,6 +365,11 @@ export function App() {
   }, [page])
 
   const onMenu = (command: MenuCommand) => {
+    // Send Feedback opens the person's own Mail at any time, even during setup.
+    if (command === 'feedback') {
+      void window.tearsheet.sendFeedback()
+      return
+    }
     // Setup comes first: the menus' pages open once it is finished.
     if (target.current === 'setup') return
     if (command === 'new') newReport()
@@ -374,6 +379,10 @@ export function App() {
     else if (command === 'sidebar') toggleSidebar()
     else if (command === 'find') openFind()
     else if (command === 'settings') go('settings')
+    else if (command === 'help') {
+      setSettingsTopic('about')
+      go('settings')
+    }
     else if (target.current === 'report') {
       // ⌘1 and ⌘2 reload the report in that view; ⌘3 opens or closes the chart.
       const view = nextView(command)

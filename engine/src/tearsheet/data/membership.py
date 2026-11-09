@@ -1,10 +1,10 @@
 """S&P 500 members, sectors and index weights (design item 18).
 
-The source is the iShares Core S&P 500 ETF (IVV) holdings file, refreshed once a day. A file
-that fails the check is not used: the last good snapshot is used instead, and failing that the
-bundled list shipped with the release (`sp500_bundled.csv`, built by
-`scripts/build_sp500_bundled.py`). Phase 0 found the IVV address returning a web page, so the
-bundled list is the usual source until that is fixed.
+The member list is the one shipped with each release (`sp500_bundled.csv`, built by
+`scripts/build_sp500_bundled.py`). Tearsheet used to refresh it daily from the iShares Core S&P
+500 ETF (IVV) holdings file; it no longer downloads that file, because BlackRock's site terms
+forbid automated copying (`shipped`). `parse_ivv` and the IVV address stay so that runs which
+stored an IVV file can still be replayed.
 """
 
 from __future__ import annotations
@@ -17,8 +17,6 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from importlib import resources
 
-from tearsheet.http import HttpClient, HTTPFailure
-from tearsheet.rawstore import RawStore
 from tearsheet.resolve import canonical_ticker
 
 IVV_HOLDINGS_URL = (
@@ -198,67 +196,27 @@ def _latest_snapshot(conn: sqlite3.Connection) -> Holdings | None:
     return Holdings(as_of=date.fromisoformat(as_of), source="ivv", rows=rows, raw_hash=raw_hash)
 
 
-def _store(conn: sqlite3.Connection, holdings: Holdings) -> None:
-    as_of = holdings.as_of.isoformat()
-    with conn:
-        conn.executemany(
-            "INSERT OR REPLACE INTO sp500_holdings (as_of, cik, ticker, sector, weight, raw_hash)"
-            " VALUES (?, ?, ?, ?, ?, ?)",
-            [
-                (as_of, r.cik, r.ticker, r.sector, r.weight, holdings.raw_hash or "")
-                for r in holdings.rows
-            ],
-        )
-        members = {c.cik for c in holdings.companies()}
-        current = {
-            r[0] for r in conn.execute("SELECT cik FROM sp500_membership WHERE date_to IS NULL")
-        }
-        conn.executemany(
-            "INSERT OR IGNORE INTO sp500_membership (cik, date_from, date_to, source) VALUES (?, ?, NULL, ?)",
-            [(cik, as_of, holdings.source) for cik in sorted(members - current)],
-        )
-        conn.executemany(
-            "UPDATE sp500_membership SET date_to = ? WHERE cik = ? AND date_to IS NULL",
-            [(as_of, cik) for cik in sorted(current - members)],
-        )
-
-
 @dataclass
 class Refreshed:
     holdings: Holdings
     note: str | None  # said in the run's report when the fresh file wasn't used
 
 
-async def refresh(
-    http: HttpClient,
-    rawstore: RawStore,
-    conn: sqlite3.Connection,
-    sec_tickers: dict[str, int],
-    *,
-    today: date,
-) -> Refreshed:
-    """Step 1's daily refresh of the member list."""
+def shipped(conn: sqlite3.Connection) -> Refreshed:
+    """Step 1's member list. BlackRock's site terms forbid automated copying of ishares.com, so
+    Tearsheet no longer downloads the IVV holdings file (docs/launch/launch-readiness.md, M3).
+    It uses the list shipped with this version (`sp500_bundled.csv`, rebuilt before each
+    release by `scripts/build_sp500_bundled.py`), or an IVV file stored by an earlier version
+    when that one is newer."""
     stored = _latest_snapshot(conn)
-    if stored is not None and stored.as_of >= today:
-        return Refreshed(stored, None)
-    problem = None
-    try:
-        fetched = await http.fetch("ishares", IVV_HOLDINGS_URL, kind="holdings", expect="csv")
-        holdings = parse_ivv(fetched.text(), sec_tickers)
-        holdings.raw_hash = fetched.raw_hash
-        _store(conn, holdings)
-        return Refreshed(holdings, None)
-    except (HTTPFailure, MembershipError) as exc:
-        problem = str(exc)
-    if stored is not None:
+    bundled = load_bundled()
+    if stored is not None and stored.as_of > bundled.as_of:
         return Refreshed(
             stored,
-            f"The S&P 500 holdings file couldn't be used today ({problem}), so the last good "
-            f"copy, from {stored.as_of:%-d %b %Y}, was used.",
+            f"S&P 500 members: the holdings file stored on {stored.as_of:%-d %b %Y}.",
         )
-    bundled = load_bundled()
     return Refreshed(
         bundled,
-        f"The S&P 500 holdings file couldn't be used ({problem}), so the bundled list, as of "
-        f"{bundled.as_of:%-d %b %Y}, was used.",
+        "S&P 500 members: the list shipped with this version of Tearsheet, as of "
+        f"{bundled.as_of:%-d %b %Y}.",
     )

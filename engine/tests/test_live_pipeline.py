@@ -140,9 +140,9 @@ def test_the_full_method_runs_on_the_live_data_source(database, tmp_path):
     run, result, http = asyncio.run(go())
     assert result.status in ("done", "done_incomplete"), result.notes
     assert result.rating in ("Buy", "Hold", "Sell")
-    assert any(
-        "bundled" in n for n in result.notes
-    )  # the iShares page fell back to the bundled list
+    # The member list is the shipped one, and ishares.com is never asked (launch-readiness M3).
+    assert any("shipped with this version" in n for n in result.notes)
+    assert not any(svc == "ishares" for (svc, _code) in http.statuses)
     statuses = {code for (svc, code) in http.statuses if svc == "sec"}
     assert statuses == {200}
     assert run.members[APPLE].valuation.valid

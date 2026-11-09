@@ -55,44 +55,58 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
+# What leaves the Mac, for Settings → What leaves your Mac and the README (design §12;
+# docs/launch/launch-readiness.md §3). Tearsheet itself sends nothing to its author.
 SERVICES = [
     {
         "name": "SEC EDGAR",
-        "key": "None (each request carries your contact email)",
+        "key": "None. Each request carries your contact email, which goes only to SEC",
         "cost": "Free",
-        "sent": "Requests for the company's and peers' filings",
-    },
-    {
-        "name": "iShares (BlackRock)",
-        "key": "None",
-        "cost": "Free",
-        "sent": "A download of the IVV holdings file, at most once a day",
+        "sent": "Requests for the company's and its peers' filings",
     },
     {
         "name": "Massive",
         "key": "Your free key",
         "cost": "Free plan",
-        "sent": "The tickers researched and their peers",
+        "sent": "The tickers researched and their peers, and whole-market daily prices",
     },
     {
         "name": "FRED",
         "key": "Your free key",
         "cost": "Free",
-        "sent": "Requests for the listed economic series",
+        "sent": "Requests for five economic series",
     },
     {
-        "name": "Article sites on the allowlist",
+        "name": "Claude Code (Anthropic) or Codex (OpenAI)",
+        "key": "Your own sign-in",
+        "cost": "Your existing plan",
+        "sent": "The text of filings and press releases, the numbers sent with that text, draft "
+        "sections, and a web search for recent news about the company. Your plan's own privacy "
+        "terms apply",
+    },
+    {
+        "name": "News sites",
         "key": "None",
         "cost": "Free",
-        "sent": "Page requests",
-    },
-    {
-        "name": "Claude Code (Anthropic)",
-        "key": "Your own sign-in",
-        "cost": "Your existing subscription",
-        "sent": "Filing and article text, the computed numbers sent with that text, and draft sections",
+        "sent": "Nothing unless you open a link. Tearsheet lists their articles as links and "
+        "doesn't download them",
     },
 ]
+# The news row when the `news_articles` setting is on.
+NEWS_READ = {
+    "name": "News sites on the allowlist",
+    "key": "None",
+    "cost": "Free",
+    "sent": "A request for each article page, which your AI tool then reads",
+}
+
+
+def services(settings: config.Settings) -> list[dict[str, str]]:
+    if settings.get("news_articles") == "on":
+        return [NEWS_READ if s["name"] == "News sites" else s for s in SERVICES]
+    return SERVICES
+
+
 ICLOUD_FOLDERS = ("Documents", "Desktop", "Library/Mobile Documents")
 # Requests answered off the request loop, because they can take minutes: grading and the full
 # price history fetch at Massive's calls-per-minute pace, and a Massive key check waits its turn
@@ -1615,7 +1629,7 @@ class Server:
             "goal1_round": int(float(round_)) if round_ else 1,
             "setup_done": setup_done == "1",
             "fred_skipped": settings.get("fred_skipped") == "1",
-            "services": SERVICES,
+            "services": services(settings),
             "price_download": self._price_download(settings, have_key=keys["massive"] == "set"),
             "lockdown": {
                 r["tool"]: {

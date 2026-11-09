@@ -294,9 +294,9 @@ class LiveData:
         return sec_ticker_map(await self.sec.company_tickers())
 
     async def holdings(self, sec_tickers: dict[str, int], *, today: date) -> Refreshed:
-        from tearsheet.data.membership import refresh
+        from tearsheet.data.membership import shipped
 
-        return await refresh(self.http, self.rawstore, self.conn, sec_tickers, today=today)
+        return shipped(self.conn)
 
     async def submissions(self, cik: int) -> dict[str, Any]:
         return await self.sec.submissions(cik)

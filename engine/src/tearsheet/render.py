@@ -70,6 +70,11 @@ _ENV = Environment(
     loader=PackageLoader("tearsheet", "templates"),
     autoescape=select_autoescape(default=True, default_for_string=True),
 )
+# The report's "not advice" line. The short form sits under the rating; the long form opens a
+# report file and closes the report in the app (docs/launch/launch-readiness.md, M5).
+ADVICE_SHORT = "General research, not personalised investment advice."
+ADVICE_LINE = ADVICE_SHORT + " Check the sources and make your own decisions."
+_ENV.globals.update(ADVICE_SHORT=ADVICE_SHORT, ADVICE_LINE=ADVICE_LINE)
 
 # The keys of report_numbers.numbers_for. A key that is missing, or numbers that are None, renders
 # as "not stored for this report".

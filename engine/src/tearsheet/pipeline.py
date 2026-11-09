@@ -183,6 +183,9 @@ FULL_SECTIONS = (
 )
 ARTICLE_CAP = 15
 ARTICLE_FLOOR = 5
+# With article reading off (the `news_articles` setting, the default), section 7 lists up to
+# this many of the link search's allowlisted links, unread (docs/launch/launch-readiness.md, M2).
+LINKS_SHOWN = 8
 # The sections' titles as the report prints them, for the app's live progress.
 SECTION_TITLES = {
     SectionKey.BUSINESS: "The business",
@@ -379,6 +382,11 @@ class Run:
         self.sections = SLICE_SECTIONS if mode == "slice" else FULL_SECTIONS
         self.empty_sections: set[SectionKey] = set()
         self.articles: list[tuple[Any, Any]] = []  # (Article, Link)
+        # Links listed in section 7 without being downloaded, when article reading is off.
+        self.unread_links: list[Any] = []
+        # Whether step 9 read the article pages (the `news_articles` setting); None until its
+        # link search has answered.
+        self.reading_articles: bool | None = None
         self.article_urls: dict[str, str] = {}
         self.cuts: list[str] = []
         # The call budget's last cut (Technical Plan §3): no section rewrites.
@@ -1857,6 +1865,17 @@ class Run:
         if found is None:
             self.empty_sections.add(SectionKey.NEWS)
             return out
+        # Most news sites' terms forbid automated reading, so by default their pages are listed
+        # as links and never downloaded; the company's press releases from SEC are still read.
+        self.reading_articles = config.Settings(self.conn).get("news_articles") == "on"
+        if not self.reading_articles:
+            self.unread_links = found.kept[:LINKS_SHOWN]
+            self.notes.append(
+                f"News: {len(found.suggested)} links suggested, {len(found.kept)} on the allowlist; "
+                f"{len(self.unread_links)} listed as links, not read (article reading is off)."
+            )
+            self.empty_sections.add(SectionKey.NEWS)
+            return out
         # The call budget (Technical Plan §3). The projection: this link search, every filing
         # read still to make, the articles, and for every section its draft, its check and
         # room for one rewrite with its re-check. Over the budget, fewer articles are read,
@@ -2434,7 +2453,22 @@ class Run:
             sections.append(trends)
         if SectionKey.NEWS in self.sections:
             news = ai_section(SectionKey.NEWS, 7, "News and views")
-            if not self.articles and self.press_sources:
+            if self.reading_articles is False:
+                listed = (
+                    " Other recent coverage is listed below as links, to read yourself."
+                    if self.unread_links
+                    else ""
+                )
+                news["paragraphs"] = [
+                    (
+                        "This section reads the company's own press releases from SEC."
+                        if self.press_sources
+                        else "No press releases from the company were found, so this section has no news."
+                    )
+                    + " Tearsheet doesn't download news sites' pages, because most of their terms forbid automated reading."
+                    + listed
+                ]
+            elif not self.articles and self.press_sources:
                 news["paragraphs"] = [
                     "Only the company's own press releases were read for this section: the article search found nothing readable."
                 ]
@@ -2451,6 +2485,14 @@ class Run:
                     "published": format_value("date", art.published),
                 }
                 for art, link in self.articles
+            ] + [
+                {
+                    "title": link.title,
+                    "url": link.url,
+                    "publisher": link.publisher,
+                    "note": "Not read",
+                }
+                for link in self.unread_links
             ]
             sections.append(news)
         sections.append(ai_section(SectionKey.WATCH, None, "What to watch", watch_lines))

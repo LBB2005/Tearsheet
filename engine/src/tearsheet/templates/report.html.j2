@@ -382,7 +382,7 @@ table.t .hot:hover { background: none; }
 <header class="rhead">
 <h1>{{ r.company }} ({{ r.ticker }})</h1>
 <p>Report run {{ r.run_at }}.{% if r.mode_note %} {{ r.mode_note }}{% endif %}</p>
-<p>General research, not personalised investment advice. Check the sources and make your own decisions.</p>
+<p>{{ ADVICE_LINE }}</p>
 </header>
 {%- endif %}
 <main class="layout">
@@ -412,7 +412,7 @@ table.t .hot:hover { background: none; }
 </nav>
 {%- endif %}
 {%- if mode == "app" %}
-<footer class="foot">Report run {{ r.run_at }}.{% if r.mode_note %} {{ r.mode_note }}{% endif %} General research, not personalised investment advice. Check the sources and make your own decisions.</footer>
+<footer class="foot">Report run {{ r.run_at }}.{% if r.mode_note %} {{ r.mode_note }}{% endif %} {{ ADVICE_LINE }}</footer>
 {%- endif %}
 </div>
 </div>

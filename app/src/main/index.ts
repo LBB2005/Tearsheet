@@ -106,7 +106,13 @@ async function createWindow(): Promise<void> {
     }
   })
   mainWindow = window
-  registerIpc(window, engine, fixedPath)
+  const started = engine
+  registerIpc(window, engine, fixedPath, () => ({
+    app: app.getVersion(),
+    engine: started.hello?.engine_version ?? null,
+    macos: process.getSystemVersion(),
+    electron: process.versions.electron
+  }))
   // The downloads at the end of a report (downloads.ts): straight to ~/Downloads. A hidden check
   // run points them at a scratch folder instead.
   const running = engine

@@ -1,5 +1,5 @@
 // Settings (the spec's "Settings and connections"), laid out like the Mac's own settings: a list
-// of seven topics on the left (settings/topics.ts) and one short page for the topic picked. A topic
+// of eight topics on the left (settings/topics.ts) and one short page for the topic picked. A topic
 // that needs you has a dot, and General opens with a note and a button for each problem; together
 // they replace the four health tiles. The look is "Outline" (round 2 of the settings mockups):
 // the app sidebar's own line icons with no box, Mac pop-up menus and pill buttons. Each page
@@ -20,6 +20,7 @@ import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type Reac
 
 import type { ToolStatus } from '../../preload/api'
 import type { LockdownState, PriceDownload, SettingsResult } from '../../shared/protocol'
+import { AboutPage } from '../settings/About'
 import type { Notify } from '../settings/Appearance'
 import { AppearancePage } from '../settings/Appearance'
 import { ChartChoice } from '../settings/ChartChoice'
@@ -93,15 +94,13 @@ export function Settings({ tools, onTools, safety, onSafetyStarted, onSettings, 
     return () => window.clearInterval(timer)
   }, [topic, pricesGoing, load])
 
-  // Appearance needs nothing from the engine.
-  if (topic === 'appearance') {
+  // Appearance, and About and help, need nothing from the engine.
+  if (topic === 'appearance' || topic === 'about') {
     return (
       <div className="setv">
         <TopicList topic={topic} dots={s ? needsYou(problems(healthOf(s, tools, safety))) : new Map()} onTopic={onTopic} />
         <div className="tpage" key={topic}>
-          <div className="tpin panels">
-            <AppearancePage onNotify={onNotify} />
-          </div>
+          <div className="tpin panels">{topic === 'appearance' ? <AppearancePage onNotify={onNotify} /> : <AboutPage onPrivacy={() => onTopic('privacy')} />}</div>
         </div>
       </div>
     )
@@ -210,10 +209,16 @@ const ICONS: Record<Topic, ReactElement> = {
       <circle cx="16" cy="7" r="2" pathLength={1} />
       <circle cx="10" cy="17" r="2" pathLength={1} />
     </svg>
+  ),
+  about: (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="8.5" pathLength={1} />
+      <path d="M12 11v5.5M12 7.6v.4" pathLength={1} />
+    </svg>
   )
 }
 
-// The seven topics. Click one, or move with ↑ ↓ (and Home, End) while the list has the focus.
+// The eight topics. Click one, or move with ↑ ↓ (and Home, End) while the list has the focus.
 function TopicList({ topic, dots, onTopic }: { topic: Topic; dots: Map<Topic, Problem['tone']>; onTopic: (topic: Topic) => void }) {
   const buttons = useRef<Partial<Record<Topic, HTMLButtonElement | null>>>({})
   const onKey = (e: KeyboardEvent<HTMLElement>) => {

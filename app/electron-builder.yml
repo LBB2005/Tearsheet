@@ -22,6 +22,16 @@ extraResources:
     to: engine
     filter:
       - "**/*"
+  # The licences: Tearsheet's own, the notices for what it includes (THIRD-PARTY-NOTICES.md), and
+  # Electron's and Chromium's, which the Mac build doesn't copy by itself.
+  - from: ../LICENSE
+    to: LICENSE.txt
+  - from: ../THIRD-PARTY-NOTICES.md
+    to: THIRD-PARTY-NOTICES.md
+  - from: node_modules/electron/dist/LICENSE
+    to: LICENSE.electron.txt
+  - from: node_modules/electron/dist/LICENSES.chromium.html
+    to: LICENSES.chromium.html
 mac:
   target:
     - target: dir

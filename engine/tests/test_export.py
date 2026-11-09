@@ -177,6 +177,8 @@ def test_the_workbook_holds_the_reports_numbers_and_every_check_passes(tmp_path)
     assert LABEL in summary
     for ws in wb.worksheets:
         assert LABEL in ws.oddFooter.left.text
+        # On screen too: every tab's first row under the frozen header (launch-readiness M5).
+        assert LABEL in [c.value for c in ws[4]], ws.title
     h.server.close()
 
 
@@ -315,6 +317,8 @@ def test_the_deck_has_12_main_slides_and_an_appendix_each_with_the_label(tmp_pat
     n = d.numbers
     cover = slides[0]
     assert n["rating"]["call"].upper() in cover
+    # The disclaimer says the deck is not a recommendation, so no slide is labelled one.
+    assert not any("Recommendation" in s for s in slides)
     assert f"${n['price']['value']:,.2f}" in cover and f"${n['range']['base']:,.2f}" in cover
     assert "Important information" in slides[-1]
     h.server.close()

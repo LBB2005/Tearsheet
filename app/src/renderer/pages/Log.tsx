@@ -101,7 +101,7 @@ export function Log({ grading, refresh, onGrade, onSubtitle }: LogProps) {
   return (
     <div className="logv panels">
       <div className="notice mv" style={at(0)}>
-        <b>Descriptive, not conclusive.</b> This log grades the companies you chose to look up, not the method as a whole.
+        <b>Descriptive, not conclusive.</b> This log grades the companies you chose to look up, not the method as a whole. Research data, not investment advice.
       </div>
       <div className="tiles3 mv" style={at(1)}>
         {tiles.map((t) => (

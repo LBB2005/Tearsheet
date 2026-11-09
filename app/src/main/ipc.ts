@@ -4,6 +4,7 @@ import { spawn } from 'node:child_process'
 
 import { BrowserWindow, ipcMain, shell } from 'electron'
 
+import { feedbackMailto, type AboutInfo } from './about'
 import type { Engine } from './engine'
 import { EngineError } from './engine'
 import { isAllowedExternal } from './external'
@@ -76,7 +77,9 @@ export interface CallResult {
   error?: { message: string; code?: string; data?: Record<string, unknown> }
 }
 
-export function registerIpc(window: BrowserWindow, engine: Engine, pathValue: string): void {
+// `about` gives the version numbers for Settings → About and help and the feedback email
+// (main/about.ts); index.ts reads them from Electron and the engine's hello.
+export function registerIpc(window: BrowserWindow, engine: Engine, pathValue: string, about: () => AboutInfo = () => ({ app: '', engine: null, macos: '', electron: '' })): void {
   ipcMain.handle('tearsheet:call', async (_event, name: string, params: Record<string, unknown>): Promise<CallResult> => {
     const method = engineMethod(name)
     if (!method) return { ok: false, error: { message: `Unknown call ${name}.` } }
@@ -95,6 +98,12 @@ export function registerIpc(window: BrowserWindow, engine: Engine, pathValue: st
   // Open Terminal only opens the app; nothing is typed or run in it.
   ipcMain.handle('tearsheet:openTerminal', () => {
     spawn('/usr/bin/open', ['/System/Applications/Utilities/Terminal.app'], { stdio: 'ignore', detached: true }).unref()
+  })
+  ipcMain.handle('tearsheet:about', () => about())
+  // Opens the person's own Mail with a new email holding the versions; nothing is sent from here.
+  ipcMain.handle('tearsheet:sendFeedback', async () => {
+    await shell.openExternal(feedbackMailto(about()))
+    return true
   })
   ipcMain.handle('tearsheet:openExternal', async (_event, url: unknown) => {
     if (typeof url !== 'string' || !isAllowedExternal(url)) return false

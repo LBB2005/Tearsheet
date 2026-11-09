@@ -255,6 +255,8 @@ describe('the prediction log', () => {
     await user.click(sidebar().getByRole('button', { name: /Prediction log/ }))
     expect(await screen.findByText('No official predictions yet')).toBeInTheDocument()
     expect(toolbarTitle()).toBe('Prediction logNothing logged yet')
+    // The log shows ratings and ranges, so it carries the line too (launch-readiness M5).
+    expect(screen.getByText(/Research data, not investment advice\./)).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Grade what is due' }))
     expect(await screen.findByText('Nothing new was due.')).toBeInTheDocument()
   })

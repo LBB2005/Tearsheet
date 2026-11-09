@@ -2,21 +2,17 @@
 
 from __future__ import annotations
 
-import asyncio
 from datetime import date
 
-import httpx
 import pytest
-import respx
 
 from tearsheet.data import membership
 from tearsheet.data.membership import (
     MembershipError,
     load_bundled,
     parse_ivv,
-    refresh,
+    shipped,
 )
-from tearsheet.http import HttpClient
 
 SECTORS = [
     "Information Technology",
@@ -109,47 +105,36 @@ def test_the_bundled_list_loads():
     ) == {"GOOG", "GOOGL"}
 
 
-def run_refresh(database, rawstore, *, today: date, body: str, content_type: str = "text/csv"):
-    async def go():
-        with respx.mock:
-            respx.get(url__regex=r"https://www\.ishares\.com/.*").mock(
-                return_value=httpx.Response(200, text=body, headers={"content-type": content_type})
-            )
-            async with HttpClient(rawstore, "run-1", sleep=lambda s: asyncio.sleep(0)) as http:
-                return await refresh(http, rawstore, database.conn, sec_tickers(497), today=today)
-
-    return asyncio.run(go())
+def store_ivv_snapshot(database, as_of: str, rows: int = 3) -> None:
+    """An IVV file stored by an earlier version (before 8 Nov 2026, when the download stopped)."""
+    with database.conn:
+        database.conn.executemany(
+            "INSERT INTO sp500_holdings (as_of, cik, ticker, sector, weight, raw_hash) VALUES (?, ?, ?, ?, ?, 'h')",
+            [(as_of, 1000 + i, f"T{i}", SECTORS[i % len(SECTORS)], 1.0) for i in range(rows)],
+        )
 
 
-def test_refresh_stores_a_snapshot_and_the_membership(database, rawstore):
-    result = run_refresh(database, rawstore, today=date(2026, 11, 5), body=ivv_csv(497))
-    assert result.holdings.source == "ivv" and result.note is None
-    count = database.conn.execute("SELECT COUNT(*) FROM sp500_holdings").fetchone()[0]
-    assert count == 500
-    members = database.conn.execute("SELECT COUNT(*) FROM sp500_membership").fetchone()[0]
-    assert members == 499  # companies, not tickers
-
-
-def test_refresh_falls_back_to_the_bundled_list_and_says_so(database, rawstore):
-    result = run_refresh(
-        database,
-        rawstore,
-        today=date(2026, 11, 5),
-        body="<html><body>iShares Core S&P 500 ETF</body></html>",
-        content_type="text/csv",
-    )
+def test_the_member_list_is_the_shipped_one_and_nothing_is_downloaded(database):
+    # BlackRock's site terms forbid automated copying, so there is no download to make: the
+    # function takes no HTTP client at all.
+    result = shipped(database.conn)
     assert result.holdings.source == "bundled"
-    assert "bundled" in result.note
+    assert result.holdings.as_of == load_bundled().as_of
+    assert "shipped with this version" in result.note
 
 
-def test_refresh_uses_the_last_good_snapshot_before_the_bundled_list(database, rawstore):
-    run_refresh(database, rawstore, today=date(2026, 11, 4), body=ivv_csv(497))
-    result = run_refresh(
-        database, rawstore, today=date(2026, 11, 5), body="<html><body>no</body></html>"
-    )
+def test_an_older_stored_ivv_file_gives_way_to_the_shipped_list(database):
+    store_ivv_snapshot(database, "2026-10-01")
+    result = shipped(database.conn)
+    assert result.holdings.source == "bundled"
+
+
+def test_a_newer_stored_ivv_file_is_still_used(database):
+    store_ivv_snapshot(database, "2099-01-02")
+    result = shipped(database.conn)
     assert result.holdings.source == "ivv"
-    assert result.holdings.as_of == date(2026, 11, 4)
-    assert "last good" in result.note
+    assert result.holdings.as_of == date(2099, 1, 2)
+    assert "stored on 2 Jan 2099" in result.note
 
 
 def test_the_ivv_address_is_the_phase0_one():

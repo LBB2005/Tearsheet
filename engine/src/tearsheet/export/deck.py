@@ -631,7 +631,8 @@ def _source_numbers(d: ExportData) -> str:
 
 def _cover(k: _Deck) -> None:
     d, n = k.d, k.d.numbers
-    s = k.slide("Recommendation", "", _source_numbers(d))
+    # "Rating", not "Recommendation": the deck's own disclaimer says it is not a recommendation.
+    s = k.slide("Rating", "", _source_numbers(d))
     k.text(
         s,
         LEFT,

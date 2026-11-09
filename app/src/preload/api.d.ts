@@ -40,6 +40,10 @@ export interface TearsheetApi {
   runSafetyCheck(tool: 'claude' | 'codex'): Promise<CallResult<import('../shared/protocol').SafetyStarted>>
   openTerminal(): Promise<void>
   openExternal(url: string): Promise<boolean>
+  // The version numbers for Settings → About and help (main/about.ts).
+  about(): Promise<import('../main/about').AboutInfo>
+  // Opens the person's own Mail with a feedback email holding those numbers; nothing is sent.
+  sendFeedback(): Promise<boolean>
   find(text: string, forward: boolean): Promise<void>
   stopFind(): Promise<void>
   // The look picked on Settings → Appearance, for the window itself: its zoom (text size, 0.85 to

@@ -215,6 +215,8 @@ function makeBridge(): FakeBridge {
     runSafetyCheck: vi.fn<TearsheetApi['runSafetyCheck']>(async () => ok({ started: true })),
     openTerminal: vi.fn<TearsheetApi['openTerminal']>(async () => undefined),
     openExternal: vi.fn<TearsheetApi['openExternal']>(async () => true),
+    about: vi.fn<TearsheetApi['about']>(async () => ({ app: '0.1.0', engine: '0.1.0', macos: '26.1', electron: '33.2.0' })),
+    sendFeedback: vi.fn<TearsheetApi['sendFeedback']>(async () => true),
     find: vi.fn<TearsheetApi['find']>(async () => undefined),
     stopFind: vi.fn<TearsheetApi['stopFind']>(async () => undefined),
     setLook: vi.fn<TearsheetApi['setLook']>(async () => true),

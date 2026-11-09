@@ -6,6 +6,23 @@ Handled in other sessions, so not covered here: first-run setup, packaging (sign
 
 Already fine: every key is in the Keychain; the app sends nothing to Liam (no usage stats, no crash reports, no update check); SEC gets each person's own email; Claude Code and Codex run with session history off; the PDF and the deck carry the "not investment advice" line on every page.
 
+## Status
+
+Built on 8 Nov 2026 (Liam picked "build your picks"): M2 (option A), M3, M4, M5, M6, M7, M8 (option A), M9 and M10.
+
+- **News (M2).** A new setting, `news_articles`, is off by default. With it off, section 7 reads the company's 8-K press releases from SEC and lists the link search's allowlisted links as "Not read". `tearsheet-engine set-setting news_articles on` brings back today's article reader for Liam's own copy.
+- **iShares (M3).** `membership.shipped` replaces the daily download. It uses the bundled list, or an older stored IVV file if that one is newer.
+- **FRED notice (M4)** and the help page (M9) are in Settings → About and help, along with the version (M7) and Send feedback (M8). The Help menu has Tearsheet Help and Send Feedback… too.
+- **Disclaimers (M5).** The line now shows under the rating, on the Prediction log and on every Excel tab, and the deck's cover label is "Rating".
+- **Licences (M6).** `THIRD-PARTY-NOTICES.md` exists. The build ships it, plus the Electron and Chromium licences and `PYTHON-PACKAGES.md`, and puts an MIT stand-in in place of Unidecode.
+- **Privacy list (M10).** Settings → Privacy and the README list Codex and the AI's web search, and no longer list iShares, Alpha Vantage or Benzinga.
+
+Still open:
+
+- M1 (the lawyer) and M11 (the Massive email) are Liam's to do.
+- **The feedback address.** `FEEDBACK_EMAIL` in `app/src/main/about.ts` is empty, so the email opens with the To line blank.
+- **Setup's own "What leaves your Mac" card** still says "article text Claude reads". The first-run setup session is rewriting that screen.
+
 ## The checklist
 
 ### Must-have before a public link

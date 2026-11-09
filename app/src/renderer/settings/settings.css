@@ -119,3 +119,6 @@
 .setv .stor i { position: absolute; inset: 0 auto 0 0; min-width: 3px; border-radius: calc(4px * var(--round)); background: var(--accent); transition: width .6s var(--slide); animation: set-grow .9s var(--slide) .35s backwards; }
 .setv .stor.hold i { background: var(--hold); }
 @keyframes set-grow { from { width: 0; } }
+
+/* About and help (settings/About.tsx): the numbered terms and uninstall steps. */
+.setv .about-list { margin: 0; padding-left: 18px; display: grid; gap: 6px; line-height: 1.45; }
