@@ -1,6 +1,6 @@
 # Goldfish Review Report
 
-**Target:** `/Users/liamblackshaw-brown/code/Tearsheet/docs/designs/tearsheet.md` (`Lines 1-1822`; feature part 1-1006, Detailed Implementation Plan from line 1007)
+**Target:** `docs/designs/tearsheet.md` (`Lines 1-1822`; feature part 1-1006, Detailed Implementation Plan from line 1007)
 
 **Stage:** 8, Intermediate Zoom Out. This stage checks simplicity and scope after the Stage 5-7 fixes were applied.
 

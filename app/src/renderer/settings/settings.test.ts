@@ -187,7 +187,7 @@ describe('tildePath', () => {
 
 describe('maskEmail', () => {
   it('shows the first letter and the domain, as the prototype does', () => {
-    expect(maskEmail('liamblackshawbrown@gmail.com')).toBe('l••••••••@gmail.com')
+    expect(maskEmail('someone@example.com')).toBe('s••••••••@example.com')
     expect(maskEmail('a@b.co')).toBe('a••••••••@b.co')
     expect(maskEmail(' x ')).toBe('x••••••••')
   })

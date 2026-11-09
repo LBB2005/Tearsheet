@@ -1,6 +1,6 @@
 # Goldfish Review Report
 
-**Target:** `/Users/liamblackshaw-brown/code/Tearsheet/docs/designs/tearsheet.md` (`Lines 1-695`: the feature part, up to the "Detailed Implementation Plan" heading at line 696)
+**Target:** `docs/designs/tearsheet.md` (`Lines 1-695`: the feature part, up to the "Detailed Implementation Plan" heading at line 696)
 
 **Stage:** 7, Critic Review, round 1. Standard for `egm-design` and `egm-structural`: the feature-spec standard. `egm-style` had no standard.
 

@@ -1,6 +1,6 @@
 # Goldfish Review Report
 
-**Target:** `/Users/liamblackshaw-brown/code/Tearsheet/docs/designs/tearsheet.md` (`Lines 1037–1812`: "Detailed Implementation Plan" to the end of the file)
+**Target:** `docs/designs/tearsheet.md` (`Lines 1037–1812`: "Detailed Implementation Plan" to the end of the file)
 **Stage:** Stage 9, Implementation Readiness Test
 **Standard:** `implementation-readiness-standard` (the Zero-Decision Rule)
 **Date:** Nov 2, 2026

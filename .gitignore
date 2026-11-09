@@ -31,5 +31,8 @@ app/engine-bundle/
 # Except the stored test runs CI replays (synthetic data, no keys): scripts/make_test_runs.py
 !engine/tests/fixtures/runs/tearsheet.sqlite
 
+# Claude Code's own folder: worktrees, sessions and local settings
+.claude/
+
 # macOS
 .DS_Store
