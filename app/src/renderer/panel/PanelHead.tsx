@@ -58,7 +58,7 @@ export function PanelSwitch({ view, last, title, onShow }: { view: ViewId; last:
 // (⌘3), which closes whatever shows.
 export function PanelSize({ split, size, onSize, onClose }: { split: boolean; size: SnapMode | null; onSize: (p: Preset) => void; onClose: () => void }) {
   return (
-    <>
+    <span className="psize">
       {split && (
         <div className="segc cwid" role="group" aria-label="Chart width">
           {PRESETS.map((p) => (
@@ -71,6 +71,6 @@ export function PanelSize({ split, size, onSize, onClose }: { split: boolean; si
       <button className="ibtn" aria-label="Close the panel" title="Close the panel (⌘3)" onClick={onClose}>
         {CLOSE}
       </button>
-    </>
+    </span>
   )
 }
