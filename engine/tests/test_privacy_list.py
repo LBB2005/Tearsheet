@@ -21,6 +21,10 @@ def test_the_list_names_both_ai_tools_and_only_services_still_used(database):
     # No longer contacted: iShares (M3), Alpha Vantage (unused), Benzinga (never chosen).
     for gone in ("iShares", "Alpha Vantage", "Benzinga"):
         assert gone not in text
+    # Codex always sends the user's own instruction file (ai/codex.py, USER_INSTRUCTION_FILES).
+    assert "~/.codex/AGENTS.md" in text
+    # The off switch's file and the install scripts.
+    assert "GitHub" in text and "claude.ai and chatgpt.com" in text
     news = next(r for r in rows if r["name"] == "News sites")
     assert "doesn't download" in news["sent"]
 

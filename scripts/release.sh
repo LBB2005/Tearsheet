@@ -266,6 +266,24 @@ if ! $dry_run && [ ! -d "$app" ]; then
   echo "  STOP  The build didn't make ${app#"$root"/}. Nothing was uploaded."
   exit 1
 fi
+# A release is never a test build (docs/test-builds.md): no marker file, and Electron's fuses off
+# (electron-builder.yml).
+if $dry_run; then
+  echo "  would check: no Contents/Resources/test-build.txt, and the RunAsNode, NODE_OPTIONS and --inspect fuses off"
+else
+  if [ -e "$app/Contents/Resources/test-build.txt" ]; then
+    echo "  STOP  This is a test build (it has test-build.txt). Nothing was uploaded."
+    exit 1
+  fi
+  fuses="$(cd "$root/app" && npx --no-install @electron/fuses read --app "$app" 2>&1 || true)"
+  for fuse in RunAsNode EnableNodeOptionsEnvironmentVariable EnableNodeCliInspectArguments; do
+    if ! printf '%s\n' "$fuses" | grep -q "$fuse is Disabled"; then
+      echo "  STOP  Electron's $fuse fuse isn't off in the build. Nothing was uploaded."
+      exit 1
+    fi
+  done
+  pass "A release build: no test marker, and the RunAsNode, NODE_OPTIONS and --inspect fuses are off."
+fi
 
 # --- 3. DMG and zip --------------------------------------------------------------------------
 

@@ -6,6 +6,8 @@ copied, and only add tables and columns, so an older engine can open a newer fil
 
 from __future__ import annotations
 
+import glob
+import os
 import re
 import sqlite3
 from dataclasses import dataclass
@@ -63,15 +65,44 @@ def _configure(conn: sqlite3.Connection) -> sqlite3.Connection:
     return conn
 
 
-def _copy_before_upgrade(conn: sqlite3.Connection, path: Path, current: int) -> Path:
-    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
-    copy_path = path.with_name(f"{path.name}.v{current}-{stamp}.bak")
-    copy = sqlite3.connect(copy_path)
+# Copies hold the user's whole research history: readable by the user only.
+FILE_MODE = 0o600
+FOLDER_MODE = 0o700
+
+
+def _private_copy(conn: sqlite3.Connection, target: Path) -> None:
+    """Copy the database to `target`, a new file only the user can read. The file is made
+    with its mode before SQLite writes to it, so it is never readable by others."""
+    os.close(os.open(target, os.O_CREAT | os.O_EXCL | os.O_WRONLY, FILE_MODE))
+    copy = sqlite3.connect(target)
     try:
         conn.backup(copy)
     finally:
         copy.close()
+    os.chmod(target, FILE_MODE)
+
+
+# Copies made before an upgrade (`<name>.v<N>-<stamp>.bak`): the newest are kept after an
+# upgrade succeeds.
+UPGRADE_COPIES_KEPT = 2
+
+
+def _copy_before_upgrade(conn: sqlite3.Connection, path: Path, current: int) -> Path:
+    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    copy_path = path.with_name(f"{path.name}.v{current}-{stamp}.bak")
+    _private_copy(conn, copy_path)
     return copy_path
+
+
+def _prune_upgrade_copies(path: Path) -> None:
+    """Keep only the newest `UPGRADE_COPIES_KEPT` copies made before upgrades, by the time
+    in their name."""
+    copies = sorted(
+        path.parent.glob(f"{glob.escape(path.name)}.v*-*.bak"),
+        key=lambda p: p.name.rsplit("-", 1)[-1],
+    )
+    for old in copies[:-UPGRADE_COPIES_KEPT]:
+        old.unlink(missing_ok=True)
 
 
 BACKUPS_KEPT = 10
@@ -79,18 +110,23 @@ BACKUPS_KEPT = 10
 
 def backup(conn: sqlite3.Connection, folder: Path, *, stamp: str | None = None) -> Path:
     """A live copy of the database with SQLite's online backup (design item 16). Keeps the
-    newest `BACKUPS_KEPT` copies in `folder`."""
-    folder.mkdir(parents=True, exist_ok=True)
+    newest `BACKUPS_KEPT` copies in `folder`. A folder this makes is the user's only (0700),
+    as is each copy (0600)."""
+    if not folder.exists():
+        folder.mkdir(parents=True, mode=FOLDER_MODE)
+        os.chmod(folder, FOLDER_MODE)
     stamp = stamp or datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     target = folder / f"tearsheet-{stamp}.sqlite"
-    copy = sqlite3.connect(target)
-    try:
-        conn.backup(copy)
-    finally:
-        copy.close()
+    if target.exists():
+        target.unlink()
+    _private_copy(conn, target)
     copies = sorted(folder.glob("tearsheet-*.sqlite"))
     for old in copies[:-BACKUPS_KEPT]:
         old.unlink()
+    # Copies made before this rule become private too.
+    for kept in copies[-BACKUPS_KEPT:]:
+        if kept.stat().st_mode & 0o077:
+            os.chmod(kept, FILE_MODE)
     return target
 
 
@@ -118,5 +154,7 @@ def open_database(path: Path) -> Database:
         # executescript commits first, so the migration and its version number
         # are applied together inside one explicit transaction.
         conn.executescript(f"BEGIN;\n{sql}\nPRAGMA user_version = {number};\nCOMMIT;")
+    if pending and current > 0:
+        _prune_upgrade_copies(path)
     version = pending[-1][0] if pending else current
     return Database(conn=conn, path=path, version=version, read_only=False)

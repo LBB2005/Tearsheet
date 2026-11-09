@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import subprocess
 import sys
 from contextlib import asynccontextmanager
@@ -254,12 +255,15 @@ def test_every_method_and_error_code_is_declared():
 
 def test_serve_writes_only_protocol_messages_to_standard_output(tmp_path):
     lines = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "list_reports", "params": {}}) + "\n"
+    # Its own temp folder, so the start-up sweep never looks at the Mac's.
+    (tmp_path / "tmp").mkdir(exist_ok=True)
     out = subprocess.run(
         [sys.executable, "-m", "tearsheet.cli", "--data-dir", str(tmp_path / "d"), "serve"],
         input=lines,
         capture_output=True,
         text=True,
         timeout=60,
+        env={**os.environ, "TMPDIR": str(tmp_path / "tmp")},
     )
     messages = [json.loads(line) for line in out.stdout.splitlines()]
     assert messages[0]["method"] == "hello"
@@ -355,11 +359,12 @@ def test_settings_show_each_tools_lock_down_state(tmp_path):
     h.server.close()
 
 
-def test_a_report_from_the_app_logs_its_prediction_for_the_log_screen(tmp_path):
+def test_a_report_from_the_app_logs_its_prediction_for_the_log_screen(tmp_path, monkeypatch):
     from tearsheet import config as cfg
     from tests.test_pipeline import WithFilingList
 
     h = Harness(tmp_path, data_cls=WithFilingList, log_predictions=True)
+    monkeypatch.setattr(cfg, "home_folder", lambda: tmp_path)
 
     async def go():
         await h.server.start()

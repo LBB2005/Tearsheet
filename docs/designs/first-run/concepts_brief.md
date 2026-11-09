@@ -77,14 +77,10 @@ against the files.
 | `egm-structural` | Maintainability and tech debt | completed |
 
 **Paths.**
-* Code paths are relative to the worktree root,
-  `/Users/liamblackshaw-brown/code/Tearsheet/.claude/worktrees/calm-motion-c02339`.
-* "Claude installer", "Codex installer", "Codex README" and "CHANGELOG" mean the saved copies under
-  `/private/tmp/claude-501/-Users-liamblackshaw-brown-code-Tearsheet--claude-worktrees-calm-motion-c02339/0b317585-286f-476b-bf9f-cb7b2a4ef163/scratchpad/`
-  (`dl-install-sh/install.sh`, `dl-codex-install/install.sh`, `dl-codex-readme/README.md` and
-  `dl-changelog/CHANGELOG.md`).
-* That folder belongs to one session. Copy the four files into `docs/designs/first-run/` if the draft
-  needs to cite them later.
+* Code paths are relative to the repository root.
+* "Claude installer", "Codex installer", "Codex README" and "CHANGELOG" mean copies saved during
+  the brainstorm (since removed) of Claude Code's `install.sh`, Codex's `install.sh`, Codex's
+  `README.md` and Claude Code's `CHANGELOG.md`.
 
 ### Risk summary
 

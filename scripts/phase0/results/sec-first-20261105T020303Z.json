@@ -1,6 +1,6 @@
 {
   "run": "first",
-  "data_dir": "/Users/liamblackshaw-brown/Library/Application Support/Tearsheet/phase0/sec-20261105T020132Z",
+  "data_dir": "~/Library/Application Support/Tearsheet/phase0/sec-20261105T020132Z",
   "tickers": [
     {
       "ticker": "JPM",

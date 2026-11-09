@@ -202,11 +202,12 @@ def test_no_move_without_a_close_at_the_report(database):
 # --- the methods ---------------------------------------------------------------------------
 
 
-def test_the_methods_hide_bring_back_and_keep_an_official_report(tmp_path):
+def test_the_methods_hide_bring_back_and_keep_an_official_report(tmp_path, monkeypatch):
     from tearsheet import config as cfg
     from tests.test_pipeline import WithFilingList
 
     h = Harness(tmp_path, data_cls=WithFilingList, log_predictions=True)
+    monkeypatch.setattr(cfg, "home_folder", lambda: tmp_path)
 
     async def go():
         await h.server.start()

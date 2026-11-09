@@ -437,3 +437,129 @@ def test_wait_first_is_awaited_before_each_call_to_that_service(tmp_path):
     asyncio.run(go())
     db.close()
     assert waits == ["massive", "massive"]
+
+
+# --- where the Massive key may go, and which addresses pages may use (security audit) -------
+
+
+@pytest.mark.parametrize(
+    ("address", "local"),
+    [
+        ("100.64.0.1", True),  # carrier-grade NAT, missed before
+        ("100.127.255.254", True),
+        ("::ffff:100.64.0.1", True),
+        ("192.168.1.1", True),
+        ("169.254.169.254", True),
+        ("fc00::1", True),
+        ("224.0.0.1", True),
+        ("0.0.0.0", True),
+        ("93.184.216.34", False),
+        ("2606:4700:4700::1111", False),
+    ],
+)
+def test_only_public_internet_addresses_are_allowed(address, local):
+    from tearsheet.http import is_local_ip
+
+    assert is_local_ip(address) is local
+
+
+@pytest.mark.parametrize(
+    ("url", "follow"),
+    [
+        ("https://api.massive.com/v3/reference/dividends?cursor=2", True),
+        ("https://API.massive.com/v3/x", True),
+        ("https://api.massive.com:443/v3/x", True),
+        ("http://api.massive.com/v3/x", False),
+        ("https://api.massive.com:8443/v3/x", False),
+        ("https://evil.example/v3/x", False),
+        ("https://api.massive.com.evil.example/v3", False),
+        ("https://evil.example/?u=https://api.massive.com", False),
+        (None, False),
+    ],
+)
+def test_massives_next_page_is_followed_only_on_its_own_host(url, follow):
+    from tearsheet.http import massive_next
+
+    assert massive_next({"next_url": url}) == (url if follow else None)
+
+
+@respx.mock
+def test_the_massive_key_is_never_sent_off_massives_host(rawstore, database):
+    route = respx.get("https://evil.example/v3/x").mock(return_value=httpx.Response(200))
+
+    async def go():
+        async with HttpClient(rawstore, "r1", massive_key="SECRETKEY") as http:
+            await http.fetch("massive", "https://evil.example/v3/x", kind="splits")
+
+    with pytest.raises(HTTPFailure, match="key wasn't sent"):
+        run(go())
+    assert not route.called and stored_rows(database) == 0
+
+
+@respx.mock
+def test_split_pages_stop_at_a_next_page_off_massives_host(rawstore, database):
+    from tearsheet.data.prices import PriceStore, fetch_splits
+
+    first = respx.get(url__startswith="https://api.massive.com/v3/reference/splits").mock(
+        return_value=httpx.Response(
+            200, json={"status": "OK", "results": [], "next_url": "https://evil.example/p2"}
+        )
+    )
+    evil = respx.get(url__startswith="https://evil.example").mock(
+        return_value=httpx.Response(200, json={"status": "OK", "results": []})
+    )
+
+    async def go():
+        async with HttpClient(rawstore, "r1", massive_key="SECRETKEY") as http:
+            await fetch_splits(
+                http, PriceStore(database.conn), {}, start=date(2026, 1, 1), end=date(2026, 2, 1)
+            )
+
+    run(go())
+    assert first.call_count == 1 and not evil.called
+
+
+def test_pages_connect_only_to_the_address_that_was_checked(rawstore):
+    """The page client connects through the pinned backend: an unchecked name can't connect,
+    and a checked one connects to its checked address whatever DNS says later."""
+    import httpcore
+
+    from tearsheet.http import PinnedBackend
+
+    class Recorder:
+        def __init__(self):
+            self.calls = []
+
+        async def connect_tcp(self, host, port, **kwargs):
+            self.calls.append((host, port))
+            return "stream"
+
+    async def go():
+        backend = PinnedBackend()
+        backend._base = Recorder()
+        with pytest.raises(httpcore.ConnectError):
+            await backend.connect_tcp("news.example", 443)
+        backend.pins["news.example"] = "93.184.216.34"
+        assert await backend.connect_tcp("NEWS.example", 443) == "stream"
+        # The real client is wired to its own backend (httpx has no public setting for it).
+        async with HttpClient(rawstore, "r1") as http:
+            assert http._page_client._transport._pool._network_backend is http._pins
+        return backend._base.calls
+
+    assert run(go()) == [("93.184.216.34", 443)]
+
+
+@respx.mock
+def test_a_checked_page_pins_its_address(rawstore):
+    from tests.test_articles import ALLOW, page, public_resolver
+
+    respx.get("https://reuters.com/a").mock(
+        return_value=httpx.Response(200, html=page(), headers={"content-type": "text/html"})
+    )
+
+    async def go():
+        async with HttpClient(rawstore, "r1", resolver=public_resolver) as http:
+            await http.fetch_page("https://reuters.com/a", is_allowed=ALLOW.allows)
+            return dict(http._pins.pins)
+
+    assert run(go()) == {"reuters.com": "93.184.216.34"}

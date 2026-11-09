@@ -1,11 +1,11 @@
 // The main process's side of the look: the window's zoom and colour (checked, applied, kept for
 // the next launch) and theme files through the Mac's open and save panels (small, and a theme).
 
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { describe, expect, test, vi } from 'vitest'
+import { afterEach, describe, expect, test, vi } from 'vitest'
 
 const handlers = vi.hoisted(() => new Map<string, (...args: unknown[]) => unknown>())
 vi.mock('electron', () => ({
@@ -17,7 +17,16 @@ import type { BrowserWindow } from 'electron'
 
 import { applyWindowLook, DEFAULT_WINDOW_LOOK, isThemeText, openTheme, parseWindowLook, readWindowLook, registerLookIpc, saveTheme, themeFileName, THEME_MAX_BYTES, writeWindowLook } from './look'
 
-const dir = () => mkdtempSync(join(tmpdir(), 'tearsheet-look-'))
+// Every folder a test makes is removed after it.
+const made: string[] = []
+const dir = () => {
+  const folder = mkdtempSync(join(tmpdir(), 'tearsheet-look-'))
+  made.push(folder)
+  return folder
+}
+afterEach(() => {
+  for (const folder of made.splice(0)) rmSync(folder, { recursive: true, force: true })
+})
 const THEME = JSON.stringify({ 'tearsheet-theme': 1, name: 'Night shift', glow: 30 })
 
 function fakeWindow(destroyed = false) {

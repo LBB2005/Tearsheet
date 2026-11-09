@@ -82,7 +82,8 @@ SERVICES = [
         "cost": "Your existing plan",
         "sent": "The text of filings and press releases, the numbers sent with that text, draft "
         "sections, and a web search for recent news about the company. Your plan's own privacy "
-        "terms apply",
+        "terms apply. Codex also loads your own ~/.codex/AGENTS.md and sends it to OpenAI with "
+        "each call (Codex has no setting to stop it)",
     },
     {
         "name": "News sites",
@@ -408,7 +409,7 @@ class Server:
 
     def _backup_dir(self) -> Path:
         settings = config.Settings(self.db.conn)
-        return Path(settings.get("backup_dir") or config.DEFAULT_BACKUP_DIR).expanduser()
+        return config.backup_folder(settings)
 
     def _live_checker(self, conn, ai):
         from tearsheet.ai import checker_for
@@ -1683,7 +1684,7 @@ class Server:
             # One Massive download at a time: grading waits for a history download too.
             await asyncio.wait({job for job in self.history_jobs.values() if not job.done()})
         settings = config.Settings(self.db.conn)
-        backup_dir = Path(settings.get("backup_dir") or config.DEFAULT_BACKUP_DIR).expanduser()
+        backup_dir = config.backup_folder(settings)
         async with self.data_factory(
             f"grade-{self.now():%Y%m%dT%H%M%SZ}", self.db.conn, self.rawstore
         ) as data:
@@ -1902,7 +1903,7 @@ class Server:
 
     async def m_get_settings(self, p) -> dict[str, Any]:
         settings = config.Settings(self.db.conn)
-        backup = Path(settings.get("backup_dir") or config.DEFAULT_BACKUP_DIR).expanduser()
+        backup = config.backup_folder(settings)
         home = Path.home()
         in_icloud = any(backup == home / f or home / f in backup.parents for f in ICLOUD_FOLDERS)
         round_ = settings.get("goal1_round")
@@ -1962,6 +1963,10 @@ async def serve(paths: config.Paths) -> int:
         out.write(json.dumps(message, separators=(",", ":")) + "\n")
         out.flush()
 
+    # Temporary folders an engine that was killed left behind (tempfiles.py).
+    from tearsheet.tempfiles import sweep_stale
+
+    sweep_stale()
     server = Server(paths, write=write)
     await server.start()
     loop = asyncio.get_running_loop()

@@ -1,6 +1,6 @@
 # Goldfish Review Report
 
-**Target:** `/Users/liamblackshaw-brown/code/Tearsheet/docs/designs/tearsheet.md` (`Lines 1-1373`)
+**Target:** `docs/designs/tearsheet.md` (`Lines 1-1373`)
 
 **Stage:** 5, Initial Zoom Out Review (simplicity, scope, and whether the design stays on the real problem)
 

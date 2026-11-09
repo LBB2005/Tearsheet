@@ -16,6 +16,7 @@ from tearsheet.ai.client import (
     SYSTEM_PROMPT,
     SYSTEM_PROMPT_WEB_SEARCH,
     AIAuthError,
+    AILockdownFailed,
     AIToolUseAttempt,
     AIUnavailable,
     AIUsageLimit,
@@ -292,6 +293,58 @@ def _client_ask(connector: CodexConnector, database, *, api_billing: bool = Fals
             await connector.aclose()
 
     return asyncio.run(go())
+
+
+# --- failing closed (security audit, 9 Nov 2026) -------------------------------------------
+
+
+def test_each_thread_is_checked_for_its_tools_before_the_turn(tmp_path):
+    fake = Fake(tmp_path, {"threads": [{"turn": {"text": ANSWER}}]})
+    answer = ask(fake.connector(), request())
+    lists = fake.sent("experimentalFeature/list")
+    # Both pages, each for the new thread.
+    assert [m["params"].get("cursor") for m in lists] == [None, "p2"]
+    assert {m["params"]["threadId"] for m in lists} == {"thread-1"}
+    assert answer.session["features_still_on"] == ["unified_exec"]
+
+
+@pytest.mark.parametrize(
+    ("scenario", "words"),
+    [
+        ({"features_on": ["shell_tool"]}, "`shell_tool` is still on"),
+        ({"features_on": ["apps"]}, "`apps` is still on"),
+        ({"extra_features": ["code_mode"], "extra_features_on": ["code_mode"]}, "`code_mode`"),
+        ({"unknown_to_list": ["shell_tool"]}, "doesn't know the switch `shell_tool`"),
+        ({"unknown_to_list": ["goals"]}, "doesn't know the switch `goals`"),
+        ({"no_feature_list": True}, "didn't list its features"),
+    ],
+)
+def test_a_thread_whose_tools_arent_confirmed_off_never_runs(tmp_path, scenario, words):
+    fake = Fake(tmp_path, {**scenario, "threads": [{"turn": {"text": ANSWER}}]})
+    with pytest.raises(AILockdownFailed) as caught:
+        ask(fake.connector(), request())
+    assert words in str(caught.value)
+    assert fake.sent("thread/start") and not fake.sent("turn/start")
+
+
+def test_a_switch_codex_doesnt_know_at_start_up_is_a_lockdown_failure(tmp_path):
+    fake = Fake(tmp_path, {"unknown_flags": ["sleep_tool"], "threads": [{"turn": {"text": "{}"}}]})
+    with pytest.raises(AILockdownFailed) as caught:
+        ask(fake.connector(), request())
+    assert "Unknown feature flag: sleep_tool" in str(caught.value)
+    assert not fake.sent("thread/start")
+
+
+def test_the_lockdown_rules_on_their_own():
+    every = {n: False for n in codex_module.DISABLED_FEATURES}
+    assert codex_module.lockdown_problems({**every, "unified_exec": True}) == []
+    assert codex_module.lockdown_problems({**every, "shell_tool": True}) == [
+        "`shell_tool` is still on"
+    ]
+    assert codex_module.lockdown_problems({}) == [
+        f"Codex doesn't know the switch `{n}`" for n in codex_module.DISABLED_FEATURES
+    ]
+    assert codex_module.lockdown_problems({**every, "js_repl": True}) == ["`js_repl` is still on"]
 
 
 def test_a_sign_in_that_isnt_a_plan_is_turned_down_before_any_call(tmp_path, database):

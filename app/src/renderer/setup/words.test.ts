@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { toolFlags, type ToolStatus } from '../../shared/tools'
-import { checkText, dataSentence, fixLabel, planLabel, progressWords, signedInAs, signingWords, stateSentence, TOOL_TEXT } from './words'
+import { checkText, dataSentence, fixLabel, planLabel, progressWords, signedInAs, signingWords, stateSentence, TOOL_TEXT, WORDS } from './words'
 
 const claude = (over: Partial<ToolStatus> = {}): ToolStatus => ({ kind: 'claude', name: 'Claude Code', path: '/x/claude', version: '2.1.317', reason: null, state: 'ready', ...toolFlags('ready'), plan: 'max', email: 'you@example.com', ...over })
 
@@ -48,7 +48,9 @@ describe('the tool words', () => {
 describe('the data sentence', () => {
   it('for one tool: the AI maker, SEC, Massive, iShares and GitHub', () => {
     const s = dataSentence({ writer: 'codex', checker: null, installed: [], news: false })
-    for (const part of ['Codex writes each report on your ChatGPT plan, so OpenAI', 'SEC gets your email', 'Massive gets your key', 'iShares', 'GitHub']) expect(s).toContain(part)
+    for (const part of ['Codex writes each report on your ChatGPT plan, so OpenAI', 'SEC gets your email', 'Massive and FRED get your keys', 'GitHub', '~/.codex/AGENTS.md']) expect(s).toContain(part)
+    // The S&P 500 list ships with Tearsheet; iShares is no longer contacted.
+    expect(s).not.toContain('iShares')
     expect(s).not.toContain('Anthropic')
     expect(s).not.toContain('came from')
     expect(s).not.toContain('news')
@@ -60,5 +62,13 @@ describe('the data sentence', () => {
     expect(s).toContain('so OpenAI sees the drafts too')
     expect(s).toContain('The install scripts came from claude.ai and chatgpt.com.')
     expect(s).toContain('The news sites on the allowlist')
+    expect(s).toContain('~/.codex/AGENTS.md')
+    expect(dataSentence({ writer: 'claude', checker: null, installed: [], news: false })).not.toContain('AGENTS.md')
+  })
+})
+
+describe('the install line', () => {
+  it('says the Install button runs each maker’s official installer, and from where', () => {
+    expect(WORDS.connectFine).toContain('official installer from Anthropic (claude.ai) or OpenAI (chatgpt.com)')
   })
 })

@@ -2,6 +2,10 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <!-- frame-src allows tearsheet: and https: on purpose: with 'self' alone Chromium blocks a report
+         link before Electron's will-frame-navigate sees it (docs/phase1-progress.md). Nothing loads:
+         the main process cancels every frame navigation (index.ts, navigation.ts). The report frames
+         themselves are srcdoc frames with an empty sandbox. -->
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; frame-src 'self' tearsheet: https:" />
     <title>Tearsheet</title>
   </head>

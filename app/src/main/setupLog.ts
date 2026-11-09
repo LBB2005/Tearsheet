@@ -19,7 +19,9 @@ export const SETUP_EVENTS = [
   'copy_terminal',
   'key_check',
   'install_switch_read',
-  'engine_restart_cap'
+  'engine_restart_cap',
+  // A release build was started with development hooks set; `value` is how many were ignored.
+  'dev_hooks_ignored'
 ] as const
 
 export const SETUP_FIELDS = [

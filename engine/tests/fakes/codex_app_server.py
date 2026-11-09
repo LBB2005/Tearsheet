@@ -154,11 +154,54 @@ def switched_off(argv: list[str], key: str) -> set[str]:
     return off
 
 
+# The features the fake knows, all on by default, as in the real program. Like codex-cli
+# 0.165.0, `--disable unified_exec` doesn't stick.
+KNOWN_FEATURES = (
+    "shell_tool",
+    "unified_exec",
+    "apps",
+    "plugins",
+    "hooks",
+    "memories",
+    "multi_agent",
+    "browser_use",
+    "computer_use",
+    "in_app_browser",
+    "image_generation",
+    "view_image",
+    "skill_search",
+    "tool_suggest",
+    "sleep_tool",
+    "goals",
+    "fast_mode",
+)
+STICKY = {"unified_exec"}
+
+
+def features(argv: list[str]) -> list[dict]:
+    """The `experimentalFeature/list` entries: switched off by `--disable`, unless the scenario
+    forgets a name ("unknown_to_list") or keeps one on ("features_on")."""
+    off = {v for f, v in zip(argv, argv[1:], strict=False) if f == "--disable"} - STICKY
+    off -= set(SCENARIO.get("features_on", []))
+    names = [n for n in KNOWN_FEATURES if n not in SCENARIO.get("unknown_to_list", [])]
+    names += SCENARIO.get("extra_features", [])
+    on = set(SCENARIO.get("extra_features_on", []))
+    return [
+        {"name": n, "enabled": n in on or n not in off, "stage": "stable", "defaultEnabled": True}
+        for n in names
+    ]
+
+
 def main() -> None:
     if sys.argv[1:] == ["--version"]:
         print(SCENARIO.get("version", "codex-cli 0.165.0"))
         return
     log("argv", sys.argv[1:])
+    for flag, value in zip(sys.argv[1:], sys.argv[2:], strict=False):
+        if flag == "--disable" and value in SCENARIO.get("unknown_flags", []):
+            sys.stderr.write(f"Error: Unknown feature flag: {value}\n")
+            sys.stderr.flush()
+            sys.exit(1)
     log("cwd", os.getcwd())
     log("env", sorted(os.environ))
     threads = list(SCENARIO.get("threads", []))
@@ -271,6 +314,20 @@ def main() -> None:
                 }
             )
             pending_turn = scene.get("turn", {})
+        elif method == "experimentalFeature/list":
+            if SCENARIO.get("no_feature_list"):
+                send({"id": request_id, "error": {"code": -32600, "message": "unknown method"}})
+                continue
+            entries = features(sys.argv[1:])
+            # Two pages, so the client must follow the cursor.
+            half = len(entries) // 2
+            page = entries[half:] if params.get("cursor") else entries[:half]
+            send(
+                {
+                    "id": request_id,
+                    "result": {"data": page, "nextCursor": None if params.get("cursor") else "p2"},
+                }
+            )
         elif method == "turn/start":
             send(
                 {

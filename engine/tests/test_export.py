@@ -403,6 +403,28 @@ def test_report_text_is_escaped_on_the_print_page(tmp_path, text):
     h.server.close()
 
 
+def test_a_claim_that_looks_like_a_formula_is_stored_as_text(tmp_path):
+    """AI-written text never becomes a formula Excel would run (formula injection)."""
+    h, ready = _report(tmp_path, facts=False)
+    d = _load(h, ready["report_id"])
+    first = next(s for s in d.sections if s.claims)
+    claim = first.claims[0]
+    evil = '=HYPERLINK("https://example.com/x","click")'
+    d.sections[d.sections.index(first)] = type(first)(
+        **{
+            **first.__dict__,
+            "claims": (type(claim)(**{**claim.__dict__, "text": evil}),) + first.claims[1:],
+        }
+    )
+    wb = load_workbook(io.BytesIO(workbook.build(d)))
+    cells = [c for row in wb["Summary"].iter_rows() for c in row if c.value == evil]
+    assert cells, "the claim should be on the Summary tab"
+    assert all(c.data_type == "s" for c in cells)
+    # Real formulas still are formulas.
+    assert any(c.data_type == "f" for row in wb["Summary"].iter_rows() for c in row if c.value)
+    h.server.close()
+
+
 def test_the_report_page_ends_with_the_three_download_links(tmp_path):
     h, ready = _report(tmp_path, facts=False)
 
