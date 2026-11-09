@@ -223,9 +223,7 @@ def cmd_run(args: argparse.Namespace) -> int:
                         checker=checker,
                         # Live full-method runs log official predictions (item 35).
                         log_predictions=args.full,
-                        backup_dir=Path(
-                            settings.get("backup_dir") or config.DEFAULT_BACKUP_DIR
-                        ).expanduser(),
+                        backup_dir=config.backup_folder(settings),
                     )
                     return await _closing(run.run(args.ticker), ai, checker)
 
@@ -506,7 +504,7 @@ def cmd_grade(args: argparse.Namespace) -> int:
     try:
         settings = config.Settings(database.conn)
         rules = load().grading
-        backup_dir = Path(settings.get("backup_dir") or config.DEFAULT_BACKUP_DIR).expanduser()
+        backup_dir = config.backup_folder(settings)
 
         async def go():
             rawstore = RawStore(paths.raw, database.conn)

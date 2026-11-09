@@ -408,7 +408,7 @@ class Server:
 
     def _backup_dir(self) -> Path:
         settings = config.Settings(self.db.conn)
-        return Path(settings.get("backup_dir") or config.DEFAULT_BACKUP_DIR).expanduser()
+        return config.backup_folder(settings)
 
     def _live_checker(self, conn, ai):
         from tearsheet.ai import checker_for
@@ -1679,7 +1679,7 @@ class Server:
             # One Massive download at a time: grading waits for a history download too.
             await asyncio.wait({job for job in self.history_jobs.values() if not job.done()})
         settings = config.Settings(self.db.conn)
-        backup_dir = Path(settings.get("backup_dir") or config.DEFAULT_BACKUP_DIR).expanduser()
+        backup_dir = config.backup_folder(settings)
         async with self.data_factory(
             f"grade-{self.now():%Y%m%dT%H%M%SZ}", self.db.conn, self.rawstore
         ) as data:
@@ -1898,7 +1898,7 @@ class Server:
 
     async def m_get_settings(self, p) -> dict[str, Any]:
         settings = config.Settings(self.db.conn)
-        backup = Path(settings.get("backup_dir") or config.DEFAULT_BACKUP_DIR).expanduser()
+        backup = config.backup_folder(settings)
         home = Path.home()
         in_icloud = any(backup == home / f or home / f in backup.parents for f in ICLOUD_FOLDERS)
         round_ = settings.get("goal1_round")

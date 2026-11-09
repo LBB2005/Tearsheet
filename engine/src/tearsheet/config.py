@@ -227,11 +227,34 @@ def _positive_number(value: str) -> str:
     return value
 
 
+def home_folder() -> Path:
+    """The user's home folder (a function, so tests can move it)."""
+    return Path.home()
+
+
 def _folder(value: str) -> str:
     path = Path(value).expanduser()
     if not path.is_absolute():
         raise ValueError("Give the backup folder as a full path, such as ~/Tearsheet Backups.")
+    home = home_folder().resolve()
+    resolved = path.resolve()
+    if resolved == home or not resolved.is_relative_to(home):
+        raise ValueError(
+            "Pick a folder inside your home folder for backups, such as ~/Tearsheet Backups."
+        )
     return str(path)
+
+
+def backup_folder(settings: Settings) -> Path:
+    """Where database backups go. The stored setting is checked again on reading, so a folder
+    saved before the home-folder rule falls back to the default."""
+    value = settings.get("backup_dir")
+    if value:
+        try:
+            return Path(_folder(value))
+        except ValueError:
+            log.warning("The backup folder setting is outside the home folder; using the default.")
+    return DEFAULT_BACKUP_DIR
 
 
 @dataclass(frozen=True)

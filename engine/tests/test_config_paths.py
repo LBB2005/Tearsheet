@@ -85,3 +85,22 @@ def test_the_state_file_is_read_one_key_a_line(tmp_path, monkeypatch):
     assert config.test_state() == {}  # no file yet
     (tmp_path / "state").write_text("claude=signed_in\n\ncodex = api_key\nnot a line\ncheck=fail\n")
     assert config.test_state() == {"claude": "signed_in", "codex": "api_key", "check": "fail"}
+
+
+# --- the backup folder stays in the home folder (security audit) ------------------------------
+
+
+def test_the_backup_folder_must_be_inside_the_home_folder(tmp_path, monkeypatch, database):
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setattr(config, "home_folder", lambda: home)
+    settings = config.Settings(database.conn)
+    assert settings.set("backup_dir", str(home / "Backups")) == str(home / "Backups")
+    for outside in ("/etc", "/tmp/x", str(home), str(home / ".." / "elsewhere"), str(tmp_path)):
+        with pytest.raises(ValueError, match="inside your home folder"):
+            settings.set("backup_dir", outside)
+    # A folder saved before the rule falls back to the default when read.
+    settings.set_internal("backup_dir", "/Volumes/Shared/backups")
+    assert config.backup_folder(settings) == config.DEFAULT_BACKUP_DIR
+    settings.set_internal("backup_dir", str(home / "Backups"))
+    assert config.backup_folder(settings) == home / "Backups"

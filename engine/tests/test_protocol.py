@@ -355,11 +355,12 @@ def test_settings_show_each_tools_lock_down_state(tmp_path):
     h.server.close()
 
 
-def test_a_report_from_the_app_logs_its_prediction_for_the_log_screen(tmp_path):
+def test_a_report_from_the_app_logs_its_prediction_for_the_log_screen(tmp_path, monkeypatch):
     from tearsheet import config as cfg
     from tests.test_pipeline import WithFilingList
 
     h = Harness(tmp_path, data_cls=WithFilingList, log_predictions=True)
+    monkeypatch.setattr(cfg, "home_folder", lambda: tmp_path)
 
     async def go():
         await h.server.start()

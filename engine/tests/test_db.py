@@ -72,6 +72,60 @@ def test_an_older_database_is_copied_before_an_upgrade(tmp_path, monkeypatch):
     upgraded.close()
 
 
+def test_only_the_newest_two_upgrade_copies_are_kept(tmp_path, monkeypatch):
+    from tearsheet import db as db_module
+
+    path = tmp_path / "t.sqlite"
+    open_database(path).close()
+    for stamp in ("20250101T000000Z", "20250601T000000Z", "20260101T000000Z"):
+        (tmp_path / f"t.sqlite.v1-{stamp}.bak").write_bytes(b"old")
+    (tmp_path / "other.sqlite.v1-20240101T000000Z.bak").write_bytes(b"not ours")
+    real = db_module.migrations()
+    extra = (real[-1][0] + 1, "CREATE TABLE later_table (id INTEGER PRIMARY KEY);")
+    monkeypatch.setattr(db_module, "migrations", lambda: [*real, extra])
+
+    db_module.open_database(path).close()
+    kept = sorted(p.name for p in tmp_path.glob("t.sqlite.v*.bak"))
+    assert len(kept) == 2
+    assert kept[0] == "t.sqlite.v1-20260101T000000Z.bak"
+    assert kept[1].startswith(f"t.sqlite.v{real[-1][0]}-")  # the copy just made
+    assert (tmp_path / kept[1]).stat().st_mode & 0o777 == 0o600
+    assert (tmp_path / "other.sqlite.v1-20240101T000000Z.bak").exists()
+
+
+def test_a_failed_upgrade_keeps_every_copy(tmp_path, monkeypatch):
+    from tearsheet import db as db_module
+
+    path = tmp_path / "t.sqlite"
+    open_database(path).close()
+    for stamp in ("20250101T000000Z", "20250601T000000Z"):
+        (tmp_path / f"t.sqlite.v1-{stamp}.bak").write_bytes(b"old")
+    real = db_module.migrations()
+    monkeypatch.setattr(db_module, "migrations", lambda: [*real, (real[-1][0] + 1, "NOT SQL;")])
+    with pytest.raises(sqlite3.Error):
+        db_module.open_database(path)
+    assert len(list(tmp_path.glob("t.sqlite.v*.bak"))) == 3
+
+
+def test_backups_are_readable_by_the_user_only(tmp_path):
+    from tearsheet.db import backup
+
+    db = open_database(tmp_path / "t.sqlite")
+    folder = tmp_path / "new" / "backups"
+    made = backup(db.conn, folder, stamp="20261105T000000Z")
+    assert folder.stat().st_mode & 0o777 == 0o700
+    assert made.stat().st_mode & 0o777 == 0o600
+    # A copy from before the rule is made private on the next backup.
+    old = folder / "tearsheet-20261104T000000Z.sqlite"
+    old.write_bytes(b"")
+    old.chmod(0o644)
+    backup(db.conn, folder, stamp="20261106T000000Z")
+    assert old.stat().st_mode & 0o777 == 0o600
+    # The same stamp twice replaces the copy.
+    assert backup(db.conn, folder, stamp="20261106T000000Z").exists()
+    db.close()
+
+
 # --- Phase 1: report tables, write-once predictions and backups (items 16 and 17) -----------
 
 REPORT_TABLES = {
