@@ -38,7 +38,9 @@ class _Book:
     def __init__(self, data: ExportData) -> None:
         self.d = data
         self.out = io.BytesIO()
-        self.wb = xlsxwriter.Workbook(self.out, {"in_memory": True})
+        # strings_to_formulas off: AI-written text that starts with "=" (or "+", "-", "@") must
+        # land as text, never as a formula Excel runs. Real formulas go through write_formula.
+        self.wb = xlsxwriter.Workbook(self.out, {"in_memory": True, "strings_to_formulas": False})
         self.wb.set_properties(
             {
                 "title": f"{data.name} ({data.ticker}): Tearsheet report",
