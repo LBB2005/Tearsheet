@@ -7,10 +7,11 @@ import { describe, expect, test, vi } from 'vitest'
 
 import { App } from './App'
 import { openReport, renderApp, win } from './test/app'
-import { bridge, emit, fail, flag, menu, ok, PREDICTIONS, settings } from './test/bridge'
-import { setWindowWidth } from './test/screen'
+import { bridge, download, emit, fail, flag, menu, ok, PREDICTIONS, settings } from './test/bridge'
+import { setSize, setWindowWidth, sizeReportPage } from './test/screen'
 
 const sidebar = () => within(screen.getByRole('complementary', { name: 'Sidebar' }))
+const chartPane = () => screen.getByRole('region', { name: 'Price chart' })
 const toolbarTitle = () => document.querySelector('.top .ttl')?.textContent
 const frameHeading = () => {
   const frame = document.querySelector('iframe.report-frame.on') as HTMLIFrameElement | null
@@ -143,16 +144,41 @@ describe('the report page', () => {
     await waitFor(() => expect(frameHeading()).toBe('AAPL summary text'))
   })
 
-  test('a narrow window asks for the narrow layout, and the chart takes the whole window', async () => {
+  test('a narrow window asks for the narrow layout, and the chart stays beside the report', async () => {
     setWindowWidth(900)
     const { user } = await renderApp()
     await user.click(screen.getByRole('button', { name: 'Show the sidebar' }))
     await openReport(user)
+    sizeReportPage(900)
     expect(bridge.getReport).toHaveBeenLastCalledWith('r-aapl-2', expect.objectContaining({ narrow: true }))
     menu('chart')
-    expect(screen.getByRole('region', { name: 'Price chart' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Full' })).toBeNull()
+    expect(chartPane().style.width).toBe('450px')
+    expect(screen.getByRole('separator', { name: 'Resize the chart' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Full' })).toBeInTheDocument()
+    expect(document.querySelector('.rpage')).not.toHaveClass('full')
     expect(screen.queryByRole('group', { name: 'Beside the chart' })).toBeNull()
+  })
+
+  test('resizing the window keeps the chart beside the report at its share, with no glide', async () => {
+    const { user } = await renderApp()
+    sizeReportPage()
+    await openReport(user)
+    menu('chart')
+    const page = () => document.querySelector('.rpage') as HTMLElement
+    expect(chartPane().style.width).toBe('524px')
+    // Across the 1,100 px line, where the sidebar goes over the page: still beside the report, at half.
+    for (const [windowW, pageW] of [[1100, 868], [1099, 1099], [960, 960], [1280, 1048]]) {
+      setWindowWidth(windowW)
+      setSize('.rpage', pageW, 760)
+      expect(chartPane().style.width).toBe(`${Math.round(pageW / 2)}px`)
+      expect(screen.getByRole('separator', { name: 'Resize the chart' })).toBeInTheDocument()
+      // The chart follows the window at once: its width doesn't glide (chart.css).
+      expect(page()).toHaveClass('resizing')
+    }
+    // A width button still glides the divider to its place.
+    await user.click(screen.getByRole('button', { name: 'Wide' }))
+    expect(chartPane().style.width).toBe('699px')
+    expect(page()).not.toHaveClass('resizing')
   })
 
   test('a report that doesn’t open says why, and Try again asks again', async () => {
@@ -255,6 +281,8 @@ describe('the prediction log', () => {
     await user.click(sidebar().getByRole('button', { name: /Prediction log/ }))
     expect(await screen.findByText('No official predictions yet')).toBeInTheDocument()
     expect(toolbarTitle()).toBe('Prediction logNothing logged yet')
+    // The log shows ratings and ranges, so it carries the line too (launch-readiness M5).
+    expect(screen.getByText(/Research data, not investment advice\./)).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Grade what is due' }))
     expect(await screen.findByText('Nothing new was due.')).toBeInTheDocument()
   })
@@ -301,5 +329,25 @@ describe('the engine’s notes', () => {
     bridge.getSettings.mockResolvedValue(ok(settings({ rejected_keys: ['massive'] })))
     emit('run_failed', { run_id: 'someone-else', message: 'x', code: 'ENGINE_ERROR' })
     expect(await screen.findByText('Massive key not accepted')).toBeInTheDocument()
+  })
+})
+
+describe('downloads from the end of the report', () => {
+  test('a saved file shows as a toast whose Show in Finder asks for that file', async () => {
+    const { user } = await renderApp()
+    download({ state: 'saving', kind: 'pdf', reportId: 'rep-1' })
+    expect(await screen.findByText('Making the PDF…')).toBeInTheDocument()
+    download({ state: 'saved', kind: 'pdf', reportId: 'rep-1', name: 'JPM Tearsheet 7 Nov 2026.pdf', path: '/d/JPM Tearsheet 7 Nov 2026.pdf' })
+    expect(await screen.findByText('Saved to Downloads')).toBeInTheDocument()
+    expect(screen.getByText('JPM Tearsheet 7 Nov 2026.pdf')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Show in Finder' }))
+    expect(bridge.showDownload).toHaveBeenCalledWith('/d/JPM Tearsheet 7 Nov 2026.pdf')
+  })
+
+  test('a failure says why', async () => {
+    await renderApp()
+    download({ state: 'failed', kind: 'xlsx', reportId: 'rep-1', message: 'Tearsheet isn’t allowed to save in Downloads.' })
+    expect(await screen.findByText('The Excel workbook wasn’t saved')).toBeInTheDocument()
+    expect(screen.getByText('Tearsheet isn’t allowed to save in Downloads.')).toBeInTheDocument()
   })
 })

@@ -39,23 +39,25 @@ def enterprise_value(c: ValuationInputs) -> float:
 
 def _pe(
     company: ValuationInputs, peers: list[ValuationInputs], trim: float, minimum: int
-) -> tuple[float | None, int]:
+) -> tuple[float | None, int, float | None]:
+    """The P/E value, the peers kept, and their trimmed harmonic-mean P/E."""
     ratios = [p.price / p.diluted_eps for p in peers if p.diluted_eps and p.diluted_eps > 0]
     mean, kept = harmonic_trimmed(ratios, trim_share=trim)
     if mean is None or len(kept) < minimum or not company.diluted_eps or company.diluted_eps <= 0:
-        return None, len(kept)
-    return mean * company.diluted_eps, len(kept)
+        return None, len(kept), mean
+    return mean * company.diluted_eps, len(kept), mean
 
 
 def _ev_ebit(
     company: ValuationInputs, peers: list[ValuationInputs], trim: float, minimum: int
-) -> tuple[float | None, int]:
+) -> tuple[float | None, int, float | None]:
+    """The EV/EBIT value, the peers kept, and their trimmed harmonic-mean EV/EBIT."""
     ratios = [enterprise_value(p) / p.ebit for p in peers if p.ebit and p.ebit > 0]
     mean, kept = harmonic_trimmed(ratios, trim_share=trim)
     if mean is None or len(kept) < minimum or not company.ebit or company.ebit <= 0:
-        return None, len(kept)
+        return None, len(kept), mean
     equity = company.equity_bridge(mean * company.ebit)
-    return (equity / company.shares if equity > 0 else None), len(kept)
+    return (equity / company.shares if equity > 0 else None), len(kept), mean
 
 
 def multiples(
@@ -68,10 +70,17 @@ def multiples(
     rules = settings["multiples"]
     trim, minimum = float(rules["trim_share"]), int(rules["min_peers"])
     others = [p for p in peers if p.cik != company.cik]
-    pe, pe_n = _pe(company, others, trim, minimum)
-    ev, ev_n = (None, 0) if pe_only else _ev_ebit(company, others, trim, minimum)
+    pe, pe_n, pe_multiple = _pe(company, others, trim, minimum)
+    ev, ev_n, ev_multiple = (None, 0, None) if pe_only else _ev_ebit(company, others, trim, minimum)
     valid = [v for v in (pe, ev) if v is not None]
-    details = {"pe_value": pe, "ev_ebit_value": ev, "pe_peers": pe_n, "ev_ebit_peers": ev_n}
+    details = {
+        "pe_value": pe,
+        "ev_ebit_value": ev,
+        "pe_peers": pe_n,
+        "ev_ebit_peers": ev_n,
+        "pe_multiple": pe_multiple,
+        "ev_ebit_multiple": ev_multiple,
+    }
     if not valid:
         return MethodValue(
             "pe" if pe_only else METHOD,

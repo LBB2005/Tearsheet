@@ -3,10 +3,11 @@ import { EventEmitter } from 'node:events'
 import { afterEach, expect, test, vi } from 'vitest'
 
 const handlers = vi.hoisted(() => new Map<string, (...args: unknown[]) => unknown>())
+const opened = vi.hoisted(() => [] as string[])
 vi.mock('electron', () => ({
   BrowserWindow: class {},
   ipcMain: { handle: (channel: string, fn: (...args: unknown[]) => unknown) => handlers.set(channel, fn) },
-  shell: {}
+  shell: { openExternal: async (url: string) => void opened.push(url) }
 }))
 
 import type { BrowserWindow } from 'electron'
@@ -121,4 +122,17 @@ test('a find still waiting when the window closes ends quietly', async () => {
   close()
   expect(() => vi.advanceTimersByTime(1000)).not.toThrow()
   await expect(found).resolves.toBeUndefined()
+})
+
+test('About and help gets the versions, and Send feedback opens a filled-in email', async () => {
+  const { window } = openWindow()
+  const engine = Object.assign(new EventEmitter(), { fatalMessage: null }) as unknown as Engine
+  const info = { app: '0.1.0', engine: '0.1.0', macos: '26.1', electron: '33.2.0' }
+  registerIpc(window, engine, '/usr/bin', () => info)
+  expect(handlers.get('tearsheet:about')!()).toEqual(info)
+  opened.length = 0
+  expect(await handlers.get('tearsheet:sendFeedback')!()).toBe(true)
+  expect(opened).toHaveLength(1)
+  expect(opened[0].startsWith('mailto:')).toBe(true)
+  expect(decodeURIComponent(opened[0])).toContain('Tearsheet 0.1.0')
 })

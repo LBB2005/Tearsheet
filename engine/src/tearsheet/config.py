@@ -269,6 +269,13 @@ SETTINGS: dict[str, SettingSpec] = {
         "for every S&P 500 company, which pauses while a report or grading runs.",
         _choice("on", "off"),
     ),
+    "news_articles": SettingSpec(
+        "off (the default) or on. Off: section 7 reads the company's press releases from SEC "
+        "and lists other news coverage as links, without downloading those pages, because most "
+        "news sites' terms forbid automated reading. On: the allowlisted sites' article pages "
+        "are downloaded and read too; turn it on only where their terms allow it.",
+        _choice("off", "on"),
+    ),
     "goal1_round": SettingSpec(
         "The Goal 1 round new full reports count toward (default 1). Raise it to restart the test after a fix.",
         _positive_number,

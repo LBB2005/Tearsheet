@@ -62,6 +62,9 @@ def offline(request, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
 @pytest.fixture
 def database(tmp_path: Path):
     db = open_database(tmp_path / "data" / "tearsheet.sqlite")
+    # Most news tests are about reading article pages, which is off by default
+    # (docs/launch/launch-readiness.md, M2). test_pipeline's links-only test removes this.
+    config.Settings(db.conn).set("news_articles", "on")
     yield db
     db.close()
 

@@ -27,7 +27,7 @@ const RENDERER = join(dirname(fileURLToPath(import.meta.url)), '..')
 
 // The stylesheets in the order the app loads them (main.tsx, then App.tsx's imports in turn), so
 // equal selectors in two sheets resolve as they do in the window.
-const SHEETS = ['styles.css', 'home/home.css', 'mark/mark.css', 'log/log.css', 'panel/panel.css', 'chart/chart.css', 'report/report.css', 'views/views.css', 'settings/settings.css', 'setup/setup.css']
+const SHEETS = ['styles.css', 'home/home.css', 'mark/mark.css', 'log/log.css', 'panel/panel.css', 'chart/chart.css', 'report/report.css', 'views/views.css', 'settings/settings.css', 'settings/appearance.css', 'setup/setup.css']
 
 interface Entry {
   selector: string

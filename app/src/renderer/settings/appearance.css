@@ -1,0 +1,86 @@
+/* Settings → Appearance (settings/Appearance.tsx), version B, "Look gallery": the looks as
+   pictures, then rows in Settings' own Outline style (settings.css), and Customize's tabs. Like
+   every style in the window it takes its colours, weights and corners from the names in
+   styles.css :root, so the page itself shows the look as it changes. The pictures of each look
+   are drawn in that look's colours, set on them by the page. */
+
+.setv .aphead { display: flex; align-items: flex-end; gap: 16px; }
+.setv .aphead > div { flex: 1; min-width: 0; }
+
+/* A Mac-style segmented control: Dark, Light, Match the Mac; Customize's tabs; Glass; Lines. */
+.setv .aseg { display: inline-flex; flex: none; padding: 2px; border-radius: calc(8px * var(--round)); background: rgb(var(--ink) / .06); border: 1px solid var(--line); }
+.setv .aseg button { all: unset; padding: 3px 12px; border-radius: calc(6px * var(--round)); color: var(--muted); font-size: 12.5px; white-space: nowrap; cursor: pointer; transition: background .15s, color .15s; }
+.setv .aseg button:hover { color: var(--text); }
+.setv .aseg button.on { background: rgb(var(--ink) / .13); color: var(--text); box-shadow: 0 1px 2px rgb(var(--shade) / calc(.3 * var(--shade-k))); }
+.setv .aseg button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.setv .aptabs { margin-top: 18px; }
+.setv .apback { display: inline-block; margin-bottom: 10px; }
+
+/* ---------- the looks ---------- */
+.setv .lgrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 12px; margin-top: 18px; }
+@container (max-width: 520px) { .setv .lgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.setv .lcard { all: unset; box-sizing: border-box; display: flex; flex-direction: column; gap: 6px; min-width: 0; cursor: pointer; border-radius: calc(10px * var(--round)); }
+.setv .lcard:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.setv .lcard:disabled { cursor: default; opacity: .6; }
+.setv .lcard .nm { display: flex; justify-content: space-between; gap: 6px; font-size: 13px; color: var(--text2); }
+.setv .lcard .nm small { font-size: 11.5px; color: var(--faint2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.setv .lcard.on .nm { color: var(--text); }
+.setv .thumb { display: flex; height: 84px; border-radius: calc(10px * var(--round)); overflow: hidden; box-shadow: 0 0 0 1px rgb(var(--ink) / .16); transition: box-shadow .15s; }
+.setv .lcard:hover .thumb { box-shadow: 0 0 0 1px rgb(var(--ink) / .4); }
+.setv .lcard.on .thumb { box-shadow: 0 0 0 2px var(--accent); }
+.setv .th-side { width: 26%; display: flex; flex-direction: column; gap: 5px; padding: 14px 7px; }
+.setv .th-side i, .setv .th-main i { display: block; height: 4px; border-radius: 2px; }
+.setv .th-main { flex: 1; display: flex; flex-direction: column; gap: 6px; padding: 14px 12px; }
+.setv .th-box { display: block; height: 28px; margin-top: 2px; border-radius: calc(5px * var(--round)); border: 1px solid transparent; }
+.setv .thumb.add { align-items: center; justify-content: center; box-shadow: none; border: 1.5px dashed rgb(var(--ink) / .25); color: var(--muted); font-size: 22px; }
+.setv .lcard:hover .thumb.add { border-color: rgb(var(--ink) / .45); box-shadow: none; }
+/* The More looks card: four of them side by side, each its sidebar, page and accent. */
+.setv .thumb.mosaic { gap: 0; }
+.setv .thumb.mosaic > span { flex: 1; display: flex; align-items: flex-end; justify-content: center; padding: 0 0 12px; }
+.setv .thumb.mosaic > span + span { box-shadow: -1px 0 0 rgb(var(--ink) / .14); }
+.setv .thumb.mosaic i { display: block; width: 46%; height: 4px; margin-left: 30%; border-radius: 2px; }
+.setv .lgrid.more { margin-bottom: 8px; }
+.setv .lookline { margin-top: 12px; min-height: 28px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 12.5px; color: var(--muted); }
+.setv .lookline input.sin { width: 240px; padding: 5px 10px; border-radius: calc(8px * var(--round)); border: 1px solid var(--chipline); background: rgb(var(--shade) / calc(.25 * var(--shade-k))); color: var(--text); font: 13px var(--ui); font-weight: calc(400 + var(--wt)); outline: none; box-shadow: 0 0 0 3px rgb(var(--accent-rgb) / .12); }
+.setv .lookline + .fine { margin-top: 6px; }
+
+/* ---------- rows ---------- */
+.setv .apsw { display: flex; flex: none; align-items: center; gap: 8px; }
+.setv .apsw .sw { all: unset; position: relative; box-sizing: border-box; width: 20px; height: 20px; border-radius: 50%; cursor: pointer; box-shadow: inset 0 0 0 1px rgb(var(--ink) / .22); }
+.setv .apsw .sw.on { box-shadow: 0 0 0 2px var(--base), 0 0 0 3.5px var(--text); }
+.setv .apsw .sw:focus-visible, .setv .apsw .sw:focus-within { outline: 2px solid var(--accent); outline-offset: 3px; }
+.setv .apsw .sw.any { overflow: hidden; background: conic-gradient(var(--down), var(--hold), var(--up), var(--accent), var(--accent2), var(--down)); }
+.setv .apsw .sw.any input { position: absolute; inset: 0; width: 100%; height: 100%; padding: 0; border: 0; opacity: 0; cursor: pointer; }
+.setv .aprange { display: flex; flex: none; align-items: center; gap: 10px; }
+.setv .aprange input { width: 190px; accent-color: var(--accent); }
+.setv .aprange output { width: 46px; text-align: right; font-size: 12.5px; color: var(--muted); }
+.setv .aprange.off { opacity: .45; }
+.setv .apcol { display: flex; flex: none; align-items: center; gap: 8px; }
+.setv .apcol input[type="color"] { width: 30px; height: 24px; padding: 0; border: 1px solid rgb(var(--ink) / .2); border-radius: calc(6px * var(--round)); background: none; cursor: pointer; }
+.setv .apcol .aphex { width: 82px; padding: 3px 8px; border-radius: calc(7px * var(--round)); border: 1px solid rgb(var(--ink) / .14); background: rgb(var(--ink) / .05); color: var(--text); font: 12px var(--mono); font-weight: calc(400 + var(--wt)); text-transform: uppercase; outline: none; }
+.setv .apcol .aphex:focus { border-color: var(--chipline); }
+.setv .sline > .lk { flex: none; }
+
+/* Hard to read: amber, like the other notes that need you. */
+.setv .apwarn { margin-top: 14px; padding: 10px 14px; border-radius: var(--r); background: rgb(var(--hold-rgb) / .07); border: 1px solid rgb(var(--hold-rgb) / .3); font-size: 12.5px; color: var(--text2); }
+.setv .apwarn b { color: var(--hold); font-weight: calc(600 + var(--wt)); }
+
+/* ---------- the sample ---------- */
+.setv .apsample { margin-top: 18px; padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; border-radius: var(--r); background: var(--panel); border: 1px solid var(--line); backdrop-filter: blur(calc(18px * var(--frost))); -webkit-backdrop-filter: blur(calc(18px * var(--frost))); }
+.setv .apsample .eyebrow { font-size: 11px; letter-spacing: .5px; text-transform: uppercase; color: var(--faint2); font-weight: calc(600 + var(--wt)); }
+.setv .smp-hd { display: flex; align-items: center; gap: 10px; }
+.setv .smp-hd .tk { color: var(--accent); letter-spacing: .5px; font-weight: calc(600 + var(--wt)); }
+.setv .smp-hd .nm { margin-right: auto; color: var(--muted); }
+.setv .smp-nums { display: flex; flex-wrap: wrap; align-items: baseline; gap: 16px; }
+.setv .smp-nums small { display: block; font-size: 11.5px; color: var(--muted); }
+.setv .smp-nums .big { font-size: 20px; font-weight: calc(600 + var(--wt)); }
+.setv .upc { color: var(--up); }
+.setv .dnc { color: var(--down); }
+.setv .spark { display: block; width: 100%; height: 64px; }
+.setv .spark .sp-area { fill: var(--c-co); fill-opacity: .12; }
+.setv .spark .sp-spy { fill: none; stroke: var(--c-spy); stroke-width: 1.4; stroke-opacity: .8; vector-effect: non-scaling-stroke; }
+.setv .spark .sp-peer { fill: none; stroke: var(--c-peer); stroke-width: 1.4; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; }
+.setv .spark .sp-co { fill: none; stroke: var(--c-co); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.setv .smp-ft { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.setv .smp-ft .lk { margin-left: auto; cursor: default; }
+.setv .smp-btn { padding: 4px 13px; border-radius: calc(8px * var(--round)); background: var(--accent); color: var(--on-accent); font-size: 12.5px; font-weight: calc(600 + var(--wt)); }

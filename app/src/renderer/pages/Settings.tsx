@@ -1,5 +1,5 @@
 // Settings (the spec's "Settings and connections"), laid out like the Mac's own settings: a list
-// of six topics on the left (settings/topics.ts) and one short page for the topic picked. A topic
+// of eight topics on the left (settings/topics.ts) and one short page for the topic picked. A topic
 // that needs you has a dot, and General opens with a note and a button for each problem; together
 // they replace the four health tiles. The look is "Outline" (round 2 of the settings mockups):
 // the app sidebar's own line icons with no box, Mac pop-up menus and pill buttons. Each page
@@ -8,7 +8,9 @@
 //
 // The rows are in settings/General.tsx (labels, pop-up menus, typed settings, the main AI tool),
 // settings/ChartChoice.tsx and settings/Keys.tsx, with the price download line under the keys
-// (settings/prices.ts); the AI tools, storage, privacy and advanced pages are below. Keys are
+// (settings/prices.ts); Appearance is settings/Appearance.tsx, and needs nothing from the engine,
+// so it opens even while the engine is down; the AI tools, storage, privacy and advanced pages
+// are below. Keys are
 // never shown: a pasted key goes to the engine, which saves it to the Keychain, and the window
 // lets go of it.
 
@@ -18,9 +20,11 @@ import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type Reac
 
 import type { ToolStatus } from '../../preload/api'
 import type { LockdownState, PriceDownload, SettingsResult } from '../../shared/protocol'
+import { AboutPage } from '../settings/About'
+import type { Notify } from '../settings/Appearance'
+import { AppearancePage } from '../settings/Appearance'
 import { ChartChoice } from '../settings/ChartChoice'
 import { FieldRow, Label, ToolChoice } from '../settings/General'
-import { MotionChoice } from '../settings/MotionChoice'
 import { KeysPanel } from '../settings/Keys'
 import { lockdownText } from '../settings/lockdown'
 import { PRICE_POLL_MS, priceLine } from '../settings/prices'
@@ -41,11 +45,13 @@ export interface SettingsProps {
   // The topic shown. App keeps it, so the toolbar names it and the home page can open Data keys.
   topic: Topic
   onTopic: (topic: Topic) => void
+  // A notice at the bottom right, with Undo after a look changes (App's notify).
+  onNotify?: Notify
 }
 
 const unanswered = 'Tearsheet’s engine didn’t answer.'
 
-export function Settings({ tools, onTools, safety, onSafetyStarted, onSettings, topic, onTopic }: SettingsProps) {
+export function Settings({ tools, onTools, safety, onSafetyStarted, onSettings, topic, onTopic, onNotify }: SettingsProps) {
   const [s, setS] = useState<SettingsResult | null>(null)
   const [failed, setFailed] = useState<string | null>(null)
   const told = useRef(onSettings)
@@ -88,9 +94,23 @@ export function Settings({ tools, onTools, safety, onSafetyStarted, onSettings, 
     return () => window.clearInterval(timer)
   }, [topic, pricesGoing, load])
 
+  // Appearance, and About and help, need nothing from the engine.
+  if (topic === 'appearance' || topic === 'about') {
+    return (
+      <div className="setv">
+        <TopicList topic={topic} dots={s ? needsYou(problems(healthOf(s, tools, safety))) : new Map()} onTopic={onTopic} />
+        <div className="tpage" key={topic}>
+          <div className="tpin panels">{topic === 'appearance' ? <AppearancePage onNotify={onNotify} /> : <AboutPage onPrivacy={() => onTopic('privacy')} />}</div>
+        </div>
+      </div>
+    )
+  }
+
+  // Until the settings load, or if they can't, the topics stay, so Appearance can still be opened.
   if (!s) {
     return (
       <div className="setv">
+        <TopicList topic={topic} dots={new Map()} onTopic={onTopic} />
         <div className="tpage">
           <div className="tpin panels">
             {failed ? (
@@ -106,9 +126,8 @@ export function Settings({ tools, onTools, safety, onSafetyStarted, onSettings, 
     )
   }
 
-  const primary: ToolKind = s.primary_tool === 'codex' ? 'codex' : 'claude'
-  const lockdown = s.lockdown ?? {}
-  const health: HealthInput = { tools, primary, lockdown, safety, keys: s.keys, rejected: s.rejected_keys, rawBytes: s.raw_bytes, rawCap: s.raw_cap }
+  const health = healthOf(s, tools, safety)
+  const { primary, lockdown } = health
   const found = problems(health)
 
   let page: ReactNode
@@ -137,6 +156,12 @@ export function Settings({ tools, onTools, safety, onSafetyStarted, onSettings, 
   )
 }
 
+// What the health checks need from a read of the settings.
+function healthOf(s: SettingsResult, tools: ToolStatus[], safety: SafetyState | null): HealthInput & { lockdown: Record<string, LockdownState> } {
+  const primary: ToolKind = s.primary_tool === 'codex' ? 'codex' : 'claude'
+  return { tools, primary, lockdown: s.lockdown ?? {}, safety, keys: s.keys, rejected: s.rejected_keys, rawBytes: s.raw_bytes, rawCap: s.raw_cap }
+}
+
 // ---------- the topic list ----------
 
 // The app sidebar's line icons (shell/Sidebar.tsx's ICONS, the prototype's ICON4), one per topic.
@@ -146,6 +171,13 @@ const ICONS: Record<Topic, ReactElement> = {
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <circle cx="12" cy="12" r="3" pathLength={1} />
       <path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1" pathLength={1} />
+    </svg>
+  ),
+  appearance: (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="8" pathLength={1} />
+      <path d="M12 4a8 8 0 0 1 0 16z" pathLength={1} />
+      <path d="M12 8.5h3.2M12 12h4M12 15.5h3.2" pathLength={1} />
     </svg>
   ),
   ai: (
@@ -177,10 +209,16 @@ const ICONS: Record<Topic, ReactElement> = {
       <circle cx="16" cy="7" r="2" pathLength={1} />
       <circle cx="10" cy="17" r="2" pathLength={1} />
     </svg>
+  ),
+  about: (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="8.5" pathLength={1} />
+      <path d="M12 11v5.5M12 7.6v.4" pathLength={1} />
+    </svg>
   )
 }
 
-// The six topics. Click one, or move with ↑ ↓ (and Home, End) while the list has the focus.
+// The eight topics. Click one, or move with ↑ ↓ (and Home, End) while the list has the focus.
 function TopicList({ topic, dots, onTopic }: { topic: Topic; dots: Map<Topic, Problem['tone']>; onTopic: (topic: Topic) => void }) {
   const buttons = useRef<Partial<Record<Topic, HTMLButtonElement | null>>>({})
   const onKey = (e: KeyboardEvent<HTMLElement>) => {
@@ -255,7 +293,6 @@ function GeneralPage({ s, primary, found, onSaved, onTopic }: { s: SettingsResul
       <div className="sgrp">
         <ToolChoice primary={primary} onSaved={onSaved} />
         <ChartChoice />
-        <MotionChoice />
       </div>
       <div className="sgrp">
         <FieldRow k="sec_contact_email" label="SEC contact email" help="SEC asks every app that downloads its filings for one. Only SEC gets it." shown={email ? maskEmail(email) : null} initial={email ?? ''} onSaved={onSaved} />

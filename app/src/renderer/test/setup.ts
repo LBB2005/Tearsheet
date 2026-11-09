@@ -16,6 +16,7 @@ if (typeof window !== 'undefined') {
     resetScreen()
     localStorage.clear()
     document.documentElement.removeAttribute('data-motion')
+    document.documentElement.style.removeProperty('--sw')
     installBridge()
   })
   afterEach(() => cleanup())

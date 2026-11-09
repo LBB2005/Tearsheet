@@ -54,11 +54,12 @@ export function PanelSwitch({ view, last, title, onShow }: { view: ViewId; last:
   )
 }
 
-// The width buttons, in a wide window, and the close button (⌘3), which closes whatever shows.
-export function PanelSize({ wide, size, onSize, onClose }: { wide: boolean; size: SnapMode | null; onSize: (p: Preset) => void; onClose: () => void }) {
+// The width buttons, while the panel sits beside the report (`split`), and the close button
+// (⌘3), which closes whatever shows.
+export function PanelSize({ split, size, onSize, onClose }: { split: boolean; size: SnapMode | null; onSize: (p: Preset) => void; onClose: () => void }) {
   return (
     <>
-      {wide && (
+      {split && (
         <div className="segc cwid" role="group" aria-label="Chart width">
           {PRESETS.map((p) => (
             <button key={p} className={size === p ? 'on' : ''} aria-pressed={size === p} onClick={() => onSize(p)}>

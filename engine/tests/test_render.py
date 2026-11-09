@@ -873,3 +873,17 @@ def test_the_key_strip_can_narrow_with_the_frame():
         if ".keys > .hot" in [s.strip() for s in selector.split(",")]
         and re.search(r"min-width:\s*0", body)
     ]
+
+
+def test_the_not_advice_line_sits_with_the_rating_and_at_the_end():
+    # docs/launch/launch-readiness.md, M5: with the rating, not only at the foot of the text.
+    from tearsheet.render import ADVICE_LINE, ADVICE_SHORT
+
+    r = report("Plain sentence.")
+    html = render_html(r, mode="app", numbers=numbers())
+    column = html[html.index('id="numbers"') : html.index("</aside>")]
+    assert ADVICE_SHORT in column
+    assert ADVICE_LINE in html[html.index("</aside>") :]
+    # The numbers column alone (a narrow window's other side) still carries it.
+    assert ADVICE_SHORT in render_html(r, mode="app", column="numbers", numbers=numbers())
+    assert ADVICE_LINE in render_html(r, mode="file", numbers=numbers())

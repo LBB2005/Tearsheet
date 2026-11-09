@@ -30,8 +30,13 @@ contextBridge.exposeInMainWorld('tearsheet', {
   runSafetyCheck: (tool: string) => call('runSafetyCheck', { tool }),
   openTerminal: () => ipcRenderer.invoke('tearsheet:openTerminal'),
   openExternal: (url: string) => ipcRenderer.invoke('tearsheet:openExternal', url),
+  about: () => ipcRenderer.invoke('tearsheet:about'),
+  sendFeedback: () => ipcRenderer.invoke('tearsheet:sendFeedback'),
   find: (text: string, forward: boolean) => ipcRenderer.invoke('tearsheet:find', text, forward),
   stopFind: () => ipcRenderer.invoke('tearsheet:stopFind'),
+  setLook: (look: { zoom: number; background: string }) => ipcRenderer.invoke('tearsheet:setLook', look),
+  openTheme: () => ipcRenderer.invoke('tearsheet:openTheme'),
+  saveTheme: (name: string, text: string) => ipcRenderer.invoke('tearsheet:saveTheme', name, text),
   listReports: (limit?: number, hidden?: boolean) => call('listReports', { ...(limit === undefined ? {} : { limit }), ...(hidden ? { hidden: true } : {}) }),
   hideReports: (reportIds: string[]) => call('hideReports', { report_ids: reportIds }),
   showReports: (reportIds: string[]) => call('showReports', { report_ids: reportIds }),
@@ -54,5 +59,8 @@ contextBridge.exposeInMainWorld('tearsheet', {
   onNotification: listen('tearsheet:notification'),
   onFlagRequested: listen('tearsheet:flag-requested'),
   onOpenView: listen('tearsheet:open-view'),
+  // How a download from the end of the report went (main/downloads.ts), and Show in Finder.
+  onDownload: listen('tearsheet:download'),
+  showDownload: (path: string) => ipcRenderer.invoke('tearsheet:showDownload', path),
   onMenu: listen('tearsheet:menu')
 })

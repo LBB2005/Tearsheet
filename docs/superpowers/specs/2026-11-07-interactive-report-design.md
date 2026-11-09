@@ -116,7 +116,8 @@ These would make it a failure even if it works:
   works there too. Printing hides them.
 - **Where the panel can't sit beside the report,** a click opens it the way ⌘3 opens the chart
   there.
-  - In a narrow window, it takes the window.
+  - With no room for both (under 708 px), it takes the page. A narrow window keeps the split
+    (2026-11-08).
   - Behind a Full panel, the Full panel switches to the new view.
 - **What a view remembers.** Each view keeps its sort, filter, switches and span while the report
   is open, and starts afresh when another report opens. ⌘3 still opens and closes the panel,

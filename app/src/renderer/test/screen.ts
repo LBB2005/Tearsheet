@@ -14,6 +14,7 @@ interface Size {
 const state = {
   width: 1280,
   reducedMotion: true,
+  dark: true,
   sizes: [] as [string, Size][]
 }
 
@@ -27,6 +28,7 @@ function evaluate(query: string): boolean {
   const max = /\(max-width:\s*(\d+)px\)/.exec(query)
   if (max) return state.width <= Number(max[1])
   if (/prefers-reduced-motion:\s*reduce/.test(query)) return state.reducedMotion
+  if (/prefers-color-scheme:\s*dark/.test(query)) return state.dark
   return false
 }
 
@@ -106,10 +108,11 @@ export function installScreen(): void {
   }
 }
 
-// Before each test: a wide window, Reduce motion on, nothing sized.
+// Before each test: a wide window, Reduce motion on, the Mac in dark mode, nothing sized.
 export function resetScreen(): void {
   state.width = 1280
   state.reducedMotion = true
+  state.dark = true
   state.sizes = []
   medias.clear()
 }
@@ -117,6 +120,19 @@ export function resetScreen(): void {
 // Reduce motion on the Mac, on by default so nothing waits on an animation.
 export function setReducedMotion(on: boolean): void {
   state.reducedMotion = on
+}
+
+// The Mac switches between light and dark: the media queries that change say so.
+export function setSystemDark(dark: boolean): void {
+  state.dark = dark
+  act(() => {
+    for (const m of medias) {
+      const now = evaluate(m.query)
+      if (now === m.last) continue
+      m.last = now
+      for (const fn of m.listeners) fn({ matches: now, media: m.query })
+    }
+  })
 }
 
 // Resize the window: the media queries that change say so, and every ResizeObserver fires.

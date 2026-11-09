@@ -10,6 +10,7 @@ from datetime import UTC, date, datetime
 
 import pytest
 
+from tearsheet import config
 from tearsheet.ai.client import AIClient, AIUnavailable, AIUsageLimit, ToolState
 from tearsheet.ai.schemas import (
     DraftSentence,
@@ -695,6 +696,45 @@ def test_news_reaches_only_section_7(database, tmp_path):
     assert [tuple(s) for s in skips] == [("https://www.wsj.com/paywalled", "wsj.com", "paywalled")]
 
 
+def test_by_default_news_pages_are_listed_as_links_and_never_downloaded(database, tmp_path):
+    # Most news sites' terms forbid automated reading (docs/launch/launch-readiness.md, M2).
+    class Counting(WithNews):
+        fetched: list[str] = []
+
+        async def fetch_article(self, url, allowlist):
+            self.fetched.append(url)
+            return await super().fetch_article(url, allowlist)
+
+    with database.conn:  # the setting's true default: never set (conftest sets it on)
+        database.conn.execute("DELETE FROM settings WHERE key = 'news_articles'")
+    data = Counting()
+    state = ToolState(database.conn, "claude")
+    state.record_check(version="1.0", model_ids=["fake-small"], form="full", passed=True)
+    connector = FakeConnector(default=news_ai)
+    run = Run(
+        database.conn,
+        data,
+        AIClient(connector, state, retry_wait_s=0),
+        load(),
+        mode="full",
+        now=NOW,
+        out_dir=tmp_path / "r",
+    )
+    result = asyncio.run(run.run("T0"))
+    assert data.fetched == []
+    assert database.conn.execute("SELECT COUNT(*) FROM articles").fetchone()[0] == 0
+    html = result.html_path.read_text()
+    # The allowlisted links are listed, unread; the one off the allowlist is not.
+    assert "https://www.reuters.com/one" in html and "https://www.cnbc.com/two" in html
+    assert "example.com/not-allowed" not in html
+    assert "Not read" in html
+    assert "doesn&#39;t download news sites&#39; pages" in html
+    assert any("not read (article reading is off)" in n for n in result.notes)
+    # No article text reaches any AI call.
+    assert not any(s.id.startswith("art-") for r in connector.requests for s in r.sources)
+    assert [r.task for r in connector.requests].count("link_search") == 1
+
+
 def test_the_site_report_finds_sites_that_are_never_read(database):
     from tearsheet.data.articles import Allowlist
     from tearsheet.news import site_report
@@ -1118,7 +1158,6 @@ def test_a_mix_says_which_sections_were_self_checked(database, tmp_path):
 
 
 def test_the_checker_is_the_other_tool_only_when_it_is_connected(database, tmp_path, monkeypatch):
-    from tearsheet import config
     from tearsheet.ai import checker_for
 
     settings = config.Settings(database.conn)

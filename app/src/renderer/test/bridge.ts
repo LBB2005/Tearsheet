@@ -5,6 +5,7 @@
 // vi.fn methods (bridge.getSettings.mockResolvedValue(...)), and sends the engine's notes, the
 // menu's commands and a report's Flag link with emit, menu and flag.
 
+import type { DownloadNote } from '../../main/downloads'
 import { act } from '@testing-library/react'
 import { vi, type Mock } from 'vitest'
 
@@ -167,7 +168,8 @@ const listeners = {
   note: new Set<(n: EngineNotification) => void>(),
   menu: new Set<(c: MenuCommand) => void>(),
   flag: new Set<(p: { claimId: string }) => void>(),
-  open: new Set<(p: { view: ViewId; item: string | null }) => void>()
+  open: new Set<(p: { view: ViewId; item: string | null }) => void>(),
+  download: new Set<(n: DownloadNote) => void>()
 }
 
 const listen = <T>(set: Set<(x: T) => void>) => (fn: (x: T) => void) => {
@@ -213,8 +215,13 @@ function makeBridge(): FakeBridge {
     runSafetyCheck: vi.fn<TearsheetApi['runSafetyCheck']>(async () => ok({ started: true })),
     openTerminal: vi.fn<TearsheetApi['openTerminal']>(async () => undefined),
     openExternal: vi.fn<TearsheetApi['openExternal']>(async () => true),
+    about: vi.fn<TearsheetApi['about']>(async () => ({ app: '0.1.0', engine: '0.1.0', macos: '26.1', electron: '33.2.0' })),
+    sendFeedback: vi.fn<TearsheetApi['sendFeedback']>(async () => true),
     find: vi.fn<TearsheetApi['find']>(async () => undefined),
     stopFind: vi.fn<TearsheetApi['stopFind']>(async () => undefined),
+    setLook: vi.fn<TearsheetApi['setLook']>(async () => true),
+    openTheme: vi.fn<TearsheetApi['openTheme']>(async () => ({ ok: false as const, cancelled: true as const })),
+    saveTheme: vi.fn<TearsheetApi['saveTheme']>(async () => ({ ok: false as const, cancelled: true as const })),
     onMenu: vi.fn<TearsheetApi['onMenu']>(listen(listeners.menu)),
     listReports: vi.fn<TearsheetApi['listReports']>(async (_limit?: number, hidden?: boolean) => ok(m.reports(Boolean(hidden)))),
     hideReports: vi.fn<TearsheetApi['hideReports']>(async (ids: string[]) => {
@@ -255,7 +262,9 @@ function makeBridge(): FakeBridge {
     carryOnLine: vi.fn<TearsheetApi['carryOnLine']>(async () => ok(EMPTY_LINE)),
     onNotification: vi.fn<TearsheetApi['onNotification']>(listen(listeners.note)),
     onFlagRequested: vi.fn<TearsheetApi['onFlagRequested']>(listen(listeners.flag)),
-    onOpenView: vi.fn<TearsheetApi['onOpenView']>(listen(listeners.open))
+    onOpenView: vi.fn<TearsheetApi['onOpenView']>(listen(listeners.open)),
+    onDownload: vi.fn<TearsheetApi['onDownload']>(listen(listeners.download)),
+    showDownload: vi.fn<TearsheetApi['showDownload']>(async () => true)
   }
 }
 
@@ -267,6 +276,7 @@ export function installBridge(): FakeBridge {
   listeners.menu.clear()
   listeners.flag.clear()
   listeners.open.clear()
+  listeners.download.clear()
   bridge = makeBridge()
   Object.defineProperty(window, 'tearsheet', { configurable: true, value: bridge })
   return bridge
@@ -297,5 +307,12 @@ export function flag(claimId: string): void {
 export function openView(view: ViewId, item: string | null = null): void {
   act(() => {
     for (const fn of listeners.open) fn({ view, item })
+  })
+}
+
+// How a download from the end of the report went (main/downloads.ts).
+export function download(note: DownloadNote): void {
+  act(() => {
+    for (const fn of listeners.download) fn(note)
   })
 }

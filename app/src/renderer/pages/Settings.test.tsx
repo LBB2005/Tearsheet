@@ -1,4 +1,4 @@
-// Settings: the six topics and what each page's buttons send to the engine. The app is opened on
+// Settings: the eight topics and what each page's buttons send to the engine. The app is opened on
 // the fake bridge and Settings reached with ⌘, as a person would.
 
 import { act, screen, waitFor, within } from '@testing-library/react'
@@ -26,11 +26,13 @@ describe('the topic list', () => {
     expect(pageHeading()).toHaveTextContent('General')
     expect(toolbarTitle()).toBe('SettingsGeneral')
     const pages: [string, string][] = [
+      ['Appearance', 'Appearance'],
       ['AI tools', 'AI tools'],
       ['Data keys', 'Data keys'],
       ['Storage and backup', 'Storage and backup'],
       ['Privacy', 'What leaves your Mac'],
       ['Advanced', 'Advanced'],
+      ['About and help', 'About and help'],
       ['General', 'General']
     ]
     for (const [name, title] of pages) {
@@ -46,11 +48,13 @@ describe('the topic list', () => {
     topic('General').focus()
     await user.keyboard('{ArrowUp}')
     expect(pageHeading()).toHaveTextContent('General')
+    await user.keyboard('{ArrowDown}')
+    expect(pageHeading()).toHaveTextContent('Appearance')
     await user.keyboard('{ArrowDown}{ArrowDown}')
     expect(pageHeading()).toHaveTextContent('Data keys')
     expect(topic('Data keys')).toHaveFocus()
     await user.keyboard('{End}')
-    expect(pageHeading()).toHaveTextContent('Advanced')
+    expect(pageHeading()).toHaveTextContent('About and help')
     await user.keyboard('{Home}')
     expect(pageHeading()).toHaveTextContent('General')
     await user.keyboard('a')
@@ -100,10 +104,12 @@ describe('General', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Locked.')
   })
 
-  test('the chart’s first range and the animations are kept on this Mac', async () => {
+  test('the chart’s first range is kept on this Mac, and the animations moved to Appearance', async () => {
     const { user } = await openSettings()
     await user.selectOptions(screen.getByRole('combobox', { name: 'The chart opens on' }), '3M')
     expect(localStorage.getItem('chart.startRange')).toBe('3M')
+    expect(screen.queryByRole('combobox', { name: 'Animations' })).toBeNull()
+    await user.click(topic('Appearance'))
     await user.selectOptions(screen.getByRole('combobox', { name: 'Animations' }), 'off')
     expect(localStorage.getItem('motion.level')).toBe('off')
     expect(document.documentElement).toHaveAttribute('data-motion', 'off')
@@ -324,5 +330,48 @@ describe('Storage, Privacy and Advanced', () => {
     await user.clear(screen.getByRole('textbox', { name: 'Goal 1 round' }))
     await user.type(screen.getByRole('textbox', { name: 'Goal 1 round' }), '2{Enter}')
     expect(bridge.setSetting).toHaveBeenCalledWith('goal1_round', '2')
+  })
+})
+
+describe('About and help', () => {
+  test('shows the versions, the terms, privacy, uninstall steps and FRED’s notice', async () => {
+    const { user } = await openSettings()
+    await user.click(topic('About and help'))
+    expect(pageHeading()).toHaveTextContent('About and help')
+    expect(await screen.findByText('Tearsheet 0.1.0 · engine 0.1.0')).toBeInTheDocument()
+    expect(screen.getByText(/Tearsheet 0.1.0, engine 0.1.0, macOS 26.1, Electron 33.2.0/)).toBeInTheDocument()
+    expect(screen.getByText(/not personalised investment advice/)).toBeInTheDocument()
+    expect(screen.getByText(/provided as is, with no warranty/)).toBeInTheDocument()
+    expect(screen.getByText(/sends nothing to its author/)).toBeInTheDocument()
+    expect(screen.getByText(/~\/Library\/Application Support\/Tearsheet/)).toBeInTheDocument()
+    expect(screen.getByText('This product uses the FRED® API but is not endorsed or certified by the Federal Reserve Bank of St. Louis.')).toBeInTheDocument()
+  })
+
+  test('Send feedback opens Mail through main, FRED’s terms open in the browser, and Open Privacy goes to Privacy', async () => {
+    const { user } = await openSettings()
+    await user.click(topic('About and help'))
+    await user.click(await screen.findByRole('button', { name: 'Send feedback' }))
+    expect(bridge.sendFeedback).toHaveBeenCalledTimes(1)
+    await user.click(screen.getByRole('button', { name: 'FRED’s terms' }))
+    expect(bridge.openExternal).toHaveBeenCalledWith('https://fred.stlouisfed.org/docs/api/terms_of_use.html')
+    await user.click(screen.getByRole('button', { name: 'Open Privacy' }))
+    expect(pageHeading()).toHaveTextContent('What leaves your Mac')
+  })
+
+  test('opens even while the engine is down', async () => {
+    const { user } = await renderApp()
+    bridge.getSettings.mockResolvedValue(fail('Tearsheet’s engine didn’t answer.'))
+    menu('settings')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Settings didn’t load.')
+    await user.click(topic('About and help'))
+    expect(pageHeading()).toHaveTextContent('About and help')
+  })
+
+  test('Help > Tearsheet Help opens it, and Help > Send Feedback opens Mail', async () => {
+    await openSettings()
+    menu('help')
+    expect(await screen.findByRole('heading', { level: 2, name: 'About and help' })).toBeInTheDocument()
+    menu('feedback')
+    expect(bridge.sendFeedback).toHaveBeenCalledTimes(1)
   })
 })

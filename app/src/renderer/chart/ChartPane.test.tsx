@@ -15,7 +15,7 @@ import { ChartPane } from './ChartPane'
 let nextCik = 1000
 function pane(over: Partial<Parameters<typeof ChartPane>[0]> = {}) {
   setSize('.chartwrap', 520, 420)
-  const props = { reportId: 'r-aapl-2', cik: nextCik++, ticker: 'AAPL', name: 'Apple Inc.', width: 560, wide: true, size: 'half' as const, onClose: vi.fn(), onSize: vi.fn(), ...over }
+  const props = { reportId: 'r-aapl-2', cik: nextCik++, ticker: 'AAPL', name: 'Apple Inc.', width: 560, split: true, size: 'half' as const, onClose: vi.fn(), onSize: vi.fn(), ...over }
   const user = userEvent.setup()
   render(<ChartPane {...props} />)
   return { user, props }
@@ -143,8 +143,8 @@ describe('the chart', () => {
     expect(props.onClose).toHaveBeenCalled()
   })
 
-  test('in a narrow window the chart has no width buttons', async () => {
-    pane({ wide: false, size: null, width: 700 })
+  test('with no room beside the report, the chart has no width buttons', async () => {
+    pane({ split: false, size: null, width: 700 })
     await drawn()
     expect(screen.queryByRole('group', { name: 'Chart width' })).toBeNull()
     expect(screen.getByText('Hover for a day; drag across to measure.')).toBeInTheDocument()

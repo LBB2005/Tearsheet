@@ -2,12 +2,12 @@
 
 import type { MenuItemConstructorOptions } from 'electron'
 
-export type MenuCommand = 'new' | 'lookup' | 'summary' | 'full' | 'chart' | 'prev' | 'next' | 'sidebar' | 'find' | 'settings'
+export type MenuCommand = 'new' | 'lookup' | 'summary' | 'full' | 'chart' | 'prev' | 'next' | 'sidebar' | 'find' | 'settings' | 'help' | 'feedback'
 
 export function menuTemplate(send: (c: MenuCommand) => void, isDev: boolean): MenuItemConstructorOptions[] {
   const item = (label: string, accelerator: string, command: MenuCommand): MenuItemConstructorOptions => ({
     label,
-    accelerator,
+    ...(accelerator ? { accelerator } : {}),
     click: () => send(command)
   })
   return [
@@ -55,6 +55,9 @@ export function menuTemplate(send: (c: MenuCommand) => void, isDev: boolean): Me
       ]
     },
     { label: 'Go', submenu: [item('Previous company', 'CmdOrCtrl+[', 'prev'), item('Next company', 'CmdOrCtrl+]', 'next')] },
-    { role: 'windowMenu' }
+    { role: 'windowMenu' },
+    // Help: Settings → About and help, and a feedback email in the person's own Mail
+    // (docs/launch/launch-readiness.md, M8-M9).
+    { role: 'help', submenu: [item('Tearsheet Help', '', 'help'), item('Send Feedback…', '', 'feedback')] }
   ]
 }

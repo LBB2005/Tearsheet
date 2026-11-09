@@ -23,7 +23,9 @@ import { leaveMs, pageEntrance, pageLeaveMs } from './motion'
 import { nextCompany, safetyFailed, safetyUnfinished, shortDate, statusLine, type Page } from './nav'
 import { FlagSheet } from './overlays/FlagSheet'
 import { LookUp } from './overlays/LookUp'
+import { RefreshSheet } from './overlays/RefreshSheet'
 import { Toast, type Notice } from './overlays/Toast'
+import { downloadToast } from './report/downloads'
 import { Home } from './pages/Home'
 import { Log } from './pages/Log'
 import { Report, ReportSubtitle, ReportTools } from './pages/Report'
@@ -35,7 +37,9 @@ import { useReport } from './report/useReport'
 import { topicName, type Topic } from './settings/topics'
 import { nextView, reportSubtitle } from './report/view'
 import { applySafetyNote, SAFETY_CALLS, safetyStarted, type SafetyState, type ToolKind } from './setup/steps'
+import type { Refreshing } from './shell/refresh'
 import { Sidebar, SidebarButton } from './shell/Sidebar'
+import { SidebarSizer } from './shell/SidebarSizer'
 import { Toolbar } from './shell/Toolbar'
 import { useMarks } from './shell/useMarks'
 import { useWide } from './shell/useWide'
@@ -71,7 +75,11 @@ export function App() {
   // An earlier version kept the chart's last width; it opens at Half now.
   useEffect(() => forgetOldChartPrefs(), [])
   const [sideOver, setSideOver] = useState(false)
+  // True while a drag on the sidebar's edge would close it (shell/SidebarSizer.tsx).
+  const [sideClosing, setSideClosing] = useState(false)
   const [lookUp, setLookUp] = useState(false)
+  // The Refresh confirm's companies, while it shows (shell/refresh.ts).
+  const [refreshing, setRefreshing] = useState<Refreshing[] | null>(null)
   // The look-up box opened from the line's Add a company: a pick joins the line.
   const lookUpAdds = useRef(false)
   const [finding, setFinding] = useState(false)
@@ -197,6 +205,10 @@ export function App() {
   // The sidebar's row for the report on show, which may be one of the company's older reports.
   const shownCik = reportPage.report?.cik ?? reportPage.listed?.cik ?? null
   const openRow = companies.find((c) => c.report_id === openReport) ?? (shownCik === null ? undefined : companies.find((c) => c.cik === shownCik))
+  // Refresh on the report page: the company on show, with the date of its latest report.
+  const shownTicker = reportPage.report?.ticker || reportPage.listed?.ticker || openRow?.ticker || null
+  const shownDate = openRow?.created_at ?? reportPage.report?.created_at ?? reportPage.listed?.created_at ?? null
+  const refreshShown: Refreshing | null = shownTicker && shownDate ? { ticker: shownTicker, created_at: shownDate } : null
 
   // The sidebar's own order (its sort, filters and search), for ⌘[ and ⌘].
   const shownOrder = useRef<CompanyRow[] | null>(null)
@@ -320,6 +332,12 @@ export function App() {
 
   // Wide windows hide and show the sidebar in place; narrow ones open it over the page.
   const toggleSidebar = () => (wide ? setSideHidden((h) => !h) : setSideOver((o) => !o))
+  // A drag on its edge let go well past the narrowest closes it, as its button does.
+  const closeSidebar = () => {
+    setSideClosing(false)
+    if (wide) setSideHidden(true)
+    else setSideOver(false)
+  }
   useEffect(() => {
     if (wide) setSideOver(false)
   }, [wide])
@@ -347,6 +365,11 @@ export function App() {
   }, [page])
 
   const onMenu = (command: MenuCommand) => {
+    // Send Feedback opens the person's own Mail at any time, even during setup.
+    if (command === 'feedback') {
+      void window.tearsheet.sendFeedback()
+      return
+    }
     // Setup comes first: the menus' pages open once it is finished.
     if (target.current === 'setup') return
     if (command === 'new') newReport()
@@ -356,6 +379,10 @@ export function App() {
     else if (command === 'sidebar') toggleSidebar()
     else if (command === 'find') openFind()
     else if (command === 'settings') go('settings')
+    else if (command === 'help') {
+      setSettingsTopic('about')
+      go('settings')
+    }
     else if (target.current === 'report') {
       // ⌘1 and ⌘2 reload the report in that view; ⌘3 opens or closes the chart.
       const view = nextView(command)
@@ -366,6 +393,15 @@ export function App() {
   const menu = useRef(onMenu)
   menu.current = onMenu
   useEffect(() => window.tearsheet.onMenu((c) => menu.current(c)), [])
+  // A download from the end of the report (main/downloads.ts): its progress as a toast.
+  useEffect(
+    () =>
+      window.tearsheet.onDownload((note) => {
+        const { title, text, tone, action, ms } = downloadToast(note, (path) => void window.tearsheet.showDownload(path))
+        notify(title, text, tone, { action, ms })
+      }),
+    [notify]
+  )
 
   const tool = tools.find((t) => t.kind === (primaryTool ?? 'claude')) ?? tools.find((t) => t.available) ?? tools[0]
   const toolKind: ToolKind = tool?.kind ?? 'claude'
@@ -497,11 +533,20 @@ export function App() {
         }}
         topic={settingsTopic}
         onTopic={setSettingsTopic}
+        onNotify={notify}
       />
     )
 
   const sideShown = page !== 'setup' && (wide ? !sideHidden : sideOver)
-  const cls = ['win', `on-${page}`, wide ? '' : 'narrow', sideShown ? '' : 'sbhidden', !wide && sideOver ? 'sbover' : '', opening ? 'opening' : ''].filter(Boolean).join(' ')
+  // A drag cut short while it would close the sidebar (⌃⌘S hid it meanwhile) leaves nothing behind.
+  useEffect(() => {
+    if (!sideShown) setSideClosing(false)
+  }, [sideShown])
+  // While a drag on the edge would close it, the sidebar already looks closed.
+  const sideOpen = sideShown && !sideClosing
+  const cls = ['win', `on-${page}`, wide ? '' : 'narrow', sideOpen ? '' : 'sbhidden', !wide && sideOver && !sideClosing ? 'sbover' : '', opening ? 'opening' : '']
+    .filter(Boolean)
+    .join(' ')
 
   // Until the settings answer: empty glass for a moment, then "Starting Tearsheet…", then why
   // the engine can't start and what to do. The window is never left blank.
@@ -567,6 +612,10 @@ export function App() {
         }}
         hidden={marks.hidden}
         onDelete={marks.remove}
+        onRefresh={(rows) => {
+          setSideOver(false)
+          setRefreshing(rows.map((r) => ({ ticker: r.ticker, created_at: r.created_at })))
+        }}
         onPin={(row, pinned) => void marks.pin(row, pinned)}
         onShowHidden={marks.setWantHidden}
         onOpenHidden={(r) => {
@@ -580,7 +629,9 @@ export function App() {
           shownOrder.current = rows
         }}
       />
-      {!wide && sideOver && <div className="sidescrim" onMouseDown={() => setSideOver(false)} />}
+      {/* The sidebar's right edge, which sets its width, while the sidebar shows. */}
+      {sideShown && <SidebarSizer onClosing={setSideClosing} onClose={closeSidebar} />}
+      {!wide && sideOver && !sideClosing && <div className="sidescrim" onMouseDown={() => setSideOver(false)} />}
       <div className="mainarea">
         {page === 'setup' ? (
           <Setup settings={bootSettings} leaving={leaving} safety={safety} onSafetyStarted={safetyBegan} onFinish={setupFinished}>
@@ -602,7 +653,7 @@ export function App() {
                   Cancel run
                 </button>
               )}
-              {page === 'report' && <ReportTools page={reportPage} wide={wide} />}
+              {page === 'report' && <ReportTools page={reportPage} wide={wide} onRefresh={refreshShown ? () => setRefreshing([refreshShown]) : undefined} />}
             </Toolbar>
             {fatalNotice}
             <main key={shownKey} className={frameClass} data-page={page}>
@@ -610,6 +661,7 @@ export function App() {
             </main>
           </>
         )}
+        {refreshing && <RefreshSheet asked={refreshing} busy={report.busy} onStart={report.refresh} onClose={() => setRefreshing(null)} />}
         {page === 'report' && reportPage.flag && (
           <FlagSheet key={`${reportPage.flag.reportId}:${reportPage.flag.claimId}`} claim={reportPage.flag.text} onSave={reportPage.saveFlag} onClose={reportPage.closeFlag} />
         )}
@@ -625,7 +677,7 @@ export function App() {
       </div>
       {/* After the sidebar and the toolbar, whose top strips drag the window under it: where drag
           areas overlap, the later one in the page wins (shell/sidebar.test.ts). */}
-      {page !== 'setup' && <SidebarButton shown={sideShown} onClick={toggleSidebar} />}
+      {page !== 'setup' && <SidebarButton shown={sideOpen} onClick={toggleSidebar} />}
       <div className="toasts" aria-live="polite">
         {notice && <Toast key={notice.id} notice={notice} onDone={() => setNotice((n) => (n && n.id === notice.id ? null : n))} />}
       </div>

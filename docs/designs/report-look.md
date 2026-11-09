@@ -27,13 +27,16 @@ Over six rounds of mockups, Liam settled on:
     buttons sit where macOS puts them, at the top-left corner, with a sidebar button beside them.
 5.  **A Summary view that opens first.** It is built only from claims that passed the checks.
     The full report is one click (or ⌘2) away.
-6.  **Dark only** for now.
+6.  **Dark by default.** Since Nov 8, Settings → Appearance also offers light looks and Match the
+    Mac (below).
 7.  **Mac menus and shortcuts.** They work only while Tearsheet is the app in front.
 
 ## The window
 
-*   **Sidebar** (232 px, flat dark at about `#0A0D14`). It has no boxes, pills or borders, and
-    no desktop color shows through. From top to bottom:
+*   **Sidebar** (232 px, flat, "Raised": a step lighter than the page, `#1B1E25` in the dark
+    Tearsheet look, Liam's pick of five on Nov 8; Sidebar contrast on Appearance sets how much,
+    and light mode keeps its grey sidebar). It has no boxes, pills or borders, and no desktop
+    color shows through. From top to bottom:
     *   New report (⌘N) and Look up (⌘K) as plain rows;
     *   a small "Reports" label with Search and a sort and filter button, then one row per
         company (look 3 of the sidebar mockups, picked by Liam on Nov 7): the ticker, a tick for
@@ -81,7 +84,10 @@ Over six rounds of mockups, Liam settled on:
     *   The sidebar is hidden, and its button opens it over the report.
     *   A row of five key-number tiles sits above the text: rating and score, price, estimated
         value, range, and the past year.
-    *   The chart, when open, takes the whole window.
+    *   The chart, when open, still sits beside the report, as in a wide window. (Until
+        2026-11-08 it took the whole window, and crossing 1,100 px made it jump; Liam chose to
+        keep the split.) Only a page too narrow for both (under 708 px, which no window
+        Tearsheet allows leaves) gives the chart all of it.
 
 ## Pages
 
@@ -122,10 +128,25 @@ Over six rounds of mockups, Liam settled on:
     anywhere, and the app never shows the prototype's example rows.
 4.  **Settings.** Liam picked this layout on Nov 6, from two rounds of mockups: "Sidebar list",
     in the "Outline" style.
-    *   A list of six topics on the left, each with the app sidebar's own line icons. There is
+    *   A list of seven topics on the left, each with the app sidebar's own line icons. There is
         one short page per topic, and the toolbar names the topic.
     *   **General:** the main AI tool and "The chart opens on" (below), as Mac pop-up menus, and the
         SEC email. A note at the top, with a button, for each thing that needs you.
+    *   **Appearance** (Nov 8, Liam's version B of three, "Look gallery"): six looks as pictures
+        (Tearsheet, Graphite, Evergreen, Amber, Dusk, High contrast), each dark and light, with
+        Dark / Light / Match the Mac beside the title. Then the accent colour, text size (the
+        window's zoom), the glow (40% by default), the Buy/Hold/Sell colours from tested sets only
+        (Standard, Colour-blind friendly, High contrast), Animations, and a row kept for the home
+        background. Customize… opens every colour, the font and boldness, corners, glass and the
+        chart's lines, with a warning when text gets hard to read. Theme files (Import…, Export…,
+        a `.tearsheet-theme` file read as untrusted), Save as a look, and Reset, each with Undo. The
+        report's frame follows the look; a report file keeps the dark look at full glow.
+        Also since Nov 8: a **More looks** card after the six opens a page of twenty more to
+        scroll through (Midnight, Terminal, Ledger, Glacier, Rosewood, Cobalt, Moss, Ultraviolet,
+        Lavender, Coral, Copper, Signal, Aurora, Sunset, Espresso, Carbon, Neon, Newsprint, Mono,
+        Desert), each dark and light with its own font, corners and glow; picking one brings
+        those three unless you changed them yourself. **Sidebar contrast** (next to Glow, 50% by
+        default) sets how much lighter the sidebar is than the page in dark mode.
     *   **AI tools:** each tool's job and version, its safety check, and "Look for AI tools
         again". The paths and the lock-down details are behind "Show details".
     *   **Data keys:** Massive, FRED and Alpha Vantage.
@@ -378,6 +399,9 @@ the report appear with no motion.
     *   opening slides the split in from the right while the numbers column slides away;
     *   dragging the divider resizes it live;
     *   snapping settles it;
+    *   resizing the window or the sidebar moves it with them at once, with no glide, keeping
+        its share of the width, as in a Mac app (only a width button, a double-click or an
+        arrow key glides the divider);
     *   on range or toggle changes, the lines glide to their new shape in about a third of a
         second. The draw-in plays only as the chart opens (round two).
 *   **The sidebar** slides away, and the toolbar shifts to make room for the window buttons.

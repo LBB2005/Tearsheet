@@ -124,6 +124,8 @@
 <dl><dt>Value gap percentile</dt>{% if gap_pct is not none %}<dd>{{ gap_pct }}</dd>{% elif n.estimate %}<dd class="miss">not available</dd>{% else %}<dd class="miss">not stored</dd>{% endif %}</dl>
 {%- endcall %}
 </div>
+{#- The line sits with the rating as well as at the foot of the report (launch-readiness M5). #}
+<p class="afoot advice">{{ ADVICE_SHORT }}</p>
 </section>
 
 {#- 2. The past year's weekly prices running into the 12-month range, drawn as a fan. #}

@@ -37,3 +37,14 @@ test('File > Close window closes the window with ⌘W', () => {
   expect(items[items.length - 1]).toBe(close) // last, after a separator, as on every Mac app
   expect(items[items.length - 2].type).toBe('separator')
 })
+
+test('Help has Tearsheet Help and Send Feedback, last, as on every Mac app', () => {
+  const send = vi.fn<(c: MenuCommand) => void>()
+  const menus = menuTemplate(send, false)
+  const help = menus[menus.length - 1]
+  expect(help.role).toBe('help')
+  const items = Array.isArray(help.submenu) ? help.submenu : []
+  expect(items.map((i) => i.label)).toEqual(['Tearsheet Help', 'Send Feedback…'])
+  for (const i of items) (i.click as () => void)()
+  expect(send.mock.calls).toEqual([['help'], ['feedback']])
+})

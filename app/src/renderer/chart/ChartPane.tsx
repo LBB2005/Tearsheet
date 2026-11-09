@@ -17,6 +17,7 @@
 // width buttons and close button are the ones every view shares (panel/PanelHead.tsx).
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactElement, type ReactNode } from 'react'
+import { flushSync } from 'react-dom'
 
 import type { CallResult } from '../../preload/api'
 import type { ChartSeries } from '../../shared/protocol'
@@ -40,9 +41,9 @@ export interface ChartPaneProps {
   name: string | null
   // The pane's width; the content keeps it while the pane slides in or out.
   width: number
-  // A wide window shows the width buttons and the divider; a narrow one gives the chart the
-  // whole window.
-  wide: boolean
+  // The chart sits beside the report, with the divider: the width buttons show. A page with no
+  // room for both (chart/split.ts) gives the chart all of it, with neither.
+  split: boolean
   // The width button that is on: the split's mode (chart/split.ts), or none after a drag between.
   size: SnapMode | null
   onClose: () => void
@@ -356,11 +357,11 @@ function drawChart(sl: ChartSeries, g: Geo, ticker: string, over: Over | null): 
   // With a compare line on: each line's name and change at its end, kept apart.
   const ends: ReactElement[] = []
   if (g.indexed) {
-    const named: [string, number, string][] = [[ticker, end, 'var(--accent)']]
+    const named: [string, number, string][] = [[ticker, end, 'var(--c-co)']]
     const peerEnd = g.peers?.[n - 1]
     const spyEnd = g.spy?.[n - 1]
-    if (peerEnd != null) named.push(['Peers', peerEnd, '#8FA2FF'])
-    if (spyEnd != null) named.push(['S&P 500', spyEnd, '#D8DCE6'])
+    if (peerEnd != null) named.push(['Peers', peerEnd, 'var(--c-peer)'])
+    if (spyEnd != null) named.push(['S&P 500', spyEnd, 'var(--c-spy)'])
     named.sort((a, b) => b[1] - a[1])
     let lastY = -99
     for (const [label, v, colour] of named) {
@@ -524,7 +525,7 @@ function readout(sl: ChartSeries, range: Range, filled: boolean, hover: number |
 
 // ---------- the pane ----------
 
-export function ChartPane({ reportId, cik, ticker, name, width, wide, size, onClose, onSize, switcher, away = false, swap = false, rangeAsk = 0, onHistory }: ChartPaneProps) {
+export function ChartPane({ reportId, cik, ticker, name, width, split, size, onClose, onSize, switcher, away = false, swap = false, rangeAsk = 0, onHistory }: ChartPaneProps) {
   const company = cik === null ? `report:${reportId}` : `cik:${cik}`
   // As it was when the pane mounted: a class that came or went later would start, or cut short,
   // the pane's own animation.
@@ -609,13 +610,14 @@ export function ChartPane({ reportId, cik, ticker, name, width, wide, size, onCl
     }
   }, [reportId, attempt])
 
-  // The chart's box, which follows the pane as it is resized.
+  // The chart's box, which follows the pane as it is resized. A new size is drawn in the frame
+  // whose layout made it (flushSync), so the lines never lag the pane by a frame.
   useLayoutEffect(() => {
     const el = wrap.current
     if (!el) return
     const size = () => setBox({ W: Math.floor(el.clientWidth), H: Math.floor(el.clientHeight) })
     size()
-    const watch = new ResizeObserver(size)
+    const watch = new ResizeObserver(() => flushSync(size))
     watch.observe(el)
     return () => watch.disconnect()
   }, [])
@@ -883,12 +885,12 @@ export function ChartPane({ reportId, cik, ticker, name, width, wide, size, onCl
       <svg width={g.W} height={g.H} viewBox={`0 0 ${g.W} ${g.H}`} role="img" aria-label={`${label} daily price, ${shown}`}>
         <defs>
           <linearGradient id="area-g" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor="#7FE3F7" stopOpacity=".18" />
-            <stop offset="1" stopColor="#7FE3F7" stopOpacity="0" />
+            <stop offset="0" style={{ stopColor: 'var(--c-co)' }} stopOpacity=".18" />
+            <stop offset="1" style={{ stopColor: 'var(--c-co)' }} stopOpacity="0" />
           </linearGradient>
           <linearGradient id="fan-g" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0" stopColor="#8FA2FF" stopOpacity=".05" />
-            <stop offset="1" stopColor="#8FA2FF" stopOpacity=".24" />
+            <stop offset="0" style={{ stopColor: 'var(--accent2)' }} stopOpacity=".05" />
+            <stop offset="1" style={{ stopColor: 'var(--accent2)' }} stopOpacity=".24" />
           </linearGradient>
         </defs>
         {span && span.a !== span.b && (
@@ -939,11 +941,11 @@ export function ChartPane({ reportId, cik, ticker, name, width, wide, size, onCl
                 )
               })}
             </div>
-            {toggle('fan', '12-month range', '#8FA2FF', !series?.range, 'This report has no 12-month range.')}
-            {toggle('peers', 'Peers', '#8FA2FF', noPeers, 'No peer prices are stored for this report.')}
-            {toggle('spy', 'S&P 500', '#D8DCE6', noSpy, 'No S&P 500 prices are stored.')}
-            {toggle('volume', 'Volume', 'rgba(127, 227, 247, .45)', false, '')}
-            <PanelSize wide={wide} size={size} onSize={onSize} onClose={onClose} />
+            {toggle('fan', '12-month range', 'var(--accent2)', !series?.range, 'This report has no 12-month range.')}
+            {toggle('peers', 'Peers', 'var(--c-peer)', noPeers, 'No peer prices are stored for this report.')}
+            {toggle('spy', 'S&P 500', 'var(--c-spy)', noSpy, 'No S&P 500 prices are stored.')}
+            {toggle('volume', 'Volume', 'rgb(var(--accent-rgb) / .45)', false, '')}
+            <PanelSize split={split} size={size} onSize={onSize} onClose={onClose} />
           </div>
         </div>
         {long && !loading && historyLine && <p className="cline">{historyLine}</p>}
@@ -973,18 +975,18 @@ export function ChartPane({ reportId, cik, ticker, name, width, wide, size, onCl
         </div>
         <div className="cfoot">
           <span>
-            <i style={{ background: 'var(--accent)' }} />
+            <i style={{ background: 'var(--c-co)' }} />
             {name ?? label}
           </span>
           {toggles.peers && (
             <span>
-              <i style={{ background: '#8FA2FF' }} />
+              <i style={{ background: 'var(--c-peer)' }} />
               Peers, equal-weighted
             </span>
           )}
           {toggles.spy && (
             <span>
-              <i style={{ background: '#D8DCE6' }} />
+              <i style={{ background: 'var(--c-spy)' }} />
               S&amp;P 500
             </span>
           )}
@@ -992,7 +994,7 @@ export function ChartPane({ reportId, cik, ticker, name, width, wide, size, onCl
             <i className="dot" />
             SEC filings the report read
           </span>
-          <span>{wide ? 'Hover for a day; drag across to measure; drag the divider to resize.' : 'Hover for a day; drag across to measure.'}</span>
+          <span>{split ? 'Hover for a day; drag across to measure; drag the divider to resize.' : 'Hover for a day; drag across to measure.'}</span>
         </div>
       </div>
     </section>

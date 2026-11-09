@@ -55,44 +55,58 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
+# What leaves the Mac, for Settings → What leaves your Mac and the README (design §12;
+# docs/launch/launch-readiness.md §3). Tearsheet itself sends nothing to its author.
 SERVICES = [
     {
         "name": "SEC EDGAR",
-        "key": "None (each request carries your contact email)",
+        "key": "None. Each request carries your contact email, which goes only to SEC",
         "cost": "Free",
-        "sent": "Requests for the company's and peers' filings",
-    },
-    {
-        "name": "iShares (BlackRock)",
-        "key": "None",
-        "cost": "Free",
-        "sent": "A download of the IVV holdings file, at most once a day",
+        "sent": "Requests for the company's and its peers' filings",
     },
     {
         "name": "Massive",
         "key": "Your free key",
         "cost": "Free plan",
-        "sent": "The tickers researched and their peers",
+        "sent": "The tickers researched and their peers, and whole-market daily prices",
     },
     {
         "name": "FRED",
         "key": "Your free key",
         "cost": "Free",
-        "sent": "Requests for the listed economic series",
+        "sent": "Requests for five economic series",
     },
     {
-        "name": "Article sites on the allowlist",
+        "name": "Claude Code (Anthropic) or Codex (OpenAI)",
+        "key": "Your own sign-in",
+        "cost": "Your existing plan",
+        "sent": "The text of filings and press releases, the numbers sent with that text, draft "
+        "sections, and a web search for recent news about the company. Your plan's own privacy "
+        "terms apply",
+    },
+    {
+        "name": "News sites",
         "key": "None",
         "cost": "Free",
-        "sent": "Page requests",
-    },
-    {
-        "name": "Claude Code (Anthropic)",
-        "key": "Your own sign-in",
-        "cost": "Your existing subscription",
-        "sent": "Filing and article text, the computed numbers sent with that text, and draft sections",
+        "sent": "Nothing unless you open a link. Tearsheet lists their articles as links and "
+        "doesn't download them",
     },
 ]
+# The news row when the `news_articles` setting is on.
+NEWS_READ = {
+    "name": "News sites on the allowlist",
+    "key": "None",
+    "cost": "Free",
+    "sent": "A request for each article page, which your AI tool then reads",
+}
+
+
+def services(settings: config.Settings) -> list[dict[str, str]]:
+    if settings.get("news_articles") == "on":
+        return [NEWS_READ if s["name"] == "News sites" else s for s in SERVICES]
+    return SERVICES
+
+
 ICLOUD_FOLDERS = ("Documents", "Desktop", "Library/Mobile Documents")
 # Requests answered off the request loop, because they can take minutes: grading and the full
 # price history fetch at Massive's calls-per-minute pace, and a Massive key check waits its turn
@@ -1132,8 +1146,44 @@ class Server:
                 motion=p.motion,
                 numbers=numbers,
                 analysts=analysts,
+                report_id=row["report_id"],
             ),
         }
+
+    async def m_export_report(self, p) -> dict[str, Any]:
+        """A download of a saved report (export/), made from what is stored, read-only, with no
+        AI: the PDF's print page for the app to print, or the deck or workbook's bytes. The PDF
+        asks analystdb for its figures as of the report's price date, as the report page does."""
+        import base64
+
+        from tearsheet.export import data as export_data
+        from tearsheet.export import deck, pdf, workbook
+
+        try:
+            d = export_data.load(self.db.conn, p.report_id, raw_dir=self.paths.raw)
+        except export_data.NotFound as exc:
+            raise EngineError("ENGINE_ERROR", f"No report {p.report_id}.") from exc
+        stem = re.sub(
+            r"[^A-Za-z0-9.\- ]", "", f"{d.ticker} Tearsheet {d.made_on.day} {d.made_on:%b %Y}"
+        )
+        answer: dict[str, Any] = {
+            "report_id": d.report_id,
+            "kind": p.kind,
+            "file_name": f"{stem.strip() or 'Tearsheet report'}.{p.kind}",
+            "html": None,
+            "data_base64": None,
+            "footer": "",
+        }
+        if p.kind == "pdf":
+            analysts = await self._analyst_panel(
+                {"ticker": d.ticker}, d.run_id, d.created_at.isoformat()
+            )
+            answer["html"] = pdf.render(d, analysts)
+            answer["footer"] = pdf.footer_text(d)
+        else:
+            blob = workbook.build(d) if p.kind == "xlsx" else deck.build(d)
+            answer["data_base64"] = base64.b64encode(blob).decode("ascii")
+        return answer
 
     def _report_day(self, run_id: str, created_at: str):
         """The day a report is as of: its price date, else the Eastern day it was made."""
@@ -1579,7 +1629,7 @@ class Server:
             "goal1_round": int(float(round_)) if round_ else 1,
             "setup_done": setup_done == "1",
             "fred_skipped": settings.get("fred_skipped") == "1",
-            "services": SERVICES,
+            "services": services(settings),
             "price_download": self._price_download(settings, have_key=keys["massive"] == "set"),
             "lockdown": {
                 r["tool"]: {

@@ -33,8 +33,8 @@ const base: HealthInput = {
 const health = (over: Partial<HealthInput>): HealthInput => ({ ...base, ...over })
 
 describe('the topic list', () => {
-  it('lists six topics in order, General first', () => {
-    expect(TOPICS.map((t) => t.name)).toEqual(['General', 'AI tools', 'Data keys', 'Storage and backup', 'Privacy', 'Advanced'])
+  it('lists eight topics in order, General first and About and help last', () => {
+    expect(TOPICS.map((t) => t.name)).toEqual(['General', 'Appearance', 'AI tools', 'Data keys', 'Storage and backup', 'Privacy', 'Advanced', 'About and help'])
   })
 
   it('names each topic for the toolbar', () => {
@@ -45,18 +45,19 @@ describe('the topic list', () => {
 
 describe('moveTopic', () => {
   it('steps down and up one topic with the arrow keys', () => {
-    expect(moveTopic('general', 'ArrowDown')).toBe('ai')
+    expect(moveTopic('general', 'ArrowDown')).toBe('appearance')
+    expect(moveTopic('appearance', 'ArrowDown')).toBe('ai')
     expect(moveTopic('keys', 'ArrowUp')).toBe('ai')
   })
 
   it('stops at the ends instead of wrapping', () => {
     expect(moveTopic('general', 'ArrowUp')).toBe('general')
-    expect(moveTopic('advanced', 'ArrowDown')).toBe('advanced')
+    expect(moveTopic('about', 'ArrowDown')).toBe('about')
   })
 
   it('jumps to the first and last topic with Home and End', () => {
     expect(moveTopic('keys', 'Home')).toBe('general')
-    expect(moveTopic('keys', 'End')).toBe('advanced')
+    expect(moveTopic('keys', 'End')).toBe('about')
   })
 
   it('ignores every other key, so typing and Tab still work', () => {

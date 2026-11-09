@@ -70,6 +70,11 @@ _ENV = Environment(
     loader=PackageLoader("tearsheet", "templates"),
     autoescape=select_autoescape(default=True, default_for_string=True),
 )
+# The report's "not advice" line. The short form sits under the rating; the long form opens a
+# report file and closes the report in the app (docs/launch/launch-readiness.md, M5).
+ADVICE_SHORT = "General research, not personalised investment advice."
+ADVICE_LINE = ADVICE_SHORT + " Check the sources and make your own decisions."
+_ENV.globals.update(ADVICE_SHORT=ADVICE_SHORT, ADVICE_LINE=ADVICE_LINE)
 
 # The keys of report_numbers.numbers_for. A key that is missing, or numbers that are None, renders
 # as "not stored for this report".
@@ -125,6 +130,8 @@ OPEN_VIEWS = (
     "analysts",
 )
 _TABLE_VIEW = re.compile(r"table-[a-z_]{1,32}")
+# A saved report's id, as the download links carry it (app main/navigation.ts checks the same).
+_REPORT_ID = re.compile(r"[A-Za-z0-9._-]{1,80}")
 _OPEN_ITEM = re.compile(r"[A-Za-z0-9_.\-]{1,64}")
 
 
@@ -203,6 +210,7 @@ def render_html(
     motion: bool = True,
     numbers: dict[str, Any] | None = None,
     analysts: dict[str, Any] | None = None,
+    report_id: str | None = None,
 ) -> str:
     """`mode` is "app" (with flag and re-read links) or "file" (terminal mode: claim IDs shown,
     no tearsheet: links). `view` is the text view shown first ("summary" or "full"); `column` is
@@ -262,4 +270,5 @@ def render_html(
         ro=readouts,
         open_link=open_link,
         arc=_ring_arc,
+        report_id=report_id if mode == "app" and _REPORT_ID.fullmatch(report_id or "") else None,
     )

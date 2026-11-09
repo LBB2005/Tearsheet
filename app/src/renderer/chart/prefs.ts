@@ -1,5 +1,6 @@
 // The window's own small preferences, kept in localStorage:
 //   sidebar.hidden      '1' while the sidebar is hidden (⌃⌘S).
+//   (sidebar.width, the sidebar's width, is kept by shell/sidebarWidth.ts.)
 //   chart.volumeShare   the volume bars' share of the chart's height (chart/height.ts).
 //   chart.volume        '0' while the chart's Volume toggle is off.
 //   chart.startRange    the range the chart opens on (Settings, "The chart opens on"); 1Y if none.

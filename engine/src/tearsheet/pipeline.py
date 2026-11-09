@@ -60,6 +60,7 @@ from tearsheet.scoring import (
 from tearsheet.sources import DataSource, Doc
 from tearsheet.text.compare import change_score
 from tearsheet.text.parse import Paragraph, filing_sections, split_paragraphs
+from tearsheet.valuation import saved as saved_valuation
 from tearsheet.valuation.combine import Combined, combine
 from tearsheet.valuation.common import (
     GroupStats,
@@ -182,6 +183,9 @@ FULL_SECTIONS = (
 )
 ARTICLE_CAP = 15
 ARTICLE_FLOOR = 5
+# With article reading off (the `news_articles` setting, the default), section 7 lists up to
+# this many of the link search's allowlisted links, unread (docs/launch/launch-readiness.md, M2).
+LINKS_SHOWN = 8
 # The sections' titles as the report prints them, for the app's live progress.
 SECTION_TITLES = {
     SectionKey.BUSINESS: "The business",
@@ -378,6 +382,11 @@ class Run:
         self.sections = SLICE_SECTIONS if mode == "slice" else FULL_SECTIONS
         self.empty_sections: set[SectionKey] = set()
         self.articles: list[tuple[Any, Any]] = []  # (Article, Link)
+        # Links listed in section 7 without being downloaded, when article reading is off.
+        self.unread_links: list[Any] = []
+        # Whether step 9 read the article pages (the `news_articles` setting); None until its
+        # link search has answered.
+        self.reading_articles: bool | None = None
         self.article_urls: dict[str, str] = {}
         self.cuts: list[str] = []
         # The call budget's last cut (Technical Plan §3): no section rewrites.
@@ -652,6 +661,7 @@ class Run:
                     "gap_percentile": rating.gap_percentile,
                 },
             )
+            self._save_valuation_inputs(rng)
             step = "news"
             self._step(step)
             news_paragraphs = await self.news(resolved, paragraphs)
@@ -1277,6 +1287,27 @@ class Run:
             m.valuation = combine(methods, settings, terminal_share=dcf_share)
         return self.risk_free
 
+    def _save_valuation_inputs(self, rng: Range | None) -> None:
+        """Each method's assumptions and the range inputs for the rated company, for the
+        Excel download (`valuation.saved`; replay leaves this row out)."""
+        company = self.members[self.cik]
+        saved_valuation.save(
+            self.conn,
+            self.run_id,
+            saved_valuation.record(
+                cik=self.cik,
+                financial_class=company.financial_class,
+                risk_free=self.risk_free,
+                inputs=company.valuation_inputs,
+                stats=self.stats,
+                valuation=company.valuation,
+                range_inputs=self.range_inputs,
+                rng=rng,
+                settings=self.method.valuation,
+                lines=self.method.rating_lines,
+            ),
+        )
+
     def _full_methods(
         self, m: MemberData, dcf_value: MethodValue, all_inputs, settings
     ) -> list[MethodValue]:
@@ -1458,18 +1489,17 @@ class Run:
         }
         level = self._uncertainty(company) or "very_high"
         rng = None
+        self.range_inputs: RangeInputs | None = None
         if company.valuation and company.valuation.valid and company.price:
-            rng = twelve_month_range(
-                RangeInputs(
-                    company.price[1],
-                    company.valuation.value,
-                    cost_of_equity(company.volatility, self.method.valuation),
-                    company.dividend_yield,
-                    company.volatility or 0.3,
-                    self.stats.median_volatility,
-                ),
-                lines,
+            self.range_inputs = RangeInputs(
+                company.price[1],
+                company.valuation.value,
+                cost_of_equity(company.volatility, self.method.valuation),
+                company.dividend_yield,
+                company.volatility or 0.3,
+                self.stats.median_volatility,
             )
+            rng = twelve_month_range(self.range_inputs, lines)
         peer_gaps = [PeerGap(cik, g) for cik, g in gaps.items() if cik != self.cik]
         rating = rate(
             RatingInputs(
@@ -1833,6 +1863,17 @@ class Run:
             self._answer_of(task) if task is not None else self._search_links(resolved, allowlist),
         )
         if found is None:
+            self.empty_sections.add(SectionKey.NEWS)
+            return out
+        # Most news sites' terms forbid automated reading, so by default their pages are listed
+        # as links and never downloaded; the company's press releases from SEC are still read.
+        self.reading_articles = config.Settings(self.conn).get("news_articles") == "on"
+        if not self.reading_articles:
+            self.unread_links = found.kept[:LINKS_SHOWN]
+            self.notes.append(
+                f"News: {len(found.suggested)} links suggested, {len(found.kept)} on the allowlist; "
+                f"{len(self.unread_links)} listed as links, not read (article reading is off)."
+            )
             self.empty_sections.add(SectionKey.NEWS)
             return out
         # The call budget (Technical Plan §3). The projection: this link search, every filing
@@ -2412,7 +2453,22 @@ class Run:
             sections.append(trends)
         if SectionKey.NEWS in self.sections:
             news = ai_section(SectionKey.NEWS, 7, "News and views")
-            if not self.articles and self.press_sources:
+            if self.reading_articles is False:
+                listed = (
+                    " Other recent coverage is listed below as links, to read yourself."
+                    if self.unread_links
+                    else ""
+                )
+                news["paragraphs"] = [
+                    (
+                        "This section reads the company's own press releases from SEC."
+                        if self.press_sources
+                        else "No press releases from the company were found, so this section has no news."
+                    )
+                    + " Tearsheet doesn't download news sites' pages, because most of their terms forbid automated reading."
+                    + listed
+                ]
+            elif not self.articles and self.press_sources:
                 news["paragraphs"] = [
                     "Only the company's own press releases were read for this section: the article search found nothing readable."
                 ]
@@ -2429,6 +2485,14 @@ class Run:
                     "published": format_value("date", art.published),
                 }
                 for art, link in self.articles
+            ] + [
+                {
+                    "title": link.title,
+                    "url": link.url,
+                    "publisher": link.publisher,
+                    "note": "Not read",
+                }
+                for link in self.unread_links
             ]
             sections.append(news)
         sections.append(ai_section(SectionKey.WATCH, None, "What to watch", watch_lines))
