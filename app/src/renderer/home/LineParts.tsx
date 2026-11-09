@@ -183,22 +183,27 @@ export function QuickAdd({ onAsk, disabled }: { onAsk: (ask: PlanAsk) => void; d
       <button className="sg" disabled={disabled} onClick={() => onAsk({ group: 'all' })}>
         All S&amp;P 500 <em>{groups.all}</em>
       </button>
-      <select
-        className="sg"
-        aria-label="Add a sector"
-        disabled={disabled}
-        value=""
-        onChange={(e) => {
-          if (e.target.value) onAsk({ group: 'sector', sector: e.target.value })
-        }}
-      >
-        <option value="">A sector…</option>
-        {groups.sectors.map((s) => (
-          <option key={s.name} value={s.name}>
-            {s.name} ({s.count})
-          </option>
-        ))}
-      </select>
+      <span className="sgw">
+        <select
+          className="sg"
+          aria-label="Add a sector"
+          disabled={disabled}
+          value=""
+          onChange={(e) => {
+            if (e.target.value) onAsk({ group: 'sector', sector: e.target.value })
+          }}
+        >
+          <option value="">A sector…</option>
+          {groups.sectors.map((s) => (
+            <option key={s.name} value={s.name}>
+              {s.name} ({s.count})
+            </option>
+          ))}
+        </select>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M8 9l4-4 4 4M8 15l4 4 4-4" />
+        </svg>
+      </span>
       {rest && (
         <button className="sg" disabled={disabled} title="Every S&P 500 company without a finished report yet" onClick={() => onAsk({ group: 'rest' })}>
           The rest <em>{groups.rest}</em>

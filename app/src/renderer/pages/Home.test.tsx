@@ -99,7 +99,7 @@ describe('below the field', () => {
     expect(screen.getByText(/^This product uses the FRED® API but is not endorsed or certified by the Federal Reserve Bank of St\. Louis\./)).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'FRED’s terms' }))
     expect(bridge.openExternal).toHaveBeenCalledWith('https://fred.stlouisfed.org/docs/api/terms_of_use.html')
-    await user.click(screen.getByRole('button', { name: 'Add the key' }))
+    await user.click(screen.getByRole('button', { name: 'Add key' }))
     expect(win()).toHaveClass('on-settings')
     expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('Data keys')
   })

@@ -76,6 +76,8 @@
 .homev .sr { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-top: 1px solid var(--line); font-size: 13.5px; color: var(--text2); text-align: left; }
 .homev .since h4 + .sr { border-top: 0; }
 .homev .sr > i { width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--muted); }
+/* A row with small print under it: the dot sits by its first line, not the middle of the block. */
+.homev .sr:has(> .srt) > i { align-self: flex-start; margin-top: 7px; }
 .homev .sr > i.up { background: var(--up); }
 .homev .sr > i.accent { background: var(--accent); }
 .homev .sr > i.hold { background: var(--hold); }
@@ -188,7 +190,10 @@
 .quickadd { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px; font-size: 12.5px; color: var(--muted); }
 .linestrip .quickadd { justify-content: flex-start; }
 .quickadd .sg em { font-style: normal; color: var(--muted); margin-left: 4px; }
-.quickadd select.sg { cursor: pointer; }
+/* A sector: a pop-up menu as wide as its words, with the ⌃⌄ of Settings' menus (settings.css .popw). */
+.quickadd .sgw { position: relative; display: inline-flex; }
+.quickadd select.sg { cursor: pointer; field-sizing: content; padding-right: 28px; text-align: left; }
+.quickadd .sgw svg { position: absolute; top: 50%; right: 10px; width: 12px; height: 12px; margin-top: -6px; fill: none; stroke: var(--muted); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
 /* The quick adds and their plan card under the run view's strip share the home page's rules above. */
 .linestrip .lineplan { display: flex; flex-direction: column; }
 .linestrip .lineplan .row { margin-top: 6px; display: flex; gap: 10px; flex-wrap: wrap; }

@@ -342,7 +342,7 @@ export function Home({ companies, tool, fieldRef, buttonOn, refresh, onStart, on
               )}
               {line.action === 'addFred' && (
                 <button className="btn2" onClick={onKeys}>
-                  Add the key
+                  Add key
                 </button>
               )}
             </div>
@@ -390,7 +390,7 @@ function Problem({ line, kind, buttonOn, onRecheck, onKeys }: { line: SinceLine;
       )}
       {line.action === 'addMassive' && (
         <button className="btn2" onClick={onKeys}>
-          Add the key
+          Add key
         </button>
       )}
       {line.action === 'replaceMassive' && (
