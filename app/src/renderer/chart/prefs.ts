@@ -4,6 +4,8 @@
 //   chart.volumeShare   the volume bars' share of the chart's height (chart/height.ts).
 //   chart.volume        '0' while the chart's Volume toggle is off.
 //   chart.startRange    the range the chart opens on (Settings, "The chart opens on"); 1Y if none.
+//   chart.keyGroups     the Key numbers groups left open under the chart, as a JSON list of their
+//                       keys; "Price and trading" and "Size and value" if none.
 // A storage that can't be read or written (it shouldn't happen in the app) falls back to the
 // defaults.
 
@@ -12,7 +14,7 @@ type Store = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
 import { SHARE_DEFAULT } from './height'
 import { RANGE_ORDER, type Range } from './series'
 
-const KEYS = { sidebar: 'sidebar.hidden', volumeShare: 'chart.volumeShare', volume: 'chart.volume', startRange: 'chart.startRange' } as const
+const KEYS = { sidebar: 'sidebar.hidden', volumeShare: 'chart.volumeShare', volume: 'chart.volume', startRange: 'chart.startRange', keyGroups: 'chart.keyGroups' } as const
 const OLD_KEYS = ['chart.opens', 'chart.lastWidth'] as const
 
 const local = (): Store | null => {
@@ -78,4 +80,27 @@ export function startRange(store: Store | null = local()): Range {
 
 export function setStartRange(range: Range, store: Store | null = local()): void {
   write(KEYS.startRange, range === '1Y' ? null : range, store)
+}
+
+// The Key numbers groups that start open (chart/KeyNumbers.tsx), the same for every report.
+export const KEY_GROUPS = ['trading', 'value', 'profit', 'debt'] as const
+export type KeyGroupKey = (typeof KEY_GROUPS)[number]
+export const KEY_GROUPS_OPEN: readonly KeyGroupKey[] = ['trading', 'value']
+
+export function keyGroupsOpen(store: Store | null = local()): KeyGroupKey[] {
+  const raw = read(KEYS.keyGroups, store)
+  if (raw === null) return [...KEY_GROUPS_OPEN]
+  try {
+    const kept: unknown = JSON.parse(raw)
+    if (!Array.isArray(kept)) return [...KEY_GROUPS_OPEN]
+    return KEY_GROUPS.filter((k) => kept.includes(k))
+  } catch {
+    return [...KEY_GROUPS_OPEN]
+  }
+}
+
+export function setKeyGroupsOpen(open: readonly string[], store: Store | null = local()): void {
+  const kept = KEY_GROUPS.filter((k) => open.includes(k))
+  const same = kept.length === KEY_GROUPS_OPEN.length && kept.every((k, i) => k === KEY_GROUPS_OPEN[i])
+  write(KEYS.keyGroups, same ? null : JSON.stringify(kept), store)
 }

@@ -1056,7 +1056,7 @@ Grouped by the question each one answered. Each alternative has a **Source** lin
 *   **SEC bulk-data store** if the Phase 0 request count is high (A9).
 *   **Learned factor weights** (elastic net or IPCA, a linear factor model), published as dated snapshots.
 *   **More AI tools** through the shared ACP protocol (Gemini CLI, Cursor, Copilot and others).
-*   **Report polish:** look and feel, charts, PDF export.
+*   **Report polish:** look and feel, charts, PDF export. The report page's Key numbers table under the price chart (and on page 1 of the PDF) is described in [`report-look.md`](report-look.md), "Key numbers, under the chart".
 *   **Windows support.**
 *   **Backup** to the user's own Google Drive (A7).
 *   **A public, hashed track record** (A30).

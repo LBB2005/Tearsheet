@@ -1258,6 +1258,7 @@ class Server:
 
     async def m_get_report(self, p) -> dict[str, Any]:
         from tearsheet import report_numbers
+        from tearsheet.key_numbers import key_numbers
         from tearsheet.render import render_html
 
         row = self.db.conn.execute(
@@ -1278,6 +1279,7 @@ class Server:
         cik = run_row[0] if run_row else None
         numbers = None
         bar = None
+        keys = None
         if cik is not None:
             # Saved reports always open, whatever is broken: without its numbers if need be.
             try:
@@ -1285,6 +1287,7 @@ class Server:
                     self.db.conn, report, row["run_id"], cik, report_id=row["report_id"]
                 )
                 bar = report_numbers.bar_numbers(self.db.conn, numbers, row["run_id"], cik)
+                keys = key_numbers(self.db.conn, numbers, bar, row["run_id"], cik)
             except Exception:  # noqa: BLE001 - logged; the report opens from its text alone
                 log.exception("reading the numbers of report %s", p.report_id)
         claims = (numbers or {}).get("claims")
@@ -1303,6 +1306,7 @@ class Server:
             "narrative_complete": bool(row["narrative_complete"]),
             "kept": claims.get("kept") if isinstance(claims, dict) else None,
             "bar": bar,
+            "key_numbers": keys,
             "html": render_html(
                 report,
                 mode="app",

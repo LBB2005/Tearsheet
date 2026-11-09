@@ -145,6 +145,9 @@ class ExportData:
     # Each method's assumptions and the range inputs, saved with the run (`valuation.saved`);
     # None for a report made before they were saved.
     assumptions: dict[str, Any] | None = None
+    # The Key numbers table the report page shows under the chart (key_numbers.py); None when
+    # the stored numbers can't be read.
+    key_numbers: dict[str, Any] | None = None
 
     @property
     def made_on(self) -> date:
@@ -360,7 +363,8 @@ def load(conn: sqlite3.Connection, report_id: str, *, raw_dir: Path | None = Non
     With `raw_dir` (the data folder's raw store), it also rebuilds the company's last three
     fiscal years for the workbook."""
     from tearsheet.companies import run_company
-    from tearsheet.report_numbers import numbers_for, run_price_date
+    from tearsheet.key_numbers import key_numbers
+    from tearsheet.report_numbers import bar_numbers, numbers_for, run_price_date
     from tearsheet.report_views import views_for
     from tearsheet.valuation import saved as saved_valuation
 
@@ -432,4 +436,7 @@ def load(conn: sqlite3.Connection, report_id: str, *, raw_dir: Path | None = Non
         skeptic=report.get("skeptic") or None,
         filings=[f for f in report.get("filings") or [] if isinstance(f, dict)],
         assumptions=saved_valuation.load(conn, run_id),
+        key_numbers=key_numbers(
+            conn, numbers, bar_numbers(conn, numbers, run_id, cik), run_id, cik
+        ),
     )

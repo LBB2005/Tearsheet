@@ -254,6 +254,44 @@ class ReportBar(Strict):
     peers: int | None
 
 
+class KeyRow(Strict):
+    """One number in the Key numbers table (key_numbers.py), written as the table shows it."""
+
+    key: str
+    label: str
+    # The company's value ("19.6×", "$175.8B"); None when it can't be filled, and `note` says
+    # why in a few words ("not for banks").
+    text: str | None
+    # The peer median, written the same way; None where the report has none.
+    peer_text: str | None
+    note: str | None
+    # A move or return colours up or down; the rest have no tone.
+    tone: Literal["up", "down"] | None
+    # The number's working in plain words, from the stored inputs; or why it is missing.
+    working: str
+
+
+class KeyGroup(Strict):
+    key: Literal["trading", "value", "profit", "debt"]
+    name: str
+    # A one-line summary written by fixed rules from the rows ("Cheaper than peers on 3 of 3").
+    summary: str
+    rows: list[KeyRow]
+
+
+class KeyNumbers(Strict):
+    """The Key numbers under the price chart, and on page 1 of the PDF: four groups. Prices are
+    the last close Tearsheet has, as in the top bar; the rest are the report's."""
+
+    # ISO date of the last close, and the report's price date.
+    close_date: str | None
+    report_date: str | None
+    peers: int | None
+    groups: list[KeyGroup]
+    # The line under the table: where the numbers come from.
+    source: str
+
+
 class ReportResult(Strict):
     report_id: str
     run_id: str
@@ -267,6 +305,8 @@ class ReportResult(Strict):
     kept: int | None
     # The top bar's numbers; None when the report's numbers can't be read.
     bar: ReportBar | None
+    # The Key numbers under the chart; None when the report's numbers can't be read.
+    key_numbers: KeyNumbers | None
     html: str
 
 
@@ -967,6 +1007,9 @@ ALL_MODELS: tuple[type[BaseModel], ...] = (
     RunStarted,
     Ok,
     ReportBar,
+    KeyRow,
+    KeyGroup,
+    KeyNumbers,
     ReportResult,
     CompanyRow,
     SearchHit,

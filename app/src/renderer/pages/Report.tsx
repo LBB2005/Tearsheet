@@ -253,6 +253,7 @@ export function Report({ page, wide }: { page: ReportPage; wide: boolean }) {
           swap={openBefore.current}
           rangeAsk={panel.rangeAsk}
           onHistory={page.historyDownloaded}
+          keyNumbers={report?.key_numbers ?? null}
         />
       )}
       {chartOpen && reportId && away && (

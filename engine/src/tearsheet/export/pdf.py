@@ -243,7 +243,8 @@ def render(d: ExportData, analysts: dict | None = None) -> str:
     n, v = d.numbers, d.views
     weekly = [_num(p.get("close")) for p in n.get("weekly") or []]
     weekly = [c for c in weekly if c is not None]
-    exhibit = {"n": 3}  # page 1 uses exhibits 1-3
+    # Page 1 uses exhibits 1-3, and 4 for the Key numbers when they can be read.
+    exhibit = {"n": 4 if d.key_numbers else 3}
 
     def next_exhibit() -> int:
         exhibit["n"] += 1
@@ -299,11 +300,13 @@ def render(d: ExportData, analysts: dict | None = None) -> str:
         money=money,
         ordinal=ordinal,
         day_text=day_text,
+        iso_day=lambda iso: day_text(date.fromisoformat(iso)),
         price_svg=price_svg(d),
         range_svg=range_svg(d),
         low52=min(weekly) if weekly else None,
         high52=max(weekly) if weekly else None,
         one_year=one_year,
+        keys=d.key_numbers,
         sections=sections,
         metrics=metrics,
         analysts=a,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { forgetOldChartPrefs, setSidebarHidden, setStartRange, setVolumeOn, setVolumeShare, sidebarHidden, startRange, volumeOn, volumeShare } from './prefs'
+import { forgetOldChartPrefs, keyGroupsOpen, setKeyGroupsOpen, setSidebarHidden, setStartRange, setVolumeOn, setVolumeShare, sidebarHidden, startRange, volumeOn, volumeShare } from './prefs'
 
 const fake = () => {
   const m = new Map<string, string>()
@@ -63,5 +63,23 @@ describe('prefs', () => {
 
   it('falls back to the defaults without a storage', () => {
     expect(sidebarHidden(null)).toBe(false)
+  })
+
+  it('keeps which Key numbers groups are open, the first two if none, and drops keys it doesn’t know', () => {
+    const s = fake()
+    expect(keyGroupsOpen(s)).toEqual(['trading', 'value'])
+    setKeyGroupsOpen(['debt', 'trading'], s)
+    expect(s.m.get('chart.keyGroups')).toBe('["trading","debt"]')
+    expect(keyGroupsOpen(s)).toEqual(['trading', 'debt'])
+    setKeyGroupsOpen([], s)
+    expect(keyGroupsOpen(s)).toEqual([])
+    setKeyGroupsOpen(['value', 'trading', 'nope'], s)
+    expect(s.m.has('chart.keyGroups')).toBe(false)
+    for (const bad of ['x', '{"a":1}', '3']) {
+      s.m.set('chart.keyGroups', bad)
+      expect(keyGroupsOpen(s)).toEqual(['trading', 'value'])
+    }
+    s.m.set('chart.keyGroups', '["profit","huh"]')
+    expect(keyGroupsOpen(s)).toEqual(['profit'])
   })
 })

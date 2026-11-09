@@ -21,7 +21,10 @@
 
 .cpane { flex: none; position: relative; overflow: hidden; display: flex; justify-content: flex-end; background: var(--veil);
   transition: width .45s var(--slide); animation: split-in .45s var(--slide) backwards; }
-.cpane .cpin { flex: none; display: flex; flex-direction: column; gap: 10px; min-width: 0; height: 100%; padding: 14px 16px 12px; }
+/* The pane scrolls: the chart (.cview) keeps the pane's full height, as it always had, and the
+   Key numbers (.kn) sit under it, reached by scrolling down. */
+.cpane .cpin { flex: none; display: flex; flex-direction: column; gap: 10px; min-width: 0; height: 100%; padding: 14px 16px 12px; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; }
+.cpane .cview { flex: none; display: flex; flex-direction: column; gap: 10px; min-width: 0; height: 100%; }
 @keyframes split-in { from { width: 0; } }
 @keyframes split-out { to { width: 0; } }
 /* The panel shows one view at a time (panel/ViewPane.tsx). A pane that mounts while the panel is
@@ -158,3 +161,36 @@
 .cfoot { flex: none; font-size: 11.5px; color: var(--muted); display: flex; gap: 6px 16px; flex-wrap: wrap; }
 .cfoot i { display: inline-block; width: 12px; height: 3px; border-radius: calc(2px * var(--round)); margin-right: 5px; vertical-align: 3px; }
 .cfoot i.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--c-peer); vertical-align: 1px; }
+
+/* ---------- the Key numbers, under the chart (chart/KeyNumbers.tsx) ----------
+   Design 4, "Groups you open and close": a heading, then four groups, each a header row (arrow,
+   name, one-line summary) that opens its rows. A row opens its working underneath. */
+.kn { flex: none; display: flex; flex-direction: column; padding: 16px 0 4px; margin-top: 6px; border-top: 1px solid var(--line); }
+.knh { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
+.knh h2 { margin: 0; font: 14px var(--ui); font-weight: calc(600 + var(--wt)); color: var(--text); }
+.knh span { margin-left: auto; font-size: 12px; color: var(--muted); }
+.kng { border-top: 1px solid rgb(var(--ink) / .12); }
+.kng h3 { margin: 0; font: inherit; }
+.knhead { all: unset; box-sizing: border-box; cursor: pointer; width: 100%; min-height: 44px; display: flex; align-items: center; gap: 10px; padding: 10px 2px; }
+.knarrow { flex: none; width: 12px; height: 12px; fill: none; stroke: var(--muted); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; transition: transform .2s var(--settle); }
+.kng.on .knarrow { transform: rotate(90deg); }
+.knname { flex: none; font-size: 12px; font-weight: calc(600 + var(--wt)); color: var(--muted); letter-spacing: .04em; text-transform: uppercase; }
+.knsum { margin-left: auto; min-width: 0; font-size: 13px; color: var(--text); opacity: .85; text-align: right; }
+.knhead:hover .knname, .knhead:hover .knarrow { color: var(--text); stroke: var(--text); }
+.knhead:focus-visible, .knrow:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: calc(6px * var(--round)); }
+.knrows { display: flex; flex-direction: column; padding: 0 0 10px 22px; animation: settle-in .25s var(--settle) backwards; }
+.knr { border-top: 1px solid rgb(var(--ink) / .07); }
+.knrow { all: unset; box-sizing: border-box; cursor: pointer; width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 104px 112px; column-gap: 14px; align-items: baseline; padding: 7px 0; font-size: 13px; }
+.knrow:hover .knl { color: var(--text); }
+.knl { color: var(--muted); }
+.knv { text-align: right; font-weight: calc(600 + var(--wt)); color: var(--text); font-variant-numeric: tabular-nums; }
+.knv.up { color: var(--up); }
+.knv.down { color: var(--down); }
+.knv.none { color: var(--muted); font-weight: calc(400 + var(--wt)); }
+.knp { text-align: right; color: var(--text); opacity: .75; font-variant-numeric: tabular-nums; }
+.knp.why { color: var(--muted); opacity: 1; font-size: 12px; }
+.knrow.on .knl { color: var(--text); }
+.knwork { margin: 0 0 8px; padding: 7px 10px; font-size: 12.5px; line-height: 1.45; color: var(--text); background: rgb(var(--ink) / .04); border-radius: calc(8px * var(--round)); animation: fade .2s ease-out backwards; }
+.knsrc { margin: 10px 0 0; font-size: 12px; color: var(--muted); }
+.narrowp .knrow { grid-template-columns: minmax(0, 1fr) 92px 104px; column-gap: 8px; }
+.narrowp .knrows { padding-left: 12px; }

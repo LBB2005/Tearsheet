@@ -61,6 +61,13 @@ svg text { font-family: var(--ui); }
 .kv dd { margin: 0; text-align: right; font-weight: 600; }
 .asof { font-size: 7pt; color: var(--grey); margin: 0; }
 .capnote { font: 7pt/1.3 var(--ui); color: var(--bear); margin-top: 6pt; }
+.kn .t { font-size: 6.8pt; line-height: 1.15; background: #fff; }
+.kn .t th, .kn .t td { padding: .6pt 3pt; }
+.kn .t td:first-child { white-space: nowrap; }
+.kn .kng td { padding-top: 3pt; border-bottom: .5pt solid var(--navy); }
+.kn .kng b { color: var(--navy); }
+.kn .kng span { display: block; color: var(--grey); }
+.kn .kp2 { color: var(--grey); }
 /* The pages after */
 .part { break-before: page; }
 .part > h2 { font: 700 13pt/1.2 var(--ui); color: var(--navy); margin: 0 0 3pt; }
@@ -147,13 +154,30 @@ svg text { font-family: var(--ui); }
 <dt>Score</dt><dd>{% if n.score %}{{ ordinal(n.score.percentile) }} percentile{% else %}n/a{% endif %}</dd>
 {%- set pr = v.peer_ratings %}
 {%- if pr and pr.slices %}<dt>Peer ratings</dt><dd>{% for s in pr.slices %}{{ s.count }} {{ s.label }}{% if not loop.last %} · {% endif %}{% endfor %}</dd>{% endif %}
-{%- if low52 is not none %}<dt>12-month low–high</dt><dd>{{ money(low52) }}–{{ money(high52) }}</dd>{% endif %}
+{%- if low52 is not none and not keys %}<dt>12-month low–high</dt><dd>{{ money(low52) }}–{{ money(high52) }}</dd>{% endif %}
 </dl>
-{%- if one_year %}
+{#- With the Key numbers below, their 52-week range and 12-month return stand in for these two. #}
+{%- if one_year and not keys %}
 <div class="h">Total return, past 12 months</div>
 <table class="t">
 {%- for key in ("company", "peers", "spy") %}{% set cell = one_year[key] %}{% if cell %}<tr><td>{{ cell.name }}</td><td class="n">{% if cell.value is number %}{{ "%.1f%%"|format(cell.value) }}{% else %}n/a{% endif %}</td></tr>{% endif %}{% endfor %}
 </table>
+{%- endif %}
+{%- if keys %}
+{#- Exhibit 4: the Key numbers table the app shows under the chart, every group open
+    (key_numbers.py). #}
+<div class="h">Key numbers</div>
+<div class="kn">
+<div class="exu">Exhibit 4.{% if keys.close_date %} Prices to {{ iso_day(keys.close_date) }}.{% endif %} The rest from the report.</div>
+<table class="t">
+<tr><th></th><th class="n">{{ d.ticker }}</th><th class="n">Peers</th></tr>
+{%- for g in keys.groups %}
+<tr class="kng"><td colspan="3"><b>{{ g.name }}</b><span>{{ g.summary }}</span></td></tr>
+{%- for r in g.rows %}<tr><td>{{ r.label }}</td>{% if r.text is none %}<td class="n kp2" colspan="2">– {{ r.note }}</td>{% else %}<td class="n">{{ r.text }}</td><td class="n kp2">{{ r.peer_text or "" }}</td>{% endif %}</tr>{% endfor %}
+{%- endfor %}
+</table>
+<div class="src">{{ keys.source }}</div>
+</div>
 {%- endif %}
 <div class="h">As of</div>
 <p class="asof">Report made {{ day_text(d.made_on) }}.{% if d.price_day %} Prices as of {{ day_text(d.price_day) }}, in that day's shares.{% endif %}{% if d.split_factor != 1 %} The stock has split {{ "%g"|format(d.split_factor) }}-for-1 since.{% endif %}{% if d.prediction %} Official prediction {{ d.prediction.prediction_id }}.{% else %} Not an official prediction.{% endif %}</p>

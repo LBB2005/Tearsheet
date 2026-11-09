@@ -141,6 +141,18 @@ def test_get_report_gives_the_toolbar_facts_and_the_narrow_tiles(tmp_path):
     ).fetchone()
     assert (bar.close_date, bar.close) == (last[0], last[1])
     assert bar.rating in {"Buy", "Hold", "Sell"} and bar.range is not None
+    # The Key numbers under the chart: four groups, their price the top bar's close.
+    from tearsheet.protocol import KeyNumbers
+
+    keys = KeyNumbers.model_validate(got["key_numbers"])
+    assert [g.name for g in keys.groups] == [
+        "Price and trading",
+        "Size and value",
+        "Profit and cash",
+        "Debt and safety",
+    ]
+    assert keys.groups[0].rows[0].text == f"${bar.close:,.2f}"
+    assert keys.close_date == bar.close_date
     assert bad["error"]["code"] == -32602
     h.server.close()
 
@@ -545,7 +557,7 @@ def test_get_report_opens_even_when_its_numbers_cannot_be_read(tmp_path, monkeyp
 
     got = run(go())
     assert "<html" in got["result"]["html"] and got["result"]["kept"] is None
-    assert got["result"]["bar"] is None
+    assert got["result"]["bar"] is None and got["result"]["key_numbers"] is None
     h.server.close()
 
 

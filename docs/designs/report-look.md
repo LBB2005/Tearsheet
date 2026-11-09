@@ -394,6 +394,57 @@ builds on it:*
     to All. The default is 1Y. (Round two replaced "When the chart opens", which offered Full,
     Half or Where I left it.)
 
+### Key numbers, under the chart (2026-11-09)
+
+Liam picked design 4, "Groups you open and close", from five table layouts on the key-numbers
+canvas, then the recommendation on each of three questions.
+
+*   **Where.** In the price chart's panel, directly under the chart. The panel scrolls: the chart
+    keeps the panel's full height, exactly as before, and you scroll down to reach the table. Other
+    views in the panel don't have it.
+*   **The four groups,** each a header row (arrow, name in small capitals, a one-line summary on
+    the right) that opens and closes its rows:
+    *   **Price and trading:** price, day's move, 52-week range, 12-month return, average daily
+        volume (the last 63 sessions);
+    *   **Size and value:** market value, enterprise value, P/E, EV/EBITDA, EV/sales;
+    *   **Profit and cash:** revenue, operating margin, free cash flow, free cash flow yield,
+        return on equity;
+    *   **Debt and safety:** net debt, net debt/EBITDA, interest cover, cash flow/profit, return
+        on capital.
+*   **Each row:** the number's name, the company's value, and "Peers X" (the median of the
+    report's peers) where there is one. The day's move and the 12-month return are green or red.
+    A source line closes the table: prices from Massive, figures from SEC filings, peers the
+    median of the report's peers (for the 12-month return, the report's equal-weighted peer
+    group return).
+*   **Where each number comes from.** Nothing is worked out afresh or stored anew; the engine's
+    `key_numbers.py` reads what is already there. Price and day's move are the top bar's
+    (`report_numbers.bar_numbers`), so they are the last close Tearsheet has. The 52-week range
+    and volume come from the stored daily prices, split-adjusted. The 12-month return is the
+    report's own line. Everything else is the run's stored metrics and the inputs each one kept
+    (`metrics.inputs_json`), for the company and each peer; P/E, EV/EBITDA and EV/sales are those
+    inputs divided the other way up. They are at the report's price date, which the working says.
+*   **A number that can't be filled** shows a dash and why in a few words: "not for banks" (and
+    insurers, where the report leaves the measure out), "no profit", "EBITDA below zero", "no
+    interest found", "under a year stored", "not stored". It is never estimated.
+*   **The working.** Clicking a row (or Return on it) opens its working underneath in plain words,
+    from the stored inputs: "The price, $530.61, ÷ diluted earnings per share over the past 12
+    months, $19.15: 27.7×. The peer median is 29.3×, across 38 peers with a profit."
+*   **The summaries** follow fixed rules from the rows, never the AI: the price and the year's
+    move; the market value and how many of P/E, EV/EBITDA and EV/sales are below the peers'
+    ("cheaper than peers on 2 of 3"); revenue and how many of operating margin, free cash flow
+    yield and return on equity are above the peers'; net debt (or net cash) and whether net
+    debt/EBITDA is above or below the peers' ("more debt than peers"). An even split names both
+    ("below peers on 1 of 3, above on 1").
+*   **Open and closed.** Price and trading and Size and value start open. What Liam opens and
+    closes is kept (`chart.keyGroups` in the window's storage) and used for every report.
+*   **Keyboard.** Group headers and rows are buttons with `aria-expanded`; Tab reaches them, and
+    Return or Space opens and closes them.
+*   **Motion.** The arrow turns and the rows settle in; nothing moves under Reduce motion.
+*   **In the PDF.** The same table, every group open, sits in page 1's sidebar as Exhibit 4 (the
+    later exhibits count on from 5). With it there, the sidebar's "12-month low–high" line and
+    small 12-month return table give way to its 52-week range and 12-month return, so page 1
+    still fits; the S&P 500's return stays in the PDF's numbers section.
+
 ## Motion
 
 Motion is CSS-led, plays once, and is off when the Mac's Reduce motion setting is on. Readouts in

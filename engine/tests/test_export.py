@@ -362,6 +362,28 @@ def test_the_print_page_has_the_call_every_claim_and_every_source(tmp_path):
     h.server.close()
 
 
+def test_page_one_has_the_key_numbers_with_every_group_open(tmp_path):
+    """The Key numbers table the app shows under the chart, all four groups open, in page 1's
+    sidebar as Exhibit 4; the later exhibits count on from 5."""
+    h, ready = _report(tmp_path)
+    got = _export(h, ready["report_id"], "pdf")
+    page = html.unescape(got["html"])
+    d = _load(h, ready["report_id"])
+    assert d.key_numbers is not None
+    front, rest = page.split("The full report", 1)
+    assert "Key numbers" in front and "Exhibit 4." in front
+    for g in d.key_numbers["groups"]:
+        assert g["name"] in front and g["summary"] in front
+        for r in g["rows"]:
+            assert r["label"] in front
+            assert (r["text"] if r["text"] is not None else f"– {r['note']}") in front
+    assert d.key_numbers["source"] in front
+    # The sidebar's 12-month low–high and 12-month return table give way to the table's rows.
+    assert "12-month low–high" not in front and "Total return, past 12 months" not in front
+    assert "Exhibit 4:" not in rest and ("Exhibit 5:" in rest or "Exhibit" not in rest)
+    h.server.close()
+
+
 @pytest.mark.parametrize("text", ['<img src=x onerror="alert(1)">', "Q&A <b>bold</b>"])
 def test_report_text_is_escaped_on_the_print_page(tmp_path, text):
     h, ready = _report(tmp_path, facts=False)

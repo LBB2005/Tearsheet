@@ -14,13 +14,15 @@
 // that, a range or toggle change glides the lines to their new shape (glide.ts), and a part that
 // comes or goes fades. Nothing moves under Reduce motion. It is the panel's first view
 // (panel/state.ts): while another view shows, it stays mounted, hidden, and the panel's switch,
-// width buttons and close button are the ones every view shares (panel/PanelHead.tsx).
+// width buttons and close button are the ones every view shares (panel/PanelHead.tsx). Under the
+// chart, reached by scrolling the panel down, are the report's Key numbers (KeyNumbers.tsx); the
+// chart keeps the panel's full height above them, as it had before.
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactElement, type ReactNode } from 'react'
 import { flushSync } from 'react-dom'
 
 import type { CallResult } from '../../preload/api'
-import type { ChartSeries } from '../../shared/protocol'
+import type { ChartSeries, KeyNumbers as KeyNumbersData } from '../../shared/protocol'
 import { reduced } from '../motion'
 import { shortDate } from '../nav'
 import { PanelSize } from '../panel/PanelHead'
@@ -28,6 +30,7 @@ import { money } from '../shell/Sidebar'
 import { covers, measure, namedFilings, needsHistory, niceTicks, RANGE_ORDER, rangeLabel, rebase, slice, volumeText, yearsServed, type Range } from './series'
 import { carryOn, GLIDE_MS, glideTrack, nextGlide, resample, trackXs, type GlideState, type Track } from './glide'
 import { SHARE_DEFAULT, shareFor, volumeHeight } from './height'
+import { KeyNumbers } from './KeyNumbers'
 import { setVolumeOn, setVolumeShare, startRange, volumeOn, volumeShare } from './prefs'
 import type { Preset, SnapMode } from './split'
 
@@ -60,6 +63,9 @@ export interface ChartPaneProps {
   rangeAsk?: number
   // The company's full history has downloaded, which gives the report's numbers longer spans.
   onHistory?: () => void
+  // The report's Key numbers, shown under the chart; none until the report has loaded, or when
+  // its numbers can't be read.
+  keyNumbers?: KeyNumbersData | null
 }
 
 interface Toggles {
@@ -525,7 +531,7 @@ function readout(sl: ChartSeries, range: Range, filled: boolean, hover: number |
 
 // ---------- the pane ----------
 
-export function ChartPane({ reportId, cik, ticker, name, width, split, size, onClose, onSize, switcher, away = false, swap = false, rangeAsk = 0, onHistory }: ChartPaneProps) {
+export function ChartPane({ reportId, cik, ticker, name, width, split, size, onClose, onSize, switcher, away = false, swap = false, rangeAsk = 0, onHistory, keyNumbers = null }: ChartPaneProps) {
   const company = cik === null ? `report:${reportId}` : `cik:${cik}`
   // As it was when the pane mounted: a class that came or went later would start, or cut short,
   // the pane's own animation.
@@ -910,92 +916,95 @@ export function ChartPane({ reportId, cik, ticker, name, width, split, size, onC
   return (
     <section className={['cpane', width < 760 && 'narrowp', away && 'away', swapped && 'swap'].filter(Boolean).join(' ')} style={{ width }} aria-label="Price chart">
       <div className="cpin" style={{ width }}>
-        {switcher}
-        <div className="cph">
-          <div className="cpt">
-            <b>{ticker ?? 'Price'}</b>
-            <span title={subtitle}>{subtitle}</span>
-          </div>
-          <div className="cpbig">
-            {loading ? (
-              <>
-                <b>…</b>
-                <small>getting the full history</small>
-              </>
-            ) : read ? (
-              <>
-                <b>{read.price}</b>
-                <em className={read.up ? 'up' : 'dn'}>{read.change}</em>
-                <small>{read.note}</small>
-              </>
-            ) : null}
-          </div>
-          <div className="cpctl">
-            <div className="segc" role="group" aria-label="Range">
-              {RANGE_ORDER.map((r) => {
-                const off = r === '5Y' && short
-                return (
-                  <button key={r} className={shown === r ? 'on' : ''} aria-pressed={shown === r} disabled={off} title={off ? served : undefined} onClick={() => pick(r)}>
-                    {r}
-                  </button>
-                )
-              })}
+        <div className="cview">
+          {switcher}
+          <div className="cph">
+            <div className="cpt">
+              <b>{ticker ?? 'Price'}</b>
+              <span title={subtitle}>{subtitle}</span>
             </div>
-            {toggle('fan', '12-month range', 'var(--accent2)', !series?.range, 'This report has no 12-month range.')}
-            {toggle('peers', 'Peers', 'var(--c-peer)', noPeers, 'No peer prices are stored for this report.')}
-            {toggle('spy', 'S&P 500', 'var(--c-spy)', noSpy, 'No S&P 500 prices are stored.')}
-            {toggle('volume', 'Volume', 'rgb(var(--accent-rgb) / .45)', false, '')}
-            <PanelSize split={split} size={size} onSize={onSize} onClose={onClose} />
+            <div className="cpbig">
+              {loading ? (
+                <>
+                  <b>…</b>
+                  <small>getting the full history</small>
+                </>
+              ) : read ? (
+                <>
+                  <b>{read.price}</b>
+                  <em className={read.up ? 'up' : 'dn'}>{read.change}</em>
+                  <small>{read.note}</small>
+                </>
+              ) : null}
+            </div>
+            <div className="cpctl">
+              <div className="segc" role="group" aria-label="Range">
+                {RANGE_ORDER.map((r) => {
+                  const off = r === '5Y' && short
+                  return (
+                    <button key={r} className={shown === r ? 'on' : ''} aria-pressed={shown === r} disabled={off} title={off ? served : undefined} onClick={() => pick(r)}>
+                      {r}
+                    </button>
+                  )
+                })}
+              </div>
+              {toggle('fan', '12-month range', 'var(--accent2)', !series?.range, 'This report has no 12-month range.')}
+              {toggle('peers', 'Peers', 'var(--c-peer)', noPeers, 'No peer prices are stored for this report.')}
+              {toggle('spy', 'S&P 500', 'var(--c-spy)', noSpy, 'No S&P 500 prices are stored.')}
+              {toggle('volume', 'Volume', 'rgb(var(--accent-rgb) / .45)', false, '')}
+              <PanelSize split={split} size={size} onSize={onSize} onClose={onClose} />
+            </div>
+          </div>
+          {long && !loading && historyLine && <p className="cline">{historyLine}</p>}
+          {shown === 'All' && short && <p className="cnote5">{served}</p>}
+          <div ref={wrap} className="chartwrap" onPointerMove={onMove} onPointerDown={onDown} onPointerUp={onUp} onPointerCancel={onUp} onLostPointerCapture={onUp} onPointerLeave={onLeave}>
+            {inside}
+            {g && sl && !loading && g.volH > 0 && (
+              <div
+                className={sizing ? 'hsplit hot' : 'hsplit'}
+                style={{ left: g.x0, width: g.x1 - g.x0, top: g.plotB }}
+                role="separator"
+                aria-orientation="horizontal"
+                aria-label="Price and volume heights"
+                aria-valuenow={Math.round(share * 100)}
+                tabIndex={0}
+                title="Drag to give the price or the volume more room. Double-click to reset."
+                onPointerDown={onSizeDown}
+                onPointerMove={onSizeMove}
+                onPointerUp={onSizeUp}
+                onPointerCancel={onSizeUp}
+                onDoubleClick={() => keepShare(SHARE_DEFAULT)}
+                onKeyDown={onSizeKey}
+              >
+                <i />
+              </div>
+            )}
+          </div>
+          <div className="cfoot">
+            <span>
+              <i style={{ background: 'var(--c-co)' }} />
+              {name ?? label}
+            </span>
+            {toggles.peers && (
+              <span>
+                <i style={{ background: 'var(--c-peer)' }} />
+                Peers, equal-weighted
+              </span>
+            )}
+            {toggles.spy && (
+              <span>
+                <i style={{ background: 'var(--c-spy)' }} />
+                S&amp;P 500
+              </span>
+            )}
+            <span>
+              <i className="dot" />
+              SEC filings the report read
+            </span>
+            <span>{split ? 'Hover for a day; drag across to measure; drag the divider to resize.' : 'Hover for a day; drag across to measure.'}</span>
           </div>
         </div>
-        {long && !loading && historyLine && <p className="cline">{historyLine}</p>}
-        {shown === 'All' && short && <p className="cnote5">{served}</p>}
-        <div ref={wrap} className="chartwrap" onPointerMove={onMove} onPointerDown={onDown} onPointerUp={onUp} onPointerCancel={onUp} onLostPointerCapture={onUp} onPointerLeave={onLeave}>
-          {inside}
-          {g && sl && !loading && g.volH > 0 && (
-            <div
-              className={sizing ? 'hsplit hot' : 'hsplit'}
-              style={{ left: g.x0, width: g.x1 - g.x0, top: g.plotB }}
-              role="separator"
-              aria-orientation="horizontal"
-              aria-label="Price and volume heights"
-              aria-valuenow={Math.round(share * 100)}
-              tabIndex={0}
-              title="Drag to give the price or the volume more room. Double-click to reset."
-              onPointerDown={onSizeDown}
-              onPointerMove={onSizeMove}
-              onPointerUp={onSizeUp}
-              onPointerCancel={onSizeUp}
-              onDoubleClick={() => keepShare(SHARE_DEFAULT)}
-              onKeyDown={onSizeKey}
-            >
-              <i />
-            </div>
-          )}
-        </div>
-        <div className="cfoot">
-          <span>
-            <i style={{ background: 'var(--c-co)' }} />
-            {name ?? label}
-          </span>
-          {toggles.peers && (
-            <span>
-              <i style={{ background: 'var(--c-peer)' }} />
-              Peers, equal-weighted
-            </span>
-          )}
-          {toggles.spy && (
-            <span>
-              <i style={{ background: 'var(--c-spy)' }} />
-              S&amp;P 500
-            </span>
-          )}
-          <span>
-            <i className="dot" />
-            SEC filings the report read
-          </span>
-          <span>{split ? 'Hover for a day; drag across to measure; drag the divider to resize.' : 'Hover for a day; drag across to measure.'}</span>
-        </div>
+        {keyNumbers && <KeyNumbers numbers={keyNumbers} />}
       </div>
     </section>
   )

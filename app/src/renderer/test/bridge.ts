@@ -13,7 +13,7 @@ import type { MenuCommand } from '../../main/menu'
 import type { ViewId } from '../../main/navigation'
 import type { CallResult, EngineNotification, TearsheetApi, ToolStatus } from '../../preload/api'
 import type { InstallProgress, InstallStatus, RunResult } from '../../shared/install'
-import type { ChartSeries, CompanyRow, LineGroups, LineItem, LinePlan, LineState, PredictionPrices, PredictionSummary, ReportBar, ReportNumbers, ReportResult, ReportSummary, SearchHit, SettingsResult } from '../../shared/protocol'
+import type { ChartSeries, CompanyRow, KeyNumbers, KeyRow, LineGroups, LineItem, LinePlan, LineState, PredictionPrices, PredictionSummary, ReportBar, ReportNumbers, ReportResult, ReportSummary, SearchHit, SettingsResult } from '../../shared/protocol'
 import { toolFlags, type ToolCommands, type ToolKind, type ToolState } from '../../shared/tools'
 import { analysts } from './analysts'
 
@@ -118,11 +118,80 @@ export const REPORTS: ReportSummary[] = [
 
 export const BAR: ReportBar = { close: 230.1, close_date: '2026-11-06', previous_close: 228.4, rating: 'Buy', capped: false, red_flags: [], range: { bear: 190, base: 250, bull: 290 }, percentile: 72, peers: 38 }
 
+// The Key numbers under the chart, as the engine writes them (key_numbers.py): one row missing
+// with its reason, one coloured down, and peer medians where the report has them.
+const kr = (key: string, label: string, text: string | null, over: Partial<KeyRow> = {}): KeyRow => ({
+  key,
+  label,
+  text,
+  peer_text: null,
+  note: text === null ? 'not stored' : null,
+  tone: null,
+  working: `${label}: the working for ${text ?? 'nothing'}.`,
+  ...over
+})
+export const KEY_NUMBERS: KeyNumbers = {
+  close_date: '2026-11-06',
+  report_date: '2026-11-05',
+  peers: 38,
+  groups: [
+    {
+      key: 'trading',
+      name: 'Price and trading',
+      summary: '$230.10 · down 9.1% in a year',
+      rows: [
+        kr('price', 'Price', '$230.10'),
+        kr('day_move', 'Day\'s move', '+0.7%', { tone: 'up' }),
+        kr('range_52w', '52-week range', '$150 – $266'),
+        kr('return_12m', '12-month return', '−9.1%', { tone: 'down', peer_text: '+55.7%' }),
+        kr('volume', 'Avg daily volume', '12.3M')
+      ]
+    },
+    {
+      key: 'value',
+      name: 'Size and value',
+      summary: '$3.45T · cheaper than peers on 2 of 3',
+      rows: [
+        kr('market_value', 'Market value', '$3.45T'),
+        kr('enterprise_value', 'Enterprise value', '$3.50T'),
+        kr('pe', 'P/E', '19.6×', { peer_text: '32.2×' }),
+        kr('ev_ebitda', 'EV / EBITDA', '16.3×', { peer_text: '18.0×' }),
+        kr('ev_sales', 'EV / sales', '4.7×', { peer_text: '4.1×' })
+      ]
+    },
+    {
+      key: 'profit',
+      name: 'Profit and cash',
+      summary: '$391.0B revenue · above peers on 2 of 3',
+      rows: [
+        kr('revenue', 'Revenue', '$391.0B'),
+        kr('operating_margin', 'Operating margin', '31.5%', { peer_text: '22.0%' }),
+        kr('free_cash_flow', 'Free cash flow', '$108.8B'),
+        kr('fcf_yield', 'Free cash flow yield', '3.2%', { peer_text: '2.9%' }),
+        kr('return_on_equity', 'Return on equity', null, { note: 'not stored', working: 'Not stored for this report.' })
+      ]
+    },
+    {
+      key: 'debt',
+      name: 'Debt and safety',
+      summary: 'Net debt $30.3B · more debt than peers',
+      rows: [
+        kr('net_debt', 'Net debt', '$30.3B'),
+        kr('net_debt_ebitda', 'Net debt / EBITDA', '0.2×', { peer_text: '0.1×' }),
+        kr('interest_cover', 'Interest cover', null, { note: 'no interest found', working: 'No interest expense was found in its SEC filings for the past 12 months, so there is nothing to divide by.' }),
+        kr('cash_to_profit', 'Cash flow / profit', '1.2×', { peer_text: '1.2×' }),
+        kr('return_on_capital', 'Return on capital', '45.0%', { peer_text: '27.0%' })
+      ]
+    }
+  ],
+  source: 'Prices from Massive, figures from SEC filings. Peers: the median of the 38 peers in the report; for the 12-month return, the peer group\'s return with each peer weighted the same.'
+}
+
 // The report's HTML names the frame it was asked for, so a test can tell the frames apart.
 export function report(reportId: string, opts: { view?: string; side?: string } = {}): ReportResult {
   const row = REPORTS.find((r) => r.report_id === reportId) ?? REPORTS[0]
   const html = `<html><body><h1>${row.ticker} ${opts.view ?? 'summary'} ${opts.side ?? 'text'}</h1><div class="cl"><p>Revenue grew 6% last year.</p><a class="flag" href="tearsheet://flag/c1">Flag</a></div></body></html>`
-  return { report_id: row.report_id, run_id: row.run_id, ticker: row.ticker ?? 'AAPL', cik: row.cik, name: row.name, created_at: row.created_at, narrative_complete: true, kept: 41, bar: BAR, html }
+  return { report_id: row.report_id, run_id: row.run_id, ticker: row.ticker ?? 'AAPL', cik: row.cik, name: row.name, created_at: row.created_at, narrative_complete: true, kept: 41, bar: BAR, key_numbers: KEY_NUMBERS, html }
 }
 
 export const HITS: SearchHit[] = [
