@@ -88,11 +88,12 @@ iframe.report-frame.fadein { animation: fade .15s ease-out both; background: tra
 .top .ttl .subbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .top .ttl .subbtn svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 2; }
 .rmenu-scrim { position: fixed; inset: 0; z-index: 30; -webkit-app-region: no-drag; }
-.rmenu { position: fixed; z-index: 31; min-width: 220px; padding: 6px; display: flex; flex-direction: column; gap: 1px; border-radius: calc(12px * var(--round)); background: rgb(var(--surface) / .94); border: 1px solid rgb(var(--ink) / .14);
-  backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px); box-shadow: 0 20px 50px rgb(var(--shade) / calc(.5 * var(--shade-k))); font: 13px/1.4 var(--ui); font-weight: calc(400 + var(--wt)); color: var(--text); white-space: nowrap; -webkit-app-region: no-drag; animation: pop .2s var(--slide) both; }
-.rmenu-h { display: block; padding: 4px 10px 6px; font: 11.5px var(--ui); font-weight: calc(500 + var(--wt)); color: var(--dim); }
-.rmenu button { all: unset; display: flex; align-items: center; gap: 16px; padding: 7px 10px; border-radius: calc(8px * var(--round)); cursor: pointer; }
-.rmenu button:hover, .rmenu button:focus-visible { background: rgb(var(--accent-rgb) / .12); outline: none; }
+/* Drawn like the sidebar's menus (styles.css .menu4): ground, corners, rows, heading and hover. */
+.rmenu { position: fixed; z-index: 31; min-width: 220px; padding: 5px; display: flex; flex-direction: column; border-radius: calc(10px * var(--round)); background: var(--menu-bg); border: 1px solid rgb(var(--ink) / .12);
+  box-shadow: 0 14px 36px rgb(var(--shade) / calc(.5 * var(--shade-k))); font: 13px var(--ui); font-weight: calc(400 + var(--wt)); color: var(--text3); white-space: nowrap; -webkit-app-region: no-drag; animation: fade .12s ease-out both; }
+.rmenu-h { display: block; padding: 6px 10px 2px; font-size: 10.5px; font-weight: calc(600 + var(--wt)); letter-spacing: .5px; text-transform: uppercase; color: var(--faint); }
+.rmenu button { all: unset; display: flex; align-items: center; gap: 16px; padding: 5px 10px; border-radius: calc(6px * var(--round)); cursor: pointer; }
+.rmenu button:hover, .rmenu button:focus-visible { background: rgb(var(--accent-rgb) / .16); color: var(--hi); outline: none; }
 .rmenu button span { flex: 1; }
 .rmenu button small { color: var(--muted); font-size: 12px; }
 .rmenu button.danger { color: var(--bad-text3); }

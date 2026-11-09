@@ -7,12 +7,13 @@
 .setv .aphead { display: flex; align-items: flex-end; gap: 16px; }
 .setv .aphead > div { flex: 1; min-width: 0; }
 
-/* A Mac-style segmented control: Dark, Light, Match the Mac; Customize's tabs; Glass; Lines. */
-.setv .aseg { display: inline-flex; flex: none; padding: 2px; border-radius: calc(8px * var(--round)); background: rgb(var(--ink) / .06); border: 1px solid var(--line); }
-.setv .aseg button { all: unset; padding: 3px 12px; border-radius: calc(6px * var(--round)); color: var(--muted); font-size: 12.5px; white-space: nowrap; cursor: pointer; transition: background .15s, color .15s; }
+/* A Mac-style segmented control: Dark, Light, Match the Mac; Customize's tabs; Glass; Lines.
+   Drawn exactly as the report's switch (report.css .segc). */
+.setv .aseg { display: inline-flex; flex: none; padding: 2px; border-radius: calc(9px * var(--round)); background: rgb(var(--ink) / .06); border: 1px solid var(--line); }
+.setv .aseg button { all: unset; padding: 3px 11px; border-radius: calc(7px * var(--round)); color: var(--muted); font-size: 12.5px; white-space: nowrap; cursor: pointer; transition: background .2s, color .2s; }
 .setv .aseg button:hover { color: var(--text); }
-.setv .aseg button.on { background: rgb(var(--ink) / .13); color: var(--text); box-shadow: 0 1px 2px rgb(var(--shade) / calc(.3 * var(--shade-k))); }
-.setv .aseg button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.setv .aseg button.on { background: rgb(var(--ink) / .14); color: var(--text); box-shadow: 0 1px 2px rgb(var(--shade) / calc(.3 * var(--shade-k))); }
+.setv .aseg button:focus-visible { outline: 2px solid var(--accent); }
 .setv .aptabs { margin-top: 18px; }
 .setv .apback { display: inline-block; margin-bottom: 10px; }
 
