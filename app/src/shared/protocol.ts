@@ -57,6 +57,9 @@ export type ReportIds = [string, ...string[]];
 export type Cik = number;
 export type Pinned = boolean;
 export type Queries = string[];
+export type Group = ("all" | "sector" | "rest") | null;
+export type LineSector = string | null;
+export type SkipRecent = boolean;
 export type LineTicker = string;
 export type Cik1 = number;
 export type Name = string;
@@ -411,19 +414,29 @@ export type Code2 = string | null;
 export type Message1 = string | null;
 export type Query2 = string;
 export type Reason1 = string;
+export type Kind2 = "unknown" | "twice" | "in_line" | "recent";
 export type Code3 = string;
 export type Message2 = string;
 export type ResetAt1 = string | null;
 export type FixCommand1 = string | null;
 export type RunId9 = string | null;
+export type WaitUntil = string | null;
+export type Used = number | null;
+export type Seconds = number;
+export type AiCalls = number;
+export type Runs = number;
 export type Waiting = LineItem[];
 export type Finished1 = LineItem[];
-export type Limit2 = number;
 export type Items1 = LineItem[];
 export type Skipped = LineSkip[];
+export type Name13 = string;
+export type Count1 = number;
+export type All = number;
+export type Rest = number;
+export type Sectors = LineGroup[];
 
 /**
- * App-engine protocol, version 4.
+ * App-engine protocol, version 5.
  */
 export interface TearsheetProtocol {
   [k: string]: unknown;
@@ -589,7 +602,10 @@ export interface PinParams {
  * via the `definition` "QueriesParams".
  */
 export interface QueriesParams {
-  queries: Queries;
+  queries?: Queries;
+  group?: Group;
+  sector?: LineSector;
+  skip_recent?: SkipRecent;
 }
 /**
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
@@ -1371,7 +1387,8 @@ export interface LineItem {
   message?: Message1;
 }
 /**
- * A company left out of the line, and why.
+ * A company left out of the line, and why. `kind` groups them: not found, listed twice,
+ * already in the line, or a report from the last 30 days.
  *
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
  * via the `definition` "LineSkip".
@@ -1379,6 +1396,7 @@ export interface LineItem {
 export interface LineSkip {
   query: Query2;
   reason: Reason1;
+  kind: Kind2;
 }
 /**
  * Why the line waits: a problem that would stop every report after it, or REOPENED when
@@ -1393,6 +1411,19 @@ export interface LinePause {
   reset_at?: ResetAt1;
   fix_command?: FixCommand1;
   run_id?: RunId9;
+  wait_until?: WaitUntil;
+  used?: Used;
+}
+/**
+ * One of Liam's reports, as his latest finished runs went (their median).
+ *
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "LineTypical".
+ */
+export interface LineTypical {
+  seconds: Seconds;
+  ai_calls: AiCalls;
+  runs: Runs;
 }
 /**
  * The line now; also the `line_changed` notification.
@@ -1405,7 +1436,7 @@ export interface LineState {
   writing: LineItem | null;
   finished: Finished1;
   paused: LinePause | null;
-  limit: Limit2;
+  typical?: LineTypical | null;
 }
 /**
  * plan_line's and add_to_line's answer: the companies found, those left out, and the line.
@@ -1418,5 +1449,24 @@ export interface LinePlan {
   skipped: Skipped;
   line: LineState;
 }
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "LineGroup".
+ */
+export interface LineGroup {
+  name: Name13;
+  count: Count1;
+}
+/**
+ * The line's quick adds, with how many companies each holds.
+ *
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "LineGroups".
+ */
+export interface LineGroups {
+  all: All;
+  rest: Rest;
+  sectors: Sectors;
+}
 
-export const PROTOCOL_VERSION = 4
+export const PROTOCOL_VERSION = 5

@@ -71,6 +71,8 @@ describe('the calls', () => {
     ['eraseReports', [['r1']], ['tearsheet:call', 'eraseReports', { report_ids: ['r1'] }]],
     ['pinCompany', [320193, true], ['tearsheet:call', 'pinCompany', { cik: 320193, pinned: true }]],
     ['planLine', [['JPM', 'O']], ['tearsheet:call', 'planLine', { queries: ['JPM', 'O'] }]],
+    ['planLine', [[], { group: 'sector', sector: 'Energy', skipRecent: true }], ['tearsheet:call', 'planLine', { queries: [], group: 'sector', sector: 'Energy', skip_recent: true }]],
+    ['lineGroups', [], ['tearsheet:call', 'lineGroups', {}]],
     ['addToLine', [['JPM']], ['tearsheet:call', 'addToLine', { queries: ['JPM'] }]],
     ['getLine', [], ['tearsheet:call', 'getLine', {}]],
     ['removeFromLine', ['O'], ['tearsheet:call', 'removeFromLine', { ticker: 'O' }]],
@@ -119,6 +121,6 @@ test('About and help asks main for the versions, and Send feedback asks it to op
 
 test('the window gets nothing but these calls and listeners', () => {
   expect(Object.keys(api).sort()).toEqual(
-    ['addToLine', 'cancel', 'carryOnLine', 'checkKey', 'clearLine', 'getLine', 'planLine', 'removeFromLine', 'fetchHistory', 'find', 'flagClaim', 'getAnalysts', 'getChart', 'getReport', 'getReportNumbers', 'eraseReports', 'getSettings', 'getTools', 'gradeDue', 'hideReports', 'listCompanies', 'listPredictions', 'listReports', 'predictionPrices', 'saveCsv', 'onFlagRequested', 'onMenu', 'onNotification', 'onOpenView', 'openExternal', 'pinCompany', 'rereadFiling', 'resume', 'runReport', 'runSafetyCheck', 'searchCompanies', 'setKey', 'setSetting', 'showReports', 'stopFind', 'setLook', 'openTheme', 'saveTheme', 'onDownload', 'showDownload', 'about', 'sendFeedback', 'cancelSafetyCheck', 'windowState', 'copyAndOpenTerminal', 'commandsFor', 'showSetupLog', 'install', 'cancelInstall', 'openSignInPage', 'getInstallButton'].sort()
+    ['addToLine', 'cancel', 'carryOnLine', 'checkKey', 'clearLine', 'getLine', 'lineGroups', 'planLine', 'removeFromLine', 'fetchHistory', 'find', 'flagClaim', 'getAnalysts', 'getChart', 'getReport', 'getReportNumbers', 'eraseReports', 'getSettings', 'getTools', 'gradeDue', 'hideReports', 'listCompanies', 'listPredictions', 'listReports', 'predictionPrices', 'saveCsv', 'onFlagRequested', 'onMenu', 'onNotification', 'onOpenView', 'openExternal', 'pinCompany', 'rereadFiling', 'resume', 'runReport', 'runSafetyCheck', 'searchCompanies', 'setKey', 'setSetting', 'showReports', 'stopFind', 'setLook', 'openTheme', 'saveTheme', 'onDownload', 'showDownload', 'about', 'sendFeedback', 'cancelSafetyCheck', 'windowState', 'copyAndOpenTerminal', 'commandsFor', 'showSetupLog', 'install', 'cancelInstall', 'openSignInPage', 'getInstallButton'].sort()
   )
 })

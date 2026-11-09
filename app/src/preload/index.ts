@@ -55,12 +55,14 @@ contextBridge.exposeInMainWorld('tearsheet', {
   showReports: (reportIds: string[]) => call('showReports', { report_ids: reportIds }),
   eraseReports: (reportIds: string[]) => call('eraseReports', { report_ids: reportIds }),
   pinCompany: (cik: number, pinned: boolean) => call('pinCompany', { cik, pinned }),
-  planLine: (queries: string[]) => call('planLine', { queries }),
+  planLine: (queries: string[], opts: { group?: string; sector?: string; skipRecent?: boolean } = {}) =>
+    call('planLine', { queries, ...(opts.group ? { group: opts.group } : {}), ...(opts.sector ? { sector: opts.sector } : {}), ...(opts.skipRecent ? { skip_recent: true } : {}) }),
   addToLine: (queries: string[]) => call('addToLine', { queries }),
   getLine: () => call('getLine', {}),
   removeFromLine: (ticker: string) => call('removeFromLine', { ticker }),
   clearLine: () => call('clearLine', {}),
   carryOnLine: () => call('carryOnLine', {}),
+  lineGroups: () => call('lineGroups', {}),
   listPredictions: () => call('listPredictions', {}),
   predictionPrices: (ciks: number[], since: string) => call('predictionPrices', { ciks, since }),
   // The prediction log's Export: a CSV the window made, saved to ~/Downloads (main/downloads.ts).

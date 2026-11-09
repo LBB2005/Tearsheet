@@ -1,8 +1,10 @@
 // Keeps the Mac from going to sleep while the line writes several reports one after another, so
 // a list left running isn't paused half-way by the Mac sleeping. It uses Electron's
 // powerSaveBlocker in its gentlest form, "prevent-app-suspension": the screen may still turn off,
-// and closing the lid still sleeps the Mac. It lets go once the line has nothing more to write
-// (done, paused or cleared), or when the engine restarts.
+// and closing the lid still sleeps the Mac. It stays on while the line waits for the plan's usage
+// to reset (a pause with `wait_until`), so the line can carry on by itself, and lets go once the
+// line has nothing more to write (done or cleared), is paused for Liam (a real problem, or the
+// weekly 80%), or when the engine restarts.
 
 import type { Notification } from './engine'
 
@@ -23,7 +25,8 @@ export function lineWantsAwake(note: Notification): boolean | null {
   if (note.method !== 'line_changed') return null
   const p = note.params
   const waiting = Array.isArray(p.waiting) ? p.waiting.length : 0
-  return !p.paused && (Boolean(p.writing) || waiting > 0)
+  const paused = p.paused as { wait_until?: string | null } | null | undefined
+  return (!paused || Boolean(paused.wait_until)) && (Boolean(p.writing) || waiting > 0)
 }
 
 export function keepAwakeDuringLine(engine: Notes, blocker: Blocker): void {

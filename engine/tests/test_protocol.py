@@ -416,8 +416,9 @@ def test_the_safety_checks_stop_and_progress_and_the_test_copy_code():
     assert "CancelSafetyCheckResult" in defs and "SafetyRunning" in defs
     note = RunFailedNote(run_id="r", step=None, message="Reports are off.", code="TEST_COPY")
     assert note.code == "TEST_COPY"
-    assert PROTOCOL_VERSION == 4
-    assert schema()["description"] == "App-engine protocol, version 4."
+    # Raised to 4 for these messages, and to 5 for the big line's (batch.py).
+    assert PROTOCOL_VERSION >= 4
+    assert schema()["description"] == f"App-engine protocol, version {PROTOCOL_VERSION}."
     # Settings from an engine before the field (and the app's fixtures) still parse.
     old = {
         "keys": {"massive": "set"},

@@ -9,7 +9,7 @@ import type { LineItem, LinePlan, LineSkip } from '../../shared/protocol'
 import { joinNames, lineTime, officialNote, usualReport } from '../home/line'
 import { shortDate } from '../nav'
 
-// About how many AI calls a full report makes (batch.py: 10 reports is about 400).
+// About how many AI calls a full report makes, a little over the 34 of Liam’s runs (the line says his own: home/line.ts).
 export const CALLS_PER_REPORT = 40
 
 // A company to refresh, with the date of its latest report.

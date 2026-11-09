@@ -16,8 +16,8 @@ import type { ToolKind } from '../shared/tools'
 import type { CompanyRow, GradeResult, SearchHit, SettingsResult } from '../shared/protocol'
 import { bootView, GIVE_UP_AFTER_MS, STARTING_AFTER_MS } from './boot'
 import { forgetOldChartPrefs, setSidebarHidden, sidebarHidden } from './chart/prefs'
-import { usualReport, waitsForCheck } from './home/line'
-import { LinePaused, LineStrip, LineWaiting } from './home/LineParts'
+import { perReportOf, usualReport, waitsForCheck, waitText } from './home/line'
+import { LineAdder, LinePaused, LineStrip, LineWaiting } from './home/LineParts'
 import { runTitle } from './home/run'
 import { RunView } from './home/RunView'
 import { useRun } from './home/useRun'
@@ -544,12 +544,14 @@ export function App() {
         onResume={() => void report.resume()}
         onRecheck={recheckOrSay}
         onOpen={report.openReady}
+        waiting={report.line?.paused?.wait_until && report.line.paused.run_id === runView.runId ? waitText(report.line.paused) : undefined}
         strip={
           report.line && (
             <LineStrip
               line={report.line}
               runId={runView.runId}
-              perReport={usualReport(usualTimes(runView.tally))}
+              perReport={perReportOf(report.line, usualReport(usualTimes(runView.tally)))}
+              adder={<LineAdder perReport={perReportOf(report.line, usualReport(usualTimes(runView.tally)))} onAdd={report.startLine} />}
               onRemove={(ticker) => void report.removeFromLine(ticker)}
               onAdd={() => {
                 lookUpAdds.current = true

@@ -133,6 +133,8 @@ BACKFILL_POLL_S = 2.0
 # How often the line looks again while something else runs (a single report, grading, a history
 # download or the safety check): its next report starts once they are done.
 LINE_POLL_S = 1.0
+# The longest a wait for a usage limit sleeps before it looks at the clock again.
+LINE_SLEEP_S = 60.0
 # How often the open app checks for a newly closed session to add to the stored prices.
 KEEP_CURRENT_EVERY_S = 1800.0
 # A test copy (config.test_mode(), first-run design §6): its canned safety check takes a step
@@ -314,6 +316,15 @@ class Server:
         self.line = ReportLine.loads(config.Settings(self.db.conn).get(SETTING))
         self.line_job: asyncio.Task | None = None
         self.line_poll_s = LINE_POLL_S
+        # The wait for a usage limit (or the plan's 5-hour window) to reset, and the pause it
+        # waits out; it sleeps in steps of `line_sleep_s` and goes by the clock (self.now), so a
+        # Mac that slept a while still wakes it on time.
+        self.line_wake: asyncio.Task | None = None
+        self.line_wake_for = None
+        self.line_sleep = asyncio.sleep
+        self.line_sleep_s = LINE_SLEEP_S
+        # The plan's usage as the last run's AI calls said, by run id (batch.py's Reading).
+        self.last_usage: tuple[str, dict[str, Any]] | None = None
         # analystdb, Liam's local analyst-ratings API, with its answers kept in memory. Tests
         # put a stand-in here; the tests' offline guard keeps the real one from reaching it.
         from tearsheet.data.analystdb import AnalystDB
@@ -826,6 +837,7 @@ class Server:
             if run is not None and run.cancel_requested:
                 ended["how"] = "cancelled"
             self.last_end = (run_id, ended)
+            self.last_usage = (run_id, self._usage_of(run))
             self.active = None
             resolved.set()
             from tearsheet.ai import close_connector
@@ -837,6 +849,19 @@ class Server:
                     await close_connector(client.connector)
                 except Exception:  # noqa: BLE001 - cleanup only
                     log.exception("closing the AI tool after run %s", run_id)
+
+    @staticmethod
+    def _usage_of(run) -> dict[str, Any]:
+        """The plan's usage as the run's AI calls last said (batch.py's usage_readings)."""
+        from tearsheet.batch import usage_readings
+
+        calls = [
+            record.rate_limit
+            for client in (getattr(run, "ai", None), getattr(run, "checker", None))
+            if client is not None
+            for record in getattr(client, "calls", None) or []
+        ]
+        return usage_readings(calls)
 
     async def _start_job(self, run_id: str, make_run, *, wait_for_resolve: bool) -> None:
         resolved = asyncio.Event()
@@ -1001,12 +1026,55 @@ class Server:
 
     # --- the line: several reports, one after another (batch.py) ----------------------------
 
+    def _line_state(self) -> dict[str, Any]:
+        """The line, with how long one of Liam's reports usually takes, for its time left."""
+        from tearsheet.batch import typical_report
+
+        return {**self.line.state(), "typical": typical_report(self.db.conn)}
+
     def _line_changed(self) -> None:
         from tearsheet.batch import SETTING
         from tearsheet.protocol import LineState
 
         config.Settings(self.db.conn).set_internal(SETTING, self.line.dumps())
-        self.notify("line_changed", LineState(**self.line.state()))
+        self.notify("line_changed", LineState(**self._line_state()))
+        self._watch_line_pause()
+
+    def _watch_line_pause(self) -> None:
+        """A pause that ends by itself gets its wait; any other change ends the wait."""
+        pause = self.line.paused
+        want = pause if pause is not None and pause.wait_until else None
+        waiting = self.line_wake is not None and not self.line_wake.done()
+        if waiting and self.line_wake_for is want:
+            return
+        if waiting and self.line_wake is not asyncio.current_task():
+            self.line_wake.cancel()
+        self.line_wake, self.line_wake_for = None, want
+        if want is not None:
+            self.line_wake = asyncio.create_task(self._wake_line(want))
+
+    async def _wake_line(self, pause) -> None:
+        """Wait until the pause's time, then resume the stopped report (or just go on)."""
+        from tearsheet.protocol import RunIdParams
+
+        until = datetime.fromisoformat(pause.wait_until)
+        while (left := (until - self.now()).total_seconds()) > 0:
+            await self.line_sleep(min(left, self.line_sleep_s))
+        while self._something_running():
+            await asyncio.sleep(self.line_poll_s)
+        if self.line.paused is not pause:
+            return
+        self.line_wake, self.line_wake_for = None, None
+        run_id = self.line.wake()
+        if run_id is not None:
+            try:
+                await self.m_resume(RunIdParams(run_id=run_id))
+                return
+            except EngineError as exc:
+                log.warning("the line couldn't resume %s: %s", run_id, exc)
+                self.line.carry_on()
+        self._line_changed()
+        self._kick_line()
 
     def _kick_line(self) -> None:
         if self.line_job is None or self.line_job.done():
@@ -1040,7 +1108,9 @@ class Server:
                         code, data = error_code(exc)
                     if line.round == round_:
                         line.end(
-                            entry, {"how": "failed", "code": code, "message": str(exc), **data}
+                            entry,
+                            {"how": "failed", "code": code, "message": str(exc), **data},
+                            now=self.now(),
                         )
                         self._line_changed()
                     continue
@@ -1057,39 +1127,76 @@ class Server:
             if line.round != round_:
                 continue
             ended = self.last_end[1] if self.last_end and self.last_end[0] == entry.run_id else {}
-            line.end(entry, ended or {"how": "failed", "code": "ENGINE_ERROR"})
+            line.end(entry, ended or {"how": "failed", "code": "ENGINE_ERROR"}, now=self.now())
+            if self.last_usage and self.last_usage[0] == entry.run_id:
+                line.check_usage(self.last_usage[1], self.now())
             self._line_changed()
 
-    def _line_plan(self, queries: list[str]) -> tuple[list[Entry], list[Skip]]:
+    def _line_plan(self, p) -> tuple[list[Entry], list[Skip]]:
         from tearsheet.companies import _aliases
         from tearsheet.data import membership
 
         holdings = membership.load_bundled()
         return self.line.plan(
-            queries,
+            [*self._group_tickers(holdings, p.group, p.sector), *p.queries],
             holdings=holdings,
             tickers={row.ticker: row.cik for row in holdings.rows},
             aliases=_aliases(),
             conn=self.db.conn,
             now=self.now(),
+            skip_recent=p.skip_recent,
         )
+
+    def _group_tickers(self, holdings, group: str | None, sector: str | None) -> list[str]:
+        """The quick adds' companies, largest index weight first, one ticker each: the whole
+        S&P 500, one sector, or the rest (every company without a finished report yet)."""
+        from tearsheet.batch import finished_reports
+
+        if group is None:
+            return []
+        companies = holdings.companies()
+        if group == "sector":
+            if not sector or not any(c.sector == sector for c in companies):
+                raise ValueError(f"No S&P 500 sector is called {sector!r}.")
+            companies = holdings.sector_members(sector)
+        elif group == "rest":
+            done = finished_reports(self.db.conn)
+            companies = [c for c in companies if c.cik not in done]
+        return [c.tickers[0] for c in companies]
 
     def _plan_answer(self, entries: list[Entry], skipped: list[Skip]) -> dict[str, Any]:
         return {
             "items": [e.item() for e in entries],
-            "skipped": [{"query": s.query, "reason": s.reason} for s in skipped],
-            "line": self.line.state(),
+            "skipped": [{"query": s.query, "reason": s.reason, "kind": s.kind} for s in skipped],
+            "line": self._line_state(),
         }
 
     async def m_plan_line(self, p) -> dict[str, Any]:
         """What add_to_line would add, and which companies would make a new official
         prediction. Nothing changes."""
-        return self._plan_answer(*self._line_plan(p.queries))
+        return self._plan_answer(*self._line_plan(p))
+
+    async def m_line_groups(self, p) -> dict[str, Any]:
+        """The quick adds and how many companies each holds: the whole S&P 500, each sector,
+        and the rest (those without a finished report yet)."""
+        from tearsheet.batch import finished_reports
+        from tearsheet.data import membership
+
+        companies = membership.load_bundled().companies()
+        done = finished_reports(self.db.conn)
+        sectors: dict[str, int] = {}
+        for c in companies:
+            sectors[c.sector] = sectors.get(c.sector, 0) + 1
+        return {
+            "all": len(companies),
+            "rest": sum(c.cik not in done for c in companies),
+            "sectors": [{"name": k, "count": v} for k, v in sorted(sectors.items())],
+        }
 
     async def m_add_to_line(self, p) -> dict[str, Any]:
         from tearsheet.batch import REOPENED
 
-        entries, skipped = self._line_plan(p.queries)
+        entries, skipped = self._line_plan(p)
         if entries:
             # Starting a new list carries on a line left from last time; a pause for a problem
             # (a usage limit, say) stays until Resume or carry on.
@@ -1101,12 +1208,12 @@ class Server:
         return self._plan_answer(entries, skipped)
 
     async def m_get_line(self, p) -> dict[str, Any]:
-        return self.line.state()
+        return self._line_state()
 
     async def m_remove_from_line(self, p) -> dict[str, Any]:
         if self.line.remove(p.ticker):
             self._line_changed()
-        return self.line.state()
+        return self._line_state()
 
     async def m_clear_line(self, p) -> dict[str, Any]:
         """Cancel all: the report being written stops, and nothing is left waiting."""
@@ -1115,14 +1222,15 @@ class Server:
         if writing and self.active is not None and self.active.run_id == writing.run_id:
             self.active.cancel()
         self._line_changed()
-        return self.line.state()
+        return self._line_state()
 
     async def m_carry_on_line(self, p) -> dict[str, Any]:
-        """Go on with the companies still waiting, without resuming a stopped report."""
-        self.line.carry_on()
+        """Go on with the companies still waiting, without resuming a stopped report; past the
+        weekly 80%, Liam's yes to going on."""
+        self.line.carry_on(self.now())
         self._line_changed()
         self._kick_line()
-        return self.line.state()
+        return self._line_state()
 
     async def wait_for_job(self) -> None:
         if self.job is not None:
@@ -1864,6 +1972,8 @@ async def serve(paths: config.Paths) -> int:
         # it is kept as it is, and comes back paused next time.
         if server.line_job is not None:
             server.line_job.cancel()
+        if server.line_wake is not None:
+            server.line_wake.cancel()
         if server.active is not None:
             server.active.cancel()
         if server.job is not None:
