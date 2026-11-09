@@ -21,6 +21,7 @@ from xlsxwriter.utility import xl_col_to_name, xl_rowcol_to_cell
 
 from tearsheet.export import style
 from tearsheet.export.data import LABEL, ExportData, Figure, day_text
+from tearsheet.export.data import METHOD_LABELS as LABELS
 from tearsheet.render import METRIC_KINDS
 
 BLUE = "#0000FF"
@@ -940,6 +941,7 @@ def _valuation(b: _Book) -> None:
         b.wb.define_name("PeerRatingCounts", f"='Valuation'!$C${first_rating + 1}:$C${r}")
     ws.write(r, 1, "Companies in the peer group", b.f["total_label"])
     ws.write_number(r, 2, int((v.get("peer_ratings") or {}).get("total") or 0), b.f["tot_int"])
+    r = _assumptions(b, ws, r + 2)
     ws.print_area(0, 0, max(r, 26), 14)
 
     bars: list[tuple[str, float, str]] = [
@@ -989,6 +991,237 @@ def _valuation(b: _Book) -> None:
         chart.set_size({"width": 520, "height": 320})
         ws.insert_chart(4, 6, chart, {"x_offset": 6})
     ws.freeze_panes(3, 0)
+
+
+SAVED_NOTE = "Saved with the run when the report was made."
+NOT_SAVED = "Not saved for this report (made before 8 Nov 2026)."
+# The saved method names, as the report's valuation table names them (`data.METHOD_LABELS`).
+_METHOD_CODES = {"price_to_ffo": "P_FFO"}
+
+
+def _assumption_rows(method: str, rules: dict[str, Any]) -> list[tuple[str, str, str, str]]:
+    """(saved key, label, format, what it is) for one method's saved details. The wording
+    follows valuation/dcf.py, residual_income.py, multiples.py and financials.py; the numbers in
+    it come from the rules saved with the run."""
+    dcf = rules.get("dcf") or {}
+    multiples = rules.get("multiples") or {}
+    triggers = rules.get("triggers") or {}
+
+    def pct(value: Any, default: str) -> str:
+        return f"{value:.0%}" if isinstance(value, int | float) else default
+
+    trim = pct(multiples.get("trim_share"), "a share")
+    least = multiples.get("min_peers", "enough")
+    if method == "dcf":
+        spread = rules.get("cost_of_debt_max_spread")
+        cap = f"{spread * 100:.0f} points" if isinstance(spread, int | float) else "a spread"
+        gap = dcf.get("min_rate_over_terminal")
+        below = f"{gap * 100:.0f} points" if isinstance(gap, int | float) else "a margin"
+        terminal_cap = dcf.get("terminal_growth_cap")
+        lower = f"{terminal_cap:.1%}" if isinstance(terminal_cap, int | float) else "the cap"
+        return [
+            (
+                "growth",
+                f"Revenue growth, years 1-{dcf.get('growth_years', 5)}",
+                "pct",
+                f"The {dcf.get('history_years', 3)}-year rate, floored at "
+                f"{pct(dcf.get('growth_floor'), 'the floor')} and capped at the peers' "
+                f"{dcf.get('growth_cap_percentile', 90)}th percentile; it fades to terminal "
+                f"growth by year {dcf.get('years', 10)}",
+            ),
+            (
+                "start_margin",
+                "Operating margin today",
+                "pct",
+                "EBIT plus operating lease cost ÷ revenue",
+            ),
+            (
+                "target_margin",
+                f"Operating margin by year {dcf.get('margin_years', 5)}",
+                "pct",
+                "The peer median, reached in a straight line",
+            ),
+            (
+                "sales_to_capital",
+                "Sales to capital",
+                "mult",
+                "Peer median revenue ÷ invested capital; reinvestment is the revenue increase ÷ this",
+            ),
+            ("cost_of_equity", "Cost of equity", "pct", "From the stock's 12-month volatility"),
+            (
+                "cost_of_debt",
+                "Cost of debt",
+                "pct",
+                f"Interest ÷ average debt, between the 10-year yield and the yield plus {cap}",
+            ),
+            (
+                "debt_weight",
+                "Debt weight",
+                "pct",
+                "Debt and leases ÷ (market value + debt and leases)",
+            ),
+            (
+                "discount_rate",
+                "Discount rate",
+                "pct",
+                "Cost of equity and after-tax cost of debt, by their weights",
+            ),
+            (
+                "terminal_growth",
+                "Terminal growth",
+                "pct",
+                f"The lower of {lower} and the 10-year yield, and at least {below} below the "
+                "discount rate",
+            ),
+            (
+                "terminal_share",
+                "Terminal value, share of firm value",
+                "pct",
+                f"Above {pct(triggers.get('terminal_share'), 'the trigger')} adds a step of "
+                "uncertainty",
+            ),
+        ]
+    if method == "residual_income":
+        years = (rules.get("residual_income") or {}).get("years", 10)
+        return [
+            (
+                "book_value",
+                "Book value today, US$ millions",
+                "num",
+                "Common equity, latest balance sheet",
+            ),
+            (
+                "start_roe",
+                "Return on equity today",
+                "pct",
+                "Net income to common ÷ average common equity, last 12 months",
+            ),
+            (
+                "target_roe",
+                f"Return on equity by year {years}",
+                "pct",
+                "The peer median, reached in a straight line",
+            ),
+            (
+                "payout",
+                "Payout",
+                "pct",
+                "Share of earnings paid out; book value grows by return on equity × the rest",
+            ),
+            ("cost_of_equity", "Cost of equity", "pct", "From the stock's 12-month volatility"),
+        ]
+    if method in ("multiples", "pe"):
+        rows = [
+            (
+                "pe_multiple",
+                "Peer P/E",
+                "mult",
+                f"Harmonic mean of the peers' P/E, top and bottom {trim} dropped",
+            ),
+            ("pe_peers", "Peers kept for P/E", "int", f"At least {least} needed"),
+        ]
+        if method == "multiples":
+            rows += [
+                (
+                    "ev_ebit_multiple",
+                    "Peer EV/EBIT",
+                    "mult",
+                    f"Harmonic mean of the peers' EV/EBIT, top and bottom {trim} dropped",
+                ),
+                ("ev_ebit_peers", "Peers kept for EV/EBIT", "int", f"At least {least} needed"),
+            ]
+        return rows
+    if method == "price_to_ffo":
+        return [
+            (
+                "ffo_multiple",
+                "Peer price ÷ FFO",
+                "mult",
+                f"Harmonic mean of the REIT peers' price ÷ FFO, top and bottom {trim} dropped",
+            ),
+            ("reit_peers", "REIT peers kept", "int", f"At least {least} needed"),
+            (
+                "ffo_per_share",
+                "FFO per share, US$",
+                "money",
+                "Net income + real-estate depreciation − gains on sales, ÷ shares",
+            ),
+        ]
+    return []
+
+
+def _range_rows(rules: dict[str, Any]) -> list[tuple[str, str, str, str]]:
+    rng = rules.get("range") or {}
+    blend = rng.get("peer_volatility_blend")
+    moved = f"{blend:.0%} of the way" if isinstance(blend, int | float) else "part of the way"
+    years = rng.get("value_gap_years", 3)
+    return [
+        (
+            "cost_of_equity",
+            "Cost of equity",
+            "pct",
+            f"Base case: the price grown at this less the dividend yield, plus 1/{years} of the "
+            "gap to value",
+        ),
+        ("dividend_yield", "Dividend yield", "pct", "Last 12 months' dividends ÷ price"),
+        ("volatility", "Stock's 12-month volatility", "pct", "Annualized"),
+        ("peer_median_volatility", "Peer median volatility", "pct", "The peer group's median"),
+        (
+            "blended_volatility",
+            "Volatility used for the range",
+            "pct",
+            f"The stock's, moved {moved} to the peer median; bear and bull are its 10th and "
+            "90th percentiles",
+        ),
+    ]
+
+
+def _assumptions(b: _Book, ws, r: int) -> int:
+    """Each method's saved assumptions and the range inputs, typed in blue. Returns the row
+    after the section."""
+    saved = b.d.assumptions
+    b.section(ws, r, 1, 4, "Assumptions behind each method", {2: "Saved"})
+    r += 1
+    if not saved:
+        ws.write(r, 1, NOT_SAVED, b.f["muted"])
+        return r + 1
+    rules = saved.get("rules") or {}
+
+    def rows(details: dict[str, Any], spec: list[tuple[str, str, str, str]]) -> None:
+        nonlocal r
+        for key, label, kind, meaning in spec:
+            ws.write(r, 1, label, b.f["label"])
+            value = _num(details.get(key))
+            if value is None:
+                ws.write(r, 2, "n/a", b.f["na"])
+            else:
+                if key == "book_value":
+                    value /= 1e6
+                ws.write_number(r, 2, value, b.f[f"in_{kind}"])
+                b.note(ws, r, 2, SAVED_NOTE)
+            ws.write(r, 4, meaning, b.f["muted"])
+            r += 1
+
+    for m in saved.get("methods") or []:
+        code = str(m.get("method") or "")
+        label = LABELS.get(_METHOD_CODES.get(code, code.upper())) or code.replace("_", " ")
+        ws.write(r, 1, label, b.f["bold"])
+        details = m.get("details") or {}
+        if not details:
+            reason = m.get("reason")
+            ws.write(r, 4, f"Not used: {reason}" if reason else "Not used", b.f["muted"])
+            r += 1
+            continue
+        r += 1
+        rows(details, _assumption_rows(code, rules))
+    ws.write(r, 1, "12-month range", b.f["bold"])
+    r += 1
+    if saved.get("range"):
+        rows(saved["range"], _range_rows(rules))
+    else:
+        ws.write(r, 1, "No range: the report has no estimated value", b.f["muted"])
+        r += 1
+    return r
 
 
 # --- Peers ---------------------------------------------------------------------------------------

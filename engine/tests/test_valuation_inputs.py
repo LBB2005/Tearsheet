@@ -99,6 +99,8 @@ def test_a_full_run_saves_each_methods_assumptions_and_the_range_inputs(database
 
     # The rules the figures came from, so a what-if can be worked out the same way.
     assert row["rules"]["dcf"]["years"] == 10
+    assert row["rules"]["triggers"]["terminal_share"] == 0.85
+    assert row["rules"]["cost_of_debt_max_spread"] == 0.06
     assert row["rules"]["range"]["value_gap_years"] == 3
 
     # The `value` row replay compares is unchanged, and the run still ends on the save step.

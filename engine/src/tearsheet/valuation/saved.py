@@ -63,6 +63,8 @@ def record(
         ),
         "rules": {
             "cost_of_equity": settings["cost_of_equity"],
+            "cost_of_debt_max_spread": settings["cost_of_debt_max_spread"],
+            "triggers": settings["triggers"],
             "dcf": settings["dcf"],
             "residual_income": settings["residual_income"],
             "multiples": settings["multiples"],

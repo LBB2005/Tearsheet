@@ -142,6 +142,9 @@ class ExportData:
     checks: list[str] = field(default_factory=list)
     skeptic: str | None = None
     filings: list[dict[str, Any]] = field(default_factory=list)
+    # Each method's assumptions and the range inputs, saved with the run (`valuation.saved`);
+    # None for a report made before they were saved.
+    assumptions: dict[str, Any] | None = None
 
     @property
     def made_on(self) -> date:
@@ -359,6 +362,7 @@ def load(conn: sqlite3.Connection, report_id: str, *, raw_dir: Path | None = Non
     from tearsheet.companies import run_company
     from tearsheet.report_numbers import numbers_for, run_price_date
     from tearsheet.report_views import views_for
+    from tearsheet.valuation import saved as saved_valuation
 
     row = conn.execute(
         "SELECT r.report_id, r.run_id, r.created_at, u.cik, u.mode, u.engine_version,"
@@ -427,4 +431,5 @@ def load(conn: sqlite3.Connection, report_id: str, *, raw_dir: Path | None = Non
         checks=[str(x) for x in report.get("checks") or []],
         skeptic=report.get("skeptic") or None,
         filings=[f for f in report.get("filings") or [] if isinstance(f, dict)],
+        assumptions=saved_valuation.load(conn, run_id),
     )

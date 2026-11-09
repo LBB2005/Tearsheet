@@ -198,6 +198,87 @@ def test_a_wrong_figure_fails_its_check(tmp_path):
     h.server.close()
 
 
+def _section(ws, title: str) -> list[tuple]:
+    """The rows under a Valuation-tab section band, as (label, value, note, comment, colour)."""
+    rows = list(ws.iter_rows(min_col=2, max_col=5))
+    start = next(i for i, row in enumerate(rows) if row[0].value == title)
+    out = []
+    for row in rows[start + 1 :]:
+        label, value, _, meaning = row
+        if label.value is None and value.value is None:
+            break
+        out.append(
+            (
+                label.value,
+                value.value,
+                meaning.value,
+                value.comment.text if value.comment else None,
+                value.font.color.rgb if value.font and value.font.color else None,
+            )
+        )
+    return out
+
+
+def test_the_valuation_tab_shows_each_methods_saved_assumptions(tmp_path):
+    from tearsheet.valuation import saved
+
+    h, ready = _report(tmp_path)
+    got = _export(h, ready["report_id"], "xlsx")
+    wb = load_workbook(io.BytesIO(base64.b64decode(got["data_base64"])))
+    rows = _section(wb["Valuation"], "Assumptions behind each method")
+    stored = saved.load(h.server.db.conn, ready["run_id"])
+    by_label = {r[0]: r for r in rows}
+    labels = [r[0] for r in rows]
+    for heading in (
+        "Discounted cash flow (DCF)",
+        "Residual income",
+        "Peer multiples (P/E, EV/EBIT)",
+        "12-month range",
+    ):
+        assert heading in labels
+    methods = {m["method"]: m["details"] for m in stored["methods"]}
+    for label, value in (
+        ("Discount rate", methods["dcf"]["discount_rate"]),
+        ("Terminal growth", methods["dcf"]["terminal_growth"]),
+        ("Terminal value, share of firm value", methods["dcf"]["terminal_share"]),
+        ("Operating margin today", methods["dcf"]["start_margin"]),
+        ("Return on equity today", methods["residual_income"]["start_roe"]),
+        ("Book value today, US$ millions", methods["residual_income"]["book_value"] / 1e6),
+        ("Peer P/E", methods["multiples"]["pe_multiple"]),
+        ("Peers kept for EV/EBIT", methods["multiples"]["ev_ebit_peers"]),
+        ("Dividend yield", stored["range"]["dividend_yield"]),
+        ("Peer median volatility", stored["range"]["peer_median_volatility"]),
+        ("Volatility used for the range", stored["range"]["blended_volatility"]),
+    ):
+        row = by_label[label]
+        assert row[1] == pytest.approx(value), label
+        assert row[3] == workbook.SAVED_NOTE and row[4] == "FF0000FF", label  # typed, in blue
+    # Two cost-of-equity rows (DCF and residual income) and one for the range, all the same.
+    coe = [r[1] for r in rows if r[0] == "Cost of equity"]
+    assert len(coe) == 3 and len(set(coe)) == 1
+    # The rest of the workbook is unchanged: every check still passes.
+    assert all(c["result"] == "OK" for c in workbook._plan_checks(_load(h, ready["report_id"])))
+    h.server.close()
+
+
+def test_a_report_from_before_the_assumptions_were_saved_says_so(tmp_path):
+    from tearsheet.valuation import saved
+
+    h, ready = _report(tmp_path)
+    conn = h.server.db.conn
+    with conn:
+        conn.execute(
+            "DELETE FROM step_outputs WHERE run_id = ? AND step = ?", (ready["run_id"], saved.STEP)
+        )
+    got = _export(h, ready["report_id"], "xlsx")
+    wb = load_workbook(io.BytesIO(base64.b64decode(got["data_base64"])))
+    rows = _section(wb["Valuation"], "Assumptions behind each method")
+    assert [r[0] for r in rows] == [workbook.NOT_SAVED]
+    assert workbook.NOT_SAVED == "Not saved for this report (made before 8 Nov 2026)."
+    assert all(c["result"] == "OK" for c in workbook._plan_checks(_load(h, ready["report_id"])))
+    h.server.close()
+
+
 def test_without_the_raw_store_the_workbook_says_so(tmp_path):
     h, ready = _report(tmp_path, facts=False)
     got = _export(h, ready["report_id"], "xlsx")
