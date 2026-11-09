@@ -20,7 +20,8 @@ import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type Reac
 
 import type { ToolStatus } from '../../preload/api'
 import type { LockdownState, PriceDownload, SettingsResult } from '../../shared/protocol'
-import { PasteSteps, usePaste, type PasteFor } from '../home/paste'
+import { useFix } from '../home/fix'
+import type { PasteFor } from '../home/paste'
 import { AboutPage } from '../settings/About'
 import type { Notify } from '../settings/Appearance'
 import { AppearancePage } from '../settings/Appearance'
@@ -29,16 +30,19 @@ import { FieldRow, Label, ToolChoice } from '../settings/General'
 import { KeysPanel } from '../settings/Keys'
 import { lockdownText } from '../settings/lockdown'
 import { PRICE_POLL_MS, priceLine } from '../settings/prices'
-import { tildePath } from '../../shared/tools'
+import { tildePath, type ToolKind } from '../../shared/tools'
 import { healthTiles, maskEmail, storage, toolPill, type HealthInput, type Tone } from '../settings/settings'
 import { moveTopic, needsYou, problems, toolRole, TOPICS, type Problem, type Topic } from '../settings/topics'
 import { Changes, Spinner } from '../setup/parts'
-import type { SafetyState, ToolKind } from '../setup/steps'
+import type { SafetyState } from '../setup/state/safety'
 
 export interface SettingsProps {
   // The AI tools as the probe last found them (App keeps them for the sidebar too).
   tools: ToolStatus[]
   onTools: (tools: ToolStatus[]) => void
+  // "The button is on": each tool row's Install, Update and Sign in run inside Tearsheet; off,
+  // they copy the paste command and open Terminal.
+  buttonOn: boolean
   // This session's safety check; the sidebar's status line follows the same one.
   safety: SafetyState | null
   onSafetyStarted: (tool: ToolKind) => void
@@ -53,7 +57,7 @@ export interface SettingsProps {
 
 const unanswered = 'Tearsheet’s engine didn’t answer.'
 
-export function Settings({ tools, onTools, safety, onSafetyStarted, onSettings, topic, onTopic, onNotify }: SettingsProps) {
+export function Settings({ tools, onTools, buttonOn, safety, onSafetyStarted, onSettings, topic, onTopic, onNotify }: SettingsProps) {
   const [s, setS] = useState<SettingsResult | null>(null)
   const [failed, setFailed] = useState<string | null>(null)
   const told = useRef(onSettings)
@@ -134,7 +138,7 @@ export function Settings({ tools, onTools, safety, onSafetyStarted, onSettings, 
 
   let page: ReactNode
   if (topic === 'general') page = <GeneralPage s={s} primary={primary} found={found} onSaved={load} onTopic={onTopic} />
-  else if (topic === 'ai') page = <ToolsPage tools={tools} health={health} lockdown={lockdown} safety={safety} onTools={onTools} onReload={load} onSafetyStarted={onSafetyStarted} />
+  else if (topic === 'ai') page = <ToolsPage tools={tools} buttonOn={buttonOn} health={health} lockdown={lockdown} safety={safety} onTools={onTools} onReload={load} onSafetyStarted={onSafetyStarted} />
   else if (topic === 'keys')
     page = (
       <>
@@ -307,6 +311,7 @@ function GeneralPage({ s, primary, found, onSaved, onTopic }: { s: SettingsResul
 
 interface ToolsPageProps {
   tools: ToolStatus[]
+  buttonOn: boolean
   health: HealthInput
   lockdown: Record<string, LockdownState>
   safety: SafetyState | null
@@ -315,7 +320,7 @@ interface ToolsPageProps {
   onSafetyStarted: (tool: ToolKind) => void
 }
 
-function ToolsPage({ tools, health, lockdown, safety, onTools, onReload, onSafetyStarted }: ToolsPageProps) {
+function ToolsPage({ tools, buttonOn, health, lockdown, safety, onTools, onReload, onSafetyStarted }: ToolsPageProps) {
   const [looking, setLooking] = useState(false)
   const [details, setDetails] = useState(false)
   // Check again: look for the tools afresh, skipping the probe's 30-second memory.
@@ -340,7 +345,7 @@ function ToolsPage({ tools, health, lockdown, safety, onTools, onReload, onSafet
           </div>
         )}
         {tools.map((t) => (
-          <ToolRow key={t.kind} tool={t} role={toolRole(t, health.primary, skeptic)} pill={toolPill(t, lockdown[t.kind], safety)} onTools={onTools} />
+          <ToolRow key={t.kind} tool={t} buttonOn={buttonOn} role={toolRole(t, health.primary, skeptic)} pill={toolPill(t, lockdown[t.kind], safety)} onTools={onTools} />
         ))}
       </div>
       <div className="sgrp">
@@ -384,20 +389,22 @@ function ToolsPage({ tools, health, lockdown, safety, onTools, onReload, onSafet
   )
 }
 
-// What a tool's row offers, by what its status read found (first-run design item 23): a missing
-// tool, the paste command that installs it and signs it in; one signed out, signed in with an API
-// key or on a free plan, the same sign-in as the home page's; one too old, Update (the installer
-// again), unless it was installed another way; one Tearsheet can't read, Try again and Show log;
-// a ready one, nothing. The paste command's steps take the button's place once it is pressed.
+// What a tool's row offers, by what its status read found (first-run design items 23 and 39): a
+// missing tool, Install (or, with the button off, the paste command that installs it and signs it
+// in); one signed out, signed in with an API key or on a free plan, the same sign-in as the home
+// page's; one too old, Update (the installer again), unless it was installed another way; one
+// Tearsheet can't read, Try again and Show log; a ready one, nothing. The progress, or the paste
+// command's steps, show under the row once it is pressed (home/fix.tsx).
 const SIGN_IN = new Set<ToolStatus['state']>(['signed_out', 'api_key', 'free_plan'])
 
-function ToolRow({ tool, role, pill, onTools }: { tool: ToolStatus; role: string; pill: { tone: Tone; text: string }; onTools: (tools: ToolStatus[]) => void }) {
-  const paste = usePaste(tool.kind)
+function ToolRow({ tool, buttonOn, role, pill, onTools }: { tool: ToolStatus; buttonOn: boolean; role: string; pill: { tone: Tone; text: string }; onTools: (tools: ToolStatus[]) => void }) {
+  const { kind, state, path } = tool
+  const purpose: PasteFor = state === 'missing' ? 'install' : state === 'too_old' ? 'update' : 'signIn'
+  const fix = useFix(kind, buttonOn, purpose, 'pb')
   const [looking, setLooking] = useState(false)
   const [note, setNote] = useState<string | null>(null)
   // Too old: why the installer can't update this copy (main/toolSteps.ts), or null when it can.
   const [another, setAnother] = useState<string | null>(null)
-  const { kind, state, path } = tool
   useEffect(() => {
     if (state !== 'too_old') return
     let live = true
@@ -410,14 +417,15 @@ function ToolRow({ tool, role, pill, onTools }: { tool: ToolStatus; role: string
     }
   }, [kind, state, path])
   // Once the tool is ready, the steps have done their job.
-  const reset = paste.reset
+  const reset = useRef(fix.reset)
+  reset.current = fix.reset
   useEffect(() => {
-    if (state === 'ready') reset()
-  }, [state, reset])
+    if (state === 'ready') reset.current()
+  }, [state])
 
   const start = () => {
     setNote(null)
-    void paste.start()
+    fix.start()
   }
   const tryAgain = () => {
     if (looking) return
@@ -431,10 +439,9 @@ function ToolRow({ tool, role, pill, onTools }: { tool: ToolStatus; role: string
   }
   const showLog = () => void window.tearsheet.showSetupLog().then((shown) => setNote(shown ? null : 'There’s no setup log yet.'), () => setNote('The log didn’t open.'))
 
-  const purpose: PasteFor = state === 'missing' ? 'install' : state === 'too_old' ? 'update' : 'signIn'
   let action: ReactNode = null
-  if (paste.state) action = null
-  else if (state === 'missing') action = <button className="pb" onClick={start}>Copy and open Terminal</button>
+  if (fix.active) action = null
+  else if (state === 'missing') action = <button className="pb" onClick={start}>{buttonOn ? 'Install' : 'Copy and open Terminal'}</button>
   else if (SIGN_IN.has(state)) action = <button className="pb" onClick={start}>Sign in again</button>
   else if (state === 'too_old' && !another) action = <button className="pb" onClick={start}>Update</button>
   else if (state === 'cant_tell') {
@@ -449,8 +456,8 @@ function ToolRow({ tool, role, pill, onTools }: { tool: ToolStatus; role: string
       </>
     )
   }
-  const below = paste.state ? (
-    <PasteSteps state={paste.state} kind={kind} purpose={purpose} onAgain={start} buttonClass="pb" />
+  const below = fix.active ? (
+    fix.below
   ) : state === 'too_old' && another ? (
     <span className="help">{another}</span>
   ) : note ? (

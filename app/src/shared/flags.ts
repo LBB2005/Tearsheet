@@ -8,7 +8,7 @@
 // off: the online switch below can turn it off too, but neither can turn it on alone.
 export const INSTALL_BUTTON = true
 
-// The online off switch's file, for copies already handed out (Stage 2: installSwitch reads it
-// once at each launch; nothing reads it yet). It holds `on` or `off`, and only the owner can
+// The online off switch's file, for copies already handed out: main/installSwitch.ts reads it
+// once at each launch (index.ts passes it in). It holds `on` or `off`, and only the owner can
 // change it.
 export const SWITCH_URL = 'https://raw.githubusercontent.com/LBB2005/Tearsheet/main/release/install-button.txt'

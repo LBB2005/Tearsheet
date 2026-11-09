@@ -8,13 +8,17 @@ import { existsSync as fileExists } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
-import { app, BrowserWindow, ipcMain, Menu, powerSaveBlocker, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, Menu, net, powerSaveBlocker, shell } from 'electron'
+
+import { INSTALL_BUTTON, SWITCH_URL } from '../shared/flags'
 
 import { keepAwakeDuringLine } from './awake'
 import { dockUpdate, NO_RUN } from './dockProgress'
 import { Downloads, printHtmlToPdf, writeNew } from './downloads'
 import { Engine, engineCommand, type Notification } from './engine'
-import { registerIpc } from './ipc'
+import { Installer } from './installer'
+import { InstallSwitch } from './installSwitch'
+import { notify, registerIpc } from './ipc'
 import { readWindowLook, registerLookIpc } from './look'
 import { claimOnlyCopy, closeHides, hiddenForChecks } from './lifecycle'
 import { loginShellPath } from './loginShellPath'
@@ -42,6 +46,20 @@ app.setPath('userData', join(dataDir, 'app-shell'))
 const setupLogFile = join(dataDir, 'logs', 'setup.log')
 const setupLog = createSetupLog(setupLogFile)
 const rules = stepRules(process.env, homedir())
+const inTestMode = testMode(process.env)
+
+// The online off switch (installSwitch.ts). The value saved by an earlier launch is read now; this
+// launch's own read starts once the app is ready (net.fetch needs it), and counts from the next
+// launch. INSTALL_BUTTON and SWITCH_URL come from shared/flags.ts, which only this file imports.
+const installSwitch = new InstallSwitch({
+  dataDir,
+  installButton: INSTALL_BUTTON,
+  switchUrl: SWITCH_URL,
+  testMode: inTestMode,
+  env: process.env,
+  fetch: (url, init) => net.fetch(url, init),
+  log: setupLog
+})
 
 // The one owner of the tools' status reads. Its first read runs while the window loads.
 const probe = new Probe({
@@ -59,6 +77,8 @@ const hidden = hiddenForChecks(process.env)
 if (hidden && process.platform === 'darwin') app.setActivationPolicy('prohibited')
 
 let engine: Engine | null = null
+// The Install button (installer.ts), made only when INSTALL_BUTTON is on.
+let installer: Installer | null = null
 let mainWindow: BrowserWindow | null = null
 // Set once Tearsheet is quitting, so closing the window then closes it for good (lifecycle.ts).
 let quitting = false
@@ -86,7 +106,8 @@ function showProgressInDock(window: BrowserWindow, engine: Engine): void {
 async function createWindow(): Promise<void> {
   setDevDockIcon()
   setupLog.log('path_source', { source: loginShell.source })
-  setupLog.log('test_rules', { test_mode: testMode(process.env), no_real_installers: rules.noRealInstallers })
+  setupLog.log('test_rules', { test_mode: inTestMode, no_real_installers: rules.noRealInstallers })
+  void installSwitch.read()
   const { command, args, cwd } = engineCommand({
     packaged: app.isPackaged,
     resourcesPath: process.resourcesPath,
@@ -138,12 +159,31 @@ async function createWindow(): Promise<void> {
     }
   })
   mainWindow = window
+  // With the build's switch off there is no installer, and ipc.ts registers no install calls.
+  installer = INSTALL_BUTTON
+    ? new Installer({
+        watch,
+        rules,
+        pathValue: fixedPath,
+        claudeConfigDir: loginShell.claudeConfigDir,
+        codexHome: loginShell.codexHome,
+        env: process.env,
+        send: (progress) => notify(window, { method: 'install_progress', params: progress }),
+        openExternal: (url) => shell.openExternal(url),
+        // An install pressed after this launch's fresh off is refused.
+        switchOn: () => installSwitch.allowsInstall(),
+        testMode: inTestMode,
+        log: setupLog
+      })
+    : null
   const started = engine
   registerIpc(window, engine, {
     watch,
     rules,
     log: setupLog,
     setupLogFile,
+    installer: installer ?? undefined,
+    installButton: () => installSwitch.getInstallButton(),
     about: () => ({
       app: app.getVersion(),
       engine: started.hello?.engine_version ?? null,
@@ -231,5 +271,7 @@ app.on('window-all-closed', () => app.quit())
 app.on('before-quit', () => {
   quitting = true
   watch.stop()
+  // A sign-in or install still running is stopped with Tearsheet, not left behind.
+  installer?.stop()
   engine?.stop()
 })

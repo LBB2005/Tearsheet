@@ -67,6 +67,42 @@ describe('one read at a time', () => {
     expect(probe).toHaveBeenCalledTimes(3)
   })
 
+  it('readAfter starts a new read after one already under way, rather than sharing it', async () => {
+    hold = true
+    const w = watch()
+    const early = w.read(true)
+    const late = w.readAfter()
+    expect(probe).toHaveBeenCalledTimes(1)
+    hold = false
+    release!()
+    // The person signs in after the early read answered: only a read that starts later sees it.
+    state = 'ready'
+    expect(await early).toEqual([claude('signed_out')])
+    expect(await late).toEqual([claude('ready')])
+    expect(probe).toHaveBeenCalledTimes(2)
+  })
+
+  it('readAfter with nothing under way forces a read, even when the last answer is fresh', async () => {
+    const w = watch()
+    await w.read()
+    await w.readAfter()
+    expect(probe).toHaveBeenCalledTimes(2)
+  })
+
+  it('readAfter still reads when the read under way fails', async () => {
+    probe.mockImplementationOnce(() => Promise.reject(new Error('boom')))
+    const w = watch()
+    const early = w.read(true)
+    const late = w.readAfter()
+    await expect(early).rejects.toThrow('boom')
+    expect(await late).toEqual([claude('signed_out')])
+    expect(probe).toHaveBeenCalledTimes(2)
+  })
+
+  it('has no current answer before its first read', () => {
+    expect(watch().current).toBeNull()
+  })
+
   it('a read that fails lets the next one start', async () => {
     probe.mockRejectedValueOnce(new Error('boom'))
     const w = watch()

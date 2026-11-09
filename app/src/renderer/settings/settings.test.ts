@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { ToolStatus } from '../../preload/api'
 import type { LockdownState } from '../../shared/protocol'
-import { safetyStarted, type SafetyState } from '../setup/steps'
+import { safetyStarted, type SafetyState } from '../setup/state/safety'
 import { tildePath, toolFlags } from '../../shared/tools'
 import { fieldProblem, healthTiles, maskEmail, storage, toolPill, type HealthInput } from './settings'
 

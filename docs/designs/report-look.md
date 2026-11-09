@@ -170,12 +170,14 @@ Over six rounds of mockups, Liam settled on:
 
 *   **Both:** a short setup the first time someone opens Tearsheet, then a home page every time
     after.
-*   **Built for someone who has never used Terminal:** plain words, a copy button for anything
-    typed, and each step ticks itself off. There is no "I'm done" button.
-*   **Claude Code:** two guided Terminal steps for now. A one-click install and sign-in is
-    designed too, but stays switched off until Anthropic approves it (Technical Plan §14, CUJ 6).
+*   **Built for someone who has never used Terminal:** plain words, and each row ticks itself
+    off. Setup ends with a Start button.
+*   **Claude Code and Codex:** an Install button that installs and signs in from inside the app
+    (Liam's choice of 2026-11-08, ahead of Anthropic's approval), with the paste command as the
+    fallback when the button is off ([first-run-setup.md](./first-run/first-run-setup.md)).
 *   **Keys:** a Massive key is required, because there is no rating without prices. The FRED key
-    can be skipped, and reports then say "economic figures not connected".
+    is offered on Home after the first report, and reports say "economic figures not connected"
+    until it is added.
 *   **The safety check** (the lock-down check, Technical Plan §4) runs in the background while
     setup carries on.
 *   **Home:** a Claude-style "Which company today?" field.
@@ -184,62 +186,67 @@ Over six rounds of mockups, Liam settled on:
 
 ### The first-time path
 
-Setup happens inside the app window, with no sidebar. A four-part progress line sits in the
-toolbar from step 3 on: Claude Code, Prices, Details, Ready.
+Since Nov 8 2026, setup is **one screen**, inside the app window with no sidebar. It replaces the
+nine screens chosen on Nov 5. The full design is
+[`first-run/first-run-setup.md`](first-run/first-run-setup.md), and its mockup, version 6 of the
+canvas, is committed as [`first-run/canvas/Spine.dc.html`](first-run/canvas/Spine.dc.html).
+Where the notes above or below differ from this section, this section and that design win.
 
-1.  **First open.** The name, one line on what Tearsheet is, and three short lines: every number is
-    computed by code from public data; every sentence links to its source; everything is kept on
-    the Mac. One button, **Set up Tearsheet**, with "About 5 minutes. You'll need a paid Claude
-    plan. Research to read, not investment advice." The mark is a placeholder until the icon
-    session finishes.
-2.  **How it works.** One picture: Tearsheet on the Mac in the middle, Claude Code on one side, and
-    SEC EDGAR, Massive and FRED on the other, each with what it does and what it needs. Below it,
-    "What leaves your Mac": the companies looked up, and the filing and article text Claude reads,
-    never the user's own files. The full list stays in Settings (Technical Plan §12).
-3.  **Looking for Claude Code.** The app runs its usual detection (`probe.ts`).
-    *   **Found and signed in:** it goes straight to step 5.
-    *   **Not found:** "Claude Code isn't on this Mac yet. Adding it takes about two minutes. You'll
-        need a paid Claude plan, like Pro or Max." Buttons: **Show me how**, and "I use ChatGPT:
-        connect Codex instead". A small "Where Tearsheet looked" link lists the folders checked.
-    *   **Found but signed out:** step 4 opens at its sign-in step.
-4.  **Install and sign in.** Two numbered cards, each with the exact line and a Copy button:
-    *   **Install it:** `curl -fsSL https://claude.ai/install.sh | bash`, with an **Open Terminal**
-        button. Opening Terminal types and runs nothing.
-    *   **Sign in:** `claude auth login`. The browser opens for the Claude sign-in.
+**On top: a list of three rows.** It is always on screen, and each row ticks itself off.
 
-    The page checks again every 2 seconds while it is open, and ticks each card off by itself
-    ("Installed: Claude Code 2.1.317", "Signed in to your Claude plan"). "Tearsheet never sees your
-    password." For Codex the lines are `npm install -g @openai/codex` and `codex login`, with a note
-    to install Node.js first if `npm` isn't found.
-    *   **The one-click version** (built, switched off): one card showing both commands in full,
-        and an **Install and sign in** button. It appears only once Anthropic approves, and a
-        setting turns it off.
-5.  **Connected.** A check, "Claude Code is connected", and three facts: the version, "Signed in
-    to your Claude plan" and "No API key in use". The safety check starts here, shown as a large
-    ring with one line on what it proves. After about 2 seconds the ring moves to a small chip at
-    the top right ("Safety check, 7 of 25"), and setup carries on. Clicking the chip lists the six
-    things being checked, in plain words, with a tick as each one passes.
-6.  **Prices.** "Prices come from Massive." Two cards: **Get a free key** (opens massive.com in the
-    browser), and **Paste it here**, with a Check button. The check makes one Massive call and
-    shows a real number as proof: "Works. SPY closed at $735.59 on Nov 5." The key goes to the
-    Keychain and is never shown again. A line explains that the free plan is end-of-day prices at
-    5 calls a minute, which is why a first report takes about 20 minutes. Continue waits for a
-    working key.
-7.  **Economic figures,** marked Optional. The same two cards for a FRED key, with the 10-year
-    Treasury yield as proof. **Skip for now** shows "Skipped. Reports will say 'economic figures
-    not connected' until you add the key in Settings", and the button becomes Continue without
-    it.
-8.  **Your email, for SEC.** One field, with the reason: SEC asks every program that downloads its
-    filings for a contact email, and Tearsheet sends it only to SEC. Continue checks it looks like
-    an email.
-9.  **You're set up.** A checklist: Claude Code (connected, with its version), the safety check
-    (passed, or a small ring with the calls left), prices, economic figures (or "Skipped. Add the
-    key in Settings"), and the SEC email. One line says a first report takes about 20 minutes on
-    the free plan, and later reports in the same sector are quicker. **Open Tearsheet** hands over
-    to the app: the sidebar opens and the home page fills the middle.
+1.  **Your AI.** "Not set up yet", then the progress words while installing, then "Waiting for
+    you to sign in", then the Connected pill with the account and plan ("Signed in as you@x.com,
+    Claude Max"). With both tools it shows two lines: "Claude Code writes your reports" and "Codex
+    checks each draft". While a sign-in waits in the browser, this row also offers "Browser didn't
+    open? Open the sign-in page" after 15 seconds, and the paste command after 2 minutes.
+2.  **Price key.** Massive, then the masked key and "works", with "Use another key".
+3.  **SEC email.** The email in full, with Change.
 
-Setup is remembered once finished. If the app quits halfway, it reopens at the first step that
-isn't done.
+**Below: one question card at a time,** in this order.
+
+1.  **Connect the AI that writes your reports.** Shown only while no tool is ready.
+    *   Three buttons: **Install Claude Code** ("I have a Claude plan"), **Install Codex** ("I have
+        a ChatGPT plan") and **Install both** ("I have both plans").
+    *   Above them, in small type under "These are the commands Tearsheet runs", are the exact
+        commands for all three choices.
+    *   Tearsheet runs the official installer, then the tool's own sign-in, which opens claude.ai
+        or chatgpt.com in the browser. The card shows the progress words: downloading,
+        installing, installed, opening your browser. The person never opens Terminal unless a
+        step fails.
+    *   A tool that is installed but not ready (signed out, too old, a free plan, an API-key
+        sign-in) gets one plain sentence and one button for the missing step.
+2.  **Get a free price key.** **Get a free key** opens Massive's sign-up page. Coming back, the key
+    field has the focus. The key is checked as soon as it is pasted, then goes to the Keychain.
+    While a sign-in waits in the browser, the card has already moved on to this one, so both can
+    happen at once.
+3.  **The email, then Start.** The email from the Claude sign-in, with Change, or a field to type
+    it (Codex doesn't give one). SEC asks every program that downloads its filings for a contact
+    email, and no one else gets it. Then one sentence says where data goes (the outside services
+    list, Technical Plan §12), and **Start**. Return in the email field also presses Start. Until
+    Start can be pressed, it says why: "Waiting for Claude Code to sign in", "Waiting for your
+    Massive key" or "Add your email".
+
+**When the button is off, or a step fails.** The card shows one command to paste into Terminal
+instead, with **Copy and open Terminal** and a picture of ⌘V. It runs the same steps. Once the copy
+works, the card moves on to the price key, and the AI row keeps "Show the command again". The
+button has two switches, the build switch and the online off switch (Technical Plan §14).
+
+**The safety check** starts at the person's first click, or on a brand-new Mac the moment the tool
+is signed in. It never starts when the window opens. It shows as the chip at the top right, with
+"Stop the check". A report asked for meanwhile waits in the line: "Starts when the safety check
+finishes (n of 25)".
+
+**Clicks inside the window:** 3 when a tool is already set up, and 4 on a brand-new Mac (5 with
+both plans, if the person comes back between the two sign-ins).
+
+**FRED** is no longer part of setup. Home offers it after the first report ("Economic figures
+aren't connected").
+
+**Motion:** the list fades in, its ticks draw themselves, each card rises in, and Start pulses
+once when it can be pressed. None of it plays when Reduce motion is on.
+
+**Start** saves the tool and the email, then marks setup finished, and Home opens with the
+company field focused. If a save fails, setup stays open with what was saved.
 
 ### The home page
 
@@ -267,7 +274,8 @@ A key that stops working, Claude Code signing out, or a failed safety check show
 
 *   at the top of the home page, as a red box with the fix ("Claude Code is signed out. New
     reports can't be written until you sign in again. Your saved reports still open." with **Sign
-    in again**, which shows the one Terminal line and notices by itself);
+    in again**, which runs the sign-in from inside the app, or shows the paste command when the
+    Install button is off, and notices by itself);
 *   in the sidebar's status line, in red.
 
 Saved reports always open, whatever is broken.
@@ -292,13 +300,14 @@ the Mac's Reduce motion setting is on.
         saving it to the Keychain only if it works;
     *   run the full safety check from the app, with progress after each of its 25 calls;
     *   remember that setup is finished, and which step it reached.
-*   **The app:**
-    *   detection again every 2 seconds while step 4 is open (the probe's "check again");
-    *   open Terminal, and open massive.com and FRED's site in the normal browser;
-    *   no new access for the window: these go through the preload bridge as named commands.
+*   **The app:** this part is replaced by [first-run-setup.md](./first-run/first-run-setup.md)
+    §1 to §3: one status read at a time, never cut off, only while the window is in front; the
+    install and sign-in steps from one list, run by the Install button or pasted; and massive.com
+    and FRED's site opened in the normal browser. The window still gets no new access: everything
+    goes through the preload bridge as named calls.
 *   **Rules kept:** keys never shown, logged or sent to the window after saving; sign-in status
-    only from each tool's own status command, never its token files; no command runs on the
-    user's behalf until the one-click version is approved and switched on.
+    only from each tool's own status command, never its token files; the commands are shown in
+    full before they run.
 
 ### The app icon: 2. Glass
 

@@ -12,6 +12,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { MenuCommand } from '../main/menu'
 import type { CallResult, EngineNotification, ToolStatus } from '../preload/api'
 import { leftText, pace, usualTimes } from '../shared/pace'
+import type { ToolKind } from '../shared/tools'
 import type { CompanyRow, GradeResult, SearchHit, SettingsResult } from '../shared/protocol'
 import { bootView, GIVE_UP_AFTER_MS, STARTING_AFTER_MS } from './boot'
 import { forgetOldChartPrefs, setSidebarHidden, sidebarHidden } from './chart/prefs'
@@ -39,7 +40,8 @@ import { useReport } from './report/useReport'
 import { topicName, type Topic } from './settings/topics'
 import { nextView, reportSubtitle } from './report/view'
 import { SafetyChip, SafetyPopover } from './setup/SafetyChip'
-import { applySafetyNote, SAFETY_CALLS, safetyFromRunning, safetyStarted, safetyView, TOOL_TEXT, type SafetyState, type ToolKind } from './setup/steps'
+import { applySafetyNote, SAFETY_CALLS, safetyFromRunning, safetyStarted, safetyView, type SafetyState } from './setup/state/safety'
+import { TOOL_TEXT } from './setup/words'
 import type { Refreshing } from './shell/refresh'
 import { Sidebar, SidebarButton } from './shell/Sidebar'
 import { SidebarSizer } from './shell/SidebarSizer'
@@ -94,6 +96,10 @@ export function App() {
   const [settingsTopic, setSettingsTopic] = useState<Topic>('general')
   // The safety chip's popover in the toolbar, after setup.
   const [chipOpen, setChipOpen] = useState(false)
+  // "The button is on" (first-run design item 29): asked of the main process once at start, so
+  // setup, the home page, the run view and Settings show the Install button or the paste command.
+  // No window file reads the build switch itself.
+  const [buttonOn, setButtonOn] = useState<boolean | null>(null)
 
   // The page being shown, or the one on its way in while the old one leaves.
   const target = useRef<Page>('home')
@@ -161,6 +167,14 @@ export function App() {
   useEffect(() => {
     loadCompanies()
     loadTools()
+    let live = true
+    window.tearsheet.getInstallButton().then(
+      (on) => live && setButtonOn(on === true),
+      () => live && setButtonOn(false)
+    )
+    return () => {
+      live = false
+    }
   }, [loadCompanies, loadTools])
 
   // Ask the engine for the settings: setup until it is finished (Ruling 3), else home. Try
@@ -526,6 +540,7 @@ export function App() {
         resuming={report.resuming}
         safety={checkFailed ? 'failed' : safety && !safety.done ? 'running' : 'ok'}
         tool={toolKind}
+        buttonOn={buttonOn === true}
         onResume={() => void report.resume()}
         onRecheck={recheckOrSay}
         onOpen={report.openReady}
@@ -556,6 +571,7 @@ export function App() {
         companies={listed ? companies : null}
         tool={{ kind: toolKind, name: toolName, signedOut, safetyFailed: checkFailed, safetyUnfinished: checkUnfinished }}
         fieldRef={homeField}
+        buttonOn={buttonOn === true}
         refresh={graded}
         onStart={report.start}
         onStartLine={report.startLine}
@@ -590,6 +606,7 @@ export function App() {
       <Settings
         tools={tools}
         onTools={setTools}
+        buttonOn={buttonOn === true}
         safety={safety}
         onSafetyStarted={safetyBegan}
         onSettings={(s) => {
@@ -699,9 +716,11 @@ export function App() {
       {!wide && sideOver && !sideClosing && <div className="sidescrim" onMouseDown={() => setSideOver(false)} />}
       <div className="mainarea">
         {page === 'setup' ? (
-          <Setup settings={bootSettings} leaving={leaving} safety={safety} onSafetyStarted={safetyBegan} onStopSafety={() => void stopSafety()} onFinish={setupFinished}>
-            {fatalNotice}
-          </Setup>
+          buttonOn !== null && (
+            <Setup settings={bootSettings} leaving={leaving} safety={safety} onSafetyStarted={safetyBegan} onStopSafety={() => void stopSafety()} buttonOn={buttonOn} onFinish={setupFinished}>
+              {fatalNotice}
+            </Setup>
+          )
         ) : (
           <>
             <Toolbar

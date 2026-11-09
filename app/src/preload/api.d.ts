@@ -1,9 +1,12 @@
 // The window's view of the bridge in preload/index.ts.
 
+import type { RunResult } from '../shared/install'
 import type { TerminalResult, ToolCommands, ToolKind, ToolStatus } from '../shared/tools'
 
 // The one ToolStatus, written in shared/tools.ts (first-run design item 1).
 export type { TerminalResult, ToolCommands, ToolKind, ToolStatus } from '../shared/tools'
+// The Install button's message and answer, written in shared/install.ts (first-run design item 29).
+export type { InstallProgress, InstallStatus, RunResult } from '../shared/install'
 
 export interface CallResult<T = unknown> {
   ok: boolean
@@ -35,7 +38,6 @@ export interface TearsheetApi {
   runSafetyCheck(tool: 'claude' | 'codex'): Promise<CallResult<import('../shared/protocol').SafetyStarted>>
   // Stops the safety check after the call in progress (the engine's cancel_safety_check).
   cancelSafetyCheck(): Promise<CallResult<import('../shared/protocol').CancelSafetyCheckResult>>
-  openTerminal(): Promise<void>
   // Whether the screen waits on the person (setup, or Home waiting on a tool): while it does and
   // the window is in front, the main process reads the tools every 5 seconds, and a change
   // arrives as a tools_changed notification ({ tools: ToolStatus[] }).
@@ -47,6 +49,21 @@ export interface TearsheetApi {
   commandsFor(kinds: ToolKind[]): Promise<ToolCommands>
   // Show log in Finder: logs/setup.log in the data folder. False when there is no log yet.
   showSetupLog(): Promise<boolean>
+  // The Install button (first-run design item 29). install runs the steps for these tools one at
+  // a time and answers once they have finished; each step's progress arrives first as an
+  // install_progress notification (params: InstallProgress). `refused` means nothing ran (the
+  // online off switch said off this launch, a run is already under way, or the kinds weren't
+  // known), and the window shows the paste command instead.
+  install(kinds: ToolKind[]): Promise<RunResult>
+  // Stops the sign-in under way; answers once it has stopped, cancelled has been sent and the
+  // tools read again. False when no sign-in was running (an install is never stopped).
+  cancelInstall(): Promise<boolean>
+  // "Browser didn't open? Open the sign-in page": opens the page the running sign-in printed.
+  // The window never sees the link. False when there is none (or the browser didn't open).
+  openSignInPage(): Promise<boolean>
+  // Whether the Install button shows: INSTALL_BUTTON, and the online off switch saved before this
+  // launch isn't off. Always answers, even with the build's switch off.
+  getInstallButton(): Promise<boolean>
   openExternal(url: string): Promise<boolean>
   // The version numbers for Settings → About and help (main/about.ts).
   about(): Promise<import('../main/about').AboutInfo>

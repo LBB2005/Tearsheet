@@ -4,7 +4,8 @@
 
 import { useState, type KeyboardEvent, type ReactNode } from 'react'
 
-import { TOOL_TEXT, type ToolKind } from '../setup/steps'
+import type { ToolKind } from '../../shared/tools'
+import { TOOL_TEXT } from '../setup/words'
 import { fieldProblem, type FieldKey } from './settings'
 
 // A row's name, and one line under it on what it does. A hold tone turns the line amber.

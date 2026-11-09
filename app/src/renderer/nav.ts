@@ -2,7 +2,8 @@
 // sidebar's status line.
 
 import type { CompanyRow, LockdownState, SearchHit } from '../shared/protocol'
-import type { SafetyState, ToolKind } from './setup/steps'
+import type { ToolKind } from '../shared/tools'
+import type { SafetyState } from './setup/state/safety'
 
 export type Page = 'setup' | 'home' | 'report' | 'log' | 'settings'
 

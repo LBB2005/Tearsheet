@@ -8,7 +8,8 @@
 import { useEffect, useRef, useState } from 'react'
 
 import { CheckIcon, Ring, Spinner } from './parts'
-import { checkText, checksPassed, SAFETY_CHECKS, safetyMinutes, type SafetyView, type ToolText } from './steps'
+import { checksPassed, SAFETY_CHECKS, safetyMinutes, type SafetyView } from './state/safety'
+import { checkText, type ToolText } from './words'
 
 // The clock for the minutes so far: read again every 15 seconds while the check runs.
 const TICK_MS = 15_000

@@ -5,7 +5,7 @@ import { act, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, test, vi } from 'vitest'
 
 import { renderApp } from '../test/app'
-import { bridge, emit, fail, inState, menu, ok, settings, TOOLS } from '../test/bridge'
+import { bridge, emit, endInstall, fail, inState, menu, ok, progress, settings, TOOLS } from '../test/bridge'
 
 const openSettings = async (over: Parameters<typeof settings>[0] = {}) => {
   bridge.getSettings.mockResolvedValue(ok(settings(over)))
@@ -194,7 +194,8 @@ describe('AI tools', () => {
     expect(await screen.findByText('It read a file.')).toBeInTheDocument()
   })
 
-  test('a signed-out tool is a problem on General, can’t run the check, and signs in as on the home page', async () => {
+  test('a signed-out tool is a problem on General, can’t run the check, and, with the button off, signs in as on the home page', async () => {
+    bridge.getInstallButton.mockResolvedValue(false)
     bridge.getTools.mockResolvedValue([inState(TOOLS[0], 'signed_out'), TOOLS[1]])
     const { user } = await openSettings()
     expect(topic('AI tools')).toHaveTextContent('needs you')
@@ -215,7 +216,8 @@ describe('AI tools', () => {
     expect(bridge.windowState).toHaveBeenLastCalledWith({ waiting: false })
   })
 
-  test('each tool’s row offers what its state needs', async () => {
+  test('each tool’s row offers what its state needs, with the button off', async () => {
+    bridge.getInstallButton.mockResolvedValue(false)
     const codex = inState(TOOLS[1], 'missing')
     bridge.getTools.mockResolvedValue([inState(TOOLS[0], 'api_key'), codex])
     const { user } = await openSettings()
@@ -234,7 +236,8 @@ describe('AI tools', () => {
     expect(bridge.copyAndOpenTerminal).toHaveBeenCalledTimes(2)
   })
 
-  test('a tool that is too old updates, unless it was installed another way', async () => {
+  test('a tool that is too old updates, unless it was installed another way (the button off)', async () => {
+    bridge.getInstallButton.mockResolvedValue(false)
     bridge.getTools.mockResolvedValue([inState(TOOLS[0], 'too_old', { version: '2.1.200 (Claude Code)' }), TOOLS[1]])
     const { user, unmount } = await openSettings()
     await user.click(topic('AI tools'))
@@ -271,6 +274,7 @@ describe('AI tools', () => {
   })
 
   test('a copy that didn’t work shows the command to copy by hand, or why there is nothing to run', async () => {
+    bridge.getInstallButton.mockResolvedValue(false)
     bridge.getTools.mockResolvedValue([inState(TOOLS[0], 'signed_out'), TOOLS[1]])
     bridge.copyAndOpenTerminal.mockResolvedValue({ copied: false, opened: false })
     const { user } = await openSettings()
@@ -286,6 +290,7 @@ describe('AI tools', () => {
   })
 
   test('a copy that fails outright, with nothing to run, says so', async () => {
+    bridge.getInstallButton.mockResolvedValue(false)
     bridge.getTools.mockResolvedValue([inState(TOOLS[0], 'free_plan'), TOOLS[1]])
     bridge.copyAndOpenTerminal.mockRejectedValue(new Error('gone'))
     bridge.commandsFor.mockRejectedValue(new Error('gone'))
@@ -487,5 +492,56 @@ describe('About and help', () => {
     expect(await screen.findByRole('heading', { level: 2, name: 'About and help' })).toBeInTheDocument()
     menu('feedback')
     expect(bridge.sendFeedback).toHaveBeenCalledTimes(1)
+  })
+})
+
+// First-run design item 39: with the button on, each tool row's action runs inside Tearsheet, and
+// its progress, fallbacks and failure show under the row.
+describe('AI tools with the Install button on', () => {
+  test('a missing tool installs and signs in from its row, with each step under it, and the row settles once it is ready', async () => {
+    bridge.getTools.mockResolvedValue([TOOLS[0], inState(TOOLS[1], 'missing')])
+    const { user } = await openSettings()
+    await user.click(topic('AI tools'))
+    await user.click(screen.getByRole('button', { name: 'Install' }))
+    expect(bridge.install).toHaveBeenCalledWith(['codex'])
+    expect(bridge.copyAndOpenTerminal).not.toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: 'Install' })).toBeNull()
+    const steps: [Parameters<typeof progress>[1], Parameters<typeof progress>[2], string][] = [
+      ['install', 'downloading', 'Downloading the Codex installer from chatgpt.com'],
+      ['install', 'installing', 'Installing Codex'],
+      ['install', 'installed', 'Codex is installed'],
+      ['signIn', 'opening_browser', 'Opening your browser to sign in to Codex'],
+      ['signIn', 'slow', 'Waiting for you to sign in to Codex, in your browser'],
+      ['signIn', 'done', 'Signed in to Codex']
+    ]
+    for (const [step, status, words] of steps) {
+      progress('codex', step, status)
+      expect(screen.getByText(words)).toBeInTheDocument()
+    }
+    emit('tools_changed', { tools: [TOOLS[0], inState(TOOLS[1], 'ready', { path: '/Users/test/.local/bin/codex', version: 'codex-cli 0.165.0' })] })
+    await endInstall({ outcome: 'done' })
+    await waitFor(() => expect(screen.queryByText('Signed in to Codex')).toBeNull())
+  })
+
+  test('a too-old tool updates, and a signed-out one signs in, from the row; stuck, the row offers the paste command', async () => {
+    bridge.getTools.mockResolvedValue([inState(TOOLS[0], 'too_old', { version: '2.1.200 (Claude Code)' }), inState(TOOLS[1], 'signed_out', { path: '/opt/homebrew/bin/codex', version: 'codex-cli 0.165.0' })])
+    const { user } = await openSettings()
+    await user.click(topic('AI tools'))
+    await user.click(await screen.findByRole('button', { name: 'Update' }))
+    expect(bridge.install).toHaveBeenLastCalledWith(['claude'])
+    progress('claude', 'install', 'failed', 'The download failed.')
+    await endInstall({ outcome: 'failed' })
+    expect(screen.getByText('The download failed.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Sign in again' }))
+    expect(bridge.install).toHaveBeenLastCalledWith(['codex'])
+    progress('codex', 'signIn', 'stuck')
+    await user.click(screen.getByRole('button', { name: 'Browser didn’t open? Open the sign-in page' }))
+    expect(bridge.openSignInPage).toHaveBeenCalled()
+    const copies = screen.getAllByRole('button', { name: 'Copy and open Terminal' })
+    await user.click(copies[copies.length - 1])
+    expect(bridge.cancelInstall).toHaveBeenCalledTimes(1)
+    expect(bridge.copyAndOpenTerminal).toHaveBeenCalledWith(['codex'])
   })
 })

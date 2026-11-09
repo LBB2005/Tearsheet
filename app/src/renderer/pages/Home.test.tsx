@@ -5,8 +5,9 @@
 import { act, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, test, vi } from 'vitest'
 
+import { FAILURES } from '../../shared/install'
 import { renderApp, win } from '../test/app'
-import { bridge, emit, fail, inState, line, lineItem, menu, ok, settings, TOOLS } from '../test/bridge'
+import { bridge, emit, endInstall, fail, inState, line, lineItem, menu, ok, progress, settings, TOOLS } from '../test/bridge'
 
 const field = () => screen.getByRole('combobox', { name: 'Look up a company' })
 const hits = () => within(screen.getByRole('listbox', { name: 'Companies' }))
@@ -105,9 +106,10 @@ describe('below the field', () => {
 })
 
 describe('problems at the top', () => {
-  test('a signed-out tool’s Sign in again copies the command and opens Terminal, and the box goes once the main process sees the sign-in', async () => {
+  test('with the button off, a signed-out tool’s Sign in again copies the command and opens Terminal, and the box goes once the main process sees the sign-in', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     try {
+      bridge.getInstallButton.mockResolvedValue(false)
       bridge.getTools.mockResolvedValue([inState(TOOLS[0], 'signed_out'), TOOLS[1]])
       const { user } = await renderApp({ advanceTimers: vi.advanceTimersByTime })
       expect(await screen.findByRole('alert')).toHaveTextContent('Claude Code is signed out')
@@ -152,7 +154,8 @@ describe('problems at the top', () => {
     expect(await screen.findByText('A report is running.')).toBeInTheDocument()
   })
 
-  test('a run a sign-out stopped offers the same Sign in again in its red box', async () => {
+  test('a run a sign-out stopped offers the same Sign in again in its red box (the button off)', async () => {
+    bridge.getInstallButton.mockResolvedValue(false)
     const { user } = await renderApp()
     await user.type(field(), 'nv')
     await user.click(await hits().findByRole('option', { name: /NVDA/ }))
@@ -468,5 +471,106 @@ describe('the look-up box (⌘K)', () => {
     await user.keyboard('{ArrowDown}{ArrowUp}{Enter}')
     expect(await screen.findByText('The report didn’t start')).toBeInTheDocument()
     expect(screen.getByText('A report is already running. You can start another when it finishes.')).toBeInTheDocument()
+  })
+})
+
+// First-run design item 39: with the button on, "Sign in again" runs the sign-in inside
+// Tearsheet, and its progress, its two fallbacks and a failure show in the same box.
+describe('Sign in again with the Install button on', () => {
+  const signedOut = async () => {
+    bridge.getTools.mockResolvedValue([inState(TOOLS[0], 'signed_out'), TOOLS[1]])
+    const app = await renderApp()
+    await screen.findByText('Claude Code is signed out')
+    const box = () => within(screen.getByText('Claude Code is signed out').closest('.alert') as HTMLElement)
+    return { ...app, box }
+  }
+
+  test('signs in inside Tearsheet, shows each step, and the box goes once the tool reads ready', async () => {
+    const { user, box } = await signedOut()
+    await user.click(box().getByRole('button', { name: 'Sign in again' }))
+    expect(bridge.install).toHaveBeenCalledWith(['claude'])
+    expect(bridge.copyAndOpenTerminal).not.toHaveBeenCalled()
+    expect(box().getByText('Starting…')).toBeInTheDocument()
+    expect(bridge.windowState).toHaveBeenLastCalledWith({ waiting: true })
+    progress('claude', 'signIn', 'opening_browser')
+    expect(box().getByText('Opening your browser to sign in to Claude')).toBeInTheDocument()
+    // Another tool's progress isn't this box's.
+    progress('codex', 'signIn', 'stuck')
+    expect(box().queryByRole('button', { name: 'Copy and open Terminal' })).toBeNull()
+    progress('claude', 'signIn', 'done')
+    expect(box().getByText('Signed in to Claude Code')).toBeInTheDocument()
+    emit('tools_changed', { tools: TOOLS })
+    await endInstall({ outcome: 'done' })
+    await waitFor(() => expect(screen.queryByText('Claude Code is signed out')).toBeNull())
+  })
+
+  test('offers the sign-in page at 15 seconds, and the paste command at 2 minutes, which stops the in-app sign-in first', async () => {
+    const { user, box } = await signedOut()
+    await user.click(box().getByRole('button', { name: 'Sign in again' }))
+    progress('claude', 'signIn', 'opening_browser')
+    expect(box().queryByRole('button', { name: 'Browser didn’t open? Open the sign-in page' })).toBeNull()
+    progress('claude', 'signIn', 'slow')
+    await user.click(box().getByRole('button', { name: 'Browser didn’t open? Open the sign-in page' }))
+    expect(bridge.openSignInPage).toHaveBeenCalledTimes(1)
+    expect(box().queryByRole('button', { name: 'Copy and open Terminal' })).toBeNull()
+    progress('claude', 'signIn', 'stuck')
+    await user.click(box().getByRole('button', { name: 'Copy and open Terminal' }))
+    expect(bridge.cancelInstall).toHaveBeenCalledTimes(1)
+    expect(bridge.copyAndOpenTerminal).toHaveBeenCalledWith(['claude'])
+    expect(bridge.cancelInstall.mock.invocationCallOrder[0]).toBeLessThan(bridge.copyAndOpenTerminal.mock.invocationCallOrder[0])
+    expect(await box().findByText(/^The command is copied, and a new Terminal window is open\./)).toBeInTheDocument()
+  })
+
+  test('a failure says why, with Try again and the paste command', async () => {
+    const { user, box } = await signedOut()
+    await user.click(box().getByRole('button', { name: 'Sign in again' }))
+    progress('claude', 'signIn', 'failed', 'Another copy at ~/bin is found first.')
+    await endInstall({ outcome: 'failed' })
+    expect(box().getByText('Another copy at ~/bin is found first.')).toBeInTheDocument()
+    await user.click(box().getByRole('button', { name: 'Try again' }))
+    expect(bridge.install).toHaveBeenCalledTimes(2)
+    await endInstall({ outcome: 'failed' })
+    // No message said why: the sign-in's own words.
+    expect(box().getByText(FAILURES.signIn)).toBeInTheDocument()
+    await user.click(box().getByRole('button', { name: 'Copy and open Terminal' }))
+    expect(bridge.cancelInstall).not.toHaveBeenCalled()
+    expect(bridge.copyAndOpenTerminal).toHaveBeenCalledWith(['claude'])
+  })
+
+  test('a sign-in stopped offers Try again; an Install refused by a fresh off shows the paste command (CUJ 10)', async () => {
+    const { user, box } = await signedOut()
+    await user.click(box().getByRole('button', { name: 'Sign in again' }))
+    progress('claude', 'signIn', 'cancelled')
+    await endInstall({ outcome: 'cancelled' })
+    expect(box().getByText('Signing in to Claude Code was stopped')).toBeInTheDocument()
+    await user.click(box().getByRole('button', { name: 'Try again' }))
+    await endInstall({ outcome: 'refused', why: 'switch_off' })
+    expect(box().getByText('The Install button is off in this copy now. Paste the command in Terminal instead.')).toBeInTheDocument()
+    await user.click(box().getByRole('button', { name: 'Copy and open Terminal' }))
+    expect(bridge.copyAndOpenTerminal).toHaveBeenCalledWith(['claude'])
+    expect(await box().findByText(/^The command is copied/)).toBeInTheDocument()
+    // From now on this box uses the paste command.
+    expect(bridge.install).toHaveBeenCalledTimes(2)
+  })
+
+  test('an install call that throws counts as failed', async () => {
+    const { user, box } = await signedOut()
+    bridge.install.mockRejectedValueOnce(new Error('gone'))
+    await user.click(box().getByRole('button', { name: 'Sign in again' }))
+    expect(await box().findByText(FAILURES.signIn)).toBeInTheDocument()
+  })
+
+  test('the run view’s red box signs in the same way', async () => {
+    const { user } = await renderApp()
+    await user.type(field(), 'nv')
+    await user.click(await hits().findByRole('option', { name: /NVDA/ }))
+    await screen.findByRole('region', { name: 'Report progress' })
+    emit('run_failed', { run_id: 'run-new', message: 'Claude Code is signed out.', code: 'AUTH_EXPIRED', step: 'narrate', fix_command: 'claude auth login' })
+    const box = within(await screen.findByRole('alert'))
+    await user.click(box.getByRole('button', { name: 'Sign in again' }))
+    expect(bridge.install).toHaveBeenCalledWith(['claude'])
+    progress('claude', 'signIn', 'opening_browser')
+    expect(box.getByText('Opening your browser to sign in to Claude')).toBeInTheDocument()
+    expect(box.getByRole('button', { name: 'Resume' })).toBeInTheDocument()
   })
 })

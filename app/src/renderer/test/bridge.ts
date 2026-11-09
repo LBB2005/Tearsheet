@@ -12,6 +12,7 @@ import { vi, type Mock } from 'vitest'
 import type { MenuCommand } from '../../main/menu'
 import type { ViewId } from '../../main/navigation'
 import type { CallResult, EngineNotification, TearsheetApi, ToolStatus } from '../../preload/api'
+import type { InstallProgress, InstallStatus, RunResult } from '../../shared/install'
 import type { ChartSeries, CompanyRow, LineItem, LinePlan, LineState, PredictionSummary, ReportBar, ReportNumbers, ReportResult, ReportSummary, SearchHit, SettingsResult } from '../../shared/protocol'
 import { toolFlags, type ToolCommands, type ToolKind, type ToolState } from '../../shared/tools'
 import { analysts } from './analysts'
@@ -33,6 +34,41 @@ export const TOOLS: ToolStatus[] = [
 export function inState(tool: ToolStatus, state: ToolState, over: Partial<ToolStatus> = {}): ToolStatus {
   return { ...tool, state, ...toolFlags(state), ...over }
 }
+
+// A ToolStatus for each state, for each tool (first-run design item 28): Claude Code at the
+// official folder with a Max plan and an email, Codex there too with a ChatGPT sign-in. A missing
+// tool has no path or version; a too-old Claude Code is 2.1.300.
+function fixtures(kind: ToolKind): Record<ToolState, ToolStatus> {
+  const claude = kind === 'claude'
+  const base: ToolStatus = {
+    kind,
+    name: claude ? 'Claude Code' : 'Codex',
+    path: `/Users/test/.local/bin/${kind}`,
+    version: claude ? '2.1.317 (Claude Code)' : 'codex-cli 0.165.0',
+    reason: null,
+    plan: claude ? 'max' : null,
+    email: claude ? 'you@example.com' : null,
+    state: 'ready',
+    ...toolFlags('ready')
+  }
+  const at = (state: ToolState, over: Partial<ToolStatus> = {}): ToolStatus => ({ ...base, state, ...toolFlags(state), ...over })
+  return {
+    missing: at('missing', { path: null, version: null, plan: null, email: null, reason: 'Not found on this Mac' }),
+    too_old: at('too_old', { version: claude ? '2.1.300 (Claude Code)' : 'codex-cli 0.1.0', plan: null, email: null }),
+    cant_tell: at('cant_tell', { plan: null, email: null }),
+    signed_out: at('signed_out', { plan: null, email: null }),
+    api_key: at('api_key', { plan: null, email: null }),
+    free_plan: at('free_plan', { plan: 'free' }),
+    ready: at('ready')
+  }
+}
+
+export const CLAUDE: Record<ToolState, ToolStatus> = fixtures('claude')
+export const CODEX: Record<ToolState, ToolStatus> = fixtures('codex')
+// Both tools at once: a brand-new Mac, and both already set up.
+export const NEITHER: ToolStatus[] = [CLAUDE.missing, CODEX.missing]
+export const BOTH: ToolStatus[] = [CLAUDE.ready, CODEX.ready]
+export const tools = (claude: ToolState, codex: ToolState): ToolStatus[] => [CLAUDE[claude], CODEX[codex]]
 
 // What commandsFor answers for these tools: the sign-in (or the installer, then the sign-in) as
 // the main process would build it from TOOLS, joined into one paste command.
@@ -212,6 +248,10 @@ function marks() {
   return { hidden, erased, pinned, companies, reports, keeps }
 }
 
+// The Install button's runs that haven't answered yet, oldest first: install() answers only when
+// a test ends it (endInstall), after sending its install_progress messages (progress).
+let installs: ((r: RunResult) => void)[] = []
+
 function makeBridge(): FakeBridge {
   const m = marks()
   return {
@@ -228,7 +268,15 @@ function makeBridge(): FakeBridge {
     checkKey: vi.fn<TearsheetApi['checkKey']>(async (service: 'massive' | 'fred') => ok({ proof: service === 'massive' ? 'Works: AAPL closed at $230.10 on Nov 6' : 'Works: inflation was 2.9% in September' })),
     runSafetyCheck: vi.fn<TearsheetApi['runSafetyCheck']>(async () => ok({ started: true })),
     cancelSafetyCheck: vi.fn<TearsheetApi['cancelSafetyCheck']>(async () => ok({ stopping: true })),
-    openTerminal: vi.fn<TearsheetApi['openTerminal']>(async () => undefined),
+    install: vi.fn<TearsheetApi['install']>(
+      () =>
+        new Promise<RunResult>((resolve) => {
+          installs.push(resolve)
+        })
+    ),
+    cancelInstall: vi.fn<TearsheetApi['cancelInstall']>(async () => true),
+    openSignInPage: vi.fn<TearsheetApi['openSignInPage']>(async () => true),
+    getInstallButton: vi.fn<TearsheetApi['getInstallButton']>(async () => true),
     windowState: vi.fn<TearsheetApi['windowState']>(async () => undefined),
     copyAndOpenTerminal: vi.fn<TearsheetApi['copyAndOpenTerminal']>(async () => ({ copied: true, opened: true })),
     commandsFor: vi.fn<TearsheetApi['commandsFor']>(async (kinds: ToolKind[]) => commands(kinds)),
@@ -296,6 +344,7 @@ export function installBridge(): FakeBridge {
   listeners.flag.clear()
   listeners.open.clear()
   listeners.download.clear()
+  installs = []
   bridge = makeBridge()
   Object.defineProperty(window, 'tearsheet', { configurable: true, value: bridge })
   return bridge
@@ -334,5 +383,19 @@ export function openView(view: ViewId, item: string | null = null): void {
 export function download(note: DownloadNote): void {
   act(() => {
     for (const fn of listeners.download) fn(note)
+  })
+}
+
+// One install_progress message from the main process (main/installer.ts).
+export function progress(tool: ToolKind, step: InstallProgress['step'], status: InstallStatus, reason?: string): void {
+  emit('install_progress', reason === undefined ? { tool, step, status } : { tool, step, status, reason })
+}
+
+// The oldest Install run that hasn't answered yet answers.
+export async function endInstall(result: RunResult = { outcome: 'done' }): Promise<void> {
+  const resolve = installs.shift()
+  if (!resolve) throw new Error('No install is running')
+  await act(async () => {
+    resolve(result)
   })
 }

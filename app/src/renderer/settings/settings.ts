@@ -5,8 +5,9 @@
 import type { ToolStatus } from '../../preload/api'
 import type { Keys, LockdownState } from '../../shared/protocol'
 import { safetyFailed, safetyUnfinished } from '../nav'
-import { isEmail } from '../../shared/tools'
-import { TOOL_TEXT, type SafetyState, type ToolKind } from '../setup/steps'
+import { isEmail, type ToolKind } from '../../shared/tools'
+import type { SafetyState } from '../setup/state/safety'
+import { TOOL_TEXT } from '../setup/words'
 
 // ok green, hold amber, bad red, run accent (something under way), off grey (nothing wrong).
 export type Tone = 'ok' | 'hold' | 'bad' | 'run' | 'off'

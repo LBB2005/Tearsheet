@@ -1,15 +1,15 @@
-// The paste command: the way to install, update or sign in an AI tool until the Install button
-// comes (first-run design §3). The main process builds the command from the tool's status, copies
-// it, checks the copy and opens a new Terminal window; the person pastes it there. The window only
-// names the tool. Home's and the run view's "Sign in again" and the rows on Settings → AI tools
-// use it. While its steps show, the window waits on the person (shell/waiting.ts), so the change
+// The paste command: the way to install, update or sign in an AI tool when the Install button is
+// off, or when one of its steps fails or is stuck (first-run design §3). The main process builds
+// the command from the tool's status, copies it, checks the copy and opens a new Terminal window;
+// the person pastes it there. The window only names the tool. home/fix.tsx uses it for Home's and
+// the run view's "Sign in again" and the rows on Settings → AI tools. While its steps show, the window waits on the person (shell/waiting.ts), so the change
 // shows up by itself within a few seconds (tools_changed).
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import type { TerminalResult } from '../../shared/tools'
+import type { TerminalResult, ToolKind } from '../../shared/tools'
 import { CodeLine, Spinner } from '../setup/parts'
-import { TOOL_TEXT, type ToolKind } from '../setup/steps'
+import { TOOL_TEXT } from '../setup/words'
 import { useWaiting } from '../shell/waiting'
 
 export type PasteFor = 'signIn' | 'install' | 'update'
@@ -104,20 +104,6 @@ export function PasteSteps({ state, kind, purpose, onAgain, buttonClass = 'btn2'
           </span>
         </div>
       )}
-    </div>
-  )
-}
-
-// "Sign in again", then its steps in its place: the run view's red box, for a run a sign-out
-// stopped.
-export function SignInAgain({ kind }: { kind: ToolKind }) {
-  const paste = usePaste(kind)
-  if (paste.state) return <PasteSteps state={paste.state} kind={kind} purpose="signIn" onAgain={() => void paste.start()} />
-  return (
-    <div className="row">
-      <button className="btn2" onClick={() => void paste.start()}>
-        Sign in again
-      </button>
     </div>
   )
 }

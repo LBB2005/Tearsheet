@@ -14,13 +14,13 @@ import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode, type R
 import type { CompanyRow, LinePlan, PredictionSummary, SearchHit, SettingsResult } from '../../shared/protocol'
 import { isList, plural, splitQueries } from '../home/line'
 import { LinePlanCard } from '../home/LineParts'
-import { PasteSteps, usePaste } from '../home/paste'
+import { useFix } from '../home/fix'
 import { greeting, sinceLines, type SinceLine } from '../home/since'
 import { Mark } from '../mark/Mark'
 import { freshHits, peerRule, shortDate } from '../nav'
 import { FRED_NOTICE, FRED_TERMS } from '../settings/About'
 import { at } from '../setup/parts'
-import type { ToolKind } from '../setup/steps'
+import type { ToolKind } from '../../shared/tools'
 import { ICONS, money } from '../shell/Sidebar'
 
 const LIMIT = 5
@@ -39,6 +39,8 @@ export interface HomeProps {
   tool: { kind: ToolKind; name: string; signedOut: boolean; safetyFailed: boolean; safetyUnfinished: boolean }
   // ⌘K on this page puts the cursor here.
   fieldRef: RefObject<HTMLInputElement>
+  // "The button is on": Sign in again runs inside Tearsheet; off, it copies the paste command.
+  buttonOn: boolean
   // Changes when grading finishes, so the predictions are asked for again.
   refresh: number
   // Starts a report; gives what went wrong, or null once it has started.
@@ -55,7 +57,7 @@ export interface HomeProps {
   onRecheck: () => Promise<string | null>
 }
 
-export function Home({ companies, tool, fieldRef, refresh, onStart, onStartLine, notice, onOpen, onKeys, onRecheck }: HomeProps) {
+export function Home({ companies, tool, fieldRef, buttonOn, refresh, onStart, onStartLine, notice, onOpen, onKeys, onRecheck }: HomeProps) {
   const [query, setQuery] = useState('')
   const [hits, setHits] = useState<SearchHit[]>([])
   const [searched, setSearched] = useState('')
@@ -179,7 +181,7 @@ export function Home({ companies, tool, fieldRef, refresh, onStart, onStartLine,
     <div className="homev">
       {notice}
       {problems.map((line) => (
-        <Problem key={line.action ?? line.text} line={line} kind={tool.kind} onRecheck={onRecheck} onKeys={onKeys} />
+        <Problem key={line.action ?? line.text} line={line} kind={tool.kind} buttonOn={buttonOn} onRecheck={onRecheck} onKeys={onKeys} />
       ))}
       {companies !== null && (
         <div className="hello mv" style={at(0)}>
@@ -317,11 +319,12 @@ export function Home({ companies, tool, fieldRef, refresh, onStart, onStartLine,
   )
 }
 
-// A problem, in red at the top of the page, with its fix. "Sign in again" copies the sign-in
-// command and opens Terminal (home/paste.tsx); the window then waits on the person, so the main
+// A problem, in red at the top of the page, with its fix. "Sign in again" runs the sign-in inside
+// Tearsheet when the button is on, with its progress in this box, or copies the paste command and
+// opens Terminal when it is off (home/fix.tsx); the window then waits on the person, so the main
 // process notices the sign-in by itself (tools_changed) and the box goes once it is fixed.
-function Problem({ line, kind, onRecheck, onKeys }: { line: SinceLine; kind: ToolKind; onRecheck: () => Promise<string | null>; onKeys: () => void }) {
-  const paste = usePaste(kind)
+function Problem({ line, kind, buttonOn, onRecheck, onKeys }: { line: SinceLine; kind: ToolKind; buttonOn: boolean; onRecheck: () => Promise<string | null>; onKeys: () => void }) {
+  const fix = useFix(kind, buttonOn, 'signIn')
   const [busy, setBusy] = useState(false)
   const [failed, setFailed] = useState<string | null>(null)
 
@@ -338,11 +341,11 @@ function Problem({ line, kind, onRecheck, onKeys }: { line: SinceLine; kind: Too
       <div>
         <b>{line.text}</b>
         <span>{line.detail}</span>
-        {paste.state && <PasteSteps state={paste.state} kind={kind} purpose="signIn" onAgain={() => void paste.start()} />}
+        {fix.below}
         {failed && <span className="bad">{failed}</span>}
       </div>
-      {line.action === 'signIn' && !paste.state && (
-        <button className="btn2" onClick={() => void paste.start()}>
+      {line.action === 'signIn' && !fix.active && (
+        <button className="btn2" onClick={fix.start}>
           Sign in again
         </button>
       )}

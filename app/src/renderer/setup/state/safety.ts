@@ -1,94 +1,11 @@
-// Pure logic for the first-time setup (the spec's "The first-time path"): which step to open
-// at, the four-part progress line, the safety check's state, and the words that depend on the
-// AI tool. The screens are in pages/Setup.tsx and the other files in this folder.
+// The safety check's state in the window (the lock-down check, first-run design §5): this
+// session's check from the engine's safety_progress and safety_done notes, what the chip shows,
+// and the six things it makes sure of. Moved unchanged from the old setup/steps.ts (item 30).
+// App keeps the state, so the sidebar's status line and the toolbar's chip follow the same check
+// after setup.
 
-import type { ToolStatus } from '../../preload/api'
-import type { Keys, LockdownState, SafetyRunning } from '../../shared/protocol'
-import { isEmail, versionNumber } from '../../shared/tools'
-
-// The one-click install and sign-in (step 4's other version) is built but stays off until
-// Anthropic approves it. While this is false, everyone sees the two Terminal steps.
-export const ONE_CLICK_ENABLED = false
-
-export type SetupStep = 'welcome' | 'connect' | 'find' | 'install' | 'connected' | 'prices' | 'fred' | 'email' | 'ready' | 'done'
-
-export type ToolKind = 'claude' | 'codex'
-
-export type KeyService = 'massive' | 'fred'
-
-// The order of the nine screens. 'done' is not a screen: setup is finished.
-export const STEP_ORDER: SetupStep[] = ['welcome', 'connect', 'find', 'install', 'connected', 'prices', 'fred', 'email', 'ready']
-
-// The steps from "Connected" on, where the safety check runs and its chip can show.
-export const AFTER_CONNECT: ReadonlySet<SetupStep> = new Set<SetupStep>(['connected', 'prices', 'fred', 'email', 'ready'])
-
-export interface ResumeInput {
-  setupDone: boolean
-  // The AI tool being set up (the primary tool, or Claude Code), as the probe found it.
-  tool: ToolStatus | undefined
-  keys: Keys
-  fredSkipped: boolean
-  email: string | null
-  // Whether anything in setup has been done yet (hasProgress).
-  anyProgress: boolean
-}
-
-// Where setup opens: the first step that isn't done. The rules apply in this order.
-export function resumeStep(s: ResumeInput): SetupStep {
-  if (s.setupDone) return 'done'
-  if (!s.anyProgress) return 'welcome'
-  if (!s.tool || !s.tool.available) return 'find'
-  // Sign-in comes only from the tool's own status command; unknown is not signed in.
-  if (s.tool.loggedIn !== true) return 'install'
-  if (s.keys.massive !== 'set') return 'prices'
-  if (s.keys.fred !== 'set' && !s.fredSkipped) return 'fred'
-  if (!isEmail(s.email ?? '')) return 'email'
-  return 'ready'
-}
-
-// The screen after `from`: the first later step that isn't done yet, so a key saved before
-// is passed over. It always moves forward, even when `from` itself was left undone.
-export function nextStep(from: SetupStep, s: Omit<ResumeInput, 'setupDone' | 'anyProgress'>): SetupStep {
-  const at = STEP_ORDER.indexOf(from)
-  const first = resumeStep({ ...s, setupDone: false, anyProgress: true })
-  if (first === 'done' || at < 0 || at === STEP_ORDER.length - 1) return 'done'
-  return STEP_ORDER.indexOf(first) > at ? first : STEP_ORDER[at + 1]
-}
-
-// The words on Connected's button, for the screen it goes to (a key saved before is passed over).
-export function nextLabel(next: SetupStep): string {
-  if (next === 'prices') return 'Next: prices'
-  if (next === 'fred') return 'Next: economic figures'
-  if (next === 'email') return 'Next: your email'
-  return 'Continue'
-}
-
-// Whether setup has been started: a key saved, FRED skipped, an email given, or an AI tool
-// chosen. Finding Claude Code already on the Mac doesn't count, so a new person still sees the
-// welcome screen.
-export function hasProgress(s: { keys: Keys; fred_skipped: boolean; sec_contact_email: string | null; primary_tool: string | null }): boolean {
-  return s.keys.massive === 'set' || s.keys.fred === 'set' || s.fred_skipped || Boolean(s.sec_contact_email) || Boolean(s.primary_tool)
-}
-
-// The four parts of the progress line in the toolbar: Claude Code, Prices, Details, Ready.
-// The first two screens show none.
-export function progressSegment(step: SetupStep): 0 | 1 | 2 | 3 | null {
-  switch (step) {
-    case 'find':
-    case 'install':
-    case 'connected':
-      return 0
-    case 'prices':
-      return 1
-    case 'fred':
-    case 'email':
-      return 2
-    case 'ready':
-      return 3
-    default:
-      return null
-  }
-}
+import type { LockdownState, SafetyRunning } from '../../../shared/protocol'
+import { versionNumber, type ToolKind, type ToolStatus } from '../../../shared/tools'
 
 // Whether the tool's lock-down check (the safety check) has passed for the version found now.
 // A newer version is checked again.
@@ -175,7 +92,7 @@ export type SafetyView =
   // Stopped part way, with no verdict: shown muted, with Run the check again.
   | { state: 'unfinished'; reason: string }
 
-// What the chip, the Connected screen and the ready list show for the tool being set up: this
+// What the chip shows for the tool being set up (setup's, and the toolbar's after setup): this
 // session's check, else a check that passed before for this version, else a check that couldn't
 // start, else a check about to start.
 export function safetyView(s: SafetyState | null, kind: ToolKind, alreadyPassed: boolean, startError: string | null): SafetyView {
@@ -204,53 +121,4 @@ export const SAFETY_CHECKS: [string, number][] = [
 // How many of the six checks are ticked off after `n` calls.
 export function checksPassed(n: number): number {
   return SAFETY_CHECKS.filter(([, after]) => n >= after).length
-}
-
-// ---------- words that depend on the tool ----------
-
-export interface ToolText {
-  name: string
-  short: string
-  plan: string
-  maker: string
-  install: string
-  login: string
-  needs: string
-}
-
-export const TOOL_TEXT: Record<ToolKind, ToolText> = {
-  claude: {
-    name: 'Claude Code',
-    short: 'Claude',
-    plan: 'Claude plan',
-    maker: 'Anthropic',
-    install: 'curl -fsSL https://claude.ai/install.sh | bash',
-    login: 'claude auth login',
-    needs: 'a paid Claude plan, like Pro or Max'
-  },
-  codex: {
-    name: 'Codex',
-    short: 'Codex',
-    plan: 'ChatGPT plan',
-    maker: 'OpenAI',
-    install: 'npm install -g @openai/codex',
-    login: 'codex login',
-    needs: 'a paid ChatGPT plan, like Plus or Pro'
-  }
-}
-
-export const checkText = (template: string, t: ToolText) => template.replace('{t}', t.short).replace('{p}', t.plan)
-
-// ---------- the key checks ----------
-
-export const SERVICE_NAME: Record<KeyService, string> = { massive: 'Massive', fred: 'FRED' }
-
-// What a failed key check says. A rejected key and a service that can't be reached get two
-// different messages; anything else gets a fixed one. The engine's own text is never shown, so
-// the window can't show a key even if an error ever echoed one.
-export function keyProblem(service: KeyService, code: string | undefined, _message?: string): string {
-  const name = SERVICE_NAME[service]
-  if (code === 'KEY_REJECTED') return `${name} didn’t accept that key. Check that you copied all of it.`
-  if (code === 'SERVICE_UNREACHABLE') return `Couldn’t reach ${name} just now. Try again in a minute.`
-  return 'Something went wrong checking the key. Try again.'
 }

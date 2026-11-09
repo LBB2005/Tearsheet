@@ -1,24 +1,11 @@
+// The safety check's state (moved from setup/steps.ts, first-run design item 30): each note from
+// the engine, the check under way after a reload, the chip's minutes and what it shows.
+
 import { describe, expect, it } from 'vitest'
 
-import type { ToolStatus } from '../../preload/api'
-import type { LockdownState } from '../../shared/protocol'
-import {
-  applySafetyNote,
-  checksPassed,
-  hasProgress,
-  keyProblem,
-  nextLabel,
-  nextStep,
-  progressSegment,
-  resumeStep,
-  safetyFromRunning,
-  safetyMinutes,
-  safetyPassedFor,
-  safetyStarted,
-  safetyView,
-  type SafetyState,
-  type SetupStep
-} from './steps'
+import type { LockdownState } from '../../../shared/protocol'
+import type { ToolStatus } from '../../../shared/tools'
+import { applySafetyNote, checksPassed, safetyFromRunning, safetyMinutes, safetyPassedFor, safetyStarted, safetyView, type SafetyState } from './safety'
 
 const claude = (over: Partial<ToolStatus> = {}): ToolStatus => ({
   kind: 'claude',
@@ -32,146 +19,6 @@ const claude = (over: Partial<ToolStatus> = {}): ToolStatus => ({
   plan: 'max',
   email: 'me@example.com',
   ...over
-})
-const missing = claude({ path: null, available: false, version: null, loggedIn: null, reason: "claude wasn't found on your PATH.", state: 'missing', plan: null, email: null })
-
-const BOTH = { massive: 'set', fred: 'set', alphavantage: 'missing' } as const
-const NONE = { massive: 'missing', fred: 'missing', alphavantage: 'missing' } as const
-
-// Everything done but `setup_done`: the state of Liam's own install.
-const all = {
-  setupDone: false,
-  tool: claude(),
-  keys: BOTH as Record<string, 'set' | 'missing'>,
-  fredSkipped: false,
-  email: 'you@example.com' as string | null,
-  anyProgress: true
-}
-
-describe('resumeStep', () => {
-  it('1. a finished setup gives done', () => {
-    expect(resumeStep({ ...all, setupDone: true })).toBe('done')
-  })
-
-  it('2. no progress at all gives welcome', () => {
-    expect(resumeStep({ ...all, tool: undefined, keys: NONE, email: null, anyProgress: false })).toBe('welcome')
-  })
-
-  it('2. gives welcome to a new person who already has Claude Code, found and signed in', () => {
-    const tool = claude()
-    const settings = { keys: NONE, fred_skipped: false, sec_contact_email: null, primary_tool: null }
-    expect(resumeStep({ setupDone: false, tool, keys: NONE, fredSkipped: false, email: null, anyProgress: hasProgress(settings) })).toBe('welcome')
-  })
-
-  it('3. no tool found gives find', () => {
-    expect(resumeStep({ ...all, tool: undefined })).toBe('find')
-    expect(resumeStep({ ...all, tool: missing })).toBe('find')
-  })
-
-  it('4. a tool found but not signed in gives install', () => {
-    expect(resumeStep({ ...all, tool: claude({ loggedIn: false }) })).toBe('install')
-    // An unknown sign-in status is not taken as signed in.
-    expect(resumeStep({ ...all, tool: claude({ loggedIn: null }) })).toBe('install')
-  })
-
-  it('5. no Massive key gives prices', () => {
-    expect(resumeStep({ ...all, keys: { ...BOTH, massive: 'missing' } })).toBe('prices')
-  })
-
-  it('6. no FRED key, and FRED not skipped, gives fred', () => {
-    expect(resumeStep({ ...all, keys: { ...BOTH, fred: 'missing' } })).toBe('fred')
-    expect(resumeStep({ ...all, keys: { ...BOTH, fred: 'missing' }, fredSkipped: true })).not.toBe('fred')
-  })
-
-  it('7. no email gives email', () => {
-    expect(resumeStep({ ...all, email: null })).toBe('email')
-    expect(resumeStep({ ...all, email: '' })).toBe('email')
-    expect(resumeStep({ ...all, keys: { ...BOTH, fred: 'missing' }, fredSkipped: true, email: null })).toBe('email')
-  })
-
-  it('8. otherwise ready, as for an install with everything but setup_done', () => {
-    expect(resumeStep(all)).toBe('ready')
-    expect(resumeStep({ ...all, keys: { ...BOTH, fred: 'missing' }, fredSkipped: true })).toBe('ready')
-  })
-
-  it('takes the first rule that applies when several do', () => {
-    const nothing = { setupDone: false, tool: undefined, keys: NONE, fredSkipped: false, email: null, anyProgress: false }
-    expect(resumeStep({ ...nothing, setupDone: true })).toBe('done')
-    expect(resumeStep(nothing)).toBe('welcome')
-    expect(resumeStep({ ...nothing, anyProgress: true })).toBe('find')
-    expect(resumeStep({ ...nothing, anyProgress: true, tool: claude({ loggedIn: false }) })).toBe('install')
-    expect(resumeStep({ ...nothing, anyProgress: true, tool: claude() })).toBe('prices')
-    expect(resumeStep({ ...nothing, anyProgress: true, tool: claude(), keys: { ...NONE, massive: 'set' } })).toBe('fred')
-  })
-})
-
-describe('nextStep', () => {
-  const fresh = { ...all, keys: NONE as Record<string, 'set' | 'missing'>, email: null }
-
-  it('goes on to the first later step that isn’t done', () => {
-    expect(nextStep('connected', fresh)).toBe('prices')
-    expect(nextStep('prices', { ...fresh, keys: { ...NONE, massive: 'set' } })).toBe('fred')
-    expect(nextStep('fred', { ...fresh, keys: { ...NONE, massive: 'set' }, fredSkipped: true })).toBe('email')
-    expect(nextStep('email', all)).toBe('ready')
-  })
-
-  it('passes over later steps already done, as a key saved before', () => {
-    expect(nextStep('connected', { ...fresh, keys: BOTH })).toBe('email')
-    expect(nextStep('connected', all)).toBe('ready')
-  })
-
-  it('always moves forward, never back to an earlier step', () => {
-    // Prices was left without a key: the next screen is still the one after it.
-    expect(nextStep('prices', fresh)).toBe('fred')
-    expect(nextStep('connected', { ...fresh, tool: undefined })).toBe('prices')
-    expect(nextStep('ready', all)).toBe('done')
-  })
-})
-
-describe('nextLabel', () => {
-  it('names the screen the Connected button goes to', () => {
-    expect(nextLabel('prices')).toBe('Next: prices')
-    expect(nextLabel('fred')).toBe('Next: economic figures')
-    expect(nextLabel('email')).toBe('Next: your email')
-    expect(nextLabel('ready')).toBe('Continue')
-  })
-})
-
-describe('hasProgress', () => {
-  const settings = { keys: NONE, fred_skipped: false, sec_contact_email: null, primary_tool: null }
-
-  it('is false for a brand-new install', () => {
-    expect(hasProgress(settings)).toBe(false)
-  })
-
-  it('is true once anything in setup has been done', () => {
-    expect(hasProgress({ ...settings, keys: { ...NONE, massive: 'set' } })).toBe(true)
-    expect(hasProgress({ ...settings, keys: { ...NONE, fred: 'set' } })).toBe(true)
-    expect(hasProgress({ ...settings, fred_skipped: true })).toBe(true)
-    expect(hasProgress({ ...settings, sec_contact_email: 'you@example.com' })).toBe(true)
-    expect(hasProgress({ ...settings, primary_tool: 'claude' })).toBe(true)
-  })
-})
-
-describe('progressSegment', () => {
-  it('shows none before the tool step', () => {
-    expect(progressSegment('welcome')).toBeNull()
-    expect(progressSegment('connect')).toBeNull()
-    expect(progressSegment('done')).toBeNull()
-  })
-
-  it('puts each later step in its part: Claude Code, Prices, Details, Ready', () => {
-    const parts: [SetupStep, number][] = [
-      ['find', 0],
-      ['install', 0],
-      ['connected', 0],
-      ['prices', 1],
-      ['fred', 2],
-      ['email', 2],
-      ['ready', 3]
-    ]
-    for (const [step, part] of parts) expect(progressSegment(step)).toBe(part)
-  })
 })
 
 describe('safetyPassedFor', () => {
@@ -305,18 +152,5 @@ describe('checksPassed', () => {
     expect(checksPassed(14)).toBe(3)
     expect(checksPassed(24)).toBe(5)
     expect(checksPassed(25)).toBe(6)
-  })
-})
-
-describe('keyProblem', () => {
-  it('tells a rejected key from a service that can’t be reached', () => {
-    expect(keyProblem('massive', 'KEY_REJECTED', 'x')).toBe('Massive didn’t accept that key. Check that you copied all of it.')
-    expect(keyProblem('fred', 'KEY_REJECTED', 'x')).toBe('FRED didn’t accept that key. Check that you copied all of it.')
-    expect(keyProblem('massive', 'SERVICE_UNREACHABLE', 'x')).toBe('Couldn’t reach Massive just now. Try again in a minute.')
-  })
-
-  it('shows a fixed message for anything else, never the engine’s own text', () => {
-    expect(keyProblem('fred', 'ENGINE_ERROR', 'echoed sk-live-123')).toBe('Something went wrong checking the key. Try again.')
-    expect(keyProblem('fred', undefined, undefined)).toBe('Something went wrong checking the key. Try again.')
   })
 })

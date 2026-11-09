@@ -2,16 +2,17 @@
 // and nothing else. The window can say which tools to set up, never what to run: every command is
 // built here, from toolSteps.
 
-import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
 
 import { BrowserWindow, clipboard, ipcMain, shell } from 'electron'
 
+import type { RunResult } from '../shared/install'
 import type { TerminalResult, ToolCommands, ToolKind } from '../shared/tools'
 import { feedbackMailto, type AboutInfo } from './about'
 import type { Engine } from './engine'
 import { EngineError } from './engine'
 import { isAllowedExternal } from './external'
+import type { Installer } from './installer'
 import { commandFor, toolCommands } from './pasteCommand'
 import { NO_LOG, type SetupLog } from './setupLog'
 import { copyAndOpen } from './terminal'
@@ -76,7 +77,9 @@ function isOpen(window: BrowserWindow): boolean {
   return !window.isDestroyed() && !window.webContents.isDestroyed()
 }
 
-function notify(window: BrowserWindow, note: unknown): void {
+// Sends one notification to the window, if it is still there. index.ts sends install_progress
+// through it too.
+export function notify(window: BrowserWindow, note: unknown): void {
   if (isOpen(window)) window.webContents.send('tearsheet:notification', note)
 }
 
@@ -107,6 +110,12 @@ export interface IpcDeps {
   about?: () => AboutInfo
   // Copies the paste command and opens Terminal (terminal.ts), faked in tests.
   copyAndOpen?: (command: string) => Promise<TerminalResult>
+  // The Install button (installer.ts). index.ts gives it only when INSTALL_BUTTON is on, and its
+  // three calls are registered only then.
+  installer?: Pick<Installer, 'run' | 'cancel' | 'openSignInPage'>
+  // "The button is on" (installSwitch.getInstallButton): INSTALL_BUTTON, and the online off
+  // switch saved before this launch isn't off. False when not given.
+  installButton?: () => boolean
 }
 
 const NO_COMMANDS: ToolCommands = { steps: [], blocked: [], paste: null }
@@ -151,20 +160,31 @@ export function registerIpc(window: BrowserWindow, engine: Engine, deps: IpcDeps
   ipcMain.handle('tearsheet:copyAndOpenTerminal', async (_event, kinds: unknown): Promise<TerminalResult> => {
     const asked = parseKinds(kinds)
     if (!asked) return { copied: false, opened: false }
+    // A sign-in under way is stopped first, so two sign-ins of one tool never run at once; the
+    // command is then built from the status read after it.
+    await deps.installer?.cancel()
     const command = commandFor(asked, await deps.watch.read(), deps.rules)
     if (!command) return { copied: false, opened: false }
     return copy(command)
   })
+  // The Install button (first-run design item 29). The window names the tools, never what to
+  // run, and never a link: the sign-in page is the one the running sign-in printed.
+  ipcMain.handle('tearsheet:getInstallButton', () => deps.installButton?.() ?? false)
+  const installer = deps.installer
+  if (installer) {
+    ipcMain.handle('tearsheet:install', async (_event, kinds: unknown): Promise<RunResult> => {
+      const asked = parseKinds(kinds)
+      if (!asked) return { outcome: 'refused' }
+      return installer.run(asked)
+    })
+    ipcMain.handle('tearsheet:cancelInstall', () => installer.cancel())
+    ipcMain.handle('tearsheet:openSignInPage', () => installer.openSignInPage())
+  }
   // Show log in Finder: logs/setup.log, selected.
   ipcMain.handle('tearsheet:showSetupLog', () => {
     if (!deps.setupLogFile || !existsSync(deps.setupLogFile)) return false
     shell.showItemInFolder(deps.setupLogFile)
     return true
-  })
-  // Open Terminal only opens the app; nothing is typed or run in it. The old setup screens still
-  // use it, until Stage 2 removes them (copyAndOpenTerminal replaces it).
-  ipcMain.handle('tearsheet:openTerminal', () => {
-    spawn('/usr/bin/open', ['/System/Applications/Utilities/Terminal.app'], { stdio: 'ignore', detached: true }).unref()
   })
   ipcMain.handle('tearsheet:about', () => about())
   // Opens the person's own Mail with a new email holding the versions; nothing is sent from here.

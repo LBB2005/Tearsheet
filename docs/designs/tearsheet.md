@@ -10,7 +10,7 @@
 
 ## Overview
 
-A Mac desktop app, open source on GitHub. A person types an S&P 500 company name or ticker and gets one new research report. Each claim in the report is cited, and the report is shown in the app and saved on their computer. A direct download link for anyone is planned; it waits on the terms checks in Technical Plan §14.
+A Mac desktop app, open source on GitHub. A person types an S&P 500 company name or ticker and gets one new research report. Each claim in the report is cited, and the report is shown in the app and saved on their computer. A download link on the public GitHub repository is shared with a few friends now, ahead of the terms checks in Technical Plan §14, by Liam's choice ([first-run-setup.md](./first-run/first-run-setup.md)).
 
 The report has nine sections:
 
@@ -82,6 +82,7 @@ None of it is checked, and nothing ties a claim back to its source.
 7. **Local by default.** Reports, the prediction log and raw downloaded data stay on the user's computer. What is sent out, and to whom, is listed in the outside services table (Technical Plan §12), and the settings screen shows the same list.
 8. **Every rating is gradable later.** Each official prediction stores everything needed to grade its rating and range at 3, 6 and 12 months against simple baselines: random ratings in the same mix, "always Hold", and a range built from past volatility. These fields must exist from the first official prediction, because a field that was never stored cannot be filled in for past predictions.
 9. **Later: usable by non-technical people.** Decided by Liam and scheduled after the app meets Goal 1: a signed Mac app that someone who has never used a terminal can install and connect to their AI tool.
+   *   **Brought forward (Liam, Nov 8).** For Liam and a few friends who test the download link, while Goal 1 runs: an unsigned build from a GitHub release, with one setup screen and an Install button ([first-run-setup.md](./first-run/first-run-setup.md)). The signed app and a public launch still come later.
 
 ## Non-Goals
 
@@ -108,7 +109,7 @@ None of it is checked, and nothing ties a claim back to its source.
 *   **Waiting on Liam's answer:**
     *   **Monthly code-only rating of all ~500 companies (A18).** Add it in Phase 2, or keep it deferred? If deferred, the log screen states that it grades the companies Liam chose to look up, not the method.
     *   **Everyday AI tool.** If it is Claude Code, the Codex connector moves from Phase 0 to Phase 2, where the other-tool skeptic needs it.
-*   **Terms, before any public download:** Anthropic's answer on the install and sign-in button, and a check of OpenAI's terms (Technical Plan §14).
+*   **Terms, before a public launch:** Anthropic's answer on the install and sign-in button, and a check of OpenAI's terms (Technical Plan §14). The button ships to friends now, ahead of both, with two switches that turn it off.
 *   **Name, before any public release:** "Tearsheet" (chosen by Liam, Nov 2). "Tear sheet" is a common finance term, and at least one fintech publication already uses the name. Check domains, App Store names and trademarks. Personal use is not affected.
 *   **Report look and feel in the app (answered, Nov 5 2026).** Liam approved the look in `docs/designs/report-look.md`. It is built on branch `claude/ui-redesign-a2f2d7`.
 *   **Phase 0 results:** the five tests in the Technical Plan roadmap, plus raw-data bytes per run, recorded in `docs/phase0-results.md` (item 12). The Massive test also settles the free plan's limits (believed to be 5 calls a minute, end-of-day data and 2 years of history), its personal-use terms, and whether it includes the one-call daily summary of all US stocks.
@@ -156,13 +157,15 @@ None of it is checked, and nothing ties a claim back to its source.
     *   It shows sections 4–9 and the What to watch block's dated events and risks, under a banner saying which prices were missing.
     *   It offers to run the report again.
 
-### CUJ 6: A new person without Claude Code (Phase 3)
+### CUJ 6: A new person without Claude Code
 
-*   **Given**: A non-technical person downloads the app and has never installed Claude Code or Codex.
+*   **Given**: A non-technical person downloads the app from the GitHub release and has never installed Claude Code or Codex.
 *   **When**: They open the app.
-*   **Then**: A Connections screen explains what is missing:
-    *   If Anthropic approves (Technical Plan §14), one button installs Claude Code and runs its own sign-in.
-    *   If not, the screen shows written steps and an API-key option instead.
+*   **Then**: One setup screen opens. Three rows sit on top (Your AI, Price key, SEC email), and one question card at a time sits below them.
+    *   The first card offers **Install Claude Code**, **Install Codex** and **Install both**. The exact commands are shown in small type above the buttons.
+    *   Install runs the official installer inside the app, then the tool's own sign-in, which opens claude.ai or chatgpt.com in the browser. The person doesn't open Terminal unless a step fails.
+    *   If a step fails, or the button is switched off (Technical Plan §14), the card shows one command to paste into Terminal instead. It runs the same steps.
+    *   The next cards ask for the price key, then the email, with Start. The full journeys and their click counts are in [first-run-setup.md](./first-run/first-run-setup.md).
 
 ## Technical Plan (Architecture)
 
@@ -173,7 +176,7 @@ None of it is checked, and nothing ties a claim back to its source.
 | Phase 0 (week one) | Tests of five assumptions on Liam's Mac, run on hand-written inputs: (1) both AI tools can be locked down; (2) one report uses no more than half of a 5-hour usage window on the Pro plan; (3) SEC requests per run stay within SEC's limits; (4) Massive's free plan covers the prices; (5) the news step finds enough readable articles. |
 | Phase 1 | A thin end-to-end report from the terminal first, then the full nine-section report and the prediction log, then a plain app window. The Goal 1 test starts once the full terminal report works. |
 | Phase 2 | The skeptic on the other AI tool, and grading of predictions once they are 3 months old. |
-| Phase 3 | Ready for other people: install and sign-in buttons (only if Anthropic approves), signing and auto-update. |
+| Phase 3 | Ready for other people: signing and auto-update. The install and sign-in buttons were brought forward by [first-run-setup.md](./first-run/first-run-setup.md), ahead of Anthropic's answer, with two switches that turn them off. |
 
 ### Decisions in this section
 
@@ -637,13 +640,15 @@ The engine can also run from the terminal (`tearsheet-engine run GOOGL`) and wri
 
 | Service | Key needed | Cost | What is sent |
 | :-- | :-- | :-- | :-- |
-| SEC EDGAR | None (each request carries the contact email the user enters) | Free | Requests for the company's and peers' filings |
+| SEC EDGAR | None (each request carries the contact email, taken from the Claude sign-in at setup or typed by the user) | Free | Requests for the company's and peers' filings |
 | iShares (BlackRock) | None | Free | A download of the IVV holdings file, at most once a day |
 | Massive | The user's free key | Free plan | The tickers researched and their peers |
 | FRED | The user's free key | Free | Requests for the listed economic series |
 | Alpha Vantage | The user's free key | Free (25 calls a day) | The ticker researched (analyst consensus) |
 | Article sites on the allowlist | None | Free | Page requests |
 | Claude Code (Anthropic) or Codex (OpenAI) | The user's own sign-in | The user's existing subscription | Filing and article text, the computed numbers sent with that text, and draft sections. Each tool may also keep its own session history of these calls; this is checked in Phase 0. |
+| GitHub (Tearsheet's off switch) | None | Free | One plain request at each launch, for the online off switch's file (§14). No personal data is sent. |
+| claude.ai and chatgpt.com install scripts | None | Free | A download of the official install script, only when Install is pressed |
 | Benzinga through Massive | Only if Liam chooses the paid analyst option | $99/month | The ticker researched |
 
 Keys are stored in the macOS Keychain, never in the database or in plain files. If Liam points the backup folder at a folder iCloud syncs, the backups also go to Apple's servers (§6).
@@ -658,21 +663,28 @@ Keys are stored in the macOS Keychain, never in the database or in plain files. 
     *   Outside links open in the normal browser, and navigation inside the app window is blocked.
     *   A test puts HTML and a `javascript:` link in the AI output.
 *   **The app never reads AI tools' token files.** Sign-in status comes only from each tool's own status command.
-*   **Install and sign-in commands** (Phase 3) are shown in full before they run, and one setting turns these buttons off.
+*   **Install and sign-in commands** are run by the Install button, or pasted into Terminal by the person when the button is off or a step fails. Either way, they are still shown in full before they run, on setup's connect card. Two switches turn the button off (§14).
 
-### 13. Packaging (Phase 3)
+### 13. Packaging
 
-*   **App build:** an Electron build with the Python engine and its own Python runtime inside the app.
-*   **Signing:** signed and notarized through Liam's Apple Developer account ($99/year).
-*   **Updates:** auto-update from GitHub Releases.
+*   **Now: an unsigned build from a public GitHub release** (Liam, Nov 8; [first-run-setup.md](./first-run/first-run-setup.md) §8).
+    *   **App build:** an Electron build with the Python engine and its own Python runtime inside the app. It is signed ad hoc, not with a Developer ID, and runs on Apple Silicon only.
+    *   **The download:** one local script, `scripts/release.sh`, makes a DMG and a zip and uploads them to a release on the public repository. It asks before each upload. Anyone with the link can download without a GitHub account.
+    *   **First open:** macOS blocks an unsigned app, so the DMG and the release notes carry written steps for Open Anyway. Each update shows the block and the Keychain prompts again.
+*   **Later: a signed build** (Phase 3).
+    *   **Signing:** signed and notarized through Liam's Apple Developer account ($99/year).
+    *   **Updates:** auto-update from GitHub Releases.
 *   **Code from Realm:** files copied from Realm (MIT) keep their notice in `THIRD-PARTY-NOTICES.md`. These are the PATH fix, tool detection and sign-in parts.
 
 ### 14. Terms of the AI tools
 
 *   **Liam's own use.** Using his own signed-in Claude Code through this app, on his own Mac, is ordinary use of his own subscription.
-*   **Anthropic's rule for other people.** Anthropic's Agent SDK documentation says third-party products may not offer claude.ai login or route users' plan usage without Anthropic's approval. That covers a public download and the Phase 3 install and sign-in button. The button is built only **if Anthropic approves**. Otherwise, the Connections screen shows written steps (CUJ 6).
-*   **OpenAI.** Its terms for apps that drive Codex on a ChatGPT plan have not been checked yet.
-*   **Public download.** A public download link waits on both checks.
+*   **Anthropic's rule for other people.** Anthropic's Agent SDK documentation says third-party products may not offer claude.ai login or route users' plan usage without Anthropic's approval. That covers a public download and the install and sign-in button.
+*   **The button ships ahead of Anthropic's approval (Liam, Nov 8).** Every copy has the Install button, for Liam and a few friends who test the download link. Liam asks Anthropic before launch. The button has two switches, and each can only turn it off ([first-run-setup.md](./first-run/first-run-setup.md) §2):
+    *   **The build switch** (`INSTALL_BUTTON`), for new builds. Turned off, setup shows the paste command in the same spot.
+    *   **The online off switch,** for copies already handed out. It is a file in the repository (`release/install-button.txt`) that each copy reads when it opens. Set to `off`, it turns the button off in every copy at its next launch.
+*   **OpenAI.** Its terms for apps that drive Codex on a ChatGPT plan have not been checked yet. Liam accepts this for friends testing, as he does for Anthropic's approval, and checks both before launch. The same two switches cover Codex's button.
+*   **Public download (Liam, Nov 8).** The repository and its release are public now, with the Install button, ahead of Anthropic's approval and the OpenAI terms check. The online off switch covers the button. The link isn't announced, and a public launch still waits on both answers.
 
 ## Risks and Mitigations
 
@@ -686,10 +698,10 @@ Keys are stored in the macOS Keychain, never in the database or in plain files. 
 | Usage limits | Reports stop mid-run | The tool's error | Resume after the reset; the call budget (§3) | Mitigated |
 | Disk growth | The raw-data folder fills the disk | Folder size in settings; the warning near the cap | The warning near the cap; pruning only if Phase 0 shows it's needed (§6) | Mitigated |
 | Self-checking with one AI tool | Unsupported claims slip through | Liam's spot-checks; the "self-checked" label | The other-tool skeptic when both tools are connected; an outside checker on its trigger | Open |
-| Non-technical users (brief §1, kept by Liam) | One maintainer supports other people's machines and plans | Phase 3 | Scheduled after Goal 1; the API-key fallback is hard for non-technical users if the button stays off | Kept by Liam |
+| Non-technical users (brief §1, kept by Liam) | One maintainer supports other people's machines and plans | Friends' messages and setup logs | Brought forward for Liam and a few friends (Nov 8, [first-run-setup.md](./first-run/first-run-setup.md)): one setup screen with an Install button, a setup log, and Show log in Finder. If the button is switched off, the fallback is one command to paste into Terminal. The signed app and a public launch still wait for Goal 1. | Kept by Liam; accepted for friends testing |
 | Probability of beating the sector (brief §9, kept by Liam) | Grading measures nothing without a defined probability | The design review | Defined and capped in §7; graded with a Brier score (§10) | Mitigated |
 | S&P 500 only (brief §1, kept by Liam) | Companies that leave the index must stay gradable | Membership history | Graded to the last price; records keyed by CIK | Mitigated |
-| One-button install and sign-in (brief §1, kept by Liam) | This is the case Anthropic's terms name | Anthropic's answer | Built only if Anthropic approves; `ANTHROPIC_API_KEY` can't silently replace the subscription (§4) | Open |
+| One-button install and sign-in (brief §1, kept by Liam) | This is the case Anthropic's terms name | Anthropic's answer | Built ahead of Anthropic's approval, by Liam's choice (Nov 8). The build switch and the online off switch turn it off, including in copies already handed out (§14). `ANTHROPIC_API_KEY` can't silently replace the subscription (§4). | Accepted by Liam for friends testing. Open until Anthropic answers. |
 
 ## Alternatives Considered
 
@@ -953,10 +965,11 @@ Grouped by the question each one answered. Each alternative has a **Source** lin
 
 #### A31. Detect only, with no install or sign-in button
 
-*   **Source:** brief (#10).
+*   **Source:** brief (#10). Replaced on Nov 8 by [first-run-setup.md](./first-run/first-run-setup.md).
 *   **Pros:** Needs no approval from Anthropic, because the app only uses a tool the person installed and signed in to themselves.
 *   **Cons:** Non-technical users have to install and sign in to Claude Code from a terminal.
-*   **Reason for rejection:** Kept as the fallback, not the plan. The button is built in Phase 3 only if Anthropic approves, and one setting turns it off.
+*   **Reason for rejection:** Kept as the fallback, not the plan. The button was to be built in Phase 3 only if Anthropic approved.
+*   **Replaced (Nov 8):** the app now installs and signs in from inside itself, with an Install button in every copy. Detect-and-paste stays as the fallback: one command to paste into Terminal, shown when the button is switched off (§14) or a step fails.
 
 #### A32. Calling the `claude` program directly as the main path
 
@@ -2037,6 +2050,7 @@ Phase 1 runs in three parts:
         *   returns `{kind, available, version, loggedIn: true | false | null, reason}`.
     *   **Caching:** results are cached for 30 seconds. "Check again" calls `getTools({force: true})`, which skips the cache.
     *   **Overrides:** environment variables `TEARSHEET_CLAUDE_BIN` and `TEARSHEET_CODEX_BIN` override the paths.
+*   **Changed since:** [first-run-setup.md](./first-run/first-run-setup.md) §1 changes the status reads: one read at a time, each tool's status read from the stream it writes to, and a status command never killed.
 
 #### 44. `app/src/main/engine.ts` (Create)
 
@@ -2058,6 +2072,7 @@ Phase 1 runs in three parts:
 *   **Proposed Changes:**
     *   **Exposed to the window:** a fixed set of named calls: `runReport`, `cancel`, `resume`, `getReport`, `listReports`, `listPredictions`, `flagClaim`, `rereadFiling`, `getTools({force})`, `setKey`, `getSettings` and `setSetting`. Also two listeners: `onNotification`, for engine notifications, and `onFlagRequested`, for a clicked flag link, so the window shows the note box.
     *   **Blocked:** no other Node or Electron access.
+*   **Changed since:** [first-run-setup.md](./first-run/first-run-setup.md) items 11 and 15 add the new calls (among them install, sign-in and stopping the safety check) and the `tools_changed` and `install_progress` events.
 
 #### 46. `app/src/shared/protocol.ts` and `scripts/gen-types.sh` (Create)
 
@@ -2081,9 +2096,10 @@ Phase 1 runs in three parts:
         *   the raw-data folder size and cap;
         *   the backup folder, with the iCloud note when it applies;
         *   the SEC contact email and the main AI tool.
-    *   **Connections:** tool status and "Check again." The install and sign-in buttons come in Phase 3.
+    *   **Connections:** tool status and "Check again." The install and sign-in buttons now come from [first-run-setup.md](./first-run/first-run-setup.md).
     *   **Tests:** the engine side is `test_render.py` (item 39). Here, a vitest of `navigation.ts`: `tearsheet:` links become the right engine requests, https links open in the normal browser, and `javascript:`, `file:` and other addresses are blocked.
     *   **Early Phase 1c check:** before the screens are built, a throwaway page confirms that clicks in the frame reach the navigation handler, and that both content-security policies let the report load.
+*   **Changed since:** [first-run-setup.md](./first-run/first-run-setup.md) §4 replaces the nine setup screens with one setup screen.
 
 ### Phase 2: the other-tool skeptic and grading
 
@@ -2114,7 +2130,7 @@ Phase 1 runs in three parts:
 
 ### Phase 3: ready for other people (outline)
 
-These items are outlined only. They are planned in detail once Anthropic answers and Goal 1 is met.
+These items are outlined only. They are planned in detail once Anthropic answers and Goal 1 is met. Item 49's buttons were built ahead of that by [first-run-setup.md](./first-run/first-run-setup.md).
 
 #### 49. `app/src/main/install.ts` and `app/src/main/signin.ts` (Create)
 
@@ -2124,16 +2140,19 @@ These items are outlined only. They are planned in detail once Anthropic answers
     *   **Sign-in:** each tool's own login command in a hidden terminal (node-pty), with a code box that logs nothing typed.
     *   **The off switch:** a setting in Electron hides both buttons. It is added here, with `node-pty`.
     *   **When:** built only if Anthropic approves, and after a check of OpenAI's terms.
+*   **Changed since:** built ahead of both by [first-run-setup.md](./first-run/first-run-setup.md), as `toolSteps.ts` and `installer.ts` (its items 6 and 29).
 
 #### 50. Packaging: `app/build/entitlements.mac.plist`, `scripts/build-engine.sh` and `app/electron-builder.yml` (Create)
 
 *   **Type / Scope:** Signed Mac build.
 *   **Proposed Changes:** `electron-builder` and `electron-updater` are added to `package.json` here. A standalone Python 3.12 runtime plus the engine, built with `uv` into the app's resources. Hardened runtime, notarization, and signing with Liam's Apple Developer ID.
+*   **Changed since:** [first-run-setup.md](./first-run/first-run-setup.md) item 40 adds the release script (`scripts/release.sh`) and the first-open steps for the unsigned build. Signing still waits.
 
 #### 51. `.github/workflows/release.yml` (Create)
 
 *   **Type / Scope:** Release pipeline.
 *   **Proposed Changes:** On a version tag, it builds, signs, notarizes and publishes to GitHub Releases for auto-update. It also replays the stored test runs in `engine/tests/fixtures/runs/` and lists changed numbers (Technical Plan §6; item 38).
+*   **Changed since:** not built. The local release script in [first-run-setup.md](./first-run/first-run-setup.md) item 40 replaces it.
 
 ### Repository files (from Phase 0)
 

@@ -1,9 +1,14 @@
-# Builds Tearsheet.app for Liam's own Mac (design item 50, the local part): `npm run package`
-# makes app/dist/mac-arm64/Tearsheet.app. The engine and its own Python come from
+# Builds Tearsheet.app (design item 50, the local part): `npm run package` makes
+# app/dist/mac-arm64/Tearsheet.app. The engine and its own Python come from
 # scripts/build-engine.sh (app/engine-bundle) and go in Contents/Resources/engine.
 #
-# This build is signed ad hoc, not with an Apple Developer ID, so it is for the Mac it was built
-# on. Phase 3 adds Developer ID signing, the hardened runtime, notarization and electron-updater.
+# Downloads come from scripts/release.sh, not from this file. It runs `npm run package`, makes
+# the DMG with hdiutil and the zip with ditto, and uploads them to a GitHub release
+# (docs/designs/first-run/first-run-setup.md §8 and item 40). The target here stays `dir`.
+#
+# This build is signed ad hoc, not with an Apple Developer ID, so macOS blocks it on first open
+# until the person clicks Open Anyway (the first-open steps in the release notes). A signed build
+# later adds Developer ID signing, the hardened runtime, notarization and electron-updater.
 appId: com.liamblackshawbrown.tearsheet
 productName: Tearsheet
 copyright: Copyright © 2026 Liam Blackshaw-Brown

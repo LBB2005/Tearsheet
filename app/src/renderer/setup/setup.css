@@ -1,28 +1,22 @@
-/* The first-time setup (pages/Setup.tsx). Class names, colours and spacing are ported from
-   docs/designs/opening-and-setup.html, in its A. Settle motion only. Everything is scoped under
-   .setup, so names shared with the rest of the window (.row, .top) don't leak either way. */
+/* The first-time setup, version 6 (pages/Setup.tsx, first-run design item 37). The list, the
+   cards, the three Install buttons, the progress lines, the Connected pill and the key-cap
+   picture of ⌘V are ported from docs/designs/first-run/canvas/Spine.dc.html, with its colours
+   turned into the window's theme variables. Everything is scoped under .setup, so names shared
+   with the rest of the window (.row, .top, .pill) don't leak either way. */
 
 .setup { flex: 1; min-height: 0; display: flex; flex-direction: column; position: relative; }
 .setup button { font-family: inherit; }
 .setup button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-/* The toolbar holds only the progress line, centred, and from step 5 the safety chip. */
+/* The toolbar holds only the window's name, centred, and the safety chip once a check is asked for. */
 .setup .top.stp { justify-content: center; padding: 0 120px; border-bottom-color: transparent; }
+.setup .top .ttl { font-size: 12.5px; color: var(--muted); }
 .setup .screen { flex: 1; min-height: 0; overflow: auto; position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: safe center; padding: 12px 60px 56px; }
 .setup .screen:focus { outline: none; }
 
-/* ---------- the progress line and the safety chip ----------
+/* ---------- the safety chip ----------
    The chip and its popover also show in the app's toolbar after setup while a check runs
    (App.tsx, inside .tsafe), so their rules hold there too. */
-.setup .prog { display: flex; gap: 24px; font-size: 12.5px; color: var(--muted); }
-.setup .prog span { position: relative; padding: 4px 0; display: flex; align-items: center; gap: 6px; transition: color .3s; }
-.setup .prog span::after { content: ""; position: absolute; left: 0; right: 0; bottom: -2px; height: 2px; border-radius: calc(1px * var(--round)); background: rgb(var(--ink) / .08); transition: background .3s; }
-.setup .prog span.on { color: var(--text); }
-.setup .prog span.on::after { background: var(--accent); }
-.setup .prog span.done { color: var(--soft); }
-.setup .prog span.done::after { background: rgb(var(--accent-rgb) / .35); }
-.setup .prog svg { width: 12px; height: 12px; stroke: var(--up); fill: none; stroke-width: 2.6; }
-
 :is(.setup, .tsafe) .chip { all: unset; position: absolute; right: 16px; top: 13px; display: flex; align-items: center; gap: 8px; height: 26px; padding: 0 11px 0 5px; border-radius: 999px; background: rgb(var(--ink) / .05); border: 1px solid var(--line); font-size: 12px; color: var(--text2); cursor: pointer; white-space: nowrap; -webkit-app-region: no-drag; transition: background .15s; }
 :is(.setup, .tsafe) .chip:hover { background: rgb(var(--ink) / .08); }
 :is(.setup, .tsafe) .chip:focus-visible { outline: 2px solid var(--accent); }
@@ -57,10 +51,7 @@
 
 /* ---------- page parts ---------- */
 .setup .col { width: 620px; max-width: 100%; display: flex; flex-direction: column; align-items: flex-start; gap: 14px; }
-.setup .col.wide { width: 820px; }
-.setup .col.center { align-items: center; text-align: center; }
 .setup .h1 { margin: 0; font: 30px/1.15 var(--ui); font-weight: calc(600 + var(--wt)); letter-spacing: -.2px; display: flex; align-items: center; gap: 12px; }
-.setup .h1.xl { font-size: 44px; letter-spacing: -.4px; }
 .setup .lead { margin: 0; font-size: 15px; line-height: 1.5; color: var(--muted); max-width: 58ch; }
 .setup .lead b { color: var(--text); font-weight: calc(600 + var(--wt)); }
 .setup .lead.small { font-size: 14px; }
@@ -83,11 +74,9 @@
 .setup .btn:disabled, .setup .btn2:disabled { opacity: .35; cursor: default; filter: none; transform: none; }
 
 .setup .card { width: 100%; position: relative; overflow: hidden; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 15px 18px; text-align: left; display: flex; flex-direction: column; gap: 9px; transition: opacity .35s, border-color .35s; }
-.setup .card.later { opacity: .5; }
 .setup .card.done { border-color: rgb(var(--up-rgb) / .28); }
 .setup .card h4 { margin: 0; font: 14.5px var(--ui); font-weight: calc(600 + var(--wt)); display: flex; align-items: center; gap: 10px; }
 .setup .card p { margin: 0; color: var(--muted); font-size: 13.5px; }
-.setup .card.later .code { opacity: .7; }
 .setup .n { width: 22px; height: 22px; flex: none; border-radius: 50%; border: 1px solid var(--chipline); color: var(--accent); font: 12px var(--ui); font-weight: calc(600 + var(--wt)); display: grid; place-items: center; }
 .setup .n svg { width: 12px; height: 12px; stroke: var(--up); fill: none; stroke-width: 2.8; }
 .setup .done .n { border-color: rgb(var(--up-rgb) / .45); }
@@ -105,76 +94,103 @@
 .setup .field input { flex: 1; min-width: 0; background: rgb(var(--shade) / calc(.3 * var(--shade-k))); border: 1px solid var(--line); border-radius: calc(10px * var(--round)); padding: 9px 12px; color: var(--text); font: 14px var(--mono); font-weight: calc(400 + var(--wt)); outline: none; transition: border-color .2s, box-shadow .2s; }
 .setup .field input:focus { border-color: var(--chipline); box-shadow: 0 0 0 3px rgb(var(--accent-rgb) / .12); }
 .setup .field input::placeholder { color: var(--edge); font-family: var(--ui); }
-.setup .pill { font: 11.5px var(--ui); font-weight: calc(600 + var(--wt)); color: var(--accent2); border: 1px solid rgb(var(--accent2-rgb) / .35); border-radius: 999px; padding: 2px 9px; letter-spacing: 0; }
-.setup .skipnote { margin: 0; font-size: 13px; color: var(--hold); background: rgb(var(--hold-rgb) / .07); border: 1px solid rgb(var(--hold-rgb) / .22); border-radius: calc(10px * var(--round)); padding: 8px 12px; }
 
-/* 1. First open */
-.setup .wel { gap: 16px; }
-.setup .trio { display: flex; flex-direction: column; gap: 7px; margin: 2px 0 6px; color: var(--text2); font-size: 14.5px; }
-.setup .trio div { display: flex; align-items: center; gap: 10px; justify-content: center; }
-.setup .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex: none; }
+/* ---------- version 6: the list on top, one question under it ---------- */
+.setup .col6 { width: 680px; max-width: 100%; display: flex; flex-direction: column; gap: 20px; }
+.setup .muted { color: var(--muted); }
+.setup .mono { font-family: var(--mono); }
 
-/* 2. How it works: one picture, 820 by 300, made smaller in a narrow window. */
-.setup .dia { position: relative; width: 820px; height: 300px; flex: none; }
-.setup .dl { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
-.setup .dl path { fill: none; stroke: rgb(var(--accent-rgb) / .38); stroke-width: 1.5; }
-.setup .anc { position: absolute; height: 0; display: flex; align-items: center; }
-.setup .nd { position: relative; overflow: hidden; width: 210px; padding: 11px 14px; border-radius: var(--r); background: var(--well-bg); border: 1px solid var(--line); display: flex; flex-direction: column; gap: 2px; }
-.setup .nd b { font: 14px var(--ui); font-weight: calc(600 + var(--wt)); }
-.setup .nd span { font-size: 12.5px; color: var(--muted); line-height: 1.35; }
-.setup .nd.hub { width: 240px; border-color: rgb(var(--accent-rgb) / .38); background: var(--well-bg2); padding: 14px 16px; }
-.setup .leaves { flex-direction: row; align-items: baseline; gap: 14px; padding: 12px 16px; }
-.setup .leaves b { white-space: nowrap; font-weight: calc(600 + var(--wt)); }
-.setup .leaves span { color: var(--muted); font-size: 13.5px; }
-@media (max-width: 960px) { .setup .dia { zoom: .84; } }
+/* The list: three rows. */
+.setup .spine { display: flex; flex-direction: column; border-radius: calc(14px * var(--round)); background: rgb(var(--ink) / .035); border: 1px solid var(--line); overflow: hidden; }
+.setup .sr { display: grid; grid-template-columns: 26px 86px 1fr; gap: 10px; align-items: center; padding: 11px 16px; border-top: 1px solid var(--line); font-size: 13.5px; transition: background .45s, opacity .45s; }
+.setup .sr:first-child { border-top: 0; }
+.setup .sr.cur { background: rgb(var(--accent-rgb) / .06); }
+.setup .sr.later { opacity: .55; }
+.setup .sr.done { background: rgb(var(--up-rgb) / .035); }
+.setup .sl { font-weight: calc(600 + var(--wt)); }
+.setup .sv { min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; overflow-wrap: anywhere; }
+.setup .srb { padding: 2px 16px 12px 138px; border-top: 0; }
+.setup .srb .again { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.setup .snum { width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--chipline); color: var(--accent); font: 12px var(--ui); font-weight: calc(600 + var(--wt)); display: grid; place-items: center; flex: none; }
+.setup .tick { width: 16px; height: 16px; fill: none; stroke: var(--up); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; flex: none; display: block; }
+.setup .tick path { stroke-dasharray: 16; animation: setup-draw .5s .05s var(--settle) backwards; }
+.setup .duo { display: flex; flex-direction: column; gap: 4px; }
+.setup .duo1 { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.setup .role { font-size: 12px; color: var(--accent); }
+/* The Connected pill. */
+.setup .pill { display: inline-flex; align-items: center; gap: 6px; padding: 1px 9px; border-radius: 999px; background: rgb(var(--up-rgb) / .13); color: var(--up); font: 11.5px var(--ui); font-weight: calc(600 + var(--wt)); vertical-align: 1px; animation: setup-pillin .5s .15s var(--settle) backwards; }
+.setup .pill i { width: 6px; height: 6px; border-radius: 50%; background: var(--up); box-shadow: 0 0 0 3px rgb(var(--up-rgb) / .2); }
 
-/* 3. Looking for the AI tool: three small dots pulse under its icon. */
-.setup .scan { position: relative; width: 124px; height: 124px; display: grid; place-items: center; margin: 4px 0 6px; }
-.setup .scan > * { grid-area: 1 / 1; }
-.setup .scan .glyph { width: 66px; height: 66px; border-radius: calc(18px * var(--round)); background: rgb(var(--ink) / .06); border: 1px solid var(--line); display: grid; place-items: center; position: relative; z-index: 2; transition: opacity .4s; }
-.setup .scan .glyph svg { width: 30px; height: 30px; stroke: var(--accent); fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
-.setup .scan.off .glyph { opacity: .6; }
-.setup .scan.off .glyph::after { content: "+"; position: absolute; right: -9px; bottom: -9px; width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: var(--on-accent2); font: 16px/22px var(--ui); font-weight: calc(700 + var(--wt)); text-align: center; }
-.setup .scan .dots { display: none; }
-.setup .scan.on .dots { display: flex; gap: 6px; align-self: end; margin-bottom: -6px; }
-.setup .dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: setup-dot 1.2s ease-in-out infinite; animation-delay: calc(var(--k, 0) * .16s); }
+/* The question card. */
+.setup .ask { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; animation: setup-rise .55s .08s var(--settle) backwards; }
+.setup .ask > .pick, .setup .ask > .inst, .setup .ask > .prog, .setup .ask > .erow, .setup .ask > .keyask, .setup .ask > .ein, .setup .ask > .cmdbox, .setup .ask > .code { align-self: stretch; }
+.setup .step { margin: 0; font-size: 12px; font-weight: calc(600 + var(--wt)); letter-spacing: .5px; text-transform: uppercase; color: var(--accent); }
+.setup .h1.big3 { font-size: 34px; letter-spacing: -.4px; }
+.setup .lead.bad { color: var(--bad-text); }
+.setup .code.grow { flex: 1; min-width: 0; }
 
-/* 5. Connected, and the safety check's large ring */
-.setup .okmark svg { width: 76px; height: 76px; display: block; }
-.setup .okmark circle { fill: rgb(var(--up-rgb) / .10); stroke: rgb(var(--up-rgb) / .5); stroke-width: 1.5; }
-.setup .okmark path { fill: none; stroke: var(--up); stroke-width: 3.4; stroke-linecap: round; stroke-linejoin: round; }
-.setup .facts { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
-.setup .facts span { font-size: 12.5px; color: var(--text2); background: rgb(var(--ink) / .05); border: 1px solid var(--line); border-radius: 999px; padding: 3px 11px; }
-.setup .bigring { position: relative; width: 132px; height: 132px; margin-top: 6px; }
-.setup .bigring .ring { width: 132px; height: 132px; }
-.setup .bigring .bt { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
-.setup .bigring .bt b { font: 30px/1 var(--ui); font-weight: calc(600 + var(--wt)); }
-.setup .bigring .bt small { color: var(--muted); font-size: 12px; }
+/* The three Install buttons. */
+.setup .pick { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.setup .pbtn { all: unset; cursor: pointer; display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: calc(12px * var(--round)); background: rgb(var(--accent-rgb) / .08); border: 1px solid var(--chipline); transition: background .15s, transform .12s; }
+.setup .pbtn:hover { background: rgb(var(--accent-rgb) / .15); }
+.setup .pbtn:active { transform: scale(.98); }
+.setup .pbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.setup .pbtn b { display: block; font-size: 15px; color: var(--text); font-weight: calc(600 + var(--wt)); }
+.setup .pbtn small { display: block; font-size: 12.5px; color: var(--muted); }
+.setup .pg { width: 34px; height: 34px; flex: none; border-radius: calc(10px * var(--round)); display: grid; place-items: center; background: rgb(var(--ink) / .06); border: 1px solid var(--line); font: 12px var(--mono); font-weight: calc(600 + var(--wt)); color: var(--accent); }
+.setup .cmdbox { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.setup .cmds { font: 11.5px var(--mono); color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; user-select: text; }
 
-/* 9. You're set up: the checklist */
-.setup .chk { padding: 4px 18px; gap: 0; }
-.setup .ci { display: grid; grid-template-columns: 28px 150px 1fr; align-items: center; padding: 11px 0; border-top: 1px solid var(--line); font-size: 14px; }
-.setup .chk > .ci:first-child { border-top: 0; }
-.setup .ci .ic { display: grid; place-items: start; }
-.setup .ci .ic svg { width: 17px; height: 17px; stroke: var(--up); fill: none; stroke-width: 2.4; }
-.setup .ci .ic .ring { width: 18px; height: 18px; }
-.setup .ci .ic.skip i { display: block; width: 12px; height: 2px; background: var(--hold); border-radius: calc(1px * var(--round)); margin: 0 0 0 3px; }
-.setup .ci .ic.bad i { display: block; width: 8px; height: 8px; border-radius: 50%; background: var(--down); margin: 0 0 0 4px; }
-.setup .ci .ic.muted i { display: block; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); margin: 0 0 0 4px; }
-.setup .ci b { font-weight: calc(600 + var(--wt)); }
-.setup .ci span { color: var(--muted); min-width: 0; overflow-wrap: anywhere; }
+/* The progress lines while installing. */
+.setup .prog { display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; border-radius: calc(12px * var(--round)); background: rgb(var(--shade) / calc(.25 * var(--shade-k))); border: 1px solid var(--line); animation: settle-in .4s var(--settle) backwards; }
+.setup .pl { display: flex; align-items: center; gap: 10px; font-size: 15px; }
+.setup .pline { font-size: 13px; color: var(--text2); animation: fade .3s ease backwards; }
+.setup .pline.ok { color: var(--up); }
 
-/* ---------- motion: A. Settle ----------
-   Entering a screen: each part (class mv, its place in --i) fades up from 10 px, 70 ms apart and
-   half a second each; lines (mv-l) fade in after them. Leaving: the screen fades and lifts 8 px
-   (the shared class leave). A change in place (chg) fades up the same way. The safety ring fades
-   out while the chip fades in at the top right. Nothing moves under Reduce motion (styles.css). */
+/* The paste command, when the button is off: three options and the key-cap picture. */
+.setup .inst { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.setup .opt { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 12px; border-radius: calc(12px * var(--round)); background: rgb(var(--ink) / .04); border: 1px solid var(--line); min-width: 0; }
+.setup .opt .code { align-self: stretch; font-size: 12px; padding: 8px 12px; }
+.setup .ot { font-size: 13.5px; font-weight: calc(600 + var(--wt)); }
+.setup .keys { display: inline-flex; align-items: center; gap: 5px; vertical-align: middle; }
+.setup .kc { display: inline-grid; place-items: center; min-width: 24px; height: 22px; padding: 0 6px; border-radius: calc(6px * var(--round)); background: rgb(var(--ink) / .06); border: 1px solid rgb(var(--ink) / .16); border-bottom-width: 2px; font-size: 11.5px; color: var(--text); animation: setup-press 2.6s ease-in-out infinite; }
+.setup .kc.k2 { animation-delay: .15s; }
+.setup .kc.k3 { animation-delay: .9s; }
+.setup .then { font-size: 12px; color: var(--muted); }
+.setup .copyfail { display: flex; flex-direction: column; gap: 8px; align-self: stretch; }
+
+/* The price key: Get a free key beside the field. */
+.setup .keyask { display: flex; flex-direction: column; gap: 8px; }
+.setup .krow3 { display: flex; gap: 10px; align-items: center; }
+.setup .krow3 .btn2 { padding: 9px 15px; font-size: 14px; }
+.setup .kin, .setup .ein { flex: 1; min-width: 0; background: rgb(var(--shade) / calc(.3 * var(--shade-k))); border: 1px solid var(--line); border-radius: calc(10px * var(--round)); padding: 10px 14px; color: var(--text); font: 15px var(--mono); font-weight: calc(400 + var(--wt)); outline: none; transition: border-color .2s, box-shadow .2s; }
+.setup .ein { font-size: 14px; padding: 8px 12px; }
+.setup .kin:focus, .setup .ein:focus { border-color: var(--chipline); box-shadow: 0 0 0 3px rgb(var(--accent-rgb) / .12); }
+.setup .kin::placeholder, .setup .ein::placeholder { color: var(--edge); font-family: var(--ui); }
+
+/* The email and Start. */
+.setup .erow { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: calc(12px * var(--round)); background: rgb(var(--ink) / .04); border: 1px solid var(--line); font-size: 14px; }
+.setup .erow .grow { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.setup .go { display: flex; align-items: center; gap: 14px; margin-top: 2px; }
+.setup .why { font-size: 13px; color: var(--muted); }
+.setup .btn.ready { animation: setup-wake 1.2s ease-out 1; }
+
+@media (max-width: 760px) { .setup .pick, .setup .inst { grid-template-columns: 1fr; } .setup .srb { padding-left: 16px; } }
+
+/* ---------- motion, from the mockup ----------
+   The list fades in (mv), its ticks are drawn, the question card rises as it changes, Start
+   pulses once when it can be pressed, and a change in place (chg) fades up. The key caps press in
+   turn. Leaving: the screen fades and lifts 8 px. Nothing moves under Reduce motion (styles.css),
+   nor here when the Mac asks for less motion. */
 @keyframes setup-spin { to { transform: rotate(360deg); } }
-@keyframes setup-dot { 0%, 100% { opacity: .25; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-4px); } }
 @keyframes setup-drop { from { opacity: 0; transform: translateY(-4px); } }
 .setup-in .mv { animation: settle-in .5s var(--settle) backwards; animation-delay: calc(var(--i, 0) * 70ms + 60ms); }
-.setup-in .mv-l { animation: fade .8s ease backwards; animation-delay: calc(var(--i, 0) * 90ms + 300ms); }
 .setup .chg { animation: settle-in .4s var(--settle) backwards; }
-.setup .out { animation: fade-out .35s ease forwards; }
 :is(.setup, .tsafe) .chip.cnew { animation: settle-in .45s .15s var(--settle) backwards; }
 .setup.leaving .screen, .setup.leaving .top > *, .setup.leaving .popv { animation: settle-out .24s ease-in forwards; }
+@keyframes setup-draw { from { stroke-dashoffset: 16; } to { stroke-dashoffset: 0; } }
+@keyframes setup-rise { from { opacity: 0; transform: translateY(26px); } }
+@keyframes setup-wake { 0% { box-shadow: 0 0 0 0 rgb(var(--accent-rgb) / .55); } 100% { box-shadow: 0 0 0 16px rgb(var(--accent-rgb) / 0); } }
+@keyframes setup-pillin { from { opacity: 0; transform: scale(.8); } }
+@keyframes setup-press { 0%, 30%, 100% { transform: none; background: rgb(var(--ink) / .06); } 8% { transform: translateY(2px); background: rgb(var(--accent-rgb) / .28); } }
+@media (prefers-reduced-motion: reduce) { .setup *, .setup *::before, .setup *::after { animation: none !important; transition: none !important; } }

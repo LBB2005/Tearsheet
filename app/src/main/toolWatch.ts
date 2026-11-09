@@ -49,6 +49,15 @@ export class ToolWatch extends EventEmitter {
     return underway
   }
 
+  // A read that starts after this call, for the installer's read after each step. A read already
+  // under way may have begun before the step ended, so it is let finish (or fail) first, then a
+  // new forced read starts. Readers waiting at the same moment share that new read.
+  async readAfter(): Promise<ToolStatus[]> {
+    const underway = this.underway
+    if (underway) await underway.catch(() => undefined)
+    return this.read(true)
+  }
+
   // The last answer, if any (for tests and the first-paint fallbacks).
   get current(): ToolStatus[] | null {
     return this.last?.tools ?? null
