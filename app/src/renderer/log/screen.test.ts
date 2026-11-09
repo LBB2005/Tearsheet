@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { PredictionSummary } from '../../shared/protocol'
 import {
   applyFilters,
+  BAR_TICKS,
   barPlace,
   checks,
   cleanRule,
@@ -168,5 +169,12 @@ describe('company names', () => {
     expect(companyName('MICRON TECHNOLOGY INC')).toBe('Micron Technology Inc')
     expect(companyName('BANK OF AMERICA CORP /DE/')).toBe('Bank Of America Corp')
     expect(companyName('Phillips 66')).toBe('Phillips 66')
+  })
+})
+
+describe('the bar column header', () => {
+  it('labels −50%, today and +100%, evenly apart, so no two labels run together', () => {
+    expect(BAR_TICKS.map((t) => t.label)).toEqual(['−50%', 'today', '+100%'])
+    expect(BAR_TICKS[1].x - BAR_TICKS[0].x).toBeCloseTo(BAR_TICKS[2].x - BAR_TICKS[1].x, 6)
   })
 })

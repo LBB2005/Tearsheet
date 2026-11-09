@@ -223,7 +223,9 @@ export function barPlace(p: PredictionSummary): BarPlace | null {
   return { left, width: Math.max(0.5, barX(p.bull / p.price) - left), base: barX(p.base / p.price), today: barX(1) }
 }
 
-export const BAR_TICKS: { x: number; label: string }[] = [0.5, 1, 2, 4].map((k) => ({ x: barX(k), label: k === 1 ? 'today' : `${k < 1 ? '−' : '+'}${Math.round(Math.abs(k - 1) * 100)}%` }))
+// Three labels: −50%, today and +100% sit evenly apart. A fourth (+300%) ran into +100% in the
+// table's narrow column.
+export const BAR_TICKS: { x: number; label: string }[] = [0.5, 1, 2].map((k) => ({ x: barX(k), label: k === 1 ? 'today' : `${k < 1 ? '−' : '+'}${Math.round(Math.abs(k - 1) * 100)}%` }))
 
 // "MICRON TECHNOLOGY INC" → "Micron Technology Inc"; names already in mixed case stay as they are.
 export const companyName = (name: string) =>
