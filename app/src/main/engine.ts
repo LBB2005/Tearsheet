@@ -7,11 +7,11 @@
 
 import { spawn, type ChildProcess } from 'node:child_process'
 import { EventEmitter } from 'node:events'
-import { createWriteStream, mkdirSync, type WriteStream } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { join, resolve } from 'node:path'
 import { createInterface } from 'node:readline'
 
 import { PROTOCOL_VERSION, type Hello } from '../shared/protocol'
+import { RotatingLog } from './rotatingLog'
 import { NO_LOG, type SetupLog } from './setupLog'
 
 export interface EngineCommand {
@@ -100,7 +100,7 @@ export class Engine extends EventEmitter {
   private nextId = 1
   private pending = new Map<number, Pending>()
   private stopping = false
-  private log: WriteStream
+  private log: RotatingLog
   hello: Hello | null = null
   lastRunId: string | null = null
   // When the engine stopped by itself lately, for the restart cap.
@@ -111,11 +111,9 @@ export class Engine extends EventEmitter {
 
   constructor(private readonly options: EngineOptions) {
     super()
-    mkdirSync(dirname(options.logFile), { recursive: true })
-    this.log = createWriteStream(options.logFile, { flags: 'a' })
     // The log is kept as best it can be: a log that can't be opened or written (a removed or
-    // locked logs folder) must never take the main process down.
-    this.log.on('error', () => undefined)
+    // locked logs folder) must never take the main process down. It is rotated at 5 MB.
+    this.log = new RotatingLog(options.logFile)
   }
 
   start(): void {
