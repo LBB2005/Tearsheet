@@ -166,6 +166,7 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .more4 { all: unset; position: absolute; top: 50%; right: 56px; width: 22px; height: 20px; margin-top: -10px; border-radius: calc(6px * var(--round)); display: grid; place-items: center; background: rgb(var(--ink) / .09); color: var(--text); cursor: pointer; opacity: 0; pointer-events: none; transition: opacity .12s; }
 .more4 svg { width: 14px; height: 14px; fill: currentColor; }
 .more4:hover { background: rgb(var(--ink) / .16); }
+.more4:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .ri4:hover .more4, .ri4:focus-within .more4, .ri4.menu .more4 { opacity: 1; pointer-events: auto; }
 .ri4:hover .px, .ri4:focus-within .px, .ri4.menu .px { visibility: hidden; }
 .ri4.menu .row4 { background: rgb(var(--ink) / .045); color: var(--text); }
@@ -191,6 +192,8 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .menu4 button.danger { color: var(--bad-text3); }
 .menu4 button kbd { margin-left: auto; padding-left: 18px; font: 11px var(--ui); font-weight: calc(400 + var(--wt)); color: var(--faint); }
 .menu4 .ck { width: 12px; color: var(--accent); }
+/* In a menu with ticks, a plain item lines up with the ticked items' words (Clear filters). */
+.menu4:has(.ck) > button[role="menuitem"] { padding-left: 30px; }
 .menu4 .mh { padding: 6px 10px 2px; font-size: 10.5px; font-weight: calc(600 + var(--wt)); letter-spacing: .5px; text-transform: uppercase; color: var(--faint); }
 .menu4 .sep { height: 1px; margin: 4px 6px; background: rgb(var(--ink) / .09); }
 .status4 { margin-top: 8px; padding: 10px 10px 0; font-size: 12px; color: var(--faint2); display: grid; grid-template-columns: 10px 1fr; column-gap: 7px; row-gap: 6px; align-items: center; }
@@ -274,11 +277,12 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .narrow .top .ttl small:not(:has(.subbtn)) { display: none; }
 
 /* Find (⌘F), at the right of the toolbar. */
-.find4 { display: flex; align-items: center; gap: 7px; width: 230px; height: 28px; padding: 0 4px 0 10px; border-radius: calc(8px * var(--round)); background: rgb(var(--ink) / .06); border: 1px solid var(--line); animation: settle-in .3s var(--settle) backwards; }
-.find4:focus-within { border-color: var(--chipline); }
-.find4 > svg { width: 14px; height: 14px; stroke: var(--muted); fill: none; stroke-width: 2; flex: none; }
-.find4 input { all: unset; flex: 1; min-width: 0; font-size: 13px; color: var(--text); }
-.find4 input::placeholder { color: var(--muted); }
+/* Only in the toolbar: the sidebar's own search box (above) shares the class name. */
+.top .find4 { display: flex; align-items: center; gap: 7px; width: 230px; height: 28px; padding: 0 4px 0 10px; border-radius: calc(8px * var(--round)); background: rgb(var(--ink) / .06); border: 1px solid var(--line); animation: settle-in .3s var(--settle) backwards; }
+.top .find4:focus-within { border-color: var(--chipline); box-shadow: none; }
+.top .find4 > svg { width: 14px; height: 14px; stroke: var(--muted); fill: none; stroke-width: 2; flex: none; }
+.top .find4 input { all: unset; flex: 1; min-width: 0; font-size: 13px; color: var(--text); }
+.top .find4 input::placeholder { color: var(--muted); }
 .x4 { all: unset; width: 20px; height: 20px; border-radius: calc(5px * var(--round)); display: grid; place-items: center; cursor: pointer; color: var(--muted); }
 .x4:hover { background: rgb(var(--ink) / .08); color: var(--text); }
 .x4:focus-visible { outline: 2px solid var(--accent); }
