@@ -1,7 +1,8 @@
 // A big line (8 Nov 2026): pasting a long list, the plan card's cost, warning, skips and 30-day
 // skip, the quick adds (the whole S&P 500, a sector, the rest), the folded Up next and Done
 // lists, and the waits: a usage limit that resets by itself, the 5-hour window past 80%, and the
-// weekly window past 80%, which asks.
+// weekly window past 80%, which asks. A wait an hour or two away may read "tomorrow" late in the
+// evening, so the times here allow it.
 
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -192,7 +193,7 @@ describe('a long line on screen', () => {
     const user = userEvent.setup()
     const at = new Date(Date.now() + 3600_000).toISOString()
     const { rerender } = render(<LineStrip line={line({ waiting: many(3), paused: pause({ code: 'USAGE_HIGH', used: 0.91, wait_until: at, message: 'x' }) })} runId="run-1" perReport={240} {...strips} />)
-    expect(strip().getByRole('status')).toHaveTextContent(/^Your plan’s 5-hour usage is at 91%\. Waiting for it to reset at \d{1,2}:\d{2} [ap]m, so you keep the rest\. The line carries on by itself then\.$/)
+    expect(strip().getByRole('status')).toHaveTextContent(/^Your plan’s 5-hour usage is at 91%\. Waiting for it to reset at \d{1,2}:\d{2} [ap]m(?: tomorrow)?, so you keep the rest\. The line carries on by itself then\.$/)
     expect(strip().queryByRole('button', { name: 'Add a company' })).toBeNull()
     await user.click(strip().getByRole('button', { name: 'Carry on now' }))
     expect(strips.onCarryOn).toHaveBeenCalledTimes(1)
@@ -203,7 +204,7 @@ describe('a long line on screen', () => {
     expect(strips.onCarryOn).toHaveBeenCalledTimes(2)
 
     rerender(<LineStrip line={line({ waiting: many(3), paused: pause({ code: 'USAGE_LIMIT', run_id: 'run-1', wait_until: at }) })} runId="run-1" perReport={240} {...strips} />)
-    expect(strip().getByRole('status')).toHaveTextContent(/^Your plan’s usage limit is reached\. Trying again at \d{1,2}:\d{2} [ap]m\.$/)
+    expect(strip().getByRole('status')).toHaveTextContent(/^Your plan’s usage limit is reached\. Trying again at \d{1,2}:\d{2} [ap]m(?: tomorrow)?\.$/)
     expect(strip().getByRole('button', { name: 'Skip it and carry on' })).toBeInTheDocument()
   })
 })
