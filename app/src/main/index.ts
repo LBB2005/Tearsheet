@@ -20,6 +20,7 @@ import { Installer } from './installer'
 import { InstallSwitch } from './installSwitch'
 import { notify, registerIpc } from './ipc'
 import { readWindowLook, registerLookIpc } from './look'
+import { debugSwitches, dropDevHooks, hooksAllowed, TEST_BUILD } from './devHooks'
 import { claimOnlyCopy, closeHides, hiddenForChecks } from './lifecycle'
 import { loginShellPath } from './loginShellPath'
 import { menuTemplate } from './menu'
@@ -29,6 +30,19 @@ import { createSetupLog } from './setupLog'
 import { stepRules } from './toolSteps'
 import { testMode } from './tools'
 import { ToolWatch } from './toolWatch'
+
+// A release build ignores every development and test hook (devHooks.ts): they are removed from
+// the environment before anything below reads it, so the engine never gets them either. Nor does
+// it start with Chromium's remote-debugging switches. A development run and a test build
+// (`npm run package:test`) keep them.
+const hooks = hooksAllowed(app.isPackaged, TEST_BUILD)
+const droppedHooks = dropDevHooks(process.env, hooks)
+const refusedSwitches = hooks ? [] : debugSwitches((name) => app.commandLine.hasSwitch(name))
+if (refusedSwitches.length) {
+  console.error(`Tearsheet doesn't start with ${refusedSwitches.map((s) => `--${s}`).join(', ')}.`)
+  app.exit(1)
+  process.exit(1)
+}
 
 // The login shell's PATH, and its CLAUDE_CONFIG_DIR and CODEX_HOME, so the tools and the engine
 // read the same sign-in as Terminal.
@@ -107,6 +121,7 @@ async function createWindow(): Promise<void> {
   setDevDockIcon()
   setupLog.log('path_source', { source: loginShell.source })
   setupLog.log('test_rules', { test_mode: inTestMode, no_real_installers: rules.noRealInstallers })
+  if (droppedHooks.length) setupLog.log('dev_hooks_ignored', { value: droppedHooks.length })
   void installSwitch.read()
   const { command, args, cwd } = engineCommand({
     packaged: app.isPackaged,

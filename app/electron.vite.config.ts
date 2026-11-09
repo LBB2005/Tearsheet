@@ -12,7 +12,12 @@ const devCsp: Plugin = {
 }
 
 export default defineConfig({
-  main: { build: { outDir: 'out/main' } },
+  // A test build (`npm run package:test`, docs/test-builds.md) honours the development and test
+  // hooks; every other packaged build ignores them (src/main/devHooks.ts).
+  main: {
+    build: { outDir: 'out/main' },
+    define: { __TEARSHEET_TEST_BUILD__: JSON.stringify(process.env.TEARSHEET_TEST_BUILD === '1') }
+  },
   preload: { build: { outDir: 'out/preload' } },
   renderer: { plugins: [react(), devCsp], build: { outDir: 'out/renderer' } }
 })

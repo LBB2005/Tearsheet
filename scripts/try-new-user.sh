@@ -8,7 +8,7 @@
 # - It records the real tools: `loggedIn` and `orgId` from `claude auth status --json` (never the
 #   email), the `codex login status` message, and each tool's path and version. They are kept
 #   only in <test folder>/real/, which is removed when the script ends.
-# - It starts a test copy of the bundle `npm run package` builds (app/dist/mac-arm64/Tearsheet.app,
+# - It starts a test copy of the bundle `npm run package:test` builds (app/dist/mac-arm64/Tearsheet.app,
 #   never the /Applications copy) with the test switches, and stops it if its setup log doesn't
 #   show the test rules on within 20 seconds.
 # - When the copy quits, it reads the real tools again and prints "unchanged", or which values
@@ -133,7 +133,12 @@ while [ $# -gt 0 ]; do
 done
 
 if [ "$dry_run" = 0 ] && [ ! -x "$bundle/Contents/MacOS/Tearsheet" ]; then
-  die "there's no test bundle at app/dist/mac-arm64/Tearsheet.app. Build it first: cd app && npm run package"
+  die "there's no test bundle at app/dist/mac-arm64/Tearsheet.app. Build it first: cd app && npm run package:test"
+fi
+# Only a test build honours the test switches (docs/test-builds.md). A release build would ignore
+# them and open the real data folder and the real tools, so it is never started here.
+if [ "$dry_run" = 0 ] && [ ! -e "$bundle/Contents/Resources/test-build.txt" ]; then
+  die "app/dist/mac-arm64/Tearsheet.app is a release build, which ignores the test switches. Build a test build first: cd app && npm run package:test"
 fi
 
 # 1. A fresh test folder (TEARSHEET_TEST_TOOLS).

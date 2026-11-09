@@ -20,6 +20,15 @@ files:
   - out/**/*
   - package.json
 npmRebuild: false
+# Electron's fuses, flipped just before signing (security audit, 9 Nov 2026): the app can't be run
+# as plain Node (ELECTRON_RUN_AS_NODE), and ignores NODE_OPTIONS and Node's --inspect switches.
+# A test build (`npm run package:test`, docs/test-builds.md) keeps --inspect for the hidden checks.
+electronFuses:
+  runAsNode: false
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+# Marks a test build (build/afterPack.cjs); a release build has no marker.
+afterPack: build/afterPack.cjs
 # Electron as installed by npm, so the build needs no download.
 electronDist: node_modules/electron/dist
 extraResources:
