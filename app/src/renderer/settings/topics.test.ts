@@ -2,20 +2,24 @@ import { describe, expect, it } from 'vitest'
 
 import type { ToolStatus } from '../../preload/api'
 import type { LockdownState } from '../../shared/protocol'
+import { toolFlags } from '../../shared/tools'
 import { healthTiles, type HealthInput } from './settings'
 import { moveTopic, needsYou, problems, shortVersion, toolRole, topicName, TOPICS } from './topics'
 
 const MB = 1024 ** 2
 const GB = 1024 ** 3
 
+// A tool in a state (ready unless said), with `available` and `loggedIn` worked out from it.
 const tool = (kind: 'claude' | 'codex', over: Partial<ToolStatus> = {}): ToolStatus => ({
   kind,
   name: kind === 'claude' ? 'Claude Code' : 'Codex',
   path: `/usr/local/bin/${kind}`,
-  available: true,
   version: kind === 'claude' ? '2.1.317 (Claude Code)' : 'codex-cli 0.165.0',
-  loggedIn: true,
   reason: null,
+  plan: null,
+  email: null,
+  state: over.state ?? 'ready',
+  ...toolFlags(over.state ?? 'ready'),
   ...over
 })
 const passed: LockdownState = { version: '2.1.317 (Claude Code)', passed: true, form: 'full', checked_at: '2026-11-04T22:52:56+00:00', blocked_reason: null }
@@ -95,12 +99,12 @@ describe('problems', () => {
   })
 
   it('sends a signed-out main tool to AI tools, in the health tile’s words', () => {
-    const [p] = problems(health({ tools: [tool('claude', { loggedIn: false }), tool('codex')] }))
+    const [p] = problems(health({ tools: [tool('claude', { state: 'signed_out' }), tool('codex')] }))
     expect(p).toMatchObject({ topic: 'ai', title: 'Claude Code signed out', action: 'Open AI tools' })
   })
 
   it('ignores a missing other tool: the drafts are then checked by the main one', () => {
-    expect(problems(health({ tools: [tool('claude'), tool('codex', { available: false, reason: 'Not installed' })] }))).toEqual([])
+    expect(problems(health({ tools: [tool('claude'), tool('codex', { state: 'missing', reason: 'Not installed' })] }))).toEqual([])
   })
 
   it('warns when downloads are near or over the storage limit', () => {
@@ -109,7 +113,7 @@ describe('problems', () => {
   })
 
   it('puts the AI tool first, then keys, then storage, and dots each topic once in its worst tone', () => {
-    const found = problems(health({ tools: [tool('claude', { available: false, reason: 'Not found' })], keys: { massive: 'missing', fred: 'missing' }, rawBytes: 6 * GB }))
+    const found = problems(health({ tools: [tool('claude', { state: 'missing', reason: 'Not found' })], keys: { massive: 'missing', fred: 'missing' }, rawBytes: 6 * GB }))
     expect(found.map((p) => p.topic)).toEqual(['ai', 'keys', 'keys', 'storage'])
     expect([...needsYou(found)]).toEqual([
       ['ai', 'bad'],
@@ -131,12 +135,12 @@ describe('toolRole', () => {
   })
 
   it('says the other tool isn’t checking drafts while it is signed out', () => {
-    const h = health({ tools: [tool('claude'), tool('codex', { loggedIn: false })] })
-    expect(toolRole(tool('codex', { loggedIn: false }), 'claude', skeptic(h))).toBe('Not checking drafts · version 0.165.0')
+    const h = health({ tools: [tool('claude'), tool('codex', { state: 'signed_out' })] })
+    expect(toolRole(tool('codex', { state: 'signed_out' }), 'claude', skeptic(h))).toBe('Not checking drafts · version 0.165.0')
   })
 
   it('gives the probe’s reason for a tool that isn’t found', () => {
-    expect(toolRole(tool('codex', { available: false, reason: 'Not on this Mac yet' }), 'claude', skeptic(base))).toBe('Not on this Mac yet')
+    expect(toolRole(tool('codex', { state: 'missing', reason: 'Not on this Mac yet' }), 'claude', skeptic(base))).toBe('Not on this Mac yet')
   })
 })
 

@@ -1,19 +1,14 @@
 // The window's view of the bridge in preload/index.ts.
 
+import type { TerminalResult, ToolCommands, ToolKind, ToolStatus } from '../shared/tools'
+
+// The one ToolStatus, written in shared/tools.ts (first-run design item 1).
+export type { TerminalResult, ToolCommands, ToolKind, ToolStatus } from '../shared/tools'
+
 export interface CallResult<T = unknown> {
   ok: boolean
   result?: T
   error?: { message: string; code?: string; data?: Record<string, unknown> }
-}
-
-export interface ToolStatus {
-  kind: 'claude' | 'codex'
-  name: string
-  path: string | null
-  available: boolean
-  version: string | null
-  loggedIn: boolean | null
-  reason: string | null
 }
 
 export interface EngineNotification {
@@ -38,7 +33,20 @@ export interface TearsheetApi {
   fetchHistory(reportId: string): Promise<CallResult<import('../shared/protocol').FetchHistoryResult>>
   checkKey(service: 'massive' | 'fred', key: string): Promise<CallResult<import('../shared/protocol').KeyChecked>>
   runSafetyCheck(tool: 'claude' | 'codex'): Promise<CallResult<import('../shared/protocol').SafetyStarted>>
+  // Stops the safety check after the call in progress (the engine's cancel_safety_check).
+  cancelSafetyCheck(): Promise<CallResult<import('../shared/protocol').CancelSafetyCheckResult>>
   openTerminal(): Promise<void>
+  // Whether the screen waits on the person (setup, or Home waiting on a tool): while it does and
+  // the window is in front, the main process reads the tools every 5 seconds, and a change
+  // arrives as a tools_changed notification ({ tools: ToolStatus[] }).
+  windowState(state: { waiting: boolean }): Promise<void>
+  // Copies the paste command for these tools, built by the main process from their status, and
+  // opens a new Terminal window; says which part failed.
+  copyAndOpenTerminal(kinds: ToolKind[]): Promise<TerminalResult>
+  // The exact commands for these tools, for the connect card to show. Only reads.
+  commandsFor(kinds: ToolKind[]): Promise<ToolCommands>
+  // Show log in Finder: logs/setup.log in the data folder. False when there is no log yet.
+  showSetupLog(): Promise<boolean>
   openExternal(url: string): Promise<boolean>
   // The version numbers for Settings → About and help (main/about.ts).
   about(): Promise<import('../main/about').AboutInfo>

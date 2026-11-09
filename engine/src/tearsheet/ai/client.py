@@ -430,11 +430,16 @@ class AIClient:
     # --- the lock-down gate ---------------------------------------------------------
 
     async def start(self) -> None:
-        """Check the tool's version against the stored one and set the gate if needed."""
+        """Check the tool's version against the stored one and set the gate if needed.
+
+        A connector that can say which sign-in it uses before a call (Codex's `start()`) is
+        started first: a sign-in that isn't the plan's, without API billing, raises AIAuthError
+        before the gate, so no call is made on it."""
         async with self._start_lock:
             if self._started:
                 return
             self.program_version = await self.connector.version()
+            await self._check_sign_in()
             row = self.state.row()
             if row and row["blocked_reason"] == "lockdown_failed":
                 self._blocked = True
@@ -446,6 +451,20 @@ class AIClient:
             ):
                 self._gate = True
             self._started = True
+
+    async def _check_sign_in(self) -> None:
+        start = getattr(self.connector, "start", None)
+        if start is None:
+            return
+        await start()
+        account = getattr(self.connector, "account_type", None)
+        if not self.api_billing and account not in self.connector.subscription_auth_sources:
+            raise AIAuthError(
+                f"{self.connector.display_name} is not signed in with your plan "
+                f"(it reported {account!r}). Sign in with your plan: run "
+                f"`{self.connector.sign_in_fix}`.",
+                fix=self.connector.sign_in_fix,
+            )
 
     async def ensure_ready(self) -> None:
         """Start, and run the short lock-down check now if the gate is set."""

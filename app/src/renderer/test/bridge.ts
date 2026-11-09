@@ -13,6 +13,7 @@ import type { MenuCommand } from '../../main/menu'
 import type { ViewId } from '../../main/navigation'
 import type { CallResult, EngineNotification, TearsheetApi, ToolStatus } from '../../preload/api'
 import type { ChartSeries, CompanyRow, LineItem, LinePlan, LineState, PredictionSummary, ReportBar, ReportNumbers, ReportResult, ReportSummary, SearchHit, SettingsResult } from '../../shared/protocol'
+import { toolFlags, type ToolCommands, type ToolKind, type ToolState } from '../../shared/tools'
 import { analysts } from './analysts'
 
 export type FakeBridge = { [K in keyof TearsheetApi]: Mock<TearsheetApi[K]> }
@@ -23,9 +24,22 @@ export const fail = (message: string, code?: string): CallResult<never> => ({ ok
 // ---------- what the engine answers with ----------
 
 export const TOOLS: ToolStatus[] = [
-  { kind: 'claude', name: 'Claude Code', path: '/Users/test/.local/bin/claude', available: true, version: '2.1.3 (Claude Code)', loggedIn: true, reason: null },
-  { kind: 'codex', name: 'Codex', path: null, available: false, version: null, loggedIn: null, reason: 'Not found on this Mac' }
+  { kind: 'claude', name: 'Claude Code', path: '/Users/test/.local/bin/claude', available: true, version: '2.1.3 (Claude Code)', loggedIn: true, reason: null, state: 'ready', plan: 'max', email: 'liam@example.com' },
+  { kind: 'codex', name: 'Codex', path: null, available: false, version: null, loggedIn: null, reason: 'Not found on this Mac', state: 'missing', plan: null, email: null }
 ]
+
+// A tool as the status read would give it in another state: its state, with `available` and
+// `loggedIn` worked out from it as the main process does (shared/tools.ts).
+export function inState(tool: ToolStatus, state: ToolState, over: Partial<ToolStatus> = {}): ToolStatus {
+  return { ...tool, state, ...toolFlags(state), ...over }
+}
+
+// What commandsFor answers for these tools: the sign-in (or the installer, then the sign-in) as
+// the main process would build it from TOOLS, joined into one paste command.
+export function commands(kinds: ToolKind[]): ToolCommands {
+  const steps = kinds.map((tool) => ({ tool, kind: 'signIn' as const, command: tool === 'claude' ? '/Users/test/.local/bin/claude auth login' : '/Users/test/.local/bin/codex login' }))
+  return { steps, blocked: [], paste: steps.length ? steps.map((s) => s.command).join(' && ') : null }
+}
 
 export function settings(over: Partial<SettingsResult> = {}): SettingsResult {
   return {
@@ -213,7 +227,12 @@ function makeBridge(): FakeBridge {
     fetchHistory: vi.fn<TearsheetApi['fetchHistory']>(async () => ok({ first_date: '2021-11-08', days: 1260 })),
     checkKey: vi.fn<TearsheetApi['checkKey']>(async (service: 'massive' | 'fred') => ok({ proof: service === 'massive' ? 'Works: AAPL closed at $230.10 on Nov 6' : 'Works: inflation was 2.9% in September' })),
     runSafetyCheck: vi.fn<TearsheetApi['runSafetyCheck']>(async () => ok({ started: true })),
+    cancelSafetyCheck: vi.fn<TearsheetApi['cancelSafetyCheck']>(async () => ok({ stopping: true })),
     openTerminal: vi.fn<TearsheetApi['openTerminal']>(async () => undefined),
+    windowState: vi.fn<TearsheetApi['windowState']>(async () => undefined),
+    copyAndOpenTerminal: vi.fn<TearsheetApi['copyAndOpenTerminal']>(async () => ({ copied: true, opened: true })),
+    commandsFor: vi.fn<TearsheetApi['commandsFor']>(async (kinds: ToolKind[]) => commands(kinds)),
+    showSetupLog: vi.fn<TearsheetApi['showSetupLog']>(async () => true),
     openExternal: vi.fn<TearsheetApi['openExternal']>(async () => true),
     about: vi.fn<TearsheetApi['about']>(async () => ({ app: '0.1.0', engine: '0.1.0', macos: '26.1', electron: '33.2.0' })),
     sendFeedback: vi.fn<TearsheetApi['sendFeedback']>(async () => true),
@@ -282,7 +301,8 @@ export function installBridge(): FakeBridge {
   return bridge
 }
 
-// The engine sends a note (progress, report_ready, safety_done, engine_restarted…).
+// The engine sends a note (progress, report_ready, safety_done, engine_restarted…), or the main
+// process does (tools_changed).
 export function emit(method: string, params: object = {}): void {
   act(() => {
     for (const fn of listeners.note) fn({ method, params: params as Record<string, unknown> })

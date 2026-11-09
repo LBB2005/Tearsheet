@@ -35,8 +35,9 @@ import {
   type ToolKind
 } from '../setup/steps'
 import { Connected, Find, Install, OneClick } from '../setup/tool'
+import { useWaiting } from '../shell/waiting'
 
-// Step 4 checks for the tool again this often while it is open.
+// A look for the tool that fails is tried again this long after.
 const POLL_MS = 2000
 // The "Looking for Claude Code" screen stays at least this long, so it doesn't flash past.
 const SCAN_MIN_MS = 1500
@@ -55,13 +56,15 @@ export interface SetupProps {
   // This session's safety check, kept by App from the engine's notes.
   safety: SafetyState | null
   onSafetyStarted: (tool: ToolKind) => void
+  // The chip's Stop the check (App's cancel_safety_check).
+  onStopSafety?: () => void
   // Setup is finished (setup_done is saved): go to the home page.
   onFinish: () => void
   // A notice to show under the toolbar, like the engine failing to start.
   children?: ReactNode
 }
 
-export function Setup({ settings: initialSettings, leaving, safety, onSafetyStarted, onFinish, children }: SetupProps) {
+export function Setup({ settings: initialSettings, leaving, safety, onSafetyStarted, onStopSafety, onFinish, children }: SetupProps) {
   const [step, setStep] = useState<SetupStep | null>(null)
   // Counts screen changes, so a screen shown again (Find, for the other tool) enters afresh.
   const [visit, setVisit] = useState(0)
@@ -188,31 +191,17 @@ export function Setup({ settings: initialSettings, leaving, safety, onSafetyStar
     }
   }, [step, visit, kind, goStep])
 
-  // 4. Check again every 2 seconds while the page is open; each card ticks itself off.
-  useEffect(() => {
-    if (step !== 'install') return
-    let live = true
-    let timer: number | undefined
-    // A look that fails doesn't stop the polling: the next one is 2 s later all the same.
-    const poll = () => {
-      void window.tearsheet
-        .getTools(true)
-        .then(
-          (list) => {
-            if (live) setTools(list)
-          },
-          () => undefined
-        )
-        .then(() => {
-          if (live) timer = window.setTimeout(poll, POLL_MS)
-        })
-    }
-    timer = window.setTimeout(poll, POLL_MS)
-    return () => {
-      live = false
-      window.clearTimeout(timer)
-    }
-  }, [step])
+  // 4. While the page is open the window waits on the person, so the main process reads the
+  // tools every 5 seconds with the window in front; each change arrives as tools_changed, and
+  // each card ticks itself off. The window itself never polls.
+  useWaiting(step === 'install')
+  useEffect(
+    () =>
+      window.tearsheet.onNotification((note) => {
+        if (note.method === 'tools_changed' && Array.isArray(note.params.tools)) setTools(note.params.tools as ToolStatus[])
+      }),
+    []
+  )
 
   // 5. Remember which tool was connected, and move the safety ring to the chip after about 2 s.
   useEffect(() => {
@@ -380,6 +369,7 @@ export function Setup({ settings: initialSettings, leaving, safety, onSafetyStar
             setPopOpen(false)
             startCheck()
           }}
+          onStop={onStopSafety}
           onClose={() => setPopOpen(false)}
         />
       )}

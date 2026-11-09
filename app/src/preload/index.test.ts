@@ -46,6 +46,12 @@ describe('the calls', () => {
     ['fetchHistory', ['r-1'], ['tearsheet:call', 'fetchHistory', { report_id: 'r-1' }]],
     ['checkKey', ['massive', 'k'], ['tearsheet:call', 'checkKey', { service: 'massive', key: 'k' }]],
     ['runSafetyCheck', ['claude'], ['tearsheet:call', 'runSafetyCheck', { tool: 'claude' }]],
+    ['cancelSafetyCheck', [], ['tearsheet:call', 'cancelSafetyCheck', {}]],
+    ['windowState', [{ waiting: true }], ['tearsheet:windowState', { waiting: true }]],
+    ['windowState', [{ waiting: false }], ['tearsheet:windowState', { waiting: false }]],
+    ['copyAndOpenTerminal', [['claude', 'codex']], ['tearsheet:copyAndOpenTerminal', ['claude', 'codex']]],
+    ['commandsFor', [['codex']], ['tearsheet:commandsFor', ['codex']]],
+    ['showSetupLog', [], ['tearsheet:showSetupLog']],
     ['openTerminal', [], ['tearsheet:openTerminal']],
     ['openExternal', ['https://massive.com'], ['tearsheet:openExternal', 'https://massive.com']],
     ['find', ['rev', false], ['tearsheet:find', 'rev', false]],
@@ -109,6 +115,6 @@ test('About and help asks main for the versions, and Send feedback asks it to op
 
 test('the window gets nothing but these calls and listeners', () => {
   expect(Object.keys(api).sort()).toEqual(
-    ['addToLine', 'cancel', 'carryOnLine', 'checkKey', 'clearLine', 'getLine', 'planLine', 'removeFromLine', 'fetchHistory', 'find', 'flagClaim', 'getAnalysts', 'getChart', 'getReport', 'getReportNumbers', 'eraseReports', 'getSettings', 'getTools', 'gradeDue', 'hideReports', 'listCompanies', 'listPredictions', 'listReports', 'onFlagRequested', 'onMenu', 'onNotification', 'onOpenView', 'openExternal', 'openTerminal', 'pinCompany', 'rereadFiling', 'resume', 'runReport', 'runSafetyCheck', 'searchCompanies', 'setKey', 'setSetting', 'showReports', 'stopFind', 'setLook', 'openTheme', 'saveTheme', 'onDownload', 'showDownload', 'about', 'sendFeedback'].sort()
+    ['addToLine', 'cancel', 'carryOnLine', 'checkKey', 'clearLine', 'getLine', 'planLine', 'removeFromLine', 'fetchHistory', 'find', 'flagClaim', 'getAnalysts', 'getChart', 'getReport', 'getReportNumbers', 'eraseReports', 'getSettings', 'getTools', 'gradeDue', 'hideReports', 'listCompanies', 'listPredictions', 'listReports', 'onFlagRequested', 'onMenu', 'onNotification', 'onOpenView', 'openExternal', 'openTerminal', 'pinCompany', 'rereadFiling', 'resume', 'runReport', 'runSafetyCheck', 'searchCompanies', 'setKey', 'setSetting', 'showReports', 'stopFind', 'setLook', 'openTheme', 'saveTheme', 'onDownload', 'showDownload', 'about', 'sendFeedback', 'cancelSafetyCheck', 'windowState', 'copyAndOpenTerminal', 'commandsFor', 'showSetupLog'].sort()
   )
 })

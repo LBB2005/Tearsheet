@@ -14,8 +14,8 @@ const button = (name: string | RegExp) => screen.getByRole('button', { name })
 const pastTheScan = () => act(() => vi.advanceTimersByTimeAsync(1600))
 
 const claude = TOOLS[0]
-const noClaude: ToolStatus = { ...claude, available: false, path: null, version: null, loggedIn: null, reason: 'Not found' }
-const codexIn: ToolStatus = { ...TOOLS[1], available: true, path: '/opt/homebrew/bin/codex', version: 'codex-cli 0.165.0', loggedIn: true, reason: null }
+const noClaude: ToolStatus = { ...claude, available: false, path: null, version: null, loggedIn: null, reason: 'Not found', state: 'missing', plan: null, email: null }
+const codexIn: ToolStatus = { ...TOOLS[1], available: true, path: '/opt/homebrew/bin/codex', version: 'codex-cli 0.165.0', loggedIn: true, reason: null, state: 'ready', plan: null, email: null }
 
 beforeEach(() => {
   vi.useFakeTimers({ shouldAdvanceTime: true })
@@ -124,12 +124,17 @@ describe('a first-time user', () => {
     await user.click(button('nodejs.org'))
     expect(bridge.openExternal).toHaveBeenCalledWith('https://nodejs.org')
 
-    // The page looks again every 2 seconds, and ticks each step off by itself.
-    bridge.getTools.mockResolvedValue([noClaude, codexIn])
+    // While the page is open the window waits on the person, so the main process reads the tools
+    // and says when they change; the page never polls, and ticks each step off by itself.
+    expect(bridge.windowState).toHaveBeenLastCalledWith({ waiting: true })
+    const asked = bridge.getTools.mock.calls.length
     await act(() => vi.advanceTimersByTimeAsync(2100))
+    expect(bridge.getTools.mock.calls.length).toBe(asked)
+    emit('tools_changed', { tools: [noClaude, codexIn] })
     expect(await screen.findByText('Signed in to your ChatGPT plan')).toBeInTheDocument()
     await user.click(button('Continue'))
     await heading('Codex is connected')
+    expect(bridge.windowState).toHaveBeenLastCalledWith({ waiting: false })
     expect(bridge.setSetting).toHaveBeenCalledWith('primary_tool', 'codex')
     expect(bridge.runSafetyCheck).toHaveBeenCalledWith('codex')
   })
@@ -189,6 +194,23 @@ describe('when something goes wrong', () => {
     await user.click(within(details).getByRole('button', { name: 'Run the check again' }))
     expect(bridge.runSafetyCheck).toHaveBeenCalledTimes(2)
     expect(screen.queryByRole('dialog', { name: 'Safety check details' })).toBeNull()
+  })
+
+  test('the chip’s details stop the check after the call in progress', async () => {
+    bridge.getSettings.mockResolvedValue(ok(settings({ setup_done: false, keys: { massive: 'missing', fred: 'missing' }, lockdown: {} })))
+    const { user } = await start()
+    await heading('Prices come from Massive')
+    emit('safety_progress', { tool: 'claude', n: 6, total: 25 })
+    await user.click(await screen.findByRole('button', { name: /^Safety check, 6 of 25, under 1 min so far/ }))
+    const details = within(screen.getByRole('dialog', { name: 'Safety check details' }))
+    await user.click(details.getByRole('button', { name: 'Stop the check' }))
+    expect(bridge.cancelSafetyCheck).toHaveBeenCalledTimes(1)
+    expect(await details.findByText('Stopping after this call')).toBeInTheDocument()
+    expect(details.queryByRole('button', { name: 'Stop the check' })).toBeNull()
+    // The check ends as stopped: not a failure, and it can run again.
+    emit('safety_done', { tool: 'claude', passed: false, finished: false, reason: 'You stopped the safety check.' })
+    expect(await details.findByText('You stopped the safety check.')).toBeInTheDocument()
+    expect(details.getByRole('button', { name: 'Run the check again' })).toBeInTheDocument()
   })
 
   test('a safety check that stopped part way is muted, and Esc closes its details', async () => {

@@ -6,7 +6,8 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { ToolStatus } from '../../preload/api'
 import { GetKeyCard, KEY_TEXT, KeyCard } from './KeyCard'
 import { at, Card, CheckIcon, Changes, Ring } from './parts'
-import { isEmail, TOOL_TEXT, versionNumber, type KeyService, type SafetyView, type ToolKind } from './steps'
+import { isEmail, versionNumber } from '../../shared/tools'
+import { TOOL_TEXT, type KeyService, type SafetyView, type ToolKind } from './steps'
 
 export interface KeyStepProps {
   service: KeyService

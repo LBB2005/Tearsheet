@@ -71,7 +71,9 @@ FALLBACK_FLAGS = (
     f"--{NO_SESSION_HISTORY_FLAG}",
 )
 # The environment allowlist: PATH, HOME and locale, plus the user name and temp folder,
-# which the program may need to find its own sign-in and write temporary files.
+# which the program may need to find its own sign-in and write temporary files, and
+# CLAUDE_CONFIG_DIR when the user set it, so Claude Code finds its sign-in there. It only moves
+# the sign-in: the lock-down's flags still switch the user's settings, tools and plugins off.
 ENV_ALLOWLIST = (
     "PATH",
     "HOME",
@@ -82,6 +84,7 @@ ENV_ALLOWLIST = (
     "LC_ALL",
     "LC_CTYPE",
     "LC_MESSAGES",
+    "CLAUDE_CONFIG_DIR",
 )
 # ---------------------------------------------------------------------------------------------
 

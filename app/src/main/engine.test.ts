@@ -4,7 +4,8 @@ import { join } from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { Engine, engineCommand } from './engine'
+import { Engine, engineCommand, reachesCap, restartCapMessage } from './engine'
+import type { SetupEvent, SetupFields } from './setupLog'
 
 describe('where the engine comes from', () => {
   const home = { resourcesPath: '/Applications/Tearsheet.app/Contents/Resources', appPath: '/repo/app', dataDir: '/data' }
@@ -135,5 +136,73 @@ describe('the engine’s log', () => {
     await new Promise((resolve) => setTimeout(resolve, 50))
     e.start()
     await expect(e.request('get_settings')).rejects.toThrow('The engine stopped.')
+  })
+})
+
+describe('the restart cap', () => {
+  it('counts the third stop within any 30 seconds; older stops don’t count', () => {
+    expect(reachesCap([], 100_000)).toBe(false)
+    expect(reachesCap([99_000], 100_000)).toBe(false)
+    expect(reachesCap([90_000, 99_000], 100_000)).toBe(true)
+    expect(reachesCap([60_000, 99_000], 100_000)).toBe(false)
+    expect(reachesCap([70_001, 99_000], 100_000)).toBe(true)
+  })
+
+  it('names the signal, or the exit code, and points to the first-open steps', () => {
+    expect(restartCapMessage('SIGKILL', null)).toMatch(/stopped by SIGKILL three times in 30 seconds/)
+    expect(restartCapMessage(null, 9)).toMatch(/with exit code 9/)
+    expect(restartCapMessage('SIGKILL', null)).toMatch(/first-open steps/)
+  })
+
+  it('stops restarting at the third stop in 30 seconds, answers every call with why, and logs it once', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
+    const entries: [SetupEvent, SetupFields][] = []
+    const e = new Engine({
+      command: process.execPath,
+      args: ['-e', "process.kill(process.pid, 'SIGKILL')"],
+      cwd: dir,
+      env: process.env,
+      logFile: join(dir, 'logs', 'engine.log'),
+      setupLog: { log: (event, fields = {}) => void entries.push([event, fields]) }
+    })
+    engines.push(e)
+    const next = (event: string) => new Promise<unknown>((resolve) => e.once(event, resolve))
+    const crashed = vi.fn()
+    e.on('crashed', crashed)
+    let waiting = next('crashed')
+    e.start()
+    await waiting
+    waiting = next('crashed')
+    vi.advanceTimersByTime(1000)
+    await waiting
+    const fatal = next('fatal')
+    vi.advanceTimersByTime(1000)
+    const message = (await fatal) as string
+    expect(crashed).toHaveBeenCalledTimes(2)
+    expect(message).toMatch(/stopped by SIGKILL three times in 30 seconds/)
+    expect(e.fatalMessage).toBe(message)
+    vi.advanceTimersByTime(5000)
+    expect(isRunning(e)).toBe(false)
+    await expect(e.request('get_settings')).rejects.toThrow(message)
+    expect(entries).toEqual([['engine_restart_cap', { signal: 'SIGKILL', exit: null }]])
+    // A later start by hand clears the message, as before.
+    e.on('fatal', () => undefined)
+    e.start()
+    expect(e.fatalMessage).toBeNull()
+  })
+
+  it('keeps restarting an engine whose stops are more than 30 seconds apart', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
+    const e = node('process.exit(3)')
+    const fatal = vi.fn()
+    e.on('fatal', fatal)
+    for (let i = 0; i < 4; i++) {
+      const crashed = new Promise((resolve) => e.once('crashed', resolve))
+      if (i === 0) e.start()
+      else vi.advanceTimersByTime(31_000)
+      await crashed
+    }
+    expect(fatal).not.toHaveBeenCalled()
+    expect(e.fatalMessage).toBeNull()
   })
 })

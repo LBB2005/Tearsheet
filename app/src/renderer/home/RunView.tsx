@@ -15,6 +15,8 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { about, clock, leftText, pace, usualTimes } from '../../shared/pace'
 import { REPORT_STEPS } from '../../shared/steps'
 import { at } from '../setup/parts'
+import type { ToolKind } from '../setup/steps'
+import { SignInAgain } from './paste'
 import { doneFacts, liveRows, runStep, stageLine, stageMark, stageTime, STAGES, TOTAL, type RunState } from './run'
 
 export type { RunFailure, RunState } from './run'
@@ -45,6 +47,8 @@ export interface RunViewProps {
   resuming: boolean
   // The AI tool's safety check now, for a run the check stopped: Resume only once it passes.
   safety: 'failed' | 'running' | 'ok'
+  // The writing tool, for a run a sign-out stopped: Sign in again, as on the home page.
+  tool: ToolKind
   onResume: () => void
   onRecheck: () => void
   onOpen: () => void
@@ -52,7 +56,7 @@ export interface RunViewProps {
   strip?: ReactNode
 }
 
-export function RunView({ run, ready, resuming, safety, onResume, onRecheck, onOpen, strip }: RunViewProps) {
+export function RunView({ run, ready, resuming, safety, tool, onResume, onRecheck, onOpen, strip }: RunViewProps) {
   const done = runStep(run, ready) === TOTAL
   const failure = run.failure
   const now = useNow(!done && !failure)
@@ -97,11 +101,7 @@ export function RunView({ run, ready, resuming, safety, onResume, onRecheck, onO
             <b>{title}</b>
             <span>{failure.message}</span>
             {failure.resetAt && <span>Your usage resets at {resetTime(failure.resetAt)}.</span>}
-            {failure.fix && (
-              <span>
-                Sign in again in Terminal: <code>{failure.fix}</code>
-              </span>
-            )}
+            {failure.fix && <SignInAgain kind={tool} />}
             {lockedOut && safety !== 'ok' && <span>Resume comes back once the safety check passes.</span>}
             {run.reportId && <span>The report so far is saved, and opens from the sidebar.</span>}
           </div>

@@ -3,7 +3,8 @@
 // AI tool. The screens are in pages/Setup.tsx and the other files in this folder.
 
 import type { ToolStatus } from '../../preload/api'
-import type { Keys, LockdownState } from '../../shared/protocol'
+import type { Keys, LockdownState, SafetyRunning } from '../../shared/protocol'
+import { isEmail, versionNumber } from '../../shared/tools'
 
 // The one-click install and sign-in (step 4's other version) is built but stays off until
 // Anthropic approves it. While this is false, everyone sees the two Terminal steps.
@@ -89,17 +90,6 @@ export function progressSegment(step: SetupStep): 0 | 1 | 2 | 3 | null {
   }
 }
 
-// Whether text looks like an email address: something, @, a name, a dot and more, no spaces.
-export function isEmail(s: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim())
-}
-
-// The version number in a tool's --version line: "2.1.317 (Claude Code)" gives "2.1.317".
-export function versionNumber(v: string | null): string | null {
-  if (v === null) return null
-  return /\d+(?:\.\d+)+/.exec(v)?.[0] ?? v.trim()
-}
-
 // Whether the tool's lock-down check (the safety check) has passed for the version found now.
 // A newer version is checked again.
 export function safetyPassedFor(tool: ToolStatus | undefined, state: LockdownState | undefined): boolean {
@@ -119,14 +109,19 @@ export interface SafetyState {
   total: number
   done: boolean
   passed: boolean
-  // The check ended part way with no verdict: the engine restarted, or a usage limit, a
-  // sign-out or a crash stopped it (safety_done's finished: false). Not a failure.
+  // The check ended part way with no verdict: the engine restarted, the person stopped it, or a
+  // usage limit, a sign-out or a crash stopped it (safety_done's finished: false). Not a failure.
   stopped: boolean
   reason: string | null
+  // "Stop the check" was pressed: the call in progress ends, then the check stops (the engine's
+  // cancel_safety_check). The chip says "Stopping after this call" meanwhile.
+  stopping: boolean
+  // When the check started (ms), for the chip's minutes so far; null when it isn't known.
+  startedAt: number | null
 }
 
-export function safetyStarted(tool: ToolKind): SafetyState {
-  return { tool, n: 0, total: SAFETY_CALLS, done: false, passed: false, stopped: false, reason: null }
+export function safetyStarted(tool: ToolKind, at: number = Date.now()): SafetyState {
+  return { tool, n: 0, total: SAFETY_CALLS, done: false, passed: false, stopped: false, reason: null, stopping: false, startedAt: at }
 }
 
 const asTool = (v: unknown, fallback: ToolKind): ToolKind => (v === 'claude' || v === 'codex' ? v : fallback)
@@ -134,8 +129,11 @@ const asNumber = (v: unknown, fallback: number) => (typeof v === 'number' && Num
 
 export function applySafetyNote(state: SafetyState | null, method: string, params: Record<string, unknown>): SafetyState | null {
   if (method === 'safety_progress') {
+    const tool = asTool(params.tool, state?.tool ?? 'claude')
     const total = asNumber(params.total, state?.total ?? SAFETY_CALLS)
-    return { tool: asTool(params.tool, state?.tool ?? 'claude'), n: asNumber(params.n, 0), total, done: false, passed: false, stopped: false, reason: null }
+    // The same check going on keeps its start and a stop already asked for.
+    const same = state !== null && state.tool === tool && !state.done
+    return { tool, n: asNumber(params.n, 0), total, done: false, passed: false, stopped: false, reason: null, stopping: same && state.stopping, startedAt: same ? state.startedAt : null }
   }
   if (method === 'safety_done') {
     const total = state?.total ?? SAFETY_CALLS
@@ -143,17 +141,35 @@ export function applySafetyNote(state: SafetyState | null, method: string, param
     const reason = typeof params.reason === 'string' && params.reason ? params.reason : null
     // Only a check that ran to the end and didn't pass is a failure.
     const stopped = !passed && params.finished === false
-    return { tool: asTool(params.tool, state?.tool ?? 'claude'), n: passed ? total : (state?.n ?? 0), total, done: true, passed, stopped, reason }
+    return { tool: asTool(params.tool, state?.tool ?? 'claude'), n: passed ? total : (state?.n ?? 0), total, done: true, passed, stopped, reason, stopping: false, startedAt: state?.startedAt ?? null }
   }
   // A restart ends the engine's check with it, unfinished.
   if (method === 'engine_restarted' && state && !state.done) {
-    return { ...state, done: true, passed: false, stopped: true, reason: 'Tearsheet’s engine stopped and restarted, so the check stopped too.' }
+    return { ...state, done: true, passed: false, stopped: true, stopping: false, reason: 'Tearsheet’s engine stopped and restarted, so the check stopped too.' }
   }
   return state
 }
 
+// The check under way as the settings give it (safety_running), so a window that reloads
+// mid-check shows the real count and the minutes so far. A note that came first keeps its count
+// if it is further on, and takes the start.
+export function safetyFromRunning(state: SafetyState | null, running: SafetyRunning | null | undefined): SafetyState | null {
+  if (!running) return state
+  const started = Date.parse(running.started_at)
+  const at = Number.isNaN(started) ? null : started
+  if (state && state.tool === running.tool && !state.done) return { ...state, n: Math.max(state.n, running.n), startedAt: state.startedAt ?? at }
+  return { ...safetyStarted(running.tool, 0), n: running.n, total: running.total, startedAt: at }
+}
+
+// The minutes a check has run, for the chip: "under 1 min", then "1 min", "2 min"…
+export function safetyMinutes(startedAt: number | null, now: number): string | null {
+  if (startedAt === null) return null
+  const m = Math.floor(Math.max(0, now - startedAt) / 60_000)
+  return m < 1 ? 'under 1 min' : `${m} min`
+}
+
 export type SafetyView =
-  | { state: 'running'; n: number; total: number }
+  | { state: 'running'; n: number; total: number; stopping: boolean; startedAt: number | null }
   | { state: 'passed' }
   | { state: 'failed'; reason: string }
   // Stopped part way, with no verdict: shown muted, with Run the check again.
@@ -164,14 +180,14 @@ export type SafetyView =
 // start, else a check about to start.
 export function safetyView(s: SafetyState | null, kind: ToolKind, alreadyPassed: boolean, startError: string | null): SafetyView {
   if (s && s.tool === kind) {
-    if (!s.done) return { state: 'running', n: s.n, total: s.total }
+    if (!s.done) return { state: 'running', n: s.n, total: s.total, stopping: s.stopping, startedAt: s.startedAt }
     if (s.passed) return { state: 'passed' }
     if (s.stopped) return { state: 'unfinished', reason: s.reason ?? 'The check stopped before it finished.' }
     return { state: 'failed', reason: s.reason ?? 'The check did not pass.' }
   }
   if (alreadyPassed) return { state: 'passed' }
   if (startError) return { state: 'failed', reason: startError }
-  return { state: 'running', n: 0, total: SAFETY_CALLS }
+  return { state: 'running', n: 0, total: SAFETY_CALLS, stopping: false, startedAt: null }
 }
 
 // The six things the safety check makes sure of, in plain words, and the call after which each

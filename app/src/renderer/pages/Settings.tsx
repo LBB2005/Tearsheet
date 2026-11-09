@@ -20,6 +20,7 @@ import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type Reac
 
 import type { ToolStatus } from '../../preload/api'
 import type { LockdownState, PriceDownload, SettingsResult } from '../../shared/protocol'
+import { PasteSteps, usePaste, type PasteFor } from '../home/paste'
 import { AboutPage } from '../settings/About'
 import type { Notify } from '../settings/Appearance'
 import { AppearancePage } from '../settings/Appearance'
@@ -28,7 +29,8 @@ import { FieldRow, Label, ToolChoice } from '../settings/General'
 import { KeysPanel } from '../settings/Keys'
 import { lockdownText } from '../settings/lockdown'
 import { PRICE_POLL_MS, priceLine } from '../settings/prices'
-import { healthTiles, maskEmail, storage, tildePath, toolPill, type HealthInput } from '../settings/settings'
+import { tildePath } from '../../shared/tools'
+import { healthTiles, maskEmail, storage, toolPill, type HealthInput, type Tone } from '../settings/settings'
 import { moveTopic, needsYou, problems, toolRole, TOPICS, type Problem, type Topic } from '../settings/topics'
 import { Changes, Spinner } from '../setup/parts'
 import type { SafetyState, ToolKind } from '../setup/steps'
@@ -337,15 +339,9 @@ function ToolsPage({ tools, health, lockdown, safety, onTools, onReload, onSafet
             </span>
           </div>
         )}
-        {tools.map((t) => {
-          const pill = toolPill(t, lockdown[t.kind], safety)
-          return (
-            <div key={t.kind} className="sline">
-              <Label title={t.name} help={toolRole(t, health.primary, skeptic)} />
-              <span className={`pill ${pill.tone}`}>{pill.text}</span>
-            </div>
-          )
-        })}
+        {tools.map((t) => (
+          <ToolRow key={t.kind} tool={t} role={toolRole(t, health.primary, skeptic)} pill={toolPill(t, lockdown[t.kind], safety)} onTools={onTools} />
+        ))}
       </div>
       <div className="sgrp">
         {tools
@@ -359,6 +355,7 @@ function ToolsPage({ tools, health, lockdown, safety, onTools, onReload, onSafet
             {looking ? 'Checking…' : 'Check again'}
           </button>
         </div>
+        <LogRow />
       </div>
       <div className="lkw">
         <button className="lk" aria-expanded={details} onClick={() => setDetails((d) => !d)}>
@@ -384,6 +381,105 @@ function ToolsPage({ tools, health, lockdown, safety, onTools, onReload, onSafet
         </div>
       )}
     </>
+  )
+}
+
+// What a tool's row offers, by what its status read found (first-run design item 23): a missing
+// tool, the paste command that installs it and signs it in; one signed out, signed in with an API
+// key or on a free plan, the same sign-in as the home page's; one too old, Update (the installer
+// again), unless it was installed another way; one Tearsheet can't read, Try again and Show log;
+// a ready one, nothing. The paste command's steps take the button's place once it is pressed.
+const SIGN_IN = new Set<ToolStatus['state']>(['signed_out', 'api_key', 'free_plan'])
+
+function ToolRow({ tool, role, pill, onTools }: { tool: ToolStatus; role: string; pill: { tone: Tone; text: string }; onTools: (tools: ToolStatus[]) => void }) {
+  const paste = usePaste(tool.kind)
+  const [looking, setLooking] = useState(false)
+  const [note, setNote] = useState<string | null>(null)
+  // Too old: why the installer can't update this copy (main/toolSteps.ts), or null when it can.
+  const [another, setAnother] = useState<string | null>(null)
+  const { kind, state, path } = tool
+  useEffect(() => {
+    if (state !== 'too_old') return
+    let live = true
+    window.tearsheet.commandsFor([kind]).then(
+      (c) => live && setAnother(c.blocked.find((b) => b.tool === kind)?.reason ?? null),
+      () => undefined
+    )
+    return () => {
+      live = false
+    }
+  }, [kind, state, path])
+  // Once the tool is ready, the steps have done their job.
+  const reset = paste.reset
+  useEffect(() => {
+    if (state === 'ready') reset()
+  }, [state, reset])
+
+  const start = () => {
+    setNote(null)
+    void paste.start()
+  }
+  const tryAgain = () => {
+    if (looking) return
+    setLooking(true)
+    setNote(null)
+    const done = () => setLooking(false)
+    window.tearsheet.getTools(true).then((t) => {
+      onTools(t)
+      done()
+    }, done)
+  }
+  const showLog = () => void window.tearsheet.showSetupLog().then((shown) => setNote(shown ? null : 'There’s no setup log yet.'), () => setNote('The log didn’t open.'))
+
+  const purpose: PasteFor = state === 'missing' ? 'install' : state === 'too_old' ? 'update' : 'signIn'
+  let action: ReactNode = null
+  if (paste.state) action = null
+  else if (state === 'missing') action = <button className="pb" onClick={start}>Copy and open Terminal</button>
+  else if (SIGN_IN.has(state)) action = <button className="pb" onClick={start}>Sign in again</button>
+  else if (state === 'too_old' && !another) action = <button className="pb" onClick={start}>Update</button>
+  else if (state === 'cant_tell') {
+    action = (
+      <>
+        <button className="pb" disabled={looking} onClick={tryAgain}>
+          {looking ? 'Checking…' : 'Try again'}
+        </button>
+        <button className="pb" onClick={showLog}>
+          Show log
+        </button>
+      </>
+    )
+  }
+  const below = paste.state ? (
+    <PasteSteps state={paste.state} kind={kind} purpose={purpose} onAgain={start} buttonClass="pb" />
+  ) : state === 'too_old' && another ? (
+    <span className="help">{another}</span>
+  ) : note ? (
+    <span className="help">{note}</span>
+  ) : null
+  return (
+    <>
+      <div className="sline">
+        <Label title={tool.name} help={role} />
+        <span className={`pill ${pill.tone}`}>{pill.text}</span>
+        {action}
+      </div>
+      {below && <div className="sline col sub">{below}</div>}
+    </>
+  )
+}
+
+// Show log in Finder: the setup log (logs/setup.log in Tearsheet's folder), so a setup that went
+// wrong can be read and sent. It holds no emails, keys or sign-in links.
+function LogRow() {
+  const [note, setNote] = useState<string | null>(null)
+  const show = () => void window.tearsheet.showSetupLog().then((shown) => setNote(shown ? null : 'There’s no setup log yet.'), () => setNote('The log didn’t open.'))
+  return (
+    <div className="sline">
+      <Label title="Setup log" help={note ?? 'What Tearsheet found each time it read your AI tools, and what it gave you to run. No emails, keys or sign-in links.'} />
+      <button className="pb" onClick={show}>
+        Show log in Finder
+      </button>
+    </div>
   )
 }
 
@@ -421,7 +517,7 @@ function SafetyRow({ tool, stored, safety, anyChecking, onSafetyStarted }: { too
   // Why a check didn't start is the newest news, so it shows over the last check's result. A
   // check stopped part way is muted: it gave no verdict.
   const tone = running || why || mine?.stopped ? 'st' : mine?.done && !mine.passed ? 'st bad' : mine?.done && mine.passed ? 'st ok' : 'st'
-  const canCheck = tool.loggedIn !== false && !running
+  const canCheck = tool.state === 'ready' && !running
 
   return (
     <div className="sline">

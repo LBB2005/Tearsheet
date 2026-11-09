@@ -28,7 +28,14 @@ contextBridge.exposeInMainWorld('tearsheet', {
   fetchHistory: (reportId: string) => call('fetchHistory', { report_id: reportId }),
   checkKey: (service: string, key: string) => call('checkKey', { service, key }),
   runSafetyCheck: (tool: string) => call('runSafetyCheck', { tool }),
+  cancelSafetyCheck: () => call('cancelSafetyCheck', {}),
   openTerminal: () => ipcRenderer.invoke('tearsheet:openTerminal'),
+  // First-run setup (first-run design item 15). The window names the tools; the main process
+  // builds every command itself.
+  windowState: (state: { waiting: boolean }) => ipcRenderer.invoke('tearsheet:windowState', { waiting: state?.waiting === true }),
+  copyAndOpenTerminal: (kinds: string[]) => ipcRenderer.invoke('tearsheet:copyAndOpenTerminal', kinds),
+  commandsFor: (kinds: string[]) => ipcRenderer.invoke('tearsheet:commandsFor', kinds),
+  showSetupLog: () => ipcRenderer.invoke('tearsheet:showSetupLog'),
   openExternal: (url: string) => ipcRenderer.invoke('tearsheet:openExternal', url),
   about: () => ipcRenderer.invoke('tearsheet:about'),
   sendFeedback: () => ipcRenderer.invoke('tearsheet:sendFeedback'),

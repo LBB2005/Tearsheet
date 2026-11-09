@@ -6,16 +6,16 @@ import {
   applySafetyNote,
   checksPassed,
   hasProgress,
-  isEmail,
   keyProblem,
   nextLabel,
   nextStep,
   progressSegment,
   resumeStep,
+  safetyFromRunning,
+  safetyMinutes,
   safetyPassedFor,
   safetyStarted,
   safetyView,
-  versionNumber,
   type SafetyState,
   type SetupStep
 } from './steps'
@@ -28,9 +28,12 @@ const claude = (over: Partial<ToolStatus> = {}): ToolStatus => ({
   version: '2.1.317 (Claude Code)',
   loggedIn: true,
   reason: null,
+  state: 'ready',
+  plan: 'max',
+  email: 'me@example.com',
   ...over
 })
-const missing = claude({ path: null, available: false, version: null, loggedIn: null, reason: "claude wasn't found on your PATH." })
+const missing = claude({ path: null, available: false, version: null, loggedIn: null, reason: "claude wasn't found on your PATH.", state: 'missing', plan: null, email: null })
 
 const BOTH = { massive: 'set', fred: 'set', alphavantage: 'missing' } as const
 const NONE = { massive: 'missing', fred: 'missing', alphavantage: 'missing' } as const
@@ -171,32 +174,6 @@ describe('progressSegment', () => {
   })
 })
 
-describe('isEmail', () => {
-  it('accepts an address', () => {
-    expect(isEmail('you@example.com')).toBe(true)
-    expect(isEmail('  you@example.com ')).toBe(true)
-  })
-
-  it('refuses what is not one', () => {
-    expect(isEmail('you@')).toBe(false)
-    expect(isEmail('you@example')).toBe(false)
-    expect(isEmail('you example.com')).toBe(false)
-    expect(isEmail('')).toBe(false)
-  })
-})
-
-describe('versionNumber', () => {
-  it('takes the number out of a --version line', () => {
-    expect(versionNumber('2.1.317 (Claude Code)')).toBe('2.1.317')
-    expect(versionNumber('codex-cli 0.165.0')).toBe('0.165.0')
-  })
-
-  it('keeps a line with no number, and passes null through', () => {
-    expect(versionNumber('dev build')).toBe('dev build')
-    expect(versionNumber(null)).toBeNull()
-  })
-})
-
 describe('safetyPassedFor', () => {
   const state = (over: Partial<LockdownState> = {}): LockdownState => ({
     version: '2.1.317 (Claude Code)',
@@ -225,28 +202,36 @@ describe('safetyPassedFor', () => {
 describe('applySafetyNote', () => {
   const progress = (n: number) => ({ tool: 'claude', n, total: 25, name: `probe ${n}`, ok: true })
 
-  it('starts at 0 of 25', () => {
-    expect(safetyStarted('claude')).toEqual({ tool: 'claude', n: 0, total: 25, done: false, passed: false, stopped: false, reason: null })
+  it('starts at 0 of 25, from now', () => {
+    expect(safetyStarted('claude', 1000)).toEqual({ tool: 'claude', n: 0, total: 25, done: false, passed: false, stopped: false, reason: null, stopping: false, startedAt: 1000 })
   })
 
   it('follows each call, then the end', () => {
-    let s: SafetyState | null = safetyStarted('claude')
+    let s: SafetyState | null = safetyStarted('claude', 1000)
     s = applySafetyNote(s, 'safety_progress', progress(7))
-    expect(s).toMatchObject({ n: 7, total: 25, done: false })
+    expect(s).toMatchObject({ n: 7, total: 25, done: false, startedAt: 1000 })
     s = applySafetyNote(s, 'safety_done', { tool: 'claude', passed: true, reason: null })
-    expect(s).toEqual({ tool: 'claude', n: 25, total: 25, done: true, passed: true, stopped: false, reason: null })
+    expect(s).toEqual({ tool: 'claude', n: 25, total: 25, done: true, passed: true, stopped: false, reason: null, stopping: false, startedAt: 1000 })
   })
 
   it('keeps the count and the reason when the check fails', () => {
     let s = applySafetyNote(null, 'safety_progress', progress(12))
     s = applySafetyNote(s, 'safety_done', { tool: 'claude', passed: false, reason: '2 of 20 answers matched the schema', finished: true })
-    expect(s).toEqual({ tool: 'claude', n: 12, total: 25, done: true, passed: false, stopped: false, reason: '2 of 20 answers matched the schema' })
+    expect(s).toEqual({ tool: 'claude', n: 12, total: 25, done: true, passed: false, stopped: false, reason: '2 of 20 answers matched the schema', stopping: false, startedAt: null })
   })
 
   it('marks a check the engine says didn’t finish as stopped, not failed', () => {
     let s = applySafetyNote(null, 'safety_progress', progress(12))
     s = applySafetyNote(s, 'safety_done', { tool: 'claude', passed: false, reason: 'The check couldn’t finish: usage limit', finished: false })
-    expect(s).toEqual({ tool: 'claude', n: 12, total: 25, done: true, passed: false, stopped: true, reason: 'The check couldn’t finish: usage limit' })
+    expect(s).toEqual({ tool: 'claude', n: 12, total: 25, done: true, passed: false, stopped: true, reason: 'The check couldn’t finish: usage limit', stopping: false, startedAt: null })
+  })
+
+  it('keeps a stop asked for until the check ends, and only for the same check', () => {
+    const stopping: SafetyState = { ...safetyStarted('claude', 1000), n: 4, stopping: true }
+    expect(applySafetyNote(stopping, 'safety_progress', progress(5))).toMatchObject({ n: 5, stopping: true, startedAt: 1000 })
+    // Another tool's check is a new one.
+    expect(applySafetyNote(stopping, 'safety_progress', { ...progress(1), tool: 'codex' })).toMatchObject({ tool: 'codex', stopping: false, startedAt: null })
+    expect(applySafetyNote(stopping, 'safety_done', { tool: 'claude', passed: false, reason: 'You stopped the safety check.', finished: false })).toMatchObject({ done: true, stopped: true, stopping: false })
   })
 
   it('ends a running check when the engine restarts, as stopped, and ignores other notes', () => {
@@ -257,11 +242,44 @@ describe('applySafetyNote', () => {
   })
 })
 
+describe('safetyFromRunning', () => {
+  const running = { tool: 'claude' as const, n: 8, total: 25, started_at: '2026-11-08T10:00:00+00:00' }
+  const at = Date.parse('2026-11-08T10:00:00+00:00')
+
+  it('starts the state from the check the settings say is under way', () => {
+    expect(safetyFromRunning(null, running)).toEqual({ ...safetyStarted('claude', at), n: 8 })
+    expect(safetyFromRunning(null, { ...running, started_at: 'soon' })).toMatchObject({ n: 8, startedAt: null })
+  })
+
+  it('keeps a note that came first, taking the further count and the start', () => {
+    const noted = applySafetyNote(null, 'safety_progress', { tool: 'claude', n: 9, total: 25 })
+    expect(safetyFromRunning(noted, running)).toMatchObject({ n: 9, startedAt: at })
+    expect(safetyFromRunning({ ...safetyStarted('claude', 5), n: 2 }, running)).toMatchObject({ n: 8, startedAt: 5 })
+  })
+
+  it('leaves the state alone when no check runs', () => {
+    const done: SafetyState = { ...safetyStarted('claude'), done: true, passed: true }
+    expect(safetyFromRunning(done, null)).toBe(done)
+    expect(safetyFromRunning(null, undefined)).toBeNull()
+  })
+})
+
+describe('safetyMinutes', () => {
+  it('says the minutes so far, under one at first, or nothing when the start isn’t known', () => {
+    expect(safetyMinutes(0, 59_000)).toBe('under 1 min')
+    expect(safetyMinutes(0, 60_000)).toBe('1 min')
+    expect(safetyMinutes(0, 7 * 60_000 + 5)).toBe('7 min')
+    expect(safetyMinutes(10_000, 0)).toBe('under 1 min')
+    expect(safetyMinutes(null, 60_000)).toBeNull()
+  })
+})
+
 describe('safetyView', () => {
-  const run = (n: number): SafetyState => ({ tool: 'claude', n, total: 25, done: false, passed: false, stopped: false, reason: null })
+  const run = (n: number): SafetyState => ({ tool: 'claude', n, total: 25, done: false, passed: false, stopped: false, reason: null, stopping: false, startedAt: 1000 })
 
   it('shows this session’s check for the tool being set up', () => {
-    expect(safetyView(run(7), 'claude', false, null)).toEqual({ state: 'running', n: 7, total: 25 })
+    expect(safetyView(run(7), 'claude', false, null)).toEqual({ state: 'running', n: 7, total: 25, stopping: false, startedAt: 1000 })
+    expect(safetyView({ ...run(7), stopping: true }, 'claude', false, null)).toMatchObject({ state: 'running', stopping: true })
     expect(safetyView({ ...run(25), done: true, passed: true }, 'claude', false, null)).toEqual({ state: 'passed' })
     expect(safetyView({ ...run(9), done: true, reason: 'No.' }, 'claude', false, null)).toEqual({ state: 'failed', reason: 'No.' })
   })
@@ -274,8 +292,8 @@ describe('safetyView', () => {
   it('counts a check that already passed, a check that didn’t start, and one about to start', () => {
     expect(safetyView(null, 'claude', true, null)).toEqual({ state: 'passed' })
     expect(safetyView(null, 'claude', false, 'A report is running.')).toEqual({ state: 'failed', reason: 'A report is running.' })
-    expect(safetyView(null, 'claude', false, null)).toEqual({ state: 'running', n: 0, total: 25 })
-    expect(safetyView({ ...run(4), tool: 'codex' }, 'claude', false, null)).toEqual({ state: 'running', n: 0, total: 25 })
+    expect(safetyView(null, 'claude', false, null)).toEqual({ state: 'running', n: 0, total: 25, stopping: false, startedAt: null })
+    expect(safetyView({ ...run(4), tool: 'codex' }, 'claude', false, null)).toEqual({ state: 'running', n: 0, total: 25, stopping: false, startedAt: null })
   })
 })
 

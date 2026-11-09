@@ -130,7 +130,14 @@ describe('sinceLines', () => {
   })
 
   it('says economic figures aren’t connected, with the fix, while there is no FRED key', () => {
-    const fred = { tone: 'hold', text: 'Economic figures aren’t connected, so reports leave them out.', action: 'addFred' }
+    // The FRED prompt says the key is optional, free and quick, and carries FRED's own notice.
+    const fred = {
+      tone: 'hold',
+      text: 'Economic figures aren’t connected, so reports leave them out.',
+      detail: 'A FRED key is optional and free, and takes about 2 minutes to get.',
+      action: 'addFred',
+      fredNotice: true
+    }
     expect(sinceLines(input({ keys: { massive: 'set', fred: 'missing' }, fredSkipped: true }))).toContainEqual(fred)
     expect(sinceLines(input({ keys: { massive: 'set' }, fredSkipped: false }))).toContainEqual(fred)
   })

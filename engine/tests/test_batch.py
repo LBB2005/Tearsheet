@@ -163,6 +163,34 @@ def test_a_line_paused_by_a_stopped_report_keeps_its_resume():
     assert back.resume("run-1").ticker == "T1"
 
 
+def test_a_pause_from_outside_the_line_needs_a_report_waiting_and_no_pause_set():
+    from tearsheet.batch import SAFETY_CHECK_STOPPED, SAFETY_CHECK_UNFINISHED
+
+    empty = ReportLine()
+    assert not empty.pause(SAFETY_CHECK_STOPPED, "You stopped the safety check.")
+    assert empty.paused is None and empty.idle()
+
+    line = ReportLine()
+    line.add([Entry("T1", "Company 1", 1001, True), Entry("T2", "Company 2", 1002, True)])
+    first = line.take_next()
+    first.run_id = "run-1"
+    line.end(first, {"how": "stopped", "code": "USAGE_LIMIT", "message": "Limit."})
+    assert not line.pause(SAFETY_CHECK_UNFINISHED, "The check couldn't finish.")
+    # The stopped report's Resume is kept.
+    assert (line.paused.code, line.paused.run_id) == ("USAGE_LIMIT", "run-1")
+
+    waiting = ReportLine()
+    waiting.add([Entry("T3", "Company 3", 1003, True)])
+    assert waiting.pause(SAFETY_CHECK_STOPPED, "You stopped the safety check.")
+    assert (waiting.paused.code, waiting.paused.message, waiting.paused.run_id) == (
+        SAFETY_CHECK_STOPPED,
+        "You stopped the safety check.",
+        None,
+    )
+    back = ReportLine.loads(waiting.dumps())  # kept when Tearsheet closes
+    assert back.paused.code == SAFETY_CHECK_STOPPED
+
+
 # --- through the engine ---------------------------------------------------------------------
 
 

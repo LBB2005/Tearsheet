@@ -33,6 +33,12 @@ PAUSE_CODES = frozenset(
 )
 # The pause a line comes back with when Tearsheet opens again.
 REOPENED = "REOPENED"
+# Pauses the server sets (pause()) when the safety check on a never-checked writing tool is
+# stopped, or can't finish (first-run design §5). A full pass carries the line on. A failed
+# check needs no code of its own: its block ends the next report with LOCKDOWN_FAILED.
+SAFETY_CHECK_STOPPED = "SAFETY_CHECK_STOPPED"
+SAFETY_CHECK_UNFINISHED = "SAFETY_CHECK_UNFINISHED"
+SAFETY_PAUSES = frozenset({SAFETY_CHECK_STOPPED, SAFETY_CHECK_UNFINISHED})
 
 
 @dataclass
@@ -193,6 +199,15 @@ class ReportLine:
         self.writing = entry
         self.paused = None
         return entry
+
+    def pause(self, code: str, message: str) -> bool:
+        """Pause the reports waiting, for a reason from outside the line (the safety check).
+        Nothing changes when no report is waiting or a pause is already set, so a stopped
+        report's Resume is never lost. Says whether the line was paused."""
+        if not self.waiting or self.paused is not None:
+            return False
+        self.paused = Pause(code, message)
+        return True
 
     def carry_on(self) -> None:
         """Go on with the companies still waiting (after Tearsheet opened again, or past a

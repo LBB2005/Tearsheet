@@ -6,7 +6,7 @@ import { act, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, test, vi } from 'vitest'
 
 import { renderApp, win } from '../test/app'
-import { bridge, emit, fail, menu, ok, settings, TOOLS } from '../test/bridge'
+import { bridge, emit, fail, inState, line, lineItem, menu, ok, settings, TOOLS } from '../test/bridge'
 
 const field = () => screen.getByRole('combobox', { name: 'Look up a company' })
 const hits = () => within(screen.getByRole('listbox', { name: 'Companies' }))
@@ -90,10 +90,14 @@ describe('below the field', () => {
     await waitFor(() => expect(bridge.getReport).toHaveBeenCalledWith('r-msft-1', expect.objectContaining({ view: 'summary' })))
   })
 
-  test('“Since you were last here” offers to add a missing FRED key', async () => {
+  test('“Since you were last here” offers to add a missing FRED key, with FRED’s notice and terms', async () => {
     bridge.getSettings.mockResolvedValue(ok(settings({ keys: { massive: 'set', fred: 'missing' } })))
     const { user } = await renderApp()
     expect(await screen.findByText('Since you were last here')).toBeInTheDocument()
+    expect(screen.getByText('A FRED key is optional and free, and takes about 2 minutes to get.')).toBeInTheDocument()
+    expect(screen.getByText(/^This product uses the FRED® API but is not endorsed or certified by the Federal Reserve Bank of St\. Louis\./)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'FRED’s terms' }))
+    expect(bridge.openExternal).toHaveBeenCalledWith('https://fred.stlouisfed.org/docs/api/terms_of_use.html')
     await user.click(screen.getByRole('button', { name: 'Add the key' }))
     expect(win()).toHaveClass('on-settings')
     expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('Data keys')
@@ -101,33 +105,43 @@ describe('below the field', () => {
 })
 
 describe('problems at the top', () => {
-  test('a signed-out tool shows the line to sign in again, and looks for the sign-in every 2 seconds', async () => {
+  test('a signed-out tool’s Sign in again copies the command and opens Terminal, and the box goes once the main process sees the sign-in', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     try {
-      bridge.getTools.mockResolvedValue([{ ...TOOLS[0], loggedIn: false }, TOOLS[1]])
+      bridge.getTools.mockResolvedValue([inState(TOOLS[0], 'signed_out'), TOOLS[1]])
       const { user } = await renderApp({ advanceTimers: vi.advanceTimersByTime })
       expect(await screen.findByRole('alert')).toHaveTextContent('Claude Code is signed out')
       expect(screen.getByText('Claude Code signed out')).toBeInTheDocument()
+      expect(bridge.windowState).not.toHaveBeenCalled()
       await user.click(screen.getByRole('button', { name: 'Sign in again' }))
-      expect(screen.getByText('claude auth login')).toBeInTheDocument()
-      await user.click(screen.getByRole('button', { name: 'Open Terminal' }))
-      expect(bridge.openTerminal).toHaveBeenCalled()
-      bridge.getTools.mockResolvedValue(TOOLS)
+      expect(bridge.copyAndOpenTerminal).toHaveBeenCalledWith(['claude'])
+      expect(await screen.findByText('The command is copied, and a new Terminal window is open. Paste it there (⌘V) and press Return. Your browser opens so you can sign in.')).toBeInTheDocument()
+      expect(screen.getByText('Waiting for you to sign in')).toBeInTheDocument()
+      // The window waits on the person; the main process reads the tools, and the window never polls.
+      expect(bridge.windowState).toHaveBeenCalledWith({ waiting: true })
+      const asked = bridge.getTools.mock.calls.length
       await act(() => vi.advanceTimersByTimeAsync(2100))
+      expect(bridge.getTools.mock.calls.length).toBe(asked)
+      // Copy and open Terminal again asks the main process again.
+      await user.click(screen.getByRole('button', { name: 'Copy and open Terminal again' }))
+      expect(bridge.copyAndOpenTerminal).toHaveBeenCalledTimes(2)
+      emit('tools_changed', { tools: TOOLS })
       await waitFor(() => expect(screen.queryByText('Claude Code is signed out')).toBeNull())
       expect(screen.getByText('Claude Code ready')).toBeInTheDocument()
+      expect(bridge.windowState).toHaveBeenLastCalledWith({ waiting: false })
     } finally {
       vi.useRealTimers()
     }
   })
 
-  test('a failed safety check can be run again from the red box', async () => {
+  test('a failed safety check can be run again from the red box, and its chip shows in the toolbar while it runs', async () => {
     bridge.getSettings.mockResolvedValue(ok(settings({ lockdown: { claude: { version: '2.1.3', passed: false, form: null, checked_at: null, blocked_reason: 'lockdown_failed' } } })))
     const { user } = await renderApp()
     expect(await screen.findByRole('alert')).toHaveTextContent('Claude Code didn’t pass the safety check')
     await user.click(screen.getByRole('button', { name: 'Run the check again' }))
     expect(bridge.runSafetyCheck).toHaveBeenCalledWith('claude')
-    expect(await screen.findByText('Safety check, 0 of 25')).toBeInTheDocument()
+    expect(await within(screen.getByRole('complementary', { name: 'Sidebar' })).findByText('Safety check, 0 of 25')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Safety check, 0 of 25, under 1 min so far\. Show what it checks\.$/ })).toBeInTheDocument()
   })
 
   test('a safety check that won’t start says why in the box', async () => {
@@ -138,6 +152,20 @@ describe('problems at the top', () => {
     expect(await screen.findByText('A report is running.')).toBeInTheDocument()
   })
 
+  test('a run a sign-out stopped offers the same Sign in again in its red box', async () => {
+    const { user } = await renderApp()
+    await user.type(field(), 'nv')
+    await user.click(await hits().findByRole('option', { name: /NVDA/ }))
+    await screen.findByRole('region', { name: 'Report progress' })
+    emit('run_failed', { run_id: 'run-new', message: 'Claude Code is signed out.', code: 'AUTH_EXPIRED', step: 'narrate', fix_command: 'claude auth login' })
+    const box = within(await screen.findByRole('alert'))
+    expect(box.queryByText(/claude auth login/)).toBeNull()
+    await user.click(box.getByRole('button', { name: 'Sign in again' }))
+    expect(bridge.copyAndOpenTerminal).toHaveBeenCalledWith(['claude'])
+    expect(await box.findByText(/^The command is copied, and a new Terminal window is open\./)).toBeInTheDocument()
+    expect(box.getByRole('button', { name: 'Resume' })).toBeInTheDocument()
+  })
+
   test('a missing or refused Massive key opens Data keys', async () => {
     bridge.getSettings.mockResolvedValue(ok(settings({ rejected_keys: ['massive'] })))
     const { user } = await renderApp()
@@ -145,6 +173,88 @@ describe('problems at the top', () => {
     expect(screen.getByText('Massive key not accepted')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Replace the key' }))
     expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('Data keys')
+  })
+})
+
+describe('a report and the safety check', () => {
+  const sidebar = () => within(screen.getByRole('complementary', { name: 'Sidebar' }))
+  const waiting = () => within(screen.getByRole('status', { name: 'Waiting for the safety check' }))
+  const pick = async (user: Awaited<ReturnType<typeof renderApp>>['user'], ticker = 'NVDA') => {
+    await user.type(field(), ticker.toLowerCase().slice(0, 2))
+    await user.click(await hits().findByRole('option', { name: new RegExp(ticker) }))
+  }
+
+  test('a report asked for while a check runs joins the line and waits for it, then starts', async () => {
+    const { user } = await renderApp()
+    emit('safety_progress', { tool: 'claude', n: 7, total: 25 })
+    await pick(user)
+    expect(bridge.runReport).not.toHaveBeenCalled()
+    expect(bridge.addToLine).toHaveBeenCalledWith(['NVDA'])
+    expect(await screen.findByText('It starts when the safety check finishes.')).toBeInTheDocument()
+    // The home page shows the report waiting, with the check's progress.
+    emit('line_changed', line({ waiting: [lineItem('NVDA')] }))
+    expect(waiting().getByText('NVDA is in the line')).toBeInTheDocument()
+    expect(waiting().getByText('Starts when the safety check finishes (7 of 25).')).toBeInTheDocument()
+    emit('safety_progress', { tool: 'claude', n: 8, total: 25 })
+    expect(waiting().getByText('Starts when the safety check finishes (8 of 25).')).toBeInTheDocument()
+    // A second one waits behind it.
+    bridge.addToLine.mockResolvedValueOnce(ok({ items: [lineItem('MSFT')], skipped: [], line: line({ waiting: [lineItem('NVDA'), lineItem('MSFT')] }) }))
+    expect(field()).toHaveValue('')
+    await pick(user, 'MSFT')
+    expect(await screen.findByText('2 waiting. It starts when the safety check finishes and the ones before it are done.')).toBeInTheDocument()
+    // The check passes, and the line starts its report: the run view follows it.
+    emit('safety_done', { tool: 'claude', passed: true, finished: true })
+    expect(screen.queryByRole('status', { name: 'Waiting for the safety check' })).toBeNull()
+    emit('line_changed', line({ writing: lineItem('NVDA', { run_id: 'run-l1' }), waiting: [lineItem('MSFT')] }))
+    expect(await screen.findByRole('region', { name: 'Report progress' })).toBeInTheDocument()
+    expect(sidebar().getByRole('button', { name: /NVDA\s*writing…/ })).toBeInTheDocument()
+  })
+
+  test('on a brand-new install, the first report starts the full check and waits for it', async () => {
+    bridge.getSettings.mockResolvedValue(ok(settings({ lockdown: {} })))
+    const { user } = await renderApp()
+    await pick(user)
+    expect(bridge.runSafetyCheck).toHaveBeenCalledWith('claude')
+    expect(bridge.addToLine).toHaveBeenCalledWith(['NVDA'])
+    expect(bridge.runReport).not.toHaveBeenCalled()
+    expect(await screen.findByText('It starts when the safety check finishes.')).toBeInTheDocument()
+    expect(sidebar().getByText('Safety check, 0 of 25')).toBeInTheDocument()
+  })
+
+  test('a check that has passed while the app is open isn’t run again before a report', async () => {
+    bridge.getSettings.mockResolvedValue(ok(settings({ lockdown: {} })))
+    const { user } = await renderApp()
+    emit('safety_done', { tool: 'claude', passed: true, finished: true })
+    await pick(user)
+    expect(bridge.runSafetyCheck).not.toHaveBeenCalled()
+    expect(bridge.runReport).toHaveBeenCalledWith('NVDA')
+  })
+
+  test('a check that won’t start says why, and the report doesn’t join the line', async () => {
+    bridge.getSettings.mockResolvedValue(ok(settings({ lockdown: {} })))
+    bridge.runSafetyCheck.mockResolvedValue(fail('Tearsheet is grading past predictions first.'))
+    const { user } = await renderApp()
+    await pick(user)
+    expect(await screen.findByRole('alert')).toHaveTextContent('Tearsheet is grading past predictions first.')
+    expect(bridge.addToLine).not.toHaveBeenCalled()
+  })
+
+  test('a start the engine refuses because a check runs joins the line instead', async () => {
+    bridge.runReport.mockResolvedValue(fail('The safety check is running.', 'SAFETY_CHECK_RUNNING'))
+    const { user } = await renderApp()
+    await pick(user)
+    expect(bridge.addToLine).toHaveBeenCalledWith(['NVDA'])
+    expect(await screen.findByText('It starts when the safety check finishes.')).toBeInTheDocument()
+  })
+
+  test('a resume refused while a check runs says to wait for it', async () => {
+    const { user } = await renderApp()
+    await pick(user)
+    await screen.findByRole('region', { name: 'Report progress' })
+    emit('run_failed', { run_id: 'run-new', message: 'Network down.', code: 'ENGINE_ERROR', step: 'fetch' })
+    bridge.resume.mockResolvedValue(fail('The safety check is running.', 'SAFETY_CHECK_RUNNING'))
+    await user.click(screen.getByRole('button', { name: 'Resume' }))
+    expect(await screen.findByText('The safety check is running. Resume the report once it finishes.')).toBeInTheDocument()
   })
 })
 

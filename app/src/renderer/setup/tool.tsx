@@ -6,7 +6,8 @@ import { useState } from 'react'
 
 import type { ToolStatus } from '../../preload/api'
 import { at, Card, CheckIcon, Changes, CodeLine, Ring, Spinner, TerminalIcon } from './parts'
-import { TOOL_TEXT, versionNumber, type SafetyView, type ToolKind } from './steps'
+import { versionNumber } from '../../shared/tools'
+import { TOOL_TEXT, type SafetyView, type ToolKind } from './steps'
 
 const openTerminal = () => void window.tearsheet.openTerminal()
 

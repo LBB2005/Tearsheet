@@ -1079,7 +1079,26 @@ def test_the_error_that_stopped_the_ai_steps_is_kept(database, tmp_path):
 # --- the other-tool skeptic (Phase 2) ---------------------------------------------------------
 
 
-def run_with_checker(database, tmp_path, checker_fake):
+class FakeCodex(FakeConnector):
+    """A fake Codex that, like the real one, says at start-up which sign-in it uses."""
+
+    tool = "codex"
+    display_name = "Codex"
+    sign_in_fix = "codex login"
+    subscription_auth_sources = frozenset({"chatgpt"})
+
+    def __init__(self, *args, account: str | None = "chatgpt", **kwargs):
+        super().__init__(*args, **kwargs)
+        self.account = account
+        self.account_type: str | None = None
+        self.starts = 0
+
+    async def start(self) -> None:
+        self.starts += 1
+        self.account_type = self.account
+
+
+def run_with_checker(database, tmp_path, checker_fake, *, other=None, checker_billing=False):
     """A full run on Claude Code whose skeptic runs on a fake Codex."""
     from tearsheet.ai.client import CallBudget
 
@@ -1088,11 +1107,18 @@ def run_with_checker(database, tmp_path, checker_fake):
             version="1.0", model_ids=["m"], form="full", passed=True
         )
     primary = FakeConnector(default=skeptic_script(lambda section, ids: []))
-    other = FakeConnector(default=checker_fake)
-    other.tool, other.display_name = "codex", "Codex"
+    if other is None:
+        other = FakeConnector(default=checker_fake)
+        other.tool, other.display_name = "codex", "Codex"
     budget = CallBudget(50)
     ai = AIClient(primary, ToolState(database.conn, "claude"), retry_wait_s=0, budget=budget)
-    checker = AIClient(other, ToolState(database.conn, "codex"), retry_wait_s=0, budget=budget)
+    checker = AIClient(
+        other,
+        ToolState(database.conn, "codex"),
+        retry_wait_s=0,
+        budget=budget,
+        api_billing=checker_billing,
+    )
     run = Run(
         database.conn,
         FakeData(),
@@ -1155,6 +1181,60 @@ def test_a_mix_says_which_sections_were_self_checked(database, tmp_path):
     assert "risks" in selves and all(s in text for s in selves)
     assert "self-checked" in text
     assert [r.task for r in primary.requests].count("skeptic") == len(selves)
+
+
+def _codex_skeptic(auth_source: str):
+    def codex(request):
+        assert request.task == "skeptic"
+        return answer(SkepticReport(findings=[]), model_id="gpt-fake", auth_source=auth_source)
+
+    return codex
+
+
+def test_codex_signed_in_with_chatgpt_checks_each_draft(database, tmp_path):
+    other = FakeCodex(default=_codex_skeptic("chatgpt"), account="chatgpt")
+    run, result, primary, _ = run_with_checker(database, tmp_path, None, other=other)
+    assert other.starts == 1
+    assert [r.task for r in other.requests].count("skeptic") == 4
+    assert [r.task for r in primary.requests].count("skeptic") == 0
+    assert "checked by Codex" in result.html_path.read_text()
+
+
+def test_codex_on_an_api_key_without_api_billing_never_checks_and_the_draft_is_self_checked(
+    database, tmp_path
+):
+    other = FakeCodex(default=_codex_skeptic("apikey"), account="apikey")
+    run, result, primary, _ = run_with_checker(database, tmp_path, None, other=other)
+    assert other.requests == []  # turned down at start-up, before any call
+    assert not run.checker.calls  # nothing sent on the run's budget
+    assert [r.task for r in primary.requests].count("skeptic") == 4
+    assert run.stop_error is None  # the writing tool carries on
+    assert run.checker_failed and "not signed in with your plan" in run.checker_failed
+    html = result.html_path.read_text()
+    assert "self-checked" in html and "The skeptic call on Codex failed" in html
+
+
+def test_codex_on_an_api_key_with_api_billing_checks(database, tmp_path):
+    other = FakeCodex(default=_codex_skeptic("apikey"), account="apikey")
+    run, result, primary, _ = run_with_checker(
+        database, tmp_path, None, other=other, checker_billing=True
+    )
+    assert [r.task for r in other.requests].count("skeptic") == 4
+    assert "checked by Codex" in result.html_path.read_text()
+
+
+def test_the_same_sign_in_rule_stops_the_writing_tool_before_any_call(database):
+    from tearsheet.ai.client import AIAuthError
+
+    codex = FakeCodex(default=_codex_skeptic("apikey"), account="apikey")
+    client = AIClient(codex, ToolState(database.conn, "codex"))
+    with pytest.raises(AIAuthError) as caught:
+        asyncio.run(
+            client.structured(task="extract", instructions="x", sources=[], schema=SkepticReport)
+        )
+    assert caught.value.fix == "codex login"
+    assert codex.requests == [] and client.sent == 0
+    assert ToolState(database.conn, "codex").row() is None  # nor the gate's short check
 
 
 def test_the_checker_is_the_other_tool_only_when_it_is_connected(database, tmp_path, monkeypatch):

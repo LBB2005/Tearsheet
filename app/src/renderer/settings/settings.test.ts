@@ -3,24 +3,28 @@ import { describe, expect, it } from 'vitest'
 import type { ToolStatus } from '../../preload/api'
 import type { LockdownState } from '../../shared/protocol'
 import { safetyStarted, type SafetyState } from '../setup/steps'
-import { fieldProblem, healthTiles, maskEmail, storage, tildePath, toolPill, type HealthInput } from './settings'
+import { tildePath, toolFlags } from '../../shared/tools'
+import { fieldProblem, healthTiles, maskEmail, storage, toolPill, type HealthInput } from './settings'
 
 const MB = 1024 ** 2
 const GB = 1024 ** 3
 
+// A tool in a state (ready unless said), with `available` and `loggedIn` worked out from it.
 const tool = (kind: 'claude' | 'codex', over: Partial<ToolStatus> = {}): ToolStatus => ({
   kind,
   name: kind === 'claude' ? 'Claude Code' : 'Codex',
   path: `/usr/local/bin/${kind}`,
-  available: true,
   version: kind === 'claude' ? '2.1.317 (Claude Code)' : 'codex-cli 0.165.0',
-  loggedIn: true,
   reason: null,
+  plan: null,
+  email: null,
+  state: over.state ?? 'ready',
+  ...toolFlags(over.state ?? 'ready'),
   ...over
 })
 const passed: LockdownState = { version: '2.1.317 (Claude Code)', passed: true, form: 'full', checked_at: '2026-11-04T22:52:56+00:00', blocked_reason: null }
 const failed: LockdownState = { version: 'codex-cli 0.165.0', passed: false, form: 'full', checked_at: '2026-11-06T01:10:14+00:00', blocked_reason: 'lockdown_failed' }
-const done = (tool: 'claude' | 'codex', ok: boolean): SafetyState => ({ tool, n: ok ? 25 : 9, total: 25, done: true, passed: ok, stopped: false, reason: ok ? null : 'It ran a command.' })
+const done = (tool: 'claude' | 'codex', ok: boolean): SafetyState => ({ tool, n: ok ? 25 : 9, total: 25, done: true, passed: ok, stopped: false, reason: ok ? null : 'It ran a command.', stopping: false, startedAt: null })
 
 const base: HealthInput = {
   tools: [tool('claude'), tool('codex')],
@@ -73,15 +77,15 @@ describe('healthTiles', () => {
   })
 
   it('the AI tool tile follows the main tool: not found, signed out, a failed check, a check running', () => {
-    expect(tiles({ tools: [tool('claude', { available: false, version: null, loggedIn: null }), tool('codex')] })[0]).toEqual({ name: 'AI tool', tone: 'bad', text: 'Claude Code not found' })
-    expect(tiles({ tools: [tool('claude', { loggedIn: false }), tool('codex')] })[0]).toMatchObject({ tone: 'bad', text: 'Claude Code signed out' })
+    expect(tiles({ tools: [tool('claude', { state: 'missing', version: null }), tool('codex')] })[0]).toEqual({ name: 'AI tool', tone: 'bad', text: 'Claude Code not found' })
+    expect(tiles({ tools: [tool('claude', { state: 'signed_out' }), tool('codex')] })[0]).toMatchObject({ tone: 'bad', text: 'Claude Code signed out' })
     expect(tiles({ lockdown: { claude: { ...failed, version: '2.1.317' } } })[0]).toMatchObject({ tone: 'bad', text: 'Safety check didn’t pass' })
     expect(tiles({ safety: done('claude', false) })[0]).toMatchObject({ tone: 'bad', text: 'Safety check didn’t pass' })
     expect(tiles({ safety: { ...safetyStarted('claude'), n: 7 } })[0]).toMatchObject({ tone: 'run', text: 'Safety check, 7 of 25' })
     // This session's check passing outranks a failure stored before it.
     expect(tiles({ lockdown: { claude: failed }, safety: done('claude', true) })[0]).toMatchObject({ tone: 'ok', text: 'Claude Code ready' })
     // Unknown sign-in is not signed out.
-    expect(tiles({ tools: [tool('claude', { loggedIn: null }), tool('codex')] })[0]).toMatchObject({ tone: 'ok' })
+    expect(tiles({ tools: [tool('claude', { state: 'cant_tell' }), tool('codex')] })[0]).toMatchObject({ tone: 'ok' })
   })
 
   it('follows Codex when it is the main tool', () => {
@@ -119,13 +123,22 @@ describe('healthTiles', () => {
   })
 
   it('the skeptic is off when the other tool is missing, failed its check or signed out', () => {
-    expect(tiles({ tools: [tool('claude'), tool('codex', { available: false, version: null, loggedIn: null })] })[3]).toEqual({ name: 'Other-tool skeptic', tone: 'off', text: 'Off: Codex isn’t installed' })
+    expect(tiles({ tools: [tool('claude'), tool('codex', { state: 'missing', version: null })] })[3]).toEqual({ name: 'Other-tool skeptic', tone: 'off', text: 'Off: Codex isn’t installed' })
     expect(tiles({ lockdown: { claude: passed, codex: failed } })[3]).toMatchObject({ tone: 'bad', text: 'Off: Codex failed its check' })
     expect(tiles({ safety: done('codex', false) })[3]).toMatchObject({ tone: 'bad', text: 'Off: Codex failed its check' })
-    expect(tiles({ tools: [tool('claude'), tool('codex', { loggedIn: false })] })[3]).toMatchObject({ tone: 'hold', text: 'Off: Codex is signed out' })
+    expect(tiles({ tools: [tool('claude'), tool('codex', { state: 'signed_out' })] })[3]).toMatchObject({ tone: 'hold', text: 'Off: Codex is signed out' })
     expect(tiles({ safety: { ...safetyStarted('codex'), n: 3 } })[3]).toMatchObject({ tone: 'run', text: 'Checking Codex, 3 of 25' })
     // A check running for the other tool doesn't touch the main tool's tile.
     expect(tiles({ safety: { ...safetyStarted('codex'), n: 3 } })[0]).toMatchObject({ tone: 'ok', text: 'Claude Code ready' })
+  })
+
+  it('Codex checks the drafts only when it is ready, as the engine says, unless it is billed to an API key', () => {
+    for (const state of ['api_key', 'cant_tell'] as const) {
+      expect(tiles({ tools: [tool('claude'), tool('codex', { state })] })[3]).toEqual({ name: 'Other-tool skeptic', tone: 'hold', text: 'Off: Codex isn’t signed in with ChatGPT' })
+    }
+    expect(tiles({ tools: [tool('claude'), tool('codex', { state: 'api_key' })], codexApi: true })[3]).toMatchObject({ tone: 'ok', text: 'On: Codex checks the drafts' })
+    // Claude Code as the checking tool keeps its own rule.
+    expect(tiles({ primary: 'codex', tools: [tool('claude', { state: 'cant_tell' }), tool('codex')] })[3]).toMatchObject({ tone: 'ok', text: 'On: Claude Code checks the drafts' })
   })
 })
 
@@ -143,8 +156,8 @@ describe('toolPill', () => {
   it('says what state each tool is in', () => {
     expect(toolPill(tool('claude'), passed, null)).toEqual({ tone: 'ok', text: 'Ready' })
     expect(toolPill(tool('claude'), undefined, null)).toEqual({ tone: 'ok', text: 'Ready' })
-    expect(toolPill(tool('codex', { available: false }), undefined, null)).toEqual({ tone: 'off', text: 'Not found' })
-    expect(toolPill(tool('claude', { loggedIn: false }), passed, null)).toEqual({ tone: 'bad', text: 'Signed out' })
+    expect(toolPill(tool('codex', { state: 'missing' }), undefined, null)).toEqual({ tone: 'off', text: 'Not found' })
+    expect(toolPill(tool('claude', { state: 'signed_out' }), passed, null)).toEqual({ tone: 'bad', text: 'Signed out' })
     expect(toolPill(tool('codex'), failed, null)).toEqual({ tone: 'bad', text: 'Not usable' })
     // A full check that didn't pass is not usable, as its lock-down line says.
     expect(toolPill(tool('claude'), { ...passed, passed: false }, null)).toEqual({ tone: 'bad', text: 'Not usable' })
@@ -153,6 +166,13 @@ describe('toolPill', () => {
     expect(toolPill(tool('codex'), failed, done('codex', true))).toEqual({ tone: 'ok', text: 'Ready' })
     // Another tool's check says nothing about this one.
     expect(toolPill(tool('codex'), failed, done('claude', true))).toEqual({ tone: 'bad', text: 'Not usable' })
+  })
+
+  it('goes by what the status read found, so it agrees with the row’s button', () => {
+    expect(toolPill(tool('claude', { state: 'too_old' }), passed, null)).toEqual({ tone: 'bad', text: 'Too old' })
+    expect(toolPill(tool('codex', { state: 'api_key' }), undefined, null)).toEqual({ tone: 'bad', text: 'Not on a plan' })
+    expect(toolPill(tool('claude', { state: 'free_plan' }), passed, null)).toEqual({ tone: 'bad', text: 'Free plan' })
+    expect(toolPill(tool('claude', { state: 'cant_tell' }), passed, null)).toEqual({ tone: 'hold', text: 'Can’t tell' })
   })
 })
 

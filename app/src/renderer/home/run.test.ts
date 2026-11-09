@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { Tally } from '../../shared/protocol'
 import { REPORT_STEPS } from '../../shared/steps'
-import { doneFacts, freshNotes, GRADING_FIRST, HISTORY_FIRST, liveRows, refusal, runStep, runTitle, stageLine, stageMark, stageOf, stageTime, STAGES, withNote, type RunState } from './run'
+import { CHECK_FIRST, doneFacts, freshNotes, GRADING_FIRST, HISTORY_FIRST, liveRows, refusal, runStep, runTitle, stageLine, stageMark, stageOf, stageTime, STAGES, withNote, type RunState } from './run'
 
 // The first `n` steps done, and the next one started.
 function stepsDone(n: number): Record<string, string> {
@@ -240,6 +240,11 @@ describe('refusal', () => {
     expect(refusal('GRADING_IN_PROGRESS', 'engine words', false)).toBe(GRADING_FIRST)
     expect(refusal('HISTORY_DOWNLOADING', 'engine words', false)).toBe(HISTORY_FIRST)
     expect(HISTORY_FIRST).toBe('Tearsheet is downloading a price history for the chart. Try again in a minute.')
+  })
+
+  it('says a start refused during the safety check joins the line', () => {
+    expect(refusal('SAFETY_CHECK_RUNNING', 'engine words', false)).toBe(CHECK_FIRST)
+    expect(CHECK_FIRST).toBe('The safety check is running. The report joins the line.')
   })
 
   it('tells a cancelled run still stopping apart from another run', () => {

@@ -275,6 +275,45 @@ def test_a_signed_out_account_is_a_sign_in_error(tmp_path):
         ask(fake.connector(), request())
 
 
+def _client_ask(connector: CodexConnector, database, *, api_billing: bool = False):
+    from tearsheet.ai.client import AIClient, ToolState
+
+    client = AIClient(connector, ToolState(database.conn, "codex"), api_billing=api_billing)
+
+    async def go():
+        try:
+            return await asyncio.wait_for(
+                client.structured(
+                    task="extract", instructions="x", sources=[], schema=LockdownProbe
+                ),
+                20,
+            )
+        finally:
+            await connector.aclose()
+
+    return asyncio.run(go())
+
+
+def test_a_sign_in_that_isnt_a_plan_is_turned_down_before_any_call(tmp_path, database):
+    from tearsheet.ai.client import ToolState
+
+    api_key = {"account": {"account": {"type": "apiKey"}, "requiresOpenaiAuth": True}}
+    fake = Fake(tmp_path, {**api_key, "threads": [{"turn": {"text": ANSWER}}]})
+    with pytest.raises(AIAuthError) as caught:
+        _client_ask(fake.connector(), database)
+    assert caught.value.fix == "codex login"
+    assert fake.sent("account/read") and not fake.sent("thread/start")
+    assert ToolState(database.conn, "codex").row() is None  # the gate's check never ran
+
+    # With API billing chosen, the same sign-in is used.
+    ToolState(database.conn, "codex").record_check(
+        version="codex-cli 0.165.0", model_ids=["m"], form="full", passed=True
+    )
+    fake.set({**api_key, "threads": [{"turn": {"text": ANSWER}}]})
+    reply = _client_ask(fake.connector(api_billing=True), database, api_billing=True)
+    assert reply.summary.startswith("The filing")
+
+
 def test_errors_are_told_apart_by_message_and_data_never_the_code():
     # Both use -32600, as every Codex error does.
     limit = error_text(

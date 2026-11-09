@@ -15,9 +15,11 @@ export type SinceAction = 'addFred' | 'addMassive' | 'replaceMassive' | 'signIn'
 export interface SinceLine {
   tone: SinceTone
   text: string
-  // A problem's second line, under its bold first line.
+  // A problem's second line, under its bold first line; under a since line, its small print.
   detail?: string
   action?: SinceAction
+  // FRED's own sentence and a link to its terms, which its terms ask to show with the prompt.
+  fredNotice?: boolean
 }
 
 export interface SinceInput {
@@ -154,7 +156,16 @@ export function sinceLines(s: SinceInput): SinceLine[] {
   const grade = gradeLine(s.predictions, s.companies, now)
   if (grade) lines.push(grade)
   if (s.keys.fred === 'locked') lines.push({ tone: 'hold', text: 'macOS didn’t let Tearsheet open your FRED key, so reports leave the economic figures out. Quit Tearsheet, open it again, and click Always Allow.' })
-  else if (s.keys.fred !== 'set') lines.push({ tone: 'hold', text: 'Economic figures aren’t connected, so reports leave them out.', action: 'addFred' })
+  else if (s.keys.fred !== 'set') {
+    // The FRED prompt: the key is offered after the first report, not during setup.
+    lines.push({
+      tone: 'hold',
+      text: 'Economic figures aren’t connected, so reports leave them out.',
+      detail: 'A FRED key is optional and free, and takes about 2 minutes to get.',
+      action: 'addFred',
+      fredNotice: true
+    })
+  }
   else if (s.rejected?.includes('fred')) lines.push({ tone: 'hold', text: 'FRED stopped accepting your key, so reports leave the economic figures out.', action: 'addFred' })
   return lines
 }

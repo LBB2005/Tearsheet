@@ -40,8 +40,9 @@ ENVIRON = {
     "ANTHROPIC_API_KEY": "sk-should-not-pass",
     "OPENAI_API_KEY": "sk-also-not",
     "GITHUB_TOKEN": "ghp-nope",
-    "CLAUDE_CONFIG_DIR": "/Users/test/elsewhere",
 }
+# The user's own Claude Code folder, when they moved it: its sign-in is there.
+CONFIG_DIR = {"CLAUDE_CONFIG_DIR": "/Users/test/elsewhere"}
 GOOD = LockdownProbe(summary="Sales rose.", has_instructions=False)
 
 
@@ -205,6 +206,29 @@ def test_api_key_passes_only_with_api_billing(tmp_path):
     c = connector(tmp_path, stub, api_billing=True)
     asyncio.run(c.call(request()))
     assert "ANTHROPIC_API_KEY" in Path(stub.options.cli_path).read_text()
+
+
+def test_claude_config_dir_is_passed_only_when_it_is_set(tmp_path):
+    from tearsheet.ai.codex import build_env as codex_env
+
+    assert "CLAUDE_CONFIG_DIR" not in build_env(ENVIRON)
+    assert build_env({**ENVIRON, **CONFIG_DIR})["CLAUDE_CONFIG_DIR"] == "/Users/test/elsewhere"
+    # Codex has its own sign-in folder (CODEX_HOME), and never gets Claude Code's.
+    assert "CLAUDE_CONFIG_DIR" not in codex_env({**ENVIRON, **CONFIG_DIR})
+    stub = StubSDK()
+    c = ClaudeCodeConnector(
+        Path("/opt/claude/bin/claude"),
+        mode="sdk",
+        query_fn=stub,
+        environ={**ENVIRON, **CONFIG_DIR},
+        calls_root=tmp_path / "calls",
+    )
+    asyncio.run(c.call(request()))
+    assert stub.options.env["CLAUDE_CONFIG_DIR"] == "/Users/test/elsewhere"
+    assert '${CLAUDE_CONFIG_DIR+"CLAUDE_CONFIG_DIR=$CLAUDE_CONFIG_DIR"}' in (
+        Path(stub.options.cli_path).read_text()
+    )
+    c.close()
 
 
 def test_the_path_passed_by_the_app_wins():
@@ -374,7 +398,12 @@ def test_fallback_mode_reads_the_stream_with_a_clean_environment(tmp_path):
             "usage": {"input_tokens": 5, "output_tokens": 2},
         },
     ]
-    environ = {**ENVIRON, "HOME": str(home), "PATH": os.environ.get("PATH", "/usr/bin:/bin")}
+    environ = {
+        **ENVIRON,
+        **CONFIG_DIR,
+        "HOME": str(home),
+        "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
+    }
     c = ClaudeCodeConnector(
         fake_program(tmp_path, lines), mode="cli", environ=environ, calls_root=tmp_path / "calls"
     )
@@ -383,7 +412,8 @@ def test_fallback_mode_reads_the_stream_with_a_clean_environment(tmp_path):
     assert raw.model_id == "claude-haiku-test" and raw.auth_source == "none"
     seen = (home / "env.txt").read_text()
     assert "sk-should-not-pass" not in seen and "ghp-nope" not in seen
-    assert "CLAUDE_CONFIG_DIR" not in seen
+    # The user's own Claude Code folder is passed, so it finds its sign-in there.
+    assert "CLAUDE_CONFIG_DIR=/Users/test/elsewhere" in seen.splitlines()
     assert (home / "pwd.txt").read_text().startswith(str(tmp_path / "calls"))
 
 

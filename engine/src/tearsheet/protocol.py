@@ -167,6 +167,7 @@ METHODS: dict[str, type[Strict]] = {
     "set_setting": SetSettingParams,
     "check_key": CheckKeyParams,
     "run_safety_check": SafetyParams,
+    "cancel_safety_check": NoParams,
     "grade_due": NoParams,
     "list_companies": NoParams,
     "search_companies": SearchParams,
@@ -631,6 +632,13 @@ class GradeResult(Strict):
     note: str | None = None
 
 
+class CancelSafetyCheckResult(Strict):
+    """cancel_safety_check's answer: True when a check was running, and stops after the call in
+    progress."""
+
+    stopping: bool
+
+
 class Service(Strict):
     name: str
     key: str
@@ -676,6 +684,17 @@ class PriceDownload(Strict):
     companies: int
 
 
+class SafetyRunning(Strict):
+    """The safety check under way (get_settings), so a window that reloads mid-check shows the
+    real count: `n` of `total` calls done, since `started_at`."""
+
+    # Titled, so the generated TypeScript names of the safety notes' fields stay put.
+    tool: Literal["claude", "codex"] = Field(title="RunningTool")
+    n: int = Field(title="RunningN")
+    total: int = Field(title="RunningTotal")
+    started_at: str
+
+
 class SettingsResult(Strict):
     # "locked": macOS wouldn't hand the stored key over this session (its Keychain question was
     # answered no, or the Keychain is locked).
@@ -694,6 +713,8 @@ class SettingsResult(Strict):
     services: list[Service]
     price_download: PriceDownload
     lockdown: dict[str, LockdownState] = {}
+    # Set while a safety check runs, None otherwise.
+    safety_running: SafetyRunning | None = None
 
 
 # --- notifications ----------------------------------------------------------------------------
@@ -807,6 +828,8 @@ class RunFailedNote(Strict):
         "BUDGET_EXHAUSTED",
         "SEC_BLOCKED",
         "ENGINE_ERROR",
+        # A test copy's report, which ends before any data or AI call (first-run design §6).
+        "TEST_COPY",
     ]
     reset_at: str | None = None
     fix_command: str | None = None
@@ -911,8 +934,10 @@ ALL_MODELS: tuple[type[BaseModel], ...] = (
     RereadResult,
     GradeResult,
     Service,
+    CancelSafetyCheckResult,
     LockdownState,
     PriceDownload,
+    SafetyRunning,
     SettingsResult,
     KeyChecked,
     SafetyStarted,

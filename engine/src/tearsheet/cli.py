@@ -56,7 +56,7 @@ def cmd_set_key(args: argparse.Namespace) -> int:
     config.set_key(service, value)
     print(
         f"Saved your {label} key in the macOS Keychain "
-        f"(service '{config.KEYCHAIN_SERVICE}', account '{service}')."
+        f"(service '{config.keychain_service()}', account '{service}')."
     )
     return 0
 
@@ -862,7 +862,7 @@ def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(
         stream=sys.stderr,
         level=logging.INFO if args.verbose else logging.WARNING,
-        format="%(levelname)s %(name)s: %(message)s",
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
     try:
         return args.handler(args)

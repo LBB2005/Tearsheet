@@ -12,6 +12,34 @@ import type { LineItem, LineState } from '../../shared/protocol'
 export const PAUSES = new Set(['USAGE_LIMIT', 'AUTH_EXPIRED', 'SEC_BLOCKED', 'LOCKDOWN_FAILED', 'NO_TOOL', 'AI_UNAVAILABLE'])
 // The pause a line comes back with when Tearsheet opens again with reports waiting.
 export const REOPENED = 'REOPENED'
+// The pauses a safety check that didn't pass sets on a brand-new install (batch.py's
+// SAFETY_PAUSES): the person stopped it, or it couldn't finish. A later full pass carries the
+// line on by itself.
+export const SAFETY_PAUSES = new Set(['SAFETY_CHECK_STOPPED', 'SAFETY_CHECK_UNFINISHED'])
+
+// Whether the line waits on the safety check: one of those two, or a failed check
+// (LOCKDOWN_FAILED). Carrying on past one would skip the full check, so its only ways on are
+// running the check again and cancelling.
+export const safetyPause = (code: string | null | undefined): boolean => code === 'LOCKDOWN_FAILED' || SAFETY_PAUSES.has(code ?? '')
+
+const sentenceEnd = (s: string) => (/[.!?]$/.test(s) ? s : `${s}.`)
+
+// What a safety pause says. A failed check gives its reason (this session's, else the engine's
+// message); a stopped one and one that couldn't finish say so in plain words.
+export function safetyPauseText(code: string, message: string, checkReason?: string | null): string {
+  if (code === 'SAFETY_CHECK_STOPPED') return 'You stopped the safety check. Reports wait until it passes.'
+  if (code === 'SAFETY_CHECK_UNFINISHED') {
+    // The engine's message already starts "The check couldn't finish: ".
+    const why = message.replace(/^The (?:safety )?check couldn[’']t finish:\s*/i, '').trim()
+    return sentenceEnd(`The safety check couldn’t finish: ${why || 'it stopped part way'}`)
+  }
+  return sentenceEnd(checkReason || message || 'The safety check didn’t pass')
+}
+
+// The reports waiting on a safety check that runs now: some waiting, none being written, and
+// nothing else holding the line (only a pause the check itself set, which a pass carries on).
+export const waitsForCheck = (line: LineState | null, checking: boolean): boolean =>
+  checking && line !== null && line.writing === null && line.waiting.length > 0 && (line.paused === null || SAFETY_PAUSES.has(line.paused.code))
 
 const SEPARATORS = /[,;\n]/
 

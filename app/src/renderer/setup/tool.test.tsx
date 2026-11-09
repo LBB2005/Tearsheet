@@ -5,12 +5,12 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, test, vi } from 'vitest'
 
-import { TOOLS } from '../test/bridge'
+import { inState, TOOLS } from '../test/bridge'
 import { ONE_CLICK_ENABLED } from './steps'
 import { OneClick } from './tool'
 
 const claude = TOOLS[0]
-const missing = { ...claude, available: false, loggedIn: null, version: null }
+const missing = inState(claude, 'missing', { version: null, plan: null, email: null })
 
 describe('the one-click install screen', () => {
   test('is still switched off', () => {
@@ -37,7 +37,7 @@ describe('the one-click install screen', () => {
     expect(screen.getByText('Installing, about a minute')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Install and sign in' })).toBeDisabled()
 
-    rerender(<OneClick kind="claude" tool={{ ...claude, loggedIn: false }} onInstall={onInstall} onManual={onManual} onContinue={onContinue} />)
+    rerender(<OneClick kind="claude" tool={inState(claude, 'signed_out', { plan: null, email: null })} onInstall={onInstall} onManual={onManual} onContinue={onContinue} />)
     expect(screen.getByText('Waiting for you to sign in, in your browser')).toBeInTheDocument()
 
     rerender(<OneClick kind="claude" tool={claude} onInstall={onInstall} onManual={onManual} onContinue={onContinue} />)
