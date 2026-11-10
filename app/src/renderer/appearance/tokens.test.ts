@@ -11,7 +11,7 @@ import { describe, expect, test } from 'vitest'
 import { contrast, luminance, mix } from './colour'
 import { FONTS, LOOKS, PLAIN_STYLE, RATINGS, styleOf } from './looks'
 import { CORNERS, DEFAULT_APPEARANCE, GLOW, type Appearance } from './themeFile'
-import { EXACT, LIGHT_FLOOR, num, pickerValue, readability, resolve, SIDEBAR_LIFT, TOKEN_NAMES } from './tokens'
+import { EXACT, FLOOR, num, pickerValue, readability, resolve, SIDEBAR_LIFT, TOKEN_NAMES } from './tokens'
 
 const RENDERER = new URL('..', import.meta.url).pathname
 const css = (path: string) => readFileSync(join(RENDERER, path), 'utf8')
@@ -35,7 +35,10 @@ const STYLES = rootTokens(css('styles.css'))
 
 // The names in styles.css :root that are not a look's own: worked out from the others in the CSS
 // (--panel, --line, --track, --chipline, --r, --c-co, --c-peer), or not about colour.
-const NOT_LOOK = new Set(['--panel', '--line', '--track', '--chipline', '--r', '--c-co', '--c-peer', '--sw', '--settle', '--slide', '--mono'])
+// The shared scale (text sizes, corners, motion, floating surfaces, the focus ring, the slider's
+// white knob) is the same in every look.
+const NOT_LOOK_NAMES = new Set(['--panel', '--line', '--track', '--chipline', '--r', '--c-co', '--c-peer', '--sw', '--settle', '--slide', '--mono', '--focus', '--knob'])
+const NOT_LOOK = { has: (name: string) => NOT_LOOK_NAMES.has(name) || /^--(fs|r|dur|ease|float|shadow)-/.test(name) }
 
 describe('the default look', () => {
   test('sets every name to exactly the value styles.css was designed with', () => {
@@ -93,11 +96,35 @@ describe('every look', () => {
   })
 
   // Sidebar prices, shortcut hints, counts and placeholders use these quieter greys.
-  test.each(LOOKS.map((l) => [l.name, l.id]))('%s in light mode keeps its quieter greys readable on the page and the sidebar', (_name, id) => {
-    const r = resolve({ ...DEFAULT_APPEARANCE, basedOn: id, mode: 'light' })
-    for (const [name, min] of Object.entries(LIGHT_FLOOR)) {
+  test.each(looks)('%s keeps its quieter greys readable on the page and the sidebar', (_name, look) => {
+    const r = resolve(look)
+    for (const [name, min] of Object.entries(FLOOR)) {
       expect(contrast(r.tokens[name], r.colours.base), `${name} on the page`).toBeGreaterThanOrEqual(min)
       expect(contrast(r.tokens[name], r.side), `${name} on the sidebar`).toBeGreaterThanOrEqual(min)
+    }
+  })
+
+  test.each(looks)('%s keeps the accent readable as text on its own tint (tinted buttons, links)', (_name, look) => {
+    const r = resolve(look)
+    const fg = r.tokens['--accent-fg']
+    expect(contrast(fg, r.colours.base)).toBeGreaterThanOrEqual(4.5)
+    expect(contrast(fg, mix(r.colours.base, r.colours.accent, 0.1))).toBeGreaterThanOrEqual(4.5)
+  })
+
+  test.each(LOOKS.map((l) => [l.name, l.id]))('%s in light mode keeps Buy, Hold and Sell tags readable on their tint and the sidebar', (_name, id) => {
+    for (const set of RATINGS) {
+      const r = resolve({ ...DEFAULT_APPEARANCE, basedOn: id, mode: 'light', ratings: set.id })
+      for (const c of [r.colours.up, r.colours.hold, r.colours.down]) {
+        expect(contrast(c, mix(r.colours.base, c, 0.07)), `${set.id} ${c} on its tint`).toBeGreaterThanOrEqual(4.5)
+        expect(contrast(c, r.side), `${set.id} ${c} on the sidebar`).toBeGreaterThanOrEqual(4.5)
+      }
+    }
+  })
+
+  test('dark mode keeps the tested Buy, Hold and Sell colours exactly', () => {
+    for (const set of RATINGS) {
+      const r = resolve({ ...DEFAULT_APPEARANCE, mode: 'dark', ratings: set.id })
+      expect([r.colours.up, r.colours.hold, r.colours.down]).toEqual([set.dark.up, set.dark.hold, set.dark.down])
     }
   })
 
