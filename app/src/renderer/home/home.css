@@ -34,8 +34,8 @@
    styles.css takes them. */
 .btn2.danger { background: rgb(var(--down-rgb) / .10); border-color: rgb(var(--down-rgb) / .35); color: var(--bad-text); }
 .btn2.danger:hover { background: rgb(var(--down-rgb) / .18); }
-.confirm { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 8px; animation: fade .15s ease-out both; }
-.confirm > span { color: var(--text2); font-size: 13px; }
+.confirm { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 8px; animation: fade var(--dur-1) var(--ease-out) both; }
+.confirm > span { color: var(--text2); font-size: var(--fs-md); }
 
 /* The paste command's steps under "Sign in again" (home/paste.tsx), on the home page, in the run
    view's red box and under a tool's row on Settings → AI tools. */
@@ -63,8 +63,7 @@
 .homev .bigq input { flex: 1; min-width: 0; background: none; border: 0; outline: none; color: var(--text); font: 17px var(--ui); font-weight: calc(400 + var(--wt)); padding: 0; caret-color: var(--accent); }
 .homev .bigq input::placeholder { color: var(--edge); }
 .homev .bigq kbd { font: 11.5px var(--ui); font-weight: calc(400 + var(--wt)); color: var(--dim); border: 1px solid var(--line); border-radius: calc(5px * var(--round)); padding: 1px 6px; }
-.homev .dd { position: absolute; left: -1px; right: -1px; top: 64px; border-radius: calc(14px * var(--round)); background: var(--kbd-bg); border: 1px solid rgb(var(--ink) / .12); box-shadow: 0 20px 50px rgb(var(--shade) / calc(.5 * var(--shade-k))); padding: 6px; animation: home-dd .18s ease-out backwards; }
-@keyframes home-dd { from { opacity: 0; transform: translateY(-4px); } }
+.homev .dd { position: absolute; left: -1px; right: -1px; top: 64px; border-radius: calc(14px * var(--round)); background: var(--kbd-bg); border: 1px solid rgb(var(--ink) / .12); box-shadow: 0 20px 50px rgb(var(--shade) / calc(.5 * var(--shade-k))); padding: 6px; animation: pop-in var(--dur-2) var(--ease-out) backwards; }
 .homev .ddr { all: unset; box-sizing: border-box; width: 100%; display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 9px 12px; border-radius: calc(10px * var(--round)); cursor: pointer; transition: background .12s; }
 .homev .ddr.on { background: rgb(var(--accent-rgb) / .10); }
 .homev .ddr:disabled { cursor: default; }
