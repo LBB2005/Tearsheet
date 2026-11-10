@@ -104,6 +104,13 @@ export function niceTicks(min: number, max: number, n = 5): number[] {
   return out
 }
 
+// The y-axis ticks in the line's own units. With a compare line on, every line starts from 100 and
+// the axis reads the change from there, so the ticks are nice steps of the change (0%, +200%,
+// +400%), not of the 100-based value (200, 400, 600 read as +100%, +300%, +500%).
+export function axisTicks(lo: number, hi: number, indexed: boolean, n = 5): number[] {
+  return indexed ? niceTicks(lo - 100, hi - 100, n).map((t) => Number((t + 100).toFixed(10))) : niceTicks(lo, hi, n)
+}
+
 // The change between two prices, and as a percentage of the first.
 export function measure(a: number, b: number): { change: number; pct: number } {
   const change = b - a

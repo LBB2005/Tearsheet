@@ -27,7 +27,7 @@ import { reduced } from '../motion'
 import { shortDate } from '../nav'
 import { PanelSize } from '../panel/PanelHead'
 import { money } from '../shell/Sidebar'
-import { covers, measure, namedFilings, needsHistory, niceTicks, RANGE_ORDER, rangeLabel, rebase, slice, volumeText, yearsServed, type Range } from './series'
+import { axisTicks, covers, measure, namedFilings, needsHistory, RANGE_ORDER, rangeLabel, rebase, slice, volumeText, yearsServed, type Range } from './series'
 import { carryOn, GLIDE_MS, glideTrack, nextGlide, resample, trackXs, type GlideState, type Track } from './glide'
 import { SHARE_DEFAULT, shareFor, volumeHeight } from './height'
 import { KeyNumbers } from './KeyNumbers'
@@ -309,7 +309,7 @@ const reducedMotion = () => reduced()
 // a glide, `over` gives the lines where they are now, and what fades in or out.
 function drawChart(sl: ChartSeries, g: Geo, ticker: string, over: Over | null): ReactElement {
   const { n, X, Y, x0, x1, plotB, volB, W, H } = g
-  const ticks = niceTicks(g.lo, g.hi, 5)
+  const ticks = axisTicks(g.lo, g.hi, g.indexed)
   const step = ticks.length > 1 ? ticks[1] - ticks[0] : 1
   const digits = step >= 1 ? 0 : step >= 0.1 ? 1 : 2
   const priceTick = (v: number) => `$${v.toLocaleString('en-US', { minimumFractionDigits: digits ? 2 : 0, maximumFractionDigits: digits ? 2 : 0 })}`
@@ -425,9 +425,9 @@ function drawChart(sl: ChartSeries, g: Geo, ticker: string, over: Over | null): 
     <>
       {ticks.map((t) => (
         <g key={`y${t}`}>
-          <line className="c-grid" x1={x0} x2={W - PAD_R} y1={Y(t)} y2={Y(t)} />
+          <line className={g.indexed && t === 100 ? 'c-grid zero' : 'c-grid'} x1={x0} x2={W - PAD_R} y1={Y(t)} y2={Y(t)} />
           <text className="c-labr" x={x0 - 8} y={Y(t) + 4}>
-            {g.indexed ? sgn(t - 100, digits) : priceTick(t)}
+            {g.indexed ? (t === 100 ? '0%' : sgn(t - 100, digits)) : priceTick(t)}
           </text>
         </g>
       ))}

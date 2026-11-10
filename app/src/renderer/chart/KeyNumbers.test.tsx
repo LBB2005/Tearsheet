@@ -10,19 +10,35 @@ import { openReport, renderApp } from '../test/app'
 import { bridge, chart, KEY_NUMBERS, ok } from '../test/bridge'
 import { setSize, sizeReportPage } from '../test/screen'
 import { ChartPane } from './ChartPane'
-import { KeyNumbers } from './KeyNumbers'
+import { datedSummary, KeyNumbers, returnDate } from './KeyNumbers'
 
 const header = (name: string) => screen.getByRole('button', { name: new RegExp(`^${name}`) })
 const rowsOf = (key: string) => document.getElementById(`kn-${key}`)
+
+describe('the date the 12-month return runs to', () => {
+  test('is named only when it isn’t the close’s day', () => {
+    expect(returnDate({ close_date: '2026-11-09', report_date: '2026-11-06' })).toBe('Nov 6')
+    expect(returnDate({ close_date: '2026-11-06', report_date: '2026-11-06' })).toBeNull()
+    expect(returnDate({ close_date: '2026-11-06', report_date: null })).toBeNull()
+  })
+
+  test('goes after the summary’s year', () => {
+    expect(datedSummary('$346.31 · up 117.9% in a year', 'Nov 6')).toBe('$346.31 · up 117.9% in a year, to Nov 6')
+    expect(datedSummary('$10.00 · level over a year', 'Nov 6')).toBe('$10.00 · level over a year, to Nov 6')
+    expect(datedSummary('$10.00', 'Nov 6')).toBe('$10.00')
+    expect(datedSummary('$10.00 · up 1.0% in a year', null)).toBe('$10.00 · up 1.0% in a year')
+  })
+})
 
 describe('the Key numbers', () => {
   test('show the four groups with their summaries; Price and trading and Size and value start open', () => {
     render(<KeyNumbers numbers={KEY_NUMBERS} />)
     expect(screen.getByRole('heading', { name: 'Key numbers' })).toBeInTheDocument()
-    expect(screen.getByText('Nov 6 close · click a group to open it')).toBeInTheDocument()
+    expect(screen.getByText('Nov 6 close')).toBeInTheDocument()
     const heads = screen.getAllByRole('heading', { level: 3 })
     expect(heads.map((h) => h.textContent)).toEqual([
-      'Price and trading$230.10 · down 9.1% in a year',
+      // The return runs to the report's price date (Nov 5), not to the Nov 6 close: it says so.
+      'Price and trading$230.10 · down 9.1% in a year, to Nov 5',
       'Size and value$3.45T · cheaper than peers on 2 of 3',
       'Profit and cash$391.0B revenue · above peers on 2 of 3',
       'Debt and safetyNet debt $30.3B · more debt than peers'
@@ -43,7 +59,7 @@ describe('the Key numbers', () => {
     expect(pe).toHaveTextContent('P/E19.6×Peers 32.2×')
     const move = within(rowsOf('trading')!).getByRole('button', { name: /^12-month return/ })
     expect(move.querySelector('.knv')).toHaveClass('down')
-    expect(move).toHaveTextContent('12-month return−9.1%Peers +55.7%')
+    expect(move).toHaveTextContent('12-month return, to Nov 5−9.1%Peers +55.7%')
     expect(within(rowsOf('trading')!).getByRole('button', { name: /^Price/ })).toHaveTextContent(/^Price\$230\.10$/)
   })
 
