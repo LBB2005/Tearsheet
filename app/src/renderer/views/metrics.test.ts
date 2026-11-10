@@ -46,18 +46,24 @@ describe('sortMetrics', () => {
 describe('metricScale', () => {
   const item = m('x', 50, { value: 10, peer_median: 20, peers: [peer(100)] })
 
-  it('ignores the peers while they are off', () => {
-    const s = metricScale(item, { sort: 'report', peers: false, median: true })
-    expect(s.hi).toBeLessThan(100)
+  it('covers every peer, drawn or not, so the company and median never just sit at the ends', () => {
+    for (const peers of [false, true]) {
+      const s = metricScale(item, { sort: 'report', peers, median: true })
+      expect(s.lo).toBeLessThan(10)
+      expect(s.hi).toBeGreaterThan(100)
+    }
   })
 
-  it('covers every peer while they are on', () => {
-    const s = metricScale(item, { sort: 'report', peers: true, median: true })
-    expect(s.hi).toBeGreaterThan(100)
+  it('places the company and the median inside the peer spread', () => {
+    const wide = m('w', 50, { value: 30, peer_median: 50, peers: [peer(0), peer(40), peer(100)] })
+    const s = metricScale(wide, METRICS_START)
+    const at = (v: number) => (v - s.lo) / (s.hi - s.lo)
+    expect(at(30)).toBeGreaterThan(0.2)
+    expect(at(50)).toBeLessThan(0.6)
   })
 
-  it('ignores the median while it is off', () => {
-    const s = metricScale(item, { sort: 'report', peers: false, median: false })
+  it('leaves the median out while it is off', () => {
+    const s = metricScale(m('z', 50, { value: 10, peer_median: 200 }), { sort: 'report', peers: false, median: false })
     // Only the value is left, so the zero span is padded by a tenth of it.
     expect(s).toEqual({ lo: 9, hi: 11 })
   })
