@@ -1010,3 +1010,64 @@ def test_quick_adds_the_whole_list_a_sector_or_the_rest(tmp_path, fake_list):
     # A typical report, once a few have finished, rides along with the line.
     assert everything["result"]["line"]["typical"] is None
     h.server.close()
+
+
+def test_carry_on_after_a_report_that_couldnt_start_writes_that_company_too():
+    # No AI tool connected, or SEC blocked: Liam fixes it and presses Carry on.
+    for code in ("NO_TOOL", "SEC_BLOCKED", "AUTH_EXPIRED"):
+        line = ReportLine()
+        line.add([Entry("T1", "Company 1", 1001, True), Entry("T2", "Company 2", 1002, True)])
+        line.end(line.take_next(), {"how": "failed", "code": code}, now=NOW)
+        assert line.paused is not None and line.paused.run_id is None
+        line.carry_on(NOW)
+        assert line.paused is None
+        assert [e.ticker for e in line.waiting] == ["T1", "T2"] and line.finished == []
+
+
+def test_carry_on_past_a_stopped_report_still_leaves_it_behind():
+    line = ReportLine()
+    line.add([Entry("T1", "Company 1", 1001, True), Entry("T2", "Company 2", 1002, True)])
+    first = line.take_next()
+    first.run_id = "run-1"
+    line.end(first, {"how": "stopped", "code": "AUTH_EXPIRED"}, now=NOW)
+    line.carry_on(NOW)
+    assert [e.ticker for e in line.waiting] == ["T2"]
+    assert [e.ticker for e in line.finished] == ["T1"]
+
+
+def test_a_low_model_only_weekly_window_does_not_hide_a_full_one():
+    got = usage_readings(
+        [
+            {"status": "allowed_warning", "type": "seven_day", "utilization": 0.85},
+            {"status": "allowed", "type": "seven_day_opus", "utilization": 0.1},
+        ]
+    )
+    assert got["week"].used == 0.85 and got["week"].high()
+    # A later reading of the same window still replaces the earlier one.
+    got = usage_readings(
+        [
+            {"status": "allowed_warning", "type": "seven_day", "utilization": 0.85},
+            {"status": "allowed", "type": "seven_day", "utilization": 0.2},
+        ]
+    )
+    assert got["week"].used == 0.2
+
+
+def test_reset_times_that_cant_be_dates_are_unreadable_not_a_crash():
+    for text in ("Nov 31, 3pm", "Feb 30, 1am"):
+        assert reset_moment(text, NOW, local=LA) is None
+
+
+def test_a_reset_clock_time_across_a_clock_change_keeps_its_wall_time(monkeypatch):
+    # The Mac's own zone (no zone given): 1 Nov 2026 ends summer time in Los Angeles, so "3am"
+    # the next morning is 11:00 UTC, not the 10:00 a fixed summer-time offset gave.
+    import time
+
+    monkeypatch.setenv("TZ", "America/Los_Angeles")
+    time.tzset()
+    try:
+        before = datetime(2026, 11, 1, 6, 0, tzinfo=UTC)  # 11pm on 31 Oct, summer time
+        assert reset_moment("3am", before) == datetime(2026, 11, 1, 11, 0, tzinfo=UTC)
+    finally:
+        monkeypatch.undo()
+        time.tzset()

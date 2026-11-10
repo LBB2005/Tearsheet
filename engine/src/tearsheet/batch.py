@@ -196,23 +196,30 @@ def reset_moment(text: Any, now: datetime, *, local: tzinfo | None = None) -> da
         return None  # a bare number isn't a time
     if minute > 59:
         return None
-    zone: tzinfo = local or now.astimezone().tzinfo or UTC
+    zone: tzinfo | None = local
     if found["tz"]:
         try:
             zone = ZoneInfo(found["tz"])
         except (ZoneInfoNotFoundError, ValueError):
             pass
-    base = now.astimezone(zone)
+    # With no zone given, the Mac's own: worked out on a plain local clock time and given its
+    # offset last, so "3am" the morning after a clock change isn't an hour out.
+    base = (
+        now.astimezone(zone).replace(tzinfo=None) if zone else now.astimezone().replace(tzinfo=None)
+    )
     month = _MONTHS.get((found["mon"] or "")[:3].lower())
-    if month:
-        at = datetime(base.year, month, int(found["day"]), hour, minute, tzinfo=zone)
-        if at < base - timedelta(days=180):
-            at = at.replace(year=base.year + 1)
-    else:
-        at = base.replace(hour=hour, minute=minute, second=0, microsecond=0)
-        if at <= base:
-            at += timedelta(days=1)
-    return at.astimezone(UTC)
+    try:
+        if month:
+            at = datetime(base.year, month, int(found["day"]), hour, minute)
+            if at < base - timedelta(days=180):
+                at = at.replace(year=base.year + 1)
+        else:
+            at = base.replace(hour=hour, minute=minute, second=0, microsecond=0)
+            if at <= base:
+                at += timedelta(days=1)
+    except ValueError:  # "Nov 31", or 29 Feb in a year without it
+        return None
+    return (at.replace(tzinfo=zone) if zone else at.astimezone()).astimezone(UTC)
 
 
 def _wait_until(reset: Any, now: datetime) -> str:
@@ -261,12 +268,28 @@ def _readings(info: dict[str, Any]) -> Iterator[Reading]:
 def usage_readings(rate_limits: Iterable[dict[str, Any] | None]) -> dict[str, Reading]:
     """The latest reading of each usage window from a run's AI calls, taken in call order:
     Claude Code's rate-limit events and Codex's rate-limit updates (ai/client.py's CallRecord)."""
-    out: dict[str, Reading] = {}
+    # Claude Code has several weekly windows (seven_day, seven_day_opus, seven_day_sonnet):
+    # the latest reading of each, then the fullest of them stands for the week, so a low
+    # model-only window read last can't hide a weekly window past 80%.
+    latest: dict[tuple[str, str], Reading] = {}
     for info in rate_limits:
         if isinstance(info, dict):
+            kind = str(info.get("type") or "")
             for reading in _readings(info):
-                out[reading.window] = reading
+                latest[(reading.window, kind)] = reading
+    out: dict[str, Reading] = {}
+    for (window, _), reading in latest.items():
+        if window not in out or _fuller(reading, out[window]):
+            out[window] = reading
     return out
+
+
+def _fuller(a: Reading, b: Reading) -> bool:
+    """Whether reading `a` says its window is fuller than `b` does."""
+    return (a.high(), a.used if a.used is not None else -1.0) > (
+        b.high(),
+        b.used if b.used is not None else -1.0,
+    )
 
 
 def _gone(resets_at: str | None, now: datetime) -> bool:
@@ -531,7 +554,24 @@ class ReportLine:
         if pause is not None and pause.code == USAGE_WEEK and now is not None:
             at = reset_moment(pause.reset_at, now) if pause.reset_at else None
             self.week_ok_until = (at if at and at > now else now + WEEK).isoformat()
+        if pause is not None:
+            self._put_back_unstarted(pause)
         self.paused = None
+
+    def _put_back_unstarted(self, pause: Pause) -> None:
+        """The company whose report couldn't start (no AI tool, SEC blocked, sign-in expired)
+        goes back first in the line: it never ran, so going on must write it too."""
+        if pause.run_id is not None or pause.code not in PAUSE_CODES:
+            return
+        unstarted = next(
+            (e for e in reversed(self.finished) if e.run_id is None and e.code == pause.code),
+            None,
+        )
+        if unstarted is not None:
+            self.finished.remove(unstarted)
+            unstarted.outcome = unstarted.report_id = unstarted.code = None
+            unstarted.message = None
+            self.waiting.insert(0, unstarted)
 
     def wake(self) -> str | None:
         """A pause's wait is over. Gives the stopped report to resume, if there is one; else the
@@ -541,16 +581,7 @@ class ReportLine:
             return None
         if pause.run_id is not None:
             return pause.run_id
-        if pause.code in PAUSE_CODES:
-            unstarted = next(
-                (e for e in reversed(self.finished) if e.run_id is None and e.code == pause.code),
-                None,
-            )
-            if unstarted is not None:
-                self.finished.remove(unstarted)
-                unstarted.outcome = unstarted.report_id = unstarted.code = None
-                unstarted.message = None
-                self.waiting.insert(0, unstarted)
+        self._put_back_unstarted(pause)
         self.paused = None
         return None
 
