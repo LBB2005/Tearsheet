@@ -11,7 +11,7 @@ import { describe, expect, test } from 'vitest'
 import { contrast, luminance, mix } from './colour'
 import { FONTS, LOOKS, PLAIN_STYLE, RATINGS, styleOf } from './looks'
 import { CORNERS, DEFAULT_APPEARANCE, GLOW, type Appearance } from './themeFile'
-import { EXACT, LIGHT_FLOOR, num, pickerValue, readability, resolve, SIDEBAR_LIFT, TOKEN_NAMES } from './tokens'
+import { EXACT, FLOOR, num, pickerValue, readability, resolve, SIDEBAR_LIFT, TOKEN_NAMES } from './tokens'
 
 const RENDERER = new URL('..', import.meta.url).pathname
 const css = (path: string) => readFileSync(join(RENDERER, path), 'utf8')
@@ -35,7 +35,10 @@ const STYLES = rootTokens(css('styles.css'))
 
 // The names in styles.css :root that are not a look's own: worked out from the others in the CSS
 // (--panel, --line, --track, --chipline, --r, --c-co, --c-peer), or not about colour.
-const NOT_LOOK = new Set(['--panel', '--line', '--track', '--chipline', '--r', '--c-co', '--c-peer', '--sw', '--settle', '--slide', '--mono'])
+// The shared scale (text sizes, corners, motion, floating surfaces, the focus ring, the slider's
+// white knob) is the same in every look.
+const NOT_LOOK_NAMES = new Set(['--panel', '--line', '--track', '--chipline', '--r', '--c-co', '--c-peer', '--sw', '--settle', '--slide', '--mono', '--focus', '--knob'])
+const NOT_LOOK = { has: (name: string) => NOT_LOOK_NAMES.has(name) || /^--(fs|r|dur|ease|float|shadow)-/.test(name) }
 
 describe('the default look', () => {
   test('sets every name to exactly the value styles.css was designed with', () => {
@@ -93,11 +96,35 @@ describe('every look', () => {
   })
 
   // Sidebar prices, shortcut hints, counts and placeholders use these quieter greys.
-  test.each(LOOKS.map((l) => [l.name, l.id]))('%s in light mode keeps its quieter greys readable on the page and the sidebar', (_name, id) => {
-    const r = resolve({ ...DEFAULT_APPEARANCE, basedOn: id, mode: 'light' })
-    for (const [name, min] of Object.entries(LIGHT_FLOOR)) {
+  test.each(looks)('%s keeps its quieter greys readable on the page and the sidebar', (_name, look) => {
+    const r = resolve(look)
+    for (const [name, min] of Object.entries(FLOOR)) {
       expect(contrast(r.tokens[name], r.colours.base), `${name} on the page`).toBeGreaterThanOrEqual(min)
       expect(contrast(r.tokens[name], r.side), `${name} on the sidebar`).toBeGreaterThanOrEqual(min)
+    }
+  })
+
+  test.each(looks)('%s keeps the accent readable as text on its own tint (tinted buttons, links)', (_name, look) => {
+    const r = resolve(look)
+    const fg = r.tokens['--accent-fg']
+    expect(contrast(fg, r.colours.base)).toBeGreaterThanOrEqual(4.5)
+    expect(contrast(fg, mix(r.colours.base, r.colours.accent, 0.1))).toBeGreaterThanOrEqual(4.5)
+  })
+
+  test.each(LOOKS.map((l) => [l.name, l.id]))('%s in light mode keeps Buy, Hold and Sell tags readable on their tint and the sidebar', (_name, id) => {
+    for (const set of RATINGS) {
+      const r = resolve({ ...DEFAULT_APPEARANCE, basedOn: id, mode: 'light', ratings: set.id })
+      for (const c of [r.colours.up, r.colours.hold, r.colours.down]) {
+        expect(contrast(c, mix(r.colours.base, c, 0.07)), `${set.id} ${c} on its tint`).toBeGreaterThanOrEqual(4.5)
+        expect(contrast(c, r.side), `${set.id} ${c} on the sidebar`).toBeGreaterThanOrEqual(4.5)
+      }
+    }
+  })
+
+  test('dark mode keeps the tested Buy, Hold and Sell colours exactly', () => {
+    for (const set of RATINGS) {
+      const r = resolve({ ...DEFAULT_APPEARANCE, mode: 'dark', ratings: set.id })
+      expect([r.colours.up, r.colours.hold, r.colours.down]).toEqual([set.dark.up, set.dark.hold, set.dark.down])
     }
   })
 
@@ -114,7 +141,23 @@ describe('every look', () => {
     expect(r.tokens['--ink']).toBe('14 23 38')
     expect(r.tokens['--shade-k']).toBe('.35')
     expect(contrast(r.colours.text, r.colours.base)).toBeGreaterThan(12)
-    expect(r.background).toBe('#E8EDF2')
+    // The window's colour is the page's at its edges, not the sidebar's grey.
+    expect(r.background).toBe('#F0F3F9')
+  })
+
+  // Measured in a hidden window (10 Nov 2026, 1,280 x 840, glow 35%): the main area's pixels at its
+  // right edge halfway down and at the bottom, 70% across. The window's colour sits within 2 of them,
+  // so the strip macOS fills as the window grows matches the page.
+  test.each([
+    ['tearsheet', 'light', ['#F1F3F9', '#F0F4F8']],
+    ['newsprint', 'light', ['#F4F3EE', '#F4F3EE']],
+    ['amber', 'light', ['#F8F4EE', '#F9F5EE']],
+    ['tearsheet', 'dark', ['#0A0C18', '#090E16']],
+    ['midnight', 'dark', ['#0A0D1C', '#0A0E1C']]
+  ] as const)('%s %s: the window colour is the main area’s at its edges', (id, mode, seen) => {
+    const r = resolve({ ...DEFAULT_APPEARANCE, basedOn: id, mode, glow: 35 })
+    const channels = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16))
+    for (const px of seen) channels(px).forEach((v, i) => expect(Math.abs(v - channels(r.background)[i]), `${px} vs ${r.background}`).toBeLessThanOrEqual(2))
   })
 })
 
@@ -150,7 +193,7 @@ describe('the choices', () => {
     expect(r.tokens['--g1']).toBe('255 0 0')
     // The greys come from the new colours now, not the designed ones.
     expect(r.tokens['--text2']).not.toBe(EXACT['--text2'])
-    expect(r.background).toBe('#202020')
+    expect(r.background).toBe('#111215')
   })
 
   test('the chart’s three lines can be their own colours', () => {
@@ -201,7 +244,7 @@ describe('the Raised sidebar (Liam’s pick of five, 8 Nov 2026)', () => {
     expect(r.tokens['--side']).toBe('#1B1E25')
     expect(r.side).toBe('#1B1E25')
     expect(r.tokens['--bg']).toBe('#0A0D14')
-    expect(r.background).toBe('#0A0D14')
+    expect(r.background).toBe('#080D19')
     // About 18% apart from the page, where it was 1%.
     expect(contrast(r.side, r.colours.base)).toBeGreaterThan(1.15)
     expect(contrast(r.colours.bg, r.colours.base)).toBeLessThan(1.02)

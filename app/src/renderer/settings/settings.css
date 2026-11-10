@@ -8,40 +8,40 @@
    scoped under .setv. */
 
 /* The page fills the frame: the topic list stays put and the page beside it scrolls. */
-.pagebody[data-page="settings"] { padding: 0; overflow: hidden; }
+.pagebody[data-page="settings"] { padding: 0; overflow: hidden; scrollbar-gutter: auto; }
 .enter > .setv { animation: none; }
 .setv { position: absolute; inset: 0; display: flex; }
 
 /* ---------- the topic list: flat, like the app sidebar ---------- */
-.setv .topics { width: 212px; flex: none; overflow-y: auto; padding: 18px 10px; border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 1px; }
-.setv .topic { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 10px; width: 100%; padding: 7px 10px; border-radius: calc(8px * var(--round)); color: var(--text2); font-size: 13.5px; white-space: nowrap; cursor: pointer; transition: background .15s, color .15s; }
+.setv .topics { width: 212px; flex: none; overflow-y: auto; scrollbar-gutter: stable; padding: 18px 10px; border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 1px; }
+.setv .topic { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 10px; width: 100%; padding: 7px 10px; border-radius: var(--r-md); color: var(--text2); font-size: var(--fs-md); white-space: nowrap; cursor: pointer; transition: background var(--dur-1), color var(--dur-1); }
 .setv .topic:hover { background: rgb(var(--ink) / .045); color: var(--text); }
 .setv .topic.on { background: rgb(var(--ink) / .085); color: var(--text); }
 .setv .topic:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-.setv .topic svg { width: 16px; height: 16px; flex: none; fill: none; stroke: var(--icon); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; transition: stroke .2s; }
+.setv .topic svg { width: 16px; height: 16px; flex: none; fill: none; stroke: var(--icon); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; transition: stroke var(--dur-2); }
 .setv .topic.on svg { stroke: var(--accent); }
 /* Every part of the icons has pathLength 1, so a dash of 1 is the whole line: it draws in. */
-.setv .topic.on svg * { stroke-dasharray: 1; animation: set-draw .8s var(--slide) both; }
+.setv .topic.on svg * { stroke-dasharray: 1; animation: set-draw .8s var(--ease-move) both; }
 @keyframes set-draw { from { stroke-dashoffset: 1; } }
 .setv .topic .need { margin-left: auto; width: 7px; height: 7px; border-radius: 50%; background: var(--hold); flex: none; }
 .setv .topic .need.bad { background: var(--down); }
 .setv .vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 /* ---------- a topic's page: it settles in part by part, 70 ms apart ---------- */
-.setv .tpage { flex: 1; min-width: 0; overflow-y: auto; padding: 28px 40px 48px; }
+.setv .tpage { flex: 1; min-width: 0; overflow-y: auto; scrollbar-gutter: stable; padding: 28px 40px 48px; }
 .setv .tpin.panels { display: block; max-width: 640px; }
-.setv .tpin > * { animation: settle-in .5s var(--settle) backwards; animation-delay: 60ms; }
+.setv .tpin > * { animation: settle-in var(--dur-4) var(--ease-out) backwards; animation-delay: 60ms; }
 .setv .tpin > :nth-child(2) { animation-delay: 130ms; }
 .setv .tpin > :nth-child(3) { animation-delay: 200ms; }
 .setv .tpin > :nth-child(4) { animation-delay: 270ms; }
 .setv .tpin > :nth-child(n+5) { animation-delay: 340ms; }
 /* Under Animations Subtle (motion.ts), a topic's page is a page like any other: it comes in with
    one quick fade, with no build-up, icon drawing or growing bar. Full keeps those. */
-:root:not([data-motion="full"]) .setv .tpage { animation: fade .15s ease-out both; }
+:root:not([data-motion="full"]) .setv .tpage { animation: fade var(--dur-2) var(--ease-out) both; }
 :root:not([data-motion="full"]) .setv .tpin > *, :root:not([data-motion="full"]) .setv .topic.on svg *, :root:not([data-motion="full"]) .setv .stor i { animation: none; }
-:root:not([data-motion="full"]) .setv .keyform .card.mv { animation: fade .15s ease-out both; }
-.setv .sh2 { margin: 0; font: 20px/1.3 var(--ui); font-weight: calc(600 + var(--wt)); }
-.setv .slead { margin: 3px 0 0; color: var(--muted); font-size: 13px; }
+:root:not([data-motion="full"]) .setv .keyform .card.mv { animation: fade var(--dur-2) var(--ease-out) both; }
+.setv .sh2 { margin: 0; font: var(--fs-xl)/1.3 var(--ui); font-weight: calc(600 + var(--wt)); }
+.setv .slead { margin: 3px 0 0; color: var(--muted); font-size: var(--fs-md); }
 
 /* What needs you, on General: amber, or red when new reports can't be written or rated. */
 .setv .snote { margin-top: 18px; display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: var(--r); background: rgb(var(--hold-rgb) / .06); border: 1px solid rgb(var(--hold-rgb) / .28); }
@@ -56,65 +56,60 @@
 /* What a tool row's button set going (the paste command's steps), right under the row. */
 .setv .sline.col.sub { border-top: 0; padding-top: 0; min-height: 0; }
 .setv .slab { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.setv .slab b { font-weight: calc(500 + var(--wt)); font-size: 14px; }
-.setv .slab .help { font-size: 12.5px; color: var(--muted); }
+.setv .slab b { font-weight: calc(500 + var(--wt)); font-size: var(--fs-md); }
+.setv .slab .help { font-size: var(--fs-sm); color: var(--muted); }
 .setv .slab .help.hold, .setv .sline .help.hold { color: var(--hold); }
 .setv .slab .st.hold { color: var(--hold); }
-.setv .sline > .help { font-size: 12.5px; color: var(--muted); }
-.setv .sval { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: var(--soft); }
+.setv .sline > .help { font-size: var(--fs-sm); color: var(--muted); }
+.setv .sval { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-md); color: var(--soft); }
 .setv .sval em { font-style: normal; color: var(--muted); }
-.setv .sline input.sin { width: 260px; padding: 5px 10px; border-radius: calc(8px * var(--round)); border: 1px solid var(--chipline); background: rgb(var(--shade) / calc(.25 * var(--shade-k))); color: var(--text); font: 13px var(--ui); font-weight: calc(400 + var(--wt)); outline: none; box-shadow: 0 0 0 3px rgb(var(--accent-rgb) / .12); }
+.setv .sline input.sin { width: 260px; padding: 5px 10px; border-radius: var(--r-md); border: 1px solid var(--chipline); background: var(--field-bg); color: var(--text); font: var(--fs-md) var(--ui); font-weight: calc(400 + var(--wt)); outline: none; }
+.setv .sline input.sin:focus { box-shadow: 0 0 0 3px rgb(var(--accent-rgb) / .12); }
 .setv .sgrp > .sfine { margin: 0; padding: 0 16px 10px; }
 .setv .sline > .pill { flex: none; }
 
-/* ---------- Mac pop-up menus: the native select, with ⌃⌄ drawn over its end ---------- */
-.setv .popw { position: relative; flex: none; display: inline-flex; }
-.setv .pop { appearance: none; -webkit-appearance: none; min-width: 150px; padding: 4px 30px 4px 12px; border-radius: calc(7px * var(--round)); border: 1px solid rgb(var(--ink) / .12); background: rgb(var(--ink) / .07); box-shadow: 0 1px 0 rgb(var(--shade) / calc(.25 * var(--shade-k))); color: var(--text); font: 13px var(--ui); font-weight: calc(400 + var(--wt)); cursor: pointer; outline: none; transition: background .15s; }
-.setv .pop:hover { background: rgb(var(--ink) / .1); }
-.setv .pop:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.setv .pop:disabled { opacity: .5; cursor: default; }
-.setv .pop option { background: var(--option-bg); color: var(--text); }
-.setv .popw svg { position: absolute; top: 50%; right: 9px; width: 12px; height: 12px; margin-top: -6px; fill: none; stroke: var(--muted); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+/* Mac pop-up menus: the shared .popw / .pop (styles.css), at Settings' width. */
+.setv .pop { min-width: 150px; }
 
 /* ---------- pill buttons ---------- */
-.setv .pb { all: unset; box-sizing: border-box; flex: none; padding: 4px 13px; border-radius: 999px; border: 1px solid rgb(var(--ink) / .14); color: var(--text3); font-size: 12.5px; white-space: nowrap; cursor: pointer; transition: background .15s, border-color .15s; }
+.setv .pb { all: unset; box-sizing: border-box; flex: none; padding: 4px 13px; border-radius: var(--r-pill); border: 1px solid rgb(var(--ink) / .14); color: var(--text3); font-size: var(--fs-sm); white-space: nowrap; cursor: pointer; transition: background var(--dur-1), border-color var(--dur-1); }
 .setv .pb:hover { background: rgb(var(--ink) / .07); border-color: rgb(var(--ink) / .22); }
-.setv .pb.go { border-color: rgb(var(--accent-rgb) / .4); color: var(--accent); }
+.setv .pb.go { border-color: rgb(var(--accent-rgb) / .4); color: var(--accent-fg); }
 .setv .pb.go:hover { background: rgb(var(--accent-rgb) / .08); }
 .setv .pb:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .setv .pb:disabled, .setv .pb:disabled:hover { opacity: .45; cursor: default; background: none; }
 /* The shared accent buttons on Settings' pages (the key card's Check, Sign in again) are pills too,
    like .pb.go, so a page never mixes round and square buttons. */
-.setv .btn2 { padding: 4px 13px; border-radius: 999px; border-color: rgb(var(--accent-rgb) / .4); background: none; font-size: 12.5px; font-weight: calc(400 + var(--wt)); }
+.setv .btn2 { padding: 4px 13px; border-radius: var(--r-pill); border-color: rgb(var(--accent-rgb) / .4); background: none; font-size: var(--fs-sm); font-weight: calc(400 + var(--wt)); }
 .setv .btn2:hover { background: rgb(var(--accent-rgb) / .08); }
 .setv .btn2:active { transform: none; }
 .setv .acts { display: flex; gap: 8px; flex: none; }
 .setv .lkw { margin-top: 12px; }
-.setv .lk { all: unset; cursor: pointer; color: var(--accent); font-size: 12.5px; border-radius: calc(6px * var(--round)); }
+.setv .lk { all: unset; cursor: pointer; color: var(--accent-fg); font-size: var(--fs-sm); border-radius: var(--r-sm); }
 .setv .lk:hover { text-decoration: underline; }
 .setv .lk:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* ---------- AI tools: the details behind Show details ---------- */
-.setv .sdl { display: grid; grid-template-columns: 130px minmax(0, 1fr); column-gap: 12px; row-gap: 3px; width: 100%; margin: 0; font-size: 12.5px; }
+.setv .sdl { display: grid; grid-template-columns: 130px minmax(0, 1fr); column-gap: 12px; row-gap: 3px; width: 100%; margin: 0; font-size: var(--fs-sm); }
 .setv .sdl dt { color: var(--muted); }
 .setv .sdl dd { margin: 0; color: var(--text2); overflow-wrap: anywhere; }
-.setv .sdl dd.path { font: 12px var(--mono); font-weight: calc(400 + var(--wt)); color: var(--muted); }
+.setv .sdl dd.path { font: var(--fs-sm) var(--mono); font-weight: calc(400 + var(--wt)); color: var(--muted); }
 .setv .sdl dd.bad { color: var(--bad-text); }
 
 /* ---------- Data keys ---------- */
 .setv .keyrow { border-top: 1px solid var(--line); }
 .setv .keyrow:first-child { border-top: 0; }
 .setv .keyform { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 0 16px 14px; }
-.setv .link { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; color: var(--accent); font-size: 12.5px; border-radius: calc(6px * var(--round)); }
+.setv .link { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; color: var(--accent-fg); font-size: var(--fs-sm); border-radius: var(--r-sm); }
 .setv .link:hover { text-decoration: underline; }
 .setv .link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .setv .link svg { width: 12px; height: 12px; stroke: currentColor; fill: none; stroke-width: 2; }
 /* Setup's paste-and-check card, flatter inside the group. It settles in at once when it opens. */
-.setv .keyform .card { width: 100%; display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-radius: calc(12px * var(--round)); background: rgb(var(--shade) / calc(.18 * var(--shade-k))); border: 1px solid var(--line); transition: border-color .35s; }
-.setv .keyform .card.mv { animation: settle-in .4s var(--settle) backwards; animation-delay: 0s; }
+.setv .keyform .card { width: 100%; display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-radius: var(--r-lg); background: rgb(var(--ink) / .025); border: 1px solid var(--line); transition: border-color var(--dur-3); }
+.setv .keyform .card.mv { animation: settle-in var(--dur-3) var(--ease-out) backwards; animation-delay: 0s; }
 .setv .keyform .card.done { border-color: rgb(var(--up-rgb) / .28); }
 .setv .keyform .card .field { display: flex; gap: 8px; width: 100%; }
-.setv .keyform .card .field input { flex: 1; min-width: 0; padding: 5px 12px; border-radius: calc(8px * var(--round)); border: 1px solid var(--line); background: rgb(var(--ink) / .06); color: var(--text); font: 13px var(--mono); font-weight: calc(400 + var(--wt)); outline: none; transition: border-color .2s, box-shadow .2s; }
+.setv .keyform .card .field input { flex: 1; min-width: 0; padding: 5px 12px; border-radius: var(--r-md); border: 1px solid var(--line); background: var(--field-bg); color: var(--text); font: var(--fs-md) var(--mono); font-weight: calc(400 + var(--wt)); outline: none; transition: border-color var(--dur-2), box-shadow var(--dur-2); }
 .setv .keyform .card .field input:focus { border-color: var(--chipline); box-shadow: 0 0 0 3px rgb(var(--accent-rgb) / .12); }
 .setv .keyform .card .field input::placeholder { color: var(--edge); font-family: var(--ui); }
 .setv .keyform .card .st { min-height: 18px; }
@@ -123,9 +118,9 @@
 
 /* ---------- storage: the bar grows as the page settles ---------- */
 .setv .sbarhead { display: flex; justify-content: space-between; gap: 12px; }
-.setv .sbarhead b { font-weight: calc(500 + var(--wt)); font-size: 14px; }
-.setv .stor { position: relative; height: 8px; border-radius: calc(4px * var(--round)); background: var(--track); overflow: hidden; }
-.setv .stor i { position: absolute; inset: 0 auto 0 0; min-width: 3px; border-radius: calc(4px * var(--round)); background: var(--accent); transition: width .6s var(--slide); animation: set-grow .9s var(--slide) .35s backwards; }
+.setv .sbarhead b { font-weight: calc(500 + var(--wt)); font-size: var(--fs-md); }
+.setv .stor { position: relative; height: 8px; border-radius: var(--r-xs); background: var(--track); overflow: hidden; }
+.setv .stor i { position: absolute; inset: 0 auto 0 0; min-width: 3px; border-radius: var(--r-xs); background: var(--accent); transition: width var(--dur-4) var(--ease-move); animation: set-grow .9s var(--ease-move) .35s backwards; }
 .setv .stor.hold i { background: var(--hold); }
 @keyframes set-grow { from { width: 0; } }
 

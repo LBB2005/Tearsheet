@@ -1358,6 +1358,8 @@ class Server:
 
     async def m_get_report(self, p) -> dict[str, Any]:
         from tearsheet import report_numbers
+        from tearsheet.companies import display_name
+        from tearsheet.data import membership
         from tearsheet.key_numbers import key_numbers
         from tearsheet.render import render_html
 
@@ -1377,6 +1379,12 @@ class Server:
             (row["run_id"],),
         ).fetchone()
         cik = run_row[0] if run_row else None
+        # The name the app shows, in the page too: the S&P list's, never SEC's "US BANCORP \DE\".
+        name = display_name(
+            membership.load_bundled(),
+            cik,
+            (run_row[1] if run_row else None) or report.get("company"),
+        )
         numbers = None
         bar = None
         keys = None
@@ -1401,14 +1409,14 @@ class Server:
             "run_id": row["run_id"],
             "ticker": report.get("ticker", ""),
             "cik": cik,
-            "name": (run_row[1] if run_row else None) or report.get("company") or None,
+            "name": name or None,
             "created_at": row["created_at"],
             "narrative_complete": bool(row["narrative_complete"]),
             "kept": claims.get("kept") if isinstance(claims, dict) else None,
             "bar": bar,
             "key_numbers": keys,
             "html": render_html(
-                report,
+                {**report, "company": name} if name else report,
                 mode="app",
                 view=p.view,
                 column=p.column,
@@ -1643,8 +1651,11 @@ class Server:
         return {"first_date": first or "", "days": days}
 
     async def m_list_reports(self, p) -> list[dict[str, Any]]:
+        from tearsheet.companies import display_name
+        from tearsheet.data import membership
         from tearsheet.report_marks import kept_because
 
+        holdings = membership.load_bundled()
         which = "IN" if p.hidden else "NOT IN"
         rows = self.db.conn.execute(
             "SELECT r.report_id, r.run_id, r.created_at, r.narrative_complete, u.cik, c.name FROM reports r"
@@ -1668,7 +1679,7 @@ class Server:
                     "run_id": r["run_id"],
                     "cik": r["cik"],
                     "ticker": steps.get("resolve", {}).get("ticker"),
-                    "name": r["name"],
+                    "name": display_name(holdings, r["cik"], r["name"]),
                     "created_at": r["created_at"],
                     "rating": steps.get("rate", {}).get("rating"),
                     "narrative_complete": bool(r["narrative_complete"]),

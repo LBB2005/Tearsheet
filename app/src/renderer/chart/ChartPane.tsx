@@ -27,7 +27,7 @@ import { reduced } from '../motion'
 import { shortDate } from '../nav'
 import { PanelSize } from '../panel/PanelHead'
 import { money } from '../shell/Sidebar'
-import { covers, measure, namedFilings, needsHistory, niceTicks, RANGE_ORDER, rangeLabel, rebase, slice, volumeText, yearsServed, type Range } from './series'
+import { axisTicks, covers, measure, namedFilings, needsHistory, RANGE_ORDER, rangeLabel, rebase, slice, volumeText, yearsServed, type Range } from './series'
 import { carryOn, GLIDE_MS, glideTrack, nextGlide, resample, trackXs, type GlideState, type Track } from './glide'
 import { SHARE_DEFAULT, shareFor, volumeHeight } from './height'
 import { KeyNumbers } from './KeyNumbers'
@@ -63,8 +63,8 @@ export interface ChartPaneProps {
   rangeAsk?: number
   // The company's full history has downloaded, which gives the report's numbers longer spans.
   onHistory?: () => void
-  // The report's Key numbers, shown under the chart; none until the report has loaded, or when
-  // its numbers can't be read.
+  // The report's Key numbers, shown under the chart. Undefined until the report has loaded (no
+  // line then); null when its numbers can't be read, which says so in one line.
   keyNumbers?: KeyNumbersData | null
 }
 
@@ -309,7 +309,7 @@ const reducedMotion = () => reduced()
 // a glide, `over` gives the lines where they are now, and what fades in or out.
 function drawChart(sl: ChartSeries, g: Geo, ticker: string, over: Over | null): ReactElement {
   const { n, X, Y, x0, x1, plotB, volB, W, H } = g
-  const ticks = niceTicks(g.lo, g.hi, 5)
+  const ticks = axisTicks(g.lo, g.hi, g.indexed)
   const step = ticks.length > 1 ? ticks[1] - ticks[0] : 1
   const digits = step >= 1 ? 0 : step >= 0.1 ? 1 : 2
   const priceTick = (v: number) => `$${v.toLocaleString('en-US', { minimumFractionDigits: digits ? 2 : 0, maximumFractionDigits: digits ? 2 : 0 })}`
@@ -425,9 +425,9 @@ function drawChart(sl: ChartSeries, g: Geo, ticker: string, over: Over | null): 
     <>
       {ticks.map((t) => (
         <g key={`y${t}`}>
-          <line className="c-grid" x1={x0} x2={W - PAD_R} y1={Y(t)} y2={Y(t)} />
+          <line className={g.indexed && t === 100 ? 'c-grid zero' : 'c-grid'} x1={x0} x2={W - PAD_R} y1={Y(t)} y2={Y(t)} />
           <text className="c-labr" x={x0 - 8} y={Y(t) + 4}>
-            {g.indexed ? sgn(t - 100, digits) : priceTick(t)}
+            {g.indexed ? (t === 100 ? '0%' : sgn(t - 100, digits)) : priceTick(t)}
           </text>
         </g>
       ))}
@@ -531,7 +531,7 @@ function readout(sl: ChartSeries, range: Range, filled: boolean, hover: number |
 
 // ---------- the pane ----------
 
-export function ChartPane({ reportId, cik, ticker, name, width, split, size, onClose, onSize, switcher, away = false, swap = false, rangeAsk = 0, onHistory, keyNumbers = null }: ChartPaneProps) {
+export function ChartPane({ reportId, cik, ticker, name, width, split, size, onClose, onSize, switcher, away = false, swap = false, rangeAsk = 0, onHistory, keyNumbers }: ChartPaneProps) {
   const company = cik === null ? `report:${reportId}` : `cik:${cik}`
   // As it was when the pane mounted: a class that came or went later would start, or cut short,
   // the pane's own animation.
@@ -854,7 +854,10 @@ export function ChartPane({ reportId, cik, ticker, name, width, split, size, onC
   const served = series ? `Massive’s free plan serves ${yearsServed(series)} for this company.` : ''
   const read = sl && sl.dates.length > 0 && series ? readout(sl, shown, covers(series, shown), hover, span, g?.indexed ? g.main : null) : null
 
-  const subtitle = `${name ? `${name}, ` : ''}${toggles.peers || toggles.spy ? 'total return, with dividends' : 'daily close, adjusted for splits'}`
+  // What the line is. The company's name is in the legend under the chart, so it isn't repeated
+  // here, where the pane's width cut it short.
+  const subtitle = toggles.peers || toggles.spy ? 'Total return, with dividends' : 'Daily close, adjusted for splits'
+  const howTo = split ? 'Hover for a day; drag across to measure; drag the divider to resize.' : 'Hover for a day; drag across to measure.'
 
   const toggle = (k: keyof Toggles, text: string, colour: string, off: boolean, why: string) => (
     <button className={toggles[k] ? 'tg on' : 'tg'} aria-pressed={toggles[k]} disabled={off} title={off ? why : undefined} onClick={() => flip(k)}>
@@ -921,7 +924,7 @@ export function ChartPane({ reportId, cik, ticker, name, width, split, size, onC
           <div className="cph">
             <div className="cpt">
               <b>{ticker ?? 'Price'}</b>
-              <span title={subtitle}>{subtitle}</span>
+              <span title={name ? `${name}: ${subtitle.toLowerCase()}` : subtitle}>{subtitle}</span>
             </div>
             <div className="cpbig">
               {loading ? (
@@ -957,7 +960,7 @@ export function ChartPane({ reportId, cik, ticker, name, width, split, size, onC
           </div>
           {long && !loading && historyLine && <p className="cline">{historyLine}</p>}
           {shown === 'All' && short && <p className="cnote5">{served}</p>}
-          <div ref={wrap} className="chartwrap" onPointerMove={onMove} onPointerDown={onDown} onPointerUp={onUp} onPointerCancel={onUp} onLostPointerCapture={onUp} onPointerLeave={onLeave}>
+          <div ref={wrap} className="chartwrap" aria-description={howTo} onPointerMove={onMove} onPointerDown={onDown} onPointerUp={onUp} onPointerCancel={onUp} onLostPointerCapture={onUp} onPointerLeave={onLeave}>
             {inside}
             {g && sl && !loading && g.volH > 0 && (
               <div
@@ -1001,10 +1004,15 @@ export function ChartPane({ reportId, cik, ticker, name, width, split, size, onC
               <i className="dot" />
               SEC filings the report read
             </span>
-            <span>{split ? 'Hover for a day; drag across to measure; drag the divider to resize.' : 'Hover for a day; drag across to measure.'}</span>
           </div>
         </div>
-        {keyNumbers && <KeyNumbers numbers={keyNumbers} />}
+        {keyNumbers ? (
+          <KeyNumbers numbers={keyNumbers} />
+        ) : keyNumbers === null ? (
+          <section className="kn" aria-label="Key numbers">
+            <p className="knsrc">Key numbers aren’t available for this report.</p>
+          </section>
+        ) : null}
       </div>
     </section>
   )

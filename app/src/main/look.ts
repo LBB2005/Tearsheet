@@ -8,14 +8,23 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { readFile, stat, writeFile } from 'node:fs/promises'
 
-import { dialog, ipcMain, type BrowserWindow, type Dialog } from 'electron'
+import { dialog, ipcMain, nativeTheme, type BrowserWindow, type Dialog } from 'electron'
 
 export interface WindowLook {
   zoom: number
   background: string
 }
 
-export const DEFAULT_WINDOW_LOOK: WindowLook = { zoom: 1, background: '#0A0D14' }
+// Before the page has sent its look (the first launch, or a missing file), the window follows the
+// Mac's light or dark setting, as a new user's look does (Match the Mac). The colours are the
+// default look's main area at its edges (renderer/appearance/tokens.ts windowColour), so the strip
+// macOS fills while the window grows is the page's colour.
+export const DEFAULT_WINDOW_LOOK: WindowLook = { zoom: 1, background: '#080D19' }
+export const DEFAULT_WINDOW_LOOK_LIGHT: WindowLook = { zoom: 1, background: '#F0F3F9' }
+
+export function defaultWindowLook(dark: boolean = nativeTheme?.shouldUseDarkColors ?? true): WindowLook {
+  return dark ? DEFAULT_WINDOW_LOOK : DEFAULT_WINDOW_LOOK_LIGHT
+}
 export const ZOOM = { min: 0.85, max: 1.3 }
 export const THEME_MAX_BYTES = 64 * 1024
 export const THEME_EXTENSION = 'tearsheet-theme'
@@ -28,11 +37,11 @@ export function parseWindowLook(value: unknown): WindowLook | null {
   return { zoom, background: background.toUpperCase() }
 }
 
-export function readWindowLook(file: string): WindowLook {
+export function readWindowLook(file: string, dark?: boolean): WindowLook {
   try {
-    return parseWindowLook(JSON.parse(readFileSync(file, 'utf8'))) ?? DEFAULT_WINDOW_LOOK
+    return parseWindowLook(JSON.parse(readFileSync(file, 'utf8'))) ?? defaultWindowLook(dark)
   } catch {
-    return DEFAULT_WINDOW_LOOK
+    return defaultWindowLook(dark)
   }
 }
 

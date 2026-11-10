@@ -54,6 +54,39 @@ describe('the look-up field', () => {
     expect(toolbarTitle()).toBe('NFLXWriting the report, about 5 min left')
   })
 
+  test('the list stays on screen while the next answer comes, and closes when the field loses the cursor', async () => {
+    const { user } = await renderApp()
+    await user.type(field(), 'n')
+    const box = await screen.findByRole('listbox', { name: 'Companies' })
+    // The next letter's answer hasn't come yet: the same list stays, with the last answer in it.
+    let answer: (v: Awaited<ReturnType<typeof bridge.searchCompanies>>) => void = () => undefined
+    bridge.searchCompanies.mockImplementationOnce(() => new Promise((resolve) => (answer = resolve)))
+    await user.type(field(), 'v')
+    expect(screen.getByRole('listbox', { name: 'Companies' })).toBe(box)
+    expect(within(box).getByRole('option', { name: /NVDA/ })).toBeInTheDocument()
+    await act(async () => answer(ok([])))
+    expect(screen.getByRole('listbox', { name: 'Companies' })).toBe(box)
+    // Elsewhere: it closes, and comes back with the cursor.
+    await user.click(screen.getByRole('heading', { name: 'Which company today?' }))
+    expect(screen.queryByRole('listbox')).toBeNull()
+    expect(field()).toHaveAttribute('aria-expanded', 'false')
+    await user.click(field())
+    expect(screen.getByRole('listbox', { name: 'Companies' })).toBeInTheDocument()
+  })
+
+  test('Return pressed before the look-up answers starts the first company it finds', async () => {
+    const { user } = await renderApp()
+    await user.type(field(), 'nvd')
+    await screen.findByRole('listbox', { name: 'Companies' })
+    let answer: (v: Awaited<ReturnType<typeof bridge.searchCompanies>>) => void = () => undefined
+    bridge.searchCompanies.mockImplementationOnce(() => new Promise((resolve) => (answer = resolve)))
+    await user.type(field(), 'a{Enter}')
+    expect(bridge.runReport).not.toHaveBeenCalled()
+    await act(async () => answer(ok([{ ticker: 'NVDA', name: 'NVIDIA Corp', sector: null, cik: 1045810, report_id: null, report_date: null }])))
+    // Only the answer for the text Return was pressed on counts.
+    await waitFor(() => expect(bridge.runReport).toHaveBeenCalledWith('NVDA'))
+  })
+
   test('a report that doesn’t start says why in the field’s place', async () => {
     const { user } = await renderApp()
     bridge.runReport.mockResolvedValue(fail('busy', 'GRADING_IN_PROGRESS'))
@@ -343,6 +376,10 @@ describe('a report being written', () => {
 
   test('Cancel run stops it, says so, and leaves the home page for a new one', async () => {
     const { user } = await startNvda()
+    // It asks first, in the toolbar.
+    await user.click(screen.getByRole('button', { name: 'Cancel run' }))
+    expect(bridge.cancel).not.toHaveBeenCalled()
+    expect(screen.getByRole('group', { name: 'Stop this report?' })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Cancel run' }))
     expect(bridge.cancel).toHaveBeenCalledWith('run-new')
     expect(await screen.findByText('Cancelled the NVDA report')).toBeInTheDocument()
@@ -356,7 +393,9 @@ describe('a report being written', () => {
     const { user } = await startNvda()
     bridge.cancel.mockResolvedValueOnce(fail('No such run.')).mockResolvedValueOnce(ok({ ok: false }))
     await user.click(screen.getByRole('button', { name: 'Cancel run' }))
+    await user.click(screen.getByRole('button', { name: 'Cancel run' }))
     expect(await screen.findByText('The report didn’t cancel')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Cancel run' }))
     await user.click(screen.getByRole('button', { name: 'Cancel run' }))
     expect(await screen.findByText('The report had already finished')).toBeInTheDocument()
   })

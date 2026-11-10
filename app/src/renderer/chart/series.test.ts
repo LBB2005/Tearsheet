@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { ChartSeries } from '../../shared/protocol'
-import { covers, measure, namedFilings, needsHistory, niceTicks, RANGES, rangeLabel, rebase, slice, volumeText, yearsServed } from './series'
+import { axisTicks, covers, measure, namedFilings, needsHistory, niceTicks, RANGES, rangeLabel, rebase, slice, volumeText, yearsServed } from './series'
 
 // Weekday closes from `start` to `end`, skipping New Year's Day as the market does.
 function series(start: string, end: string): ChartSeries {
@@ -153,5 +153,17 @@ describe('rangeLabel', () => {
     expect(rangeLabel(358.1, 344.04)).toEqual({ price: '$358', move: '+4%' })
     expect(rangeLabel(216.34, 344.04)).toEqual({ price: '$216', move: '−37%' })
     expect(rangeLabel(1250, 1000)).toEqual({ price: '$1,250', move: '+25%' })
+  })
+})
+
+describe('axisTicks', () => {
+  it('steps the change from 100 with a compare line on, so 0% is a tick', () => {
+    const ticks = axisTicks(70, 650, true)
+    expect(ticks).toContain(100)
+    expect(ticks.map((t) => t - 100)).toEqual([0, 200, 400])
+  })
+
+  it('steps the price itself with no compare line', () => {
+    expect(axisTicks(70, 650, false)).toEqual(niceTicks(70, 650))
   })
 })

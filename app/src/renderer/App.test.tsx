@@ -84,6 +84,8 @@ describe('moving between pages', () => {
     const { user } = await renderApp()
     menu('settings')
     expect(win()).toHaveClass('on-settings')
+    menu('log')
+    expect(win()).toHaveClass('on-log')
     menu('new')
     expect(win()).toHaveClass('on-home')
     menu('next')
@@ -144,13 +146,25 @@ describe('the report page', () => {
     await waitFor(() => expect(frameHeading()).toBe('AAPL summary text'))
   })
 
-  test('a narrow window asks for the narrow layout, and the chart stays beside the report', async () => {
+  test('the window crossing 1,100 px never loads the report again', async () => {
+    const { user } = await renderApp()
+    await openReport(user)
+    await waitFor(() => expect(frameHeading()).toBe('AAPL summary text'))
+    const asked = bridge.getReport.mock.calls.length
+    setWindowWidth(1000)
+    setWindowWidth(1280)
+    setWindowWidth(1000)
+    expect(bridge.getReport.mock.calls.length).toBe(asked)
+  })
+
+  test('a narrow window asks for the same layout as a wide one, and the chart stays beside the report', async () => {
     setWindowWidth(900)
     const { user } = await renderApp()
     await user.click(screen.getByRole('button', { name: 'Show the sidebar' }))
     await openReport(user)
     sizeReportPage(900)
-    expect(bridge.getReport).toHaveBeenLastCalledWith('r-aapl-2', expect.objectContaining({ narrow: true }))
+    // The report lays itself out by its own width; the window's width never changes what is asked.
+    expect(bridge.getReport).toHaveBeenLastCalledWith('r-aapl-2', expect.objectContaining({ narrow: false }))
     menu('chart')
     expect(chartPane().style.width).toBe('450px')
     expect(screen.getByRole('separator', { name: 'Resize the chart' })).toBeInTheDocument()
@@ -264,7 +278,7 @@ describe('the prediction log', () => {
   test('lists the logged reports and grades what is due', async () => {
     const { user } = await renderApp()
     await user.click(sidebar().getByRole('button', { name: /Prediction log/ }))
-    const row = (await screen.findByRole('cell', { name: 'AAPL' })).closest('tr') as HTMLElement
+    const row = (await screen.findByRole('cell', { name: 'AAPL' })).closest('[role="row"]') as HTMLElement
     expect(within(row).getByText('Buy')).toBeInTheDocument()
     expect(within(row).getByText('$250.00')).toBeInTheDocument()
     // The row's arrow opens its report.
@@ -285,8 +299,8 @@ describe('the prediction log', () => {
     expect(toolbarTitle()).toBe('Prediction logNothing logged yet')
     // The log shows ratings and ranges, so it carries the line too (launch-readiness M5).
     expect(screen.getByText(/Research data, not investment advice\./)).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Grade what is due' }))
-    expect(await screen.findByText('Nothing new was due.')).toBeInTheDocument()
+    // Nothing is logged, so there is nothing to grade.
+    expect(screen.queryByRole('button', { name: 'Grade what is due' })).toBeNull()
   })
 
   test('says so when the log doesn’t load', async () => {
@@ -300,8 +314,7 @@ describe('the prediction log', () => {
     bridge.listPredictions.mockResolvedValue(ok([{ ...PREDICTIONS[0], grades: [{ horizon_months: 3, graded_at: '2026-11-01', grading_version: 1, start_price: 210, hit: true, excess: 0.04, company_return: 0.09, end_date: '2026-11-01', inside_range: true }] }]))
     const { user } = await renderApp()
     await user.click(sidebar().getByRole('button', { name: /Prediction log/ }))
-    expect(await screen.findByText('3 months')).toBeInTheDocument()
-    expect(screen.getByText('hit')).toBeInTheDocument()
+    expect(await screen.findByText('3 mo hit')).toBeInTheDocument()
     expect(screen.queryByText('Nothing graded yet')).toBeNull()
   })
 })

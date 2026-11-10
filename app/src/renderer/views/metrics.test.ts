@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { MetricItem, PeerValue } from '../../shared/protocol'
-import { METRICS_START, metricScale, sortMetrics } from './metrics'
+import { METRICS_START, metricScale, sortMetrics, withMinus } from './metrics'
 
 const peer = (value: number): PeerValue => ({ ticker: 'P', value, text: String(value), readout: '' })
 const m = (name: string, percentile: number | null, over: Partial<MetricItem> = {}): MetricItem => ({
@@ -46,18 +46,24 @@ describe('sortMetrics', () => {
 describe('metricScale', () => {
   const item = m('x', 50, { value: 10, peer_median: 20, peers: [peer(100)] })
 
-  it('ignores the peers while they are off', () => {
-    const s = metricScale(item, { sort: 'report', peers: false, median: true })
-    expect(s.hi).toBeLessThan(100)
+  it('covers every peer, drawn or not, so the company and median never just sit at the ends', () => {
+    for (const peers of [false, true]) {
+      const s = metricScale(item, { sort: 'report', peers, median: true })
+      expect(s.lo).toBeLessThan(10)
+      expect(s.hi).toBeGreaterThan(100)
+    }
   })
 
-  it('covers every peer while they are on', () => {
-    const s = metricScale(item, { sort: 'report', peers: true, median: true })
-    expect(s.hi).toBeGreaterThan(100)
+  it('places the company and the median inside the peer spread', () => {
+    const wide = m('w', 50, { value: 30, peer_median: 50, peers: [peer(0), peer(40), peer(100)] })
+    const s = metricScale(wide, METRICS_START)
+    const at = (v: number) => (v - s.lo) / (s.hi - s.lo)
+    expect(at(30)).toBeGreaterThan(0.2)
+    expect(at(50)).toBeLessThan(0.6)
   })
 
-  it('ignores the median while it is off', () => {
-    const s = metricScale(item, { sort: 'report', peers: false, median: false })
+  it('leaves the median out while it is off', () => {
+    const s = metricScale(m('z', 50, { value: 10, peer_median: 200 }), { sort: 'report', peers: false, median: false })
     // Only the value is left, so the zero span is padded by a tenth of it.
     expect(s).toEqual({ lo: 9, hi: 11 })
   })
@@ -65,5 +71,18 @@ describe('metricScale', () => {
   it('skips a null median', () => {
     const s = metricScale(m('y', 1, { peer_median: null }), METRICS_START)
     expect(s).toEqual({ lo: 9, hi: 11 })
+  })
+})
+
+describe('withMinus', () => {
+  it('writes a minus sign where the engine wrote a hyphen', () => {
+    expect(withMinus('-0.7%')).toBe('−0.7%')
+    expect(withMinus('-$1.2B')).toBe('−$1.2B')
+    expect(withMinus('Peers -3.1x (median)')).toBe('Peers −3.1x (median)')
+  })
+
+  it('leaves a hyphen inside words and ranges alone', () => {
+    expect(withMinus('3-for-1')).toBe('3-for-1')
+    expect(withMinus('12.5%')).toBe('12.5%')
   })
 })

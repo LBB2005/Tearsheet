@@ -1,10 +1,12 @@
 // The flag sheet: it drops from the toolbar when a Flag link in the report is clicked
 // (tearsheet://flag/…, main/navigation.ts). It shows the claim, takes a note on what looks wrong,
 // and saves it with flag_claim, for the next spot-check. Esc or Cancel closes it; ⌘Return saves.
+// Tab stays inside the sheet, and the focus goes back where it was once it closes.
 
 import { useEffect, useRef, useState } from 'react'
 
 import { leaveMs } from '../motion'
+import { keepTabIn, useOpener } from './sheetFocus'
 
 export interface FlagSheetProps {
   // The claim's sentence, as plain text, when the report has it.
@@ -20,13 +22,18 @@ export function FlagSheet({ claim, onSave, onClose }: FlagSheetProps) {
   const [problem, setProblem] = useState<string | null>(null)
   const [leaving, setLeaving] = useState(false)
   const field = useRef<HTMLTextAreaElement>(null)
+  const box = useRef<HTMLDivElement>(null)
+  const opener = useOpener()
 
   useEffect(() => field.current?.focus(), [])
 
   const close = () => {
     if (leaving) return
     setLeaving(true)
-    window.setTimeout(onClose, leaveMs())
+    window.setTimeout(() => {
+      onClose()
+      opener.back()
+    }, leaveMs())
   }
   const save = async () => {
     if (saving || leaving) return
@@ -43,6 +50,7 @@ export function FlagSheet({ claim, onSave, onClose }: FlagSheetProps) {
     <>
       <div className={leaving ? 'scrim leave' : 'scrim'} onMouseDown={close} />
       <div
+        ref={box}
         className={leaving ? 'sheet leave' : 'sheet'}
         role="dialog"
         aria-modal="true"
@@ -54,7 +62,7 @@ export function FlagSheet({ claim, onSave, onClose }: FlagSheetProps) {
           } else if (e.key === 'Enter' && e.metaKey) {
             e.preventDefault()
             void save()
-          }
+          } else keepTabIn(e, box.current)
         }}
       >
         <b id="flag-title">Flag this claim</b>

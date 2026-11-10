@@ -157,6 +157,20 @@ describe('the Numbers / Text switch', () => {
     expect(screen.queryByRole('group', { name: 'Beside the chart' })).toBeNull()
   })
 
+  test('settles in when the chart brings it, and is just there when a resize brings it', async () => {
+    const { user } = await renderApp()
+    sizeReportPage()
+    await openReport(user)
+    await user.click(chartButton())
+    const group = () => screen.getByRole('group', { name: 'Beside the chart' })
+    expect(group()).not.toHaveClass('still')
+    // Under 1,100 px the switch goes; back over it, it shows at once, as the sidebar does.
+    setWindowWidth(1000)
+    expect(screen.queryByRole('group', { name: 'Beside the chart' })).toBeNull()
+    setWindowWidth(1280)
+    expect(group()).toHaveClass('still')
+  })
+
   test('puts the numbers beside the chart, then the text again, without reloading either', async () => {
     const { user } = await renderApp()
     sizeReportPage()

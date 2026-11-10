@@ -23,6 +23,10 @@ CSP = "default-src 'none'; style-src 'unsafe-inline'; img-src data:"
 # The app's layout that follows the frame (column "auto"): both columns from this frame width,
 # and below it the one column `side` names. The app reads the same number (report/view.ts).
 TWO_COLUMNS_MIN = 860
+# The key tiles show in one column only when the frame is (nearly) the whole page: a window from
+# its 820 px minimum up to TWO_COLUMNS_MIN with the chart closed. Beside an open chart the frame
+# is about 340-730 px, and the Key numbers already sit under the chart there.
+KEY_TILES_MIN = 800
 
 
 @dataclass(frozen=True)
@@ -217,8 +221,11 @@ def render_html(
     "both", or "numbers" or "text" alone for beside the chart, or "auto": both columns, laid out
     by the frame's own width, so the app can open, close and resize the chart without loading
     the report again. From TWO_COLUMNS_MIN px both show; below it, the one `side` names.
-    `narrow` is a window under about 1,100 px: with the text alone, a row of five key-number
-    tiles sits above it. `motion` False leaves out the entrance motion, for a frame loaded
+    With "auto" the row of five key-number tiles is always in the page, above the text, and the
+    page's own CSS shows it only in one column that is (nearly) the whole page, from
+    KEY_TILES_MIN to TWO_COLUMNS_MIN, so the window crossing 1,100 px never needs the report
+    loaded again. `narrow` adds the tiles to the text column
+    alone ("text"); it no longer changes "auto". `motion` False leaves out the entrance motion, for a frame loaded
     after the report was already on show. A file is read without the app, so it always shows
     both columns, stacked, with the Full view open.
 
@@ -246,9 +253,9 @@ def render_html(
     if mode != "app":
         analysts = None
     shows_analysts = bool(analysts) and analysts.get("state") == "ok"
-    key_tiles = bool(narrow) and column in ("text", "auto")
+    key_tiles = column == "auto" or (bool(narrow) and column == "text")
     return _ENV.get_template("report.html.j2").render(
-        r=report,
+        r=readouts.shown_tables(report),
         n={key: given.get(key) for key in NUMBER_KEYS},
         analysts=analysts or None,
         hide_line=NOT_AVAILABLE if shows_analysts else None,
@@ -258,7 +265,7 @@ def render_html(
         side=side,
         motion=motion,
         two_min=TWO_COLUMNS_MIN,
-        narrow_layout=bool(narrow) and column == "auto",
+        keys_min=KEY_TILES_MIN,
         key_tiles=key_tiles,
         csp=CSP,
         safe_url=_safe_url,

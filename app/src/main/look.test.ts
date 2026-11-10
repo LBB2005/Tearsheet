@@ -10,12 +10,13 @@ import { afterEach, describe, expect, test, vi } from 'vitest'
 const handlers = vi.hoisted(() => new Map<string, (...args: unknown[]) => unknown>())
 vi.mock('electron', () => ({
   dialog: { showOpenDialog: vi.fn(), showSaveDialog: vi.fn() },
+  nativeTheme: { shouldUseDarkColors: true },
   ipcMain: { handle: (channel: string, fn: (...args: unknown[]) => unknown) => handlers.set(channel, fn) }
 }))
 
 import type { BrowserWindow } from 'electron'
 
-import { applyWindowLook, DEFAULT_WINDOW_LOOK, isThemeText, openTheme, parseWindowLook, readWindowLook, registerLookIpc, saveTheme, themeFileName, THEME_MAX_BYTES, writeWindowLook } from './look'
+import { applyWindowLook, DEFAULT_WINDOW_LOOK, DEFAULT_WINDOW_LOOK_LIGHT, isThemeText, openTheme, parseWindowLook, readWindowLook, registerLookIpc, saveTheme, themeFileName, THEME_MAX_BYTES, writeWindowLook } from './look'
 
 // Every folder a test makes is removed after it.
 const made: string[] = []
@@ -56,6 +57,14 @@ describe('the window’s look', () => {
     expect(readWindowLook(file)).toEqual(DEFAULT_WINDOW_LOOK)
     // A folder that can't be written to is no error.
     expect(() => writeWindowLook(join(dir(), 'missing', 'x.json'), DEFAULT_WINDOW_LOOK)).not.toThrow()
+  })
+
+  test('with nothing kept yet, follows the Mac’s light or dark setting', () => {
+    const file = join(dir(), 'window-look.json')
+    expect(readWindowLook(file, false)).toEqual(DEFAULT_WINDOW_LOOK_LIGHT)
+    expect(readWindowLook(file, true)).toEqual(DEFAULT_WINDOW_LOOK)
+    // Without a word, the Mac's own setting (dark in this test).
+    expect(readWindowLook(file)).toEqual(DEFAULT_WINDOW_LOOK)
   })
 
   test('applies to the window at once', () => {

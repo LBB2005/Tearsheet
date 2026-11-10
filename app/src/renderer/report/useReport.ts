@@ -34,8 +34,8 @@ export interface ReportPage {
   // out by the frame's own width (view.ts), so the chart opening, closing or resizing never
   // loads it again, and the reader keeps their place.
   report: ReportResult | null
-  // Names the text frame's load: a new one (another report or view, ⌘1 / ⌘2, or the window
-  // crossing narrow) replaces the frame.
+  // Names the text frame's load: a new one (another report or view, ⌘1 / ⌘2) replaces the
+  // frame. The window crossing 1,100 px doesn't: the report lays itself out by its own width.
   textKey: string
   // The same report with Numbers as its one column, loaded the first time the switch picks it
   // (without the entrance motion), so switching never reloads either frame and each keeps its
@@ -138,14 +138,14 @@ export function useReport({ reportId, wide, active, notify, refresh }: Options):
 
   const chartOpen = chart !== 'closed'
   const view: View = chosen.reportId === reportId ? chosen.view : 'summary'
-  const opts = renderOptions({ view, side: 'text', wide, motion: true })
+  const opts = renderOptions({ view, side: 'text', motion: true })
   const report = loaded && loaded.report_id === reportId ? loaded : null
 
   // The last load asked for, and the last one shown: only the newest answer counts, and coming
   // back to the page doesn't reload a report already showing as asked.
   const latest = useRef(0)
   const shownKey = useRef('')
-  const key = JSON.stringify([reportId, opts.view, opts.narrow, asked])
+  const key = JSON.stringify([reportId, opts.view, asked])
 
   useEffect(() => {
     if (!active || !reportId || key === shownKey.current) return
@@ -162,12 +162,12 @@ export function useReport({ reportId, wide, active, notify, refresh }: Options):
       setError(problem)
     }
     // The report's own entrance plays the first time it is ever opened (motion.ts), not each time
-    // it loads again (another view, a narrower window, coming back to it).
+    // it loads again (another view, coming back to it).
     window.tearsheet.getReport(reportId, { ...opts, motion: reportEntrance(reportId) }).then(
       (r) => (r.ok && r.result ? done(r.result, null) : done(null, r.error?.message || 'Tearsheet’s engine didn’t answer.')),
       (e: unknown) => done(null, e instanceof Error ? e.message : 'Tearsheet’s engine didn’t answer.')
     )
-  }, [active, reportId, key, opts.view, opts.narrow])
+  }, [active, reportId, key, opts.view])
 
   // The numbers frame, the first time the switch picks Numbers for the text frame on show. A
   // failed load leaves the text on show; picking Numbers again tries again.
@@ -179,7 +179,7 @@ export function useReport({ reportId, wide, active, notify, refresh }: Options):
     if (numbersDoc?.key === key || numbersAsk.current === key) return
     numbersAsk.current = key
     const ask = key
-    window.tearsheet.getReport(reportId, renderOptions({ view, side: 'numbers', wide, motion: false })).then(
+    window.tearsheet.getReport(reportId, renderOptions({ view, side: 'numbers', motion: false })).then(
       (r) => {
         if (r.ok && r.result) {
           setNumbersReady(false)

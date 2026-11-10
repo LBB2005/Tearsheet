@@ -75,6 +75,8 @@ export interface QuestionProps {
   email: EmailMachine
   keyRef: RefObject<HTMLInputElement>
   emailRef: RefObject<HTMLInputElement>
+  // Start, which takes the keyboard once it can be pressed (pages/Setup.tsx).
+  startRef?: RefObject<HTMLButtonElement>
   saving: boolean
   // Why Start didn't finish, or why Show log didn't open.
   problem: string | null
@@ -270,7 +272,7 @@ function Connect({ card, commands, copy, guard, on, note }: { card: ConnectCard;
   )
 }
 
-export function Question({ view, commands, copy, email, keyRef, emailRef, saving, problem, note, on }: QuestionProps) {
+export function Question({ view, commands, copy, email, keyRef, emailRef, startRef, saving, problem, note, on }: QuestionProps) {
   const guard = useInstallGuard()
   if (view.card === 'connect' && view.connect) return <Connect card={view.connect} commands={commands} copy={copy} guard={guard} on={on} note={note} />
   if (view.card === 'key') {
@@ -328,7 +330,7 @@ export function Question({ view, commands, copy, email, keyRef, emailRef, saving
       )}
       <p className="fine data">{finish.data}</p>
       <div className="go">
-        <button className={start.enabled ? 'btn big ready' : 'btn big'} disabled={!start.enabled || saving} onClick={on.start}>
+        <button ref={startRef} className={start.enabled ? 'btn big ready' : 'btn big'} disabled={!start.enabled || saving} onClick={on.start}>
           {WORDS.start}
         </button>
         <span className="why">{saving ? 'Saving…' : start.reason}</span>

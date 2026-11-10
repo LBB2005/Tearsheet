@@ -150,7 +150,7 @@ describe('the bear-to-bull bar', () => {
 
 describe('the CSV', () => {
   it('names the file after the day', () => {
-    expect(csvFileName(new Date(2026, 10, 8))).toBe('Tearsheet predictions 8 Nov 2026.csv')
+    expect(csvFileName(new Date(2026, 10, 8))).toBe('Tearsheet predictions Nov 8 2026.csv')
   })
 
   it('writes one line per shown row, quoting commas and keeping formulas as text', () => {

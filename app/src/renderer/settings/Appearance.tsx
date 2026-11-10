@@ -19,7 +19,7 @@ import { ACCENTS, FONTS, LOOKS, RATINGS, styleOf, type AccentId, type FontId, ty
 import { canSave, importTheme, lookName, pickLook, removeSaved, resetLook, restore, saveCurrent, setLook, useAppearance, type AppearanceNow } from '../appearance/store'
 import { BOLDNESS, CORNERS, DEFAULT_APPEARANCE, GLASSES, GLOW, LINES, sameLook, SIDEBAR_CONTRAST, SIZE, themeText, type Appearance, type Boldness, type ColourKey, type Glass, type Lines, type Mode } from '../appearance/themeFile'
 import { pickerValue, readability, resolve, type Resolved } from '../appearance/tokens'
-import { Label, PopUp } from './General'
+import { Label, PopUp, rangeFill } from './General'
 import { MotionChoice } from './MotionChoice'
 
 export type Notify = (title: string, text?: string, tone?: 'ok' | 'stop', extra?: { action?: { label: string; run: () => void }; ms?: number }) => void
@@ -101,20 +101,17 @@ export function AppearancePage({ onNotify }: { onNotify?: Notify }) {
         <RangeRow
           id="ap-sidebar"
           title="Sidebar contrast"
-          help={customSidebar ? 'Off while you use your own sidebar colour (Customize → Colours).' : 'In dark mode, how much lighter the sidebar is than the page.'}
+          help={customSidebar ? 'Off while you use your own sidebar colour (Customize → Colours).' : now.resolved.shade === 'light' ? 'Dark mode only: how much lighter the sidebar is than the page.' : 'In dark mode, how much lighter the sidebar is than the page.'}
           value={now.look.sidebarContrast}
           range={SIDEBAR_CONTRAST}
           unit="%"
-          disabled={customSidebar}
+          disabled={customSidebar || now.resolved.shade === 'light'}
           onChange={(sidebarContrast) => change({ sidebarContrast })}
         />
         <RatingsRow look={now.look} change={change} />
         <MotionChoice />
-        {/* Kept for the home backgrounds being made in another session, which will fill it. */}
-        <div className="sline">
-          <Label id="ap-home" title="Home background" help="Your new home backgrounds will be picked here." />
-          <PopUp labelledBy="ap-home" value="plain" options={[['plain', 'Plain (today’s look)']]} disabled onChange={() => undefined} />
-        </div>
+        {/* A Home background row comes back here once the home backgrounds are built (10 Nov 2026:
+            a disabled placeholder read as unfinished, so it is hidden until then). */}
       </div>
       <div className="sgrp">
         <div className="sline">
@@ -315,7 +312,7 @@ function RangeRow({ id, title, help, value, range, unit, disabled, onChange }: {
     <div className="sline">
       <Label id={id} title={title} help={help} />
       <span className={disabled ? 'aprange off' : 'aprange'}>
-        <input type="range" aria-labelledby={id} min={range.min} max={range.max} step={range.step} value={value} disabled={disabled} onChange={(e) => onChange(Number(e.target.value))} />
+        <input type="range" aria-labelledby={id} min={range.min} max={range.max} step={range.step} value={value} disabled={disabled} style={rangeFill(value, range.min, range.max)} onChange={(e) => onChange(Number(e.target.value))} />
         <output>
           {value}
           {unit}

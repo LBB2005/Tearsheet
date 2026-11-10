@@ -339,8 +339,8 @@ describe('red flags and the economy', () => {
     await flags.findByText('Restated results')
     expect(vread()).toBe('1 of 2 checks found')
     expect(flags.getByLabelText('1 of 2 checks found')).toBeInTheDocument()
-    expect(flags.getByText('found')).toBeInTheDocument()
-    expect(flags.getByText('clear')).toBeInTheDocument()
+    expect(flags.getByText('Found')).toBeInTheDocument()
+    expect(flags.getByText('Clear')).toBeInTheDocument()
     expect(flags.getByText('Restated results').closest('button')).toHaveClass('picked')
 
     const row = flags.getByText('Going concern doubt').closest('button') as HTMLElement

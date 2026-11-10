@@ -9,6 +9,7 @@ import { useEffect, useState, type ReactElement, type ReactNode } from 'react'
 
 import type { ReportAnalysts } from '../../shared/protocol'
 import { ViewFrame, type ViewProps } from '../panel/ViewFrame'
+import { dayText } from '../nav'
 import { viewTitle } from '../panel/titles'
 import { andList, firmsOn, SIDES, sideCount, stateFor, type AnalystsState, type AnalystsTab } from './analysts'
 import { useAnalysts } from './useAnalysts'
@@ -64,7 +65,7 @@ function Firms({ view, state, setState, point }: { view: ReportAnalysts; state: 
                   <td>{f.firm}</td>
                   <td className={f.side ? `awrap a${f.side}` : 'awrap'}>{f.label}</td>
                   <td className="num">{f.target_text}</td>
-                  <td className="num">{f.date_text}</td>
+                  <td className="num">{dayText(f.date_text)}</td>
                   <td className={f.rank === null ? 'num adim' : 'num'}>{f.rank_text}</td>
                   <td className={f.avg_excess === null ? 'num adim' : `num ${tone(f.excess_text)}`}>{f.excess_text}</td>
                 </tr>
@@ -76,7 +77,7 @@ function Firms({ view, state, setState, point }: { view: ReportAnalysts; state: 
       {view.ranked_of !== null && (
         <p className="anote">
           Each firm’s latest rating within the past year. Rank is among the {view.ranked_of} firms analystdb ranks by track record; calls vs S&amp;P 500 is the
-          average return of a firm’s rating calls over the S&amp;P 500, up to 12 months. Track records as of {view.tracks_asof_text}.
+          average return of a firm’s rating calls over the S&amp;P 500, up to 12 months. Track records as of {view.tracks_asof_text && dayText(view.tracks_asof_text)}.
         </p>
       )}
     </>
@@ -85,7 +86,7 @@ function Firms({ view, state, setState, point }: { view: ReportAnalysts; state: 
 
 function Changes({ view, point }: { view: ReportAnalysts; point: Point }) {
   if (view.changes === null) return <p className="anote">{view.changes_note}</p>
-  if (view.changes.length === 0) return <p className="vgap">No rating or target changes up to {view.asof_text}.</p>
+  if (view.changes.length === 0) return <p className="vgap">No rating or target changes up to {dayText(view.asof_text)}.</p>
   return (
     <>
       <div className="atw">
@@ -102,7 +103,7 @@ function Changes({ view, point }: { view: ReportAnalysts; point: Point }) {
           <tbody onPointerLeave={point.off}>
             {view.changes.map((c, at) => (
               <tr key={`${c.date}-${c.firm}-${at}`} {...rowProps(c.readout, point)}>
-                <td className="num">{c.date_text}</td>
+                <td className="num">{dayText(c.date_text)}</td>
                 <td>{c.firm}</td>
                 <td className={c.action === 'up' ? 'aup' : c.action === 'down' ? 'adown' : ''}>{c.action_label}</td>
                 <td className="awrap">{c.rating_text}</td>
@@ -113,7 +114,7 @@ function Changes({ view, point }: { view: ReportAnalysts; point: Point }) {
         </table>
       </div>
       <p className="anote">
-        The {view.changes.length} latest rating and target changes up to {view.asof_text}, newest first.
+        The {view.changes.length} latest rating and target changes up to {dayText(view.asof_text)}, newest first.
       </p>
     </>
   )
@@ -135,7 +136,7 @@ function Check({ view, point }: { view: ReportAnalysts; point: Point }) {
           <div>
             <span>S&amp;P Global’s</span>
             <b>{mean.theirs_text}</b>
-            <small>fetched {check.fetched_text}</small>
+            <small>fetched {dayText(check.fetched_text)}</small>
           </div>
           <div>
             <span>Gap</span>
@@ -171,7 +172,7 @@ function Check({ view, point }: { view: ReportAnalysts; point: Point }) {
         </table>
       </div>
       <p className="anote">
-        S&amp;P Global, fetched {check.fetched_text}. analystdb’s free sources carry about two-thirds of the analyst changes the big data firms list, so its firm
+        S&amp;P Global, fetched {dayText(check.fetched_text)}. analystdb’s free sources carry about two-thirds of the analyst changes the big data firms list, so its firm
         counts run lower than S&amp;P Global’s; the targets it does carry are accurate.
       </p>
     </>
@@ -249,7 +250,7 @@ export function Analysts({ chrome, numbers, ticker, item, state, setState }: Vie
       ))}
     </div>
   )
-  const subtitle = `${view.ticker} · analystdb, as of ${view.asof_text}${view.rebuilt ? ', rebuilt from history' : ''}`
+  const subtitle = `${view.ticker} · analystdb, as of ${dayText(view.asof_text)}${view.rebuilt ? ', rebuilt from history' : ''}`
   return frame(
     subtitle,
     <div className="avw" role="tabpanel" aria-label={tabs.find((t) => t.tab === state.tab)?.label}>

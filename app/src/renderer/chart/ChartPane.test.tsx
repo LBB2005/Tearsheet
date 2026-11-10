@@ -33,7 +33,7 @@ describe('the chart', () => {
     expect(await drawn()).toHaveAccessibleName('AAPL daily price, 1Y')
     expect(range('1Y')).toHaveAttribute('aria-pressed', 'true')
     expect(readout()).toMatch(/^\$\d+\.\d\d[+−][\d.]+%over 1 year, to Nov 6$/)
-    expect(screen.getByText('Apple Inc., daily close, adjusted for splits')).toBeInTheDocument()
+    expect(screen.getByText('Daily close, adjusted for splits')).toBeInTheDocument()
   })
 
   test('opens on the range kept in Settings', async () => {
@@ -60,7 +60,7 @@ describe('the chart', () => {
     expect(toggle('12-month range')).toHaveAttribute('aria-pressed', 'true')
     await user.click(toggle('Peers'))
     expect(screen.getByText('Peers, equal-weighted')).toBeInTheDocument()
-    expect(screen.getByText('Apple Inc., total return, with dividends')).toBeInTheDocument()
+    expect(screen.getByText('Total return, with dividends')).toBeInTheDocument()
     expect(readout()).toContain('total return')
     await user.click(toggle('S&P 500'))
     expect(document.querySelector('.cfoot')).toHaveTextContent('S&P 500')
@@ -147,7 +147,21 @@ describe('the chart', () => {
     pane({ split: false, size: null, width: 700 })
     await drawn()
     expect(screen.queryByRole('group', { name: 'Chart width' })).toBeNull()
-    expect(screen.getByText('Hover for a day; drag across to measure.')).toBeInTheDocument()
+    // How to use it is the chart's description, not a line of text under it.
+    expect(document.querySelector('.chartwrap')).toHaveAttribute('aria-description', 'Hover for a day; drag across to measure.')
+    expect(screen.queryByText(/Hover for a day/)).toBeNull()
+  })
+
+  test('Key numbers that can’t be read say so in one line; none is shown while the report loads', async () => {
+    pane({ keyNumbers: null })
+    await drawn()
+    expect(screen.getByText('Key numbers aren’t available for this report.')).toBeInTheDocument()
+  })
+
+  test('nothing stands in for Key numbers before the report has loaded', async () => {
+    pane()
+    await drawn()
+    expect(screen.queryByText(/Key numbers/)).toBeNull()
   })
 
   test('a chart that doesn’t load says why, and Try again asks again', async () => {

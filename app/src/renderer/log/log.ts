@@ -54,6 +54,14 @@ export function gradeCells(p: PredictionSummary, now: Date = new Date()): { grad
   return { graded: latest(p.grades).map(describe), next: next ? `${next.months}-month grade ${dueText(next.due, now)}` : null }
 }
 
+// The table's Next grade column: the next horizon and its day ("3 months", "Feb 10, 2027" or
+// "due now"), or null once every grade is in.
+export function nextGrade(p: PredictionSummary, now: Date = new Date()): { months: number; when: string } | null {
+  const next = ungraded(p)[0]
+  if (!next) return null
+  return { months: next.months, when: next.due < isoDay(now) ? 'due now' : shortDate(next.due, now) }
+}
+
 export interface LogTile {
   big: string
   text: string

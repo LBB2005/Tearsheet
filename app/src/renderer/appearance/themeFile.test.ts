@@ -28,6 +28,13 @@ const FULL: Appearance = {
   ratings: 'colourblind'
 }
 
+describe('a new user', () => {
+  // The window follows the Mac's light or dark setting until a look is picked (10 Nov 2026).
+  test('starts on Match the Mac', () => {
+    expect(DEFAULT_APPEARANCE.mode).toBe('auto')
+  })
+})
+
 describe('a good file', () => {
   test('comes back as the look that was written', () => {
     const r = ok(themeText(FULL, 'Night shift'))

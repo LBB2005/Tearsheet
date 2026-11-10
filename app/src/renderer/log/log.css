@@ -1,109 +1,145 @@
 /* The prediction log (pages/Log.tsx), version B of the redesign
    (docs/superpowers/specs/2026-11-08-prediction-log-page-design.md): a filter column, good-pick
-   cards, the table with its bear-to-bull bars, and the compare chart. The shared panels, pills
-   and tables are in styles.css (.panels); every colour is one of its names, so each look and
-   light mode work. Everything is scoped under .logv. Under Reduce motion nothing moves. */
+   cards, the table with its bear-to-bull bars, and the compare chart. The shared panels, pills,
+   fields, sliders and labels are in styles.css; every colour, size, corner and time is one of its
+   names, so each look and light mode work. Everything is scoped under .logv. */
 
 .logv { max-width: 1240px; }
 .logv .split { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start; }
-.logv .side { flex: 1 1 220px; max-width: 250px; display: grid; gap: 2px; }
+.logv .side { flex: 1 1 220px; max-width: 270px; display: grid; gap: 2px; }
 .logv .main { flex: 999 1 560px; min-width: 0; display: grid; gap: 14px; }
+.logv .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* the states before the log is in */
+.logv .loading.fine { gap: 10px; }
+.logv .lfail { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 
 /* the filter column */
 .logv .fs { border: 0; margin: 0; padding: 10px 2px 8px; min-width: 0; border-top: 1px solid var(--line); }
 .logv .fs:first-child { border-top: 0; padding-top: 2px; }
-.logv .fs legend { padding: 0; margin-bottom: 6px; font: 11.5px var(--ui); font-weight: calc(600 + var(--wt)); letter-spacing: .6px; text-transform: uppercase; color: var(--muted); }
-.logv .ck { display: flex; align-items: center; gap: 9px; padding: 3px 0; font-size: 13px; cursor: pointer; }
+.logv .fs legend { padding: 0; margin-bottom: 6px; color: var(--muted); }
+.logv .ck { display: flex; align-items: center; gap: 9px; padding: 3px 0; font-size: var(--fs-md); cursor: pointer; }
 .logv .ck span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.logv .ck em { margin-left: auto; font-style: normal; color: var(--dim); font-size: 12px; }
-.logv .ck.inline { padding: 0; font-size: 12.5px; color: var(--muted); font-weight: calc(400 + var(--wt)); }
-.logv input[type=checkbox], .logv input[type=radio] { accent-color: var(--accent); width: 15px; height: 15px; margin: 0; flex: none; }
-.logv input[type=range] { accent-color: var(--accent); width: 100%; margin: 2px 0 0; }
+.logv .ck em { margin-left: auto; font-style: normal; color: var(--faint2); font-size: var(--fs-sm); }
+.logv .ck.inline { padding: 0; font-size: var(--fs-sm); color: var(--muted); font-weight: calc(400 + var(--wt)); }
+.logv input[type=checkbox], .logv input[type=radio] { width: 15px; height: 15px; margin: 0; flex: none; }
+.logv input[type=range] { width: 100%; margin: 2px 0 0; }
 .logv .chips { display: inline-flex; flex-wrap: wrap; gap: 4px; }
-.logv .chip { all: unset; cursor: pointer; font-size: 12.5px; line-height: 1.5; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--text2); white-space: nowrap; }
+.logv .chip { all: unset; cursor: pointer; font-size: var(--fs-sm); line-height: 1.5; padding: 3px 10px; border-radius: var(--r-pill); border: 1px solid var(--line); color: var(--text2); white-space: nowrap; transition: background var(--dur-1); }
 .logv .chip:hover { background: rgb(var(--ink) / .07); }
 .logv .chip.on { color: var(--accent-text); border-color: var(--chipline); background: rgb(var(--accent-rgb) / .12); }
-.logv .chip:focus-visible, .logv .link:focus-visible, .logv .pcard:focus-visible, .logv .open:focus-visible, .logv .x:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.logv .rl { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 0 8px; margin: 8px 0 0; font-size: 12.5px; color: var(--muted); }
+.logv .chip:focus-visible, .logv .link:focus-visible, .logv .pcard:focus-visible, .logv .open:focus-visible, .logv .x:focus-visible { outline: var(--focus); outline-offset: 2px; }
+.logv .rl { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 0 8px; margin: 8px 0 0; font-size: var(--fs-sm); color: var(--muted); }
 .logv .rl.buy { display: flex; }
-.logv .lead { margin: 0 0 6px; font-size: 12.5px; color: var(--muted); }
+.logv .lead { margin: 0 0 6px; font-size: var(--fs-sm); color: var(--muted); }
 .logv .chips .chip { min-width: 14px; text-align: center; }
 .logv .rl b { color: var(--text); font-weight: calc(600 + var(--wt)); }
 .logv .rl input { grid-column: 1 / -1; }
-.logv .rl i, .logv .sq i { display: inline-block; width: 9px; height: 9px; border-radius: calc(2px * var(--round)); background: rgb(var(--ink) / .13); margin-right: 5px; vertical-align: 0; }
+.logv .rl i, .logv .sq i { display: inline-block; width: 9px; height: 9px; border-radius: var(--r-xs); background: rgb(var(--ink) / .13); margin-right: 5px; vertical-align: 0; }
 .logv .rl i.on, .logv .sq i.on { background: var(--accent); }
 .logv .sq i { margin-right: 3px; }
-.logv .link { all: unset; cursor: pointer; color: var(--accent); font-size: 12.5px; }
-.logv .link:disabled { color: var(--dim); cursor: default; }
+.logv .link { all: unset; cursor: pointer; color: var(--accent-fg); font-size: var(--fs-sm); }
+.logv .link:hover { text-decoration: underline; }
+.logv .link:disabled { color: var(--faint2); cursor: default; text-decoration: none; }
 .logv .side > .link { margin-top: 8px; justify-self: start; }
 
 /* headers */
 .logv .p h4 .acts { display: inline-flex; gap: 8px; flex-wrap: wrap; }
-.logv .p h4 .btn2 { padding: 4px 11px; font-size: 12.5px; }
-.logv .p h4 em.rule { font-style: normal; color: var(--dim); margin-left: 6px; }
+.logv .p h4 .btn2 { padding: 4px 11px; font-size: var(--fs-sm); }
+.logv .p h4 em.rule { font-style: normal; color: var(--faint2); margin-left: 6px; }
+.logv .p h4 .sp { margin-left: 8px; vertical-align: -2px; }
 .logv .sortby { margin-left: 12px; display: inline-flex; align-items: center; gap: 6px; }
-.logv select { background: var(--option-bg); border: 1px solid var(--line); border-radius: calc(8px * var(--round)); padding: 3px 8px; color: var(--text); font: inherit; font-size: 12.5px; }
-.logv .gline { margin: -2px 0 6px; font-size: 12.5px; color: var(--muted); }
+.logv .sortby .small .pop { min-width: 0; min-height: 24px; padding-top: 2px; padding-bottom: 2px; font-size: var(--fs-sm); }
+.logv .gline { margin: -2px 0 6px; font-size: var(--fs-sm); color: var(--muted); }
 .logv .fine b, .logv .ngy b { color: var(--text); }
-.logv .ngy { margin: 0 0 6px; font-size: 12.5px; color: var(--muted); }
+.logv .ngy { margin: 0 0 6px; font-size: var(--fs-sm); color: var(--muted); }
 
 /* good-pick cards */
 .logv .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
-.logv .pcard { all: unset; box-sizing: border-box; cursor: pointer; display: grid; gap: 4px; padding: 10px 12px; border-radius: calc(12px * var(--round)); border: 1px solid var(--line); background: var(--panel); min-width: 0; }
+.logv .pcard { all: unset; box-sizing: border-box; cursor: pointer; display: grid; gap: 4px; padding: 10px 12px; border-radius: var(--r-lg); border: 1px solid var(--line); background: var(--panel); min-width: 0; transition: background var(--dur-1), border-color var(--dur-1); }
 .logv .pcard:hover { background: rgb(var(--ink) / .07); }
 .logv .pcard.good { border-color: rgb(var(--accent-rgb) / .28); }
 .logv .pcard.on { border-color: var(--accent); background: rgb(var(--accent-rgb) / .08); }
 .logv .pcard:disabled { cursor: default; opacity: .6; }
-.logv .pcard .pchead, .logv .pcard .foot { display: flex; justify-content: space-between; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
-.logv .pcard .pchead .tk { color: var(--text); font-size: 14px; font-weight: calc(600 + var(--wt)); letter-spacing: .3px; }
-.logv .pcard .big { font-size: 20px; line-height: 1.2; font-weight: calc(600 + var(--wt)); }
+.logv .pcard .pchead, .logv .pcard .foot { display: flex; justify-content: space-between; align-items: center; gap: 6px; font-size: var(--fs-sm); color: var(--muted); }
+.logv .pcard .pchead .tk { color: var(--text); font-size: var(--fs-md); font-weight: calc(600 + var(--wt)); letter-spacing: .3px; }
+.logv .pcard .big { font-size: var(--fs-xl); line-height: 1.2; font-weight: calc(600 + var(--wt)); }
+.logv .link.more { margin-top: 10px; }
 .logv .up { color: var(--up); }
 .logv .down { color: var(--down); }
 
-/* the table */
-.logv .tablebox { overflow-x: auto; max-height: 720px; overflow-y: auto; }
-.logv table.t th, .logv table.t td { padding-left: 6px; padding-right: 6px; }
-.logv table.t td { white-space: nowrap; vertical-align: middle; }
-.logv table.t td.pb span { color: var(--muted); font-size: 11.5px; }
-.logv table.t td.tk { font-weight: calc(600 + var(--wt)); letter-spacing: .3px; }
-.logv table.t tr.good td.tk { color: var(--accent-text); }
-.logv table.t tr.on td { background: rgb(var(--accent-rgb) / .05); }
-.logv table.t td.co { white-space: normal; min-width: 140px; max-width: 210px; }
-.logv .co .nm, .logv .co .sub { display: block; }
-.logv .co .sub { font-size: 11.5px; color: var(--muted); }
+/* The table: a grid, not an auto-sized table. Header and rows share one column template, so no row
+   waits on the others to size itself, and a row out of view skips layout and paint
+   (content-visibility), which keeps a window resize cheap with hundreds of rows. Rows are two short
+   lines at most. The header stays at the top of the page while it scrolls (nothing between it and
+   the page scrolls). Narrower, the Peer column goes first, then the Checks squares. */
+.logv .tablep { container-type: inline-size; }
+.logv .ltable { --cols: 22px 54px minmax(96px, 1fr) 52px 70px 38px 132px 52px 100px 24px; font-size: var(--fs-sm); }
+.logv .lrow { display: grid; grid-template-columns: var(--cols); column-gap: 6px; align-items: center; padding: 7px 4px; border-bottom: 1px solid var(--line); }
+.logv [role="rowgroup"]:last-child > .lrow { content-visibility: auto; contain-intrinsic-size: auto 46px; }
+.logv [role="rowgroup"]:last-child > .lrow:last-child { border-bottom: 0; }
+.logv [role="rowgroup"]:last-child > .lrow:hover { background: rgb(var(--ink) / .025); }
+.logv .lrow.on { background: rgb(var(--accent-rgb) / .05); }
+.logv .lrow > * { min-width: 0; }
+.logv .lhead { position: sticky; top: -26px; z-index: 2; margin: 0 -14px; padding: 0 14px; background: linear-gradient(var(--panel), var(--panel)), var(--base); }
+.logv .lhead .lrow { padding-top: 6px; padding-bottom: 6px; color: var(--muted); font-weight: calc(500 + var(--wt)); align-items: end; }
+.logv .lrow .r { text-align: right; }
+.logv .lrow .tk { font-weight: calc(600 + var(--wt)); letter-spacing: .3px; font-size: var(--fs-md); }
+.logv .lrow.good .tk { color: var(--accent-text); }
+.logv .co, .logv .ng { display: flex; flex-direction: column; }
+.logv .co .nm, .logv .co .sub, .logv .ng .sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.logv .co .sub, .logv .ng .sub { font-size: var(--fs-xs); color: var(--muted); }
+.logv .ng .ngl { display: flex; flex-wrap: wrap; gap: 2px 4px; align-items: center; white-space: nowrap; }
+.logv .ng .due { color: var(--text2); }
+.logv .ng .pill { padding: 0 6px; }
+.logv .cks { white-space: nowrap; }
 .logv .cks .star { color: var(--accent); }
 .logv .upv { font-weight: calc(600 + var(--wt)); }
-.logv .grades { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 4px; }
-.logv .grades .gr { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; font-size: 12px; }
-.logv .grades .gm, .logv .grades .gd, .logv .grades .made { color: var(--muted); font-size: 11.5px; }
-.logv th.barh { min-width: 150px; position: relative; }
+.logv .pb span { display: block; color: var(--muted); font-size: var(--fs-xs); }
 .logv .ticks { position: relative; display: block; height: 16px; }
-.logv .ticks span { position: absolute; transform: translateX(-50%); font-weight: calc(400 + var(--wt)); }
-.logv .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-.logv .bar { display: block; min-width: 150px; }
+.logv .ticks span { position: absolute; transform: translateX(-50%); font-size: var(--fs-xs); font-weight: calc(400 + var(--wt)); white-space: nowrap; }
+.logv .bar { display: block; }
 .logv .bar .track { position: relative; display: block; height: 16px; }
 .logv .bar .today { position: absolute; top: -3px; bottom: -3px; width: 1px; background: rgb(var(--text-rgb) / .35); }
-.logv .bar .range { position: absolute; top: 5px; height: 6px; border-radius: 3px; background: linear-gradient(90deg, rgb(var(--down-rgb) / .55), rgb(var(--hold-rgb) / .35) 50%, rgb(var(--up-rgb) / .55)); }
-.logv .bar .base { position: absolute; top: 0; width: 3px; height: 16px; margin-left: -1.5px; border-radius: 2px; background: var(--text); }
-.logv .bar .ends { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); }
-.logv .nobar { font-size: 12px; color: var(--dim); }
-.logv .open { all: unset; cursor: pointer; display: grid; place-items: center; width: 24px; height: 24px; border-radius: calc(6px * var(--round)); color: var(--icon); }
+.logv .bar .range { position: absolute; top: 5px; height: 6px; border-radius: var(--r-xs); background: linear-gradient(90deg, rgb(var(--down-rgb) / .55), rgb(var(--hold-rgb) / .35) 50%, rgb(var(--up-rgb) / .55)); }
+.logv .bar .base { position: absolute; top: 0; width: 3px; height: 16px; margin-left: -1.5px; border-radius: var(--r-xs); background: var(--text); }
+/* The base case's price, under its own mark. */
+.logv .bar .ends { position: relative; display: block; height: 15px; font-size: var(--fs-xs); color: var(--muted); }
+.logv .bar .ends span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; }
+.logv .nobar { font-size: var(--fs-sm); color: var(--faint2); }
+.logv .open { all: unset; cursor: pointer; display: grid; place-items: center; width: 24px; height: 24px; border-radius: var(--r-sm); color: var(--icon); transition: background var(--dur-1), color var(--dur-1); }
 .logv .open:hover { background: rgb(var(--ink) / .07); color: var(--text); }
 .logv .open svg { fill: none; stroke: currentColor; stroke-width: 1.6; }
 
+@container (max-width: 704px) {
+  .logv .ltable { --cols: 22px 54px minmax(90px, 1fr) 52px 70px 128px 52px 100px 24px; }
+  .logv .ltable .c-peer { display: none; }
+}
+@container (max-width: 650px) {
+  .logv .ltable { --cols: 22px 54px minmax(90px, 1fr) 52px 128px 52px 100px 24px; }
+  .logv .ltable .c-checks { display: none; }
+}
+@container (max-width: 520px) {
+  .logv .ltable { --cols: 22px 54px minmax(80px, 1fr) 52px 52px 100px 24px; }
+  .logv .ltable .c-bar { display: none; }
+}
+
 /* the compare chart */
-.logv .compare .cplot { display: block; width: 100%; height: auto; }
+.logv .compare .cplot { display: block; width: 100%; height: auto; transition: opacity var(--dur-2); }
+.logv .compare.stale .cplot, .logv .compare.stale .legend { opacity: .45; }
 .logv .compare .gy { stroke: rgb(var(--ink) / .07); }
 .logv .compare .gz { stroke: rgb(var(--ink) / .24); }
-.logv .compare .gl { fill: var(--muted); font-size: 11px; }
+.logv .compare .gl { fill: var(--muted); font-size: var(--fs-xs); }
 .logv .compare path { fill: none; stroke-linejoin: round; }
 .logv .compare path.line { stroke-width: 2.2; }
 .logv .compare path.spy { stroke-width: 1.5; stroke-dasharray: 4 4; }
-.logv .compare .cempty { margin: 30px auto; max-width: 560px; text-align: center; color: var(--muted); }
-.logv .legend { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12.5px; }
+/* A message where the chart goes takes the chart's own height, so nothing below jumps. */
+.logv .compare .cempty { margin: 0; width: 100%; aspect-ratio: 786 / 234; padding: 0 12%; display: flex; align-items: center; justify-content: center; text-align: center; color: var(--muted); }
+.logv .legend { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: var(--fs-sm); }
 .logv .legend li { display: inline-flex; align-items: center; gap: 6px; }
-.logv .legend i { width: 12px; height: 3px; border-radius: 2px; }
-.logv .x { all: unset; cursor: pointer; color: var(--dim); padding: 0 3px; }
+.logv .legend i { width: 12px; height: 3px; border-radius: var(--r-xs); background: currentColor; }
+.logv .legend i.spy { height: 0; border-radius: 0; background: none; border-top: 2px dashed currentColor; }
+.logv .x { all: unset; cursor: pointer; color: var(--faint2); padding: 0 3px; border-radius: var(--r-xs); }
 .logv .x:hover { color: var(--text); }
 
 @container (max-width: 700px) { .logv .side { max-width: none; } }

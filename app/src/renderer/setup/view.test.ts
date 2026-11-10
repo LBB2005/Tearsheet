@@ -151,10 +151,13 @@ describe('the other rows', () => {
   it('the email: where it fills in from, the suggestion, a typed one, and Change', () => {
     expect(view(machine('ready', 'missing')).rows.email).toEqual({ tone: 'later', icon: 'num', words: 'Fills in from your Claude sign-in', actions: [] })
     expect(view(machine('missing', 'ready')).rows.email.words).toBe('Codex doesn’t share one, so you type it')
+    // Before either tool is on the Mac, the row doesn't name one.
+    expect(view(machine('missing', 'missing')).rows.email.words).toBe('From your Claude sign-in, or you type it')
     const suggested = view(machine('ready', 'missing'), { email: email({ type: 'suggest', email: 'you@example.com' }) })
     expect(suggested.rows.email).toEqual({ tone: 'done', icon: 'done', words: 'you@example.com, from your Claude sign-in', actions: ['change'] })
     const typed = view(machine('ready', 'missing'), { key: 'works', email: email({ type: 'type', value: 'me@x' }) })
-    expect(typed.rows.email).toEqual({ tone: 'cur', icon: 'num', words: 'Fills in from your Claude sign-in', actions: ['change'] })
+    // On the last question, the card's own Change is the only one.
+    expect(typed.rows.email).toEqual({ tone: 'cur', icon: 'num', words: 'Fills in from your Claude sign-in', actions: [] })
     expect(view(machine('ready', 'missing'), { email: email({ type: 'saved', email: 'saved@x.com' }) }).rows.email.words).toBe('saved@x.com')
   })
 })

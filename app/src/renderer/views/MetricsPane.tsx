@@ -7,7 +7,7 @@ import { useEffect, useRef, useState, type ReactElement } from 'react'
 import type { MetricItem } from '../../shared/protocol'
 import { ViewFrame, type ViewProps } from '../panel/ViewFrame'
 import { viewTitle } from '../panel/titles'
-import { metricScale, sortMetrics, type MetricSort, type MetricsState } from './metrics'
+import { metricScale, sortMetrics, withMinus, type MetricSort, type MetricsState } from './metrics'
 import { pickKey } from './pick'
 import { at } from './scale'
 
@@ -91,16 +91,16 @@ export function Metrics({ chrome, numbers, ticker, item, state, setState }: View
               onBlur={() => setPointed(null)}
             >
               <span className="mname">{m.label}</span>
-              <span className="mval">{m.text}</span>
+              <span className="mval">{withMinus(m.text)}</span>
               <span className="mtrack">
-                {state.median && m.peer_median !== null && <i className="mmed" style={{ left: `${at(m.peer_median, scale)}%` }} title={m.median_text ?? undefined} />}
+                {state.median && m.peer_median !== null && <i className="mmed" style={{ left: `${at(m.peer_median, scale)}%` }} title={m.median_text ? withMinus(m.median_text) : undefined} />}
                 {showPeers &&
                   m.peers.map((p, i) => (
                     <button
                       key={i}
                       className="mpeer"
                       style={{ left: `${at(p.value, scale)}%` }}
-                      aria-label={`${p.ticker}: ${p.text}`}
+                      aria-label={`${p.ticker}: ${withMinus(p.text)}`}
                       onPointerEnter={(e) => {
                         e.stopPropagation()
                         setPointed({ name: m.name, peer: i })

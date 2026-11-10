@@ -1,6 +1,9 @@
 // A small pop-up menu: the sidebar's "…" and right-click menus, and its sort and filter menu.
-// It opens with the first item focused; ↑ ↓ Home End move, Return or Space picks, Esc or a click
-// outside closes it and puts the focus back where it was. Ticks (checkbox and radio items) keep
+// It opens with the first item focused (lit only when opened from the keyboard); ↑ ↓ Home End
+// move, Return or Space picks, Esc or a click outside closes it and puts the focus back where it
+// was. As in a Mac menu there is one highlight: the pointer moves the focus as it passes over an
+// item, so hover and keys never light two items (styles.css .menu4.pointing), and leaving the
+// menu puts the highlight out. Ticks (checkbox and radio items) keep
 // it open, so several filters can be set at once; any other item closes it.
 
 import { useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
@@ -39,7 +42,10 @@ export function Menu({ label, at, entries, onClose }: { label: string; at: { lef
     if (back instanceof HTMLElement && back.isConnected) back.focus()
   }
 
+  const pointing = (on: boolean) => box.current?.classList.toggle('pointing', on)
+
   const onKey = (e: KeyboardEvent) => {
+    pointing(false)
     const items = Array.from(box.current?.querySelectorAll<HTMLButtonElement>('button') ?? [])
     const i = items.indexOf(document.activeElement as HTMLButtonElement)
     const go = (n: number) => items[(n + items.length) % items.length]?.focus()
@@ -75,7 +81,21 @@ export function Menu({ label, at, entries, onClose }: { label: string; at: { lef
           close()
         }}
       />
-      <div ref={box} className="menu4" role="menu" aria-label={label} style={{ left: place.left, top: place.top }} onKeyDown={onKey}>
+      <div
+        ref={box}
+        className="menu4"
+        role="menu"
+        aria-label={label}
+        style={{ left: place.left, top: place.top }}
+        onKeyDown={onKey}
+        onMouseOver={(e) => {
+          const item = (e.target as Element).closest('button')
+          if (!item) return
+          pointing(true)
+          if (item !== document.activeElement) item.focus({ preventScroll: true })
+        }}
+        onMouseLeave={() => pointing(false)}
+      >
         {entries.map((entry, i) => {
           if (entry.kind === 'separator') return <div key={i} className="sep" role="separator" />
           if (entry.kind === 'heading')

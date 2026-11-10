@@ -128,7 +128,7 @@ export function lineProgress(line: LineState, perReport: number): string {
 
 // About how long and how many AI calls a number of reports take: "about 14 hours and 7,100 AI calls".
 export function lineCost(reports: number, perReport: number, callsPerReport: number): string {
-  return `${lineTime(reports, perReport)} and about ${(reports * callsPerReport).toLocaleString('en-US')} AI calls`
+  return `${lineTime(reports, perReport)} and ${(reports * callsPerReport).toLocaleString('en-US')} AI calls`
 }
 
 // The warning before a big line starts: each company's first rated report in 30 days is logged
@@ -180,7 +180,8 @@ export function clockTime(iso: string, now: Date = new Date()): string {
   const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)
   if (day(at) === day(now)) return time
   if (day(at) === day(tomorrow)) return `${time} tomorrow`
-  return `${time} on ${at.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}`
+  // Month first, as the app writes dates: "9:05 am on Wed, Nov 11".
+  return `${time} on ${at.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`
 }
 
 // Whether the line waits for something to reset and then carries on by itself.

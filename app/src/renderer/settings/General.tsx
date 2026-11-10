@@ -2,7 +2,7 @@
 // menu, a typed setting (its value, and Change, which turns it into a field with Save or
 // Cancel), and the choice of the main AI tool.
 
-import { useState, type KeyboardEvent, type ReactNode } from 'react'
+import { useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
 
 import type { ToolKind } from '../../shared/tools'
 import { TOOL_TEXT } from '../setup/words'
@@ -16,6 +16,12 @@ export function Label({ id, title, help, tone }: { id?: string; title: string; h
       {help && <span className={tone ? `help ${tone}` : 'help'}>{help}</span>}
     </div>
   )
+}
+
+// A slider's filled part, up to its knob (styles.css draws the track from --fill).
+export function rangeFill(value: number, min: number, max: number): CSSProperties {
+  const at = max > min ? ((Math.min(max, Math.max(min, value)) - min) / (max - min)) * 100 : 0
+  return { '--fill': `${Math.round(at * 10) / 10}%` } as CSSProperties
 }
 
 // A Mac pop-up button: the native select, so the menu that opens is the Mac's own, with the ⌃⌄

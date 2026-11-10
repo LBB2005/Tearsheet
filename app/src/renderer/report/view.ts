@@ -46,13 +46,15 @@ export function reportChoice(report: ReportSummary, now: Date = new Date()): { l
   return { label: `Report of ${shortDate(report.created_at, now)}`, note: report.rating ?? 'No rating' }
 }
 
-// What a frame asks the engine for: the layout that follows the frame's width (column "auto"),
-// so opening, closing or resizing the chart never loads the report again. The text frame plays
-// the report's entrance the first time the report is opened (useReport, motion.ts); a numbers
-// frame, loaded when the switch first picks Numbers, never does.
-// A narrow window adds the row of key-number tiles above the text.
-export function renderOptions(o: { view: View; side: Side; wide: boolean; motion: boolean }): RenderOptions {
-  return { view: o.view, column: 'auto', side: o.side, narrow: !o.wide, motion: o.motion }
+// What a frame asks the engine for: the layout that follows the frame's own width (column
+// "auto"), so opening, closing or resizing the chart, or the window crossing 1,100 px, never
+// loads the report again: under TWO_COLUMNS_MIN the report shows one column, by its own CSS, with
+// its key-number tiles only when that column is (nearly) the whole page (engine KEY_TILES_MIN;
+// Liam's pick, 10 Nov 2026). `narrow` stays in the protocol, always false.
+// The text frame plays the report's entrance the first time the report is opened (useReport,
+// motion.ts); a numbers frame, loaded when the switch first picks Numbers, never does.
+export function renderOptions(o: { view: View; side: Side; motion: boolean }): RenderOptions {
+  return { view: o.view, column: 'auto', side: o.side, narrow: false, motion: o.motion }
 }
 
 // Which frame is on show: the numbers one only while it sits beside the open chart in a wide

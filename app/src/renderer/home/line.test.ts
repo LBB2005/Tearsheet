@@ -70,7 +70,7 @@ describe('a big line', () => {
     const big = state({ finished: Array.from({ length: 37 }, (_, i) => item(`D${i}`)), writing: item('W'), waiting: Array.from({ length: 174 }, (_, i) => item(`T${i}`)) })
     expect(lineProgress(big, 240)).toBe('37 of 212 done, about 12 hours left')
     expect(lineProgress(state({ finished: [item('A'), item('B')] }), 240)).toBe('2 of 2 done')
-    expect(lineCost(212, 240, 34)).toBe('about 14 hours and about 7,208 AI calls')
+    expect(lineCost(212, 240, 34)).toBe('about 14 hours and 7,208 AI calls')
   })
 
   it('counts long times in hours, then days', () => {
@@ -118,7 +118,7 @@ describe('waiting for the plan', () => {
   it('says times on Liam’s clock, with the day when it isn’t today', () => {
     expect(clockTime(at(15, 40), now)).toBe('3:40 pm')
     expect(clockTime(at(9, 5, 9), now)).toBe('9:05 am tomorrow')
-    expect(clockTime(at(9, 5, 11), now)).toMatch(/^9:05 am on Wed,? 11 Nov$/)
+    expect(clockTime(at(9, 5, 11), now)).toBe('9:05 am on Wed, Nov 11')
     expect(clockTime('soon', now)).toBe('soon')
   })
 

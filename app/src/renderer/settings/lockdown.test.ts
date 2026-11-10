@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 
 import type { ToolStatus } from '../../preload/api'
 import type { LockdownState } from '../../shared/protocol'
+import { isoDay } from '../home/since'
+import { shortDate } from '../nav'
 import { lockdownText } from './lockdown'
 
 // The words come from views/Connections.tsx as it was before the restyle, pinned here so they
@@ -44,7 +46,8 @@ describe('lockdownText', () => {
   })
 
   it('a check that passed says which form, and when', () => {
-    const day = new Date('2026-11-04T22:52:56+00:00').toLocaleDateString()
+    // Month first, on the Mac's own calendar day ("Nov 4", or "Nov 4, 2026" in another year).
+    const day = shortDate(isoDay(new Date('2026-11-04T22:52:56+00:00')))
     expect(lockdownText(CLAUDE, state({}))).toBe(`Passed (full check, ${day})`)
     expect(lockdownText(CLAUDE, state({ form: 'short', checked_at: null }))).toBe('Passed (short check)')
     // A stored version inside the found one's line is the same version.

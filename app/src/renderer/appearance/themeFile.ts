@@ -45,7 +45,7 @@ export interface Appearance {
 // Today's look, with Liam's 40% glow (7 Nov 2026) and Raised sidebar (8 Nov 2026).
 export const DEFAULT_APPEARANCE: Appearance = {
   basedOn: 'tearsheet',
-  mode: 'dark',
+  mode: 'auto',
   accent: 'look',
   colours: {},
   font: 'avenir',

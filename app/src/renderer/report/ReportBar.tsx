@@ -6,6 +6,7 @@
 // between them still drags the window.
 
 import { useLayoutEffect, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 
 import type { PriceRange, ReportBar as BarNumbers } from '../../shared/protocol'
 import { shortDate } from '../nav'
@@ -130,10 +131,12 @@ export function ReportBar({ ticker, name, bar }: { ticker: string; name: string 
     setLevel(fitLevel(Array.from(lines, (l) => l.getBoundingClientRect().width), room))
   }
   // After every render (new numbers, a new company), and whenever the room or the ruler changes
-  // size: the window, the sidebar, the find field or the Numbers / Text switch.
+  // size: the window, the sidebar, the find field or the Numbers / Text switch. A new room is
+  // drawn in the frame whose layout made it (flushSync), so a part never sits cut off for a frame
+  // while the window is resized.
   useLayoutEffect(measure)
   useLayoutEffect(() => {
-    const watch = new ResizeObserver(() => measure())
+    const watch = new ResizeObserver(() => flushSync(measure))
     if (box.current) watch.observe(box.current)
     if (ruler.current) watch.observe(ruler.current)
     return () => watch.disconnect()

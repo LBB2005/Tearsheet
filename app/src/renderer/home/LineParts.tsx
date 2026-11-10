@@ -19,6 +19,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 
 import type { LineGroups, LineItem, LinePlan, LineState } from '../../shared/protocol'
 import { at } from '../setup/parts'
+import { ConfirmButton } from './Confirm'
 import {
   callsPerReportOf,
   doneCount,
@@ -89,7 +90,7 @@ export function LinePlanCard({ plan, starting, skipRecent, onSkipRecent, perRepo
     <div className="card lineplan mv" style={at(0)} role="group" aria-label="Several reports">
       {n > 0 ? (
         <>
-          <b>Write {plural(n, 'report', 'reports')}, one after another?</b>
+          <b>{n === 1 ? `Write the ${tickers[0]} report?` : `Write ${plural(n, 'report', 'reports')}, one after another?`}</b>
           <span className="tk">
             {shown.join(' · ')}
             {tickers.length > FOLD_TICKERS && !allTickers ? ' …' : ''}
@@ -360,8 +361,10 @@ export function LineStrip({ line, runId, perReport, onRemove, onAdd, onCancelAll
               {chips.map((item) => (
                 <li key={item.ticker} title={item.name}>
                   <b>{item.ticker}</b>
-                  <button aria-label={`Take ${item.ticker} out of the line`} onClick={() => onRemove(item.ticker)}>
-                    ×
+                  <button className="x4" aria-label={`Take ${item.ticker} out of the line`} onClick={() => onRemove(item.ticker)}>
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M6 6l12 12M18 6L6 18" />
+                    </svg>
                   </button>
                 </li>
               ))}
@@ -392,9 +395,13 @@ export function LineStrip({ line, runId, perReport, onRemove, onAdd, onCancelAll
               {byItself && !pause.run_id ? 'Carry on now' : 'Skip it and carry on'}
             </button>
           )}
-          <button className="btn2" onClick={onCancelAll}>
-            Cancel all
-          </button>
+          <ConfirmButton
+            label="Cancel all"
+            question={line.writing ? (n > 0 ? `Stop this report and drop the ${n.toLocaleString('en-US')} waiting?` : 'Stop this report?') : `Drop the ${n.toLocaleString('en-US')} waiting?`}
+            yes="Cancel all"
+            no="Keep going"
+            onConfirm={onCancelAll}
+          />
         </div>
         {!paused && adder}
       </section>
@@ -467,9 +474,7 @@ export function LinePaused({ line, onCarryOn, onClear, onRecheck, onCancelAll, c
         <button className="btn2" disabled={checking} onClick={onRecheck}>
           {checking ? 'Checking…' : 'Run it again'}
         </button>
-        <button className="btn2" onClick={onCancelAll}>
-          Cancel all
-        </button>
+        <ConfirmButton label="Cancel all" question={`Drop the ${names.length.toLocaleString('en-US')} waiting?`} yes="Cancel all" no="Keep them" onConfirm={onCancelAll} />
       </div>
     )
   }
@@ -481,7 +486,7 @@ export function LinePaused({ line, onCarryOn, onClear, onRecheck, onCancelAll, c
   else if (byItself) title = 'The line is waiting'
   else if (week) title = 'Your weekly usage is past 80%'
   return (
-    <div className={byItself ? 'card note mv' : 'card alert note mv'} style={at(0)} role="status">
+    <div className="card alert note mv" style={at(0)} role="status">
       <div>
         <b>{title}</b>
         {reopened && <span>{someNames(names)}. Carry on writing them one after another, or clear the line.</span>}
@@ -499,9 +504,7 @@ export function LinePaused({ line, onCarryOn, onClear, onRecheck, onCancelAll, c
       <button className={week ? 'btn2 primary2' : 'btn2'} onClick={onCarryOn}>
         {byItself ? (pause?.run_id ? 'Skip it and carry on' : 'Carry on now') : 'Carry on'}
       </button>
-      <button className="btn2" onClick={onClear}>
-        Clear
-      </button>
+      <ConfirmButton label="Clear" question={`Drop the ${names.length.toLocaleString('en-US')} waiting?`} yes="Clear" no="Keep them" onConfirm={onClear} />
     </div>
   )
 }

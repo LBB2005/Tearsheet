@@ -25,10 +25,14 @@ export function sortMetrics(ms: MetricItem[], sort: MetricSort): MetricItem[] {
 }
 
 // Every row has its own line, so a metric in billions and one in percent each use their full
-// width. It covers only what the row draws, so a switch that is off doesn’t stretch the line.
+// width. The line always spans the peer group, whether or not each peer's dot is drawn: with only
+// the company and the median on it, the two would always sit at its two ends, on every row, and
+// say nothing about how far apart they are. The median, when it is on, is always inside it.
 export function metricScale(m: MetricItem, s: MetricsState): Scale {
-  const values = [m.value]
+  const values = [m.value, ...m.peers.map((p) => p.value)]
   if (s.median && m.peer_median !== null) values.push(m.peer_median)
-  if (s.peers) values.push(...m.peers.map((p) => p.value))
   return scaleOf(values, 0.08)
 }
+
+// A figure as the app writes it: a minus sign, not the engine's hyphen ("-0.7%" reads "−0.7%").
+export const withMinus = (text: string): string => text.replace(/(^|[\s(])-(?=[\d$.])/g, '$1−')

@@ -181,10 +181,12 @@ export function screenView(tool: ToolInput, key: KeyState, email: EmailMachine, 
     actions: keyIn ? ['other_key'] : []
   }
   const claudeFound = m.tools?.some((t) => t.kind === 'claude' && t.state !== 'missing') ?? true
-  let emailWords = emailHint(claudeFound && writer === 'claude')
+  const anyFound = m.tools?.some((t) => t.state !== 'missing') ?? true
+  let emailWords = emailHint(!anyFound ? 'none' : claudeFound && writer === 'claude' ? 'claude' : 'codex')
   if (fixed && email.state === 'suggested') emailWords = `${email.value}, from your Claude sign-in`
   else if (emailOk) emailWords = email.value
-  const emailRow: EmailRow = { tone: card === 'finish' ? 'cur' : emailOk ? 'done' : 'later', icon: emailOk ? 'done' : 'num', words: emailWords, actions: emailOk || email.value ? ['change'] : [] }
+  // On the last question the email has its own Change (or its field), so the row has none.
+  const emailRow: EmailRow = { tone: card === 'finish' ? 'cur' : emailOk ? 'done' : 'later', icon: emailOk ? 'done' : 'num', words: emailWords, actions: card !== 'finish' && (emailOk || email.value) ? ['change'] : [] }
 
   // Start.
   let reason: string = WORDS.readyNow

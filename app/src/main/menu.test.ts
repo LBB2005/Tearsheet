@@ -9,7 +9,7 @@ function walk(items: MenuItemConstructorOptions[]): MenuItemConstructorOptions[]
 
 test('every shortcut in the spec is in the menu', () => {
   const accelerators = walk(menuTemplate(() => undefined, false)).map((i) => i.accelerator)
-  for (const a of ['CmdOrCtrl+K', 'CmdOrCtrl+N', 'CmdOrCtrl+1', 'CmdOrCtrl+2', 'CmdOrCtrl+3', 'CmdOrCtrl+[', 'CmdOrCtrl+]', 'Ctrl+Cmd+S', 'CmdOrCtrl+F', 'CmdOrCtrl+,']) {
+  for (const a of ['CmdOrCtrl+K', 'CmdOrCtrl+N', 'CmdOrCtrl+1', 'CmdOrCtrl+2', 'CmdOrCtrl+3', 'CmdOrCtrl+[', 'CmdOrCtrl+]', 'Ctrl+Cmd+S', 'CmdOrCtrl+F', 'CmdOrCtrl+,', 'CmdOrCtrl+L']) {
     expect(accelerators).toContain(a)
   }
 })
@@ -20,6 +20,14 @@ test('clicking View > Chart sends chart', () => {
   expect(chart).toBeDefined()
   ;(chart!.click as () => void)()
   expect(send).toHaveBeenCalledWith('chart')
+})
+
+test('Go > Prediction log sends log, with ⌘L', () => {
+  const send = vi.fn<(c: MenuCommand) => void>()
+  const log = walk(menuTemplate(send, false)).find((i) => i.label === 'Prediction log')
+  expect(log?.accelerator).toBe('CmdOrCtrl+L')
+  ;(log!.click as () => void)()
+  expect(send).toHaveBeenCalledWith('log')
 })
 
 test('developer tools only in dev', () => {

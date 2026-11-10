@@ -9,6 +9,7 @@ would be compared with (the peer-group rule).
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from datetime import UTC, date, datetime
 from importlib import resources
@@ -118,6 +119,21 @@ def _ticker_of(row: sqlite3.Row, holdings: membership.Holdings) -> str:
     return ""
 
 
+# The state or series tag SEC adds at the end of some names: "US BANCORP \DE\", "AMETEK INC/",
+# "VALERO ENERGY CORP/TX", "VERTEX PHARMACEUTICALS INC / MA".
+_SEC_TAG = re.compile(r"\s*[/\\]\s*(?:[A-Z]{2,3}\s*[/\\]?)?\s*$")
+
+
+def display_name(holdings: membership.Holdings, cik: int | None, stored: str | None) -> str | None:
+    """The name to show for a company: the S&P 500 list's ("U.S. Bancorp", as the look-up box
+    and the downloads give it), else the name SEC gave it with its trailing state tag left off."""
+    if cik is not None and holdings.has(cik):
+        return holdings.name_of(cik)
+    if not stored:
+        return stored
+    return _SEC_TAG.sub("", stored).strip() or stored
+
+
 def run_company(conn: sqlite3.Connection, run_id: str) -> dict[str, str | None]:
     """The company a run resolved in step 1: its ticker, and its name as the look-up list gives
     it (the name the person just picked), else the name SEC gave it. Both are None until step 1
@@ -155,7 +171,7 @@ def list_companies(conn: sqlite3.Connection) -> list[dict[str, Any]]:
             out[cik]["report_ids"].append(row["report_id"])
             continue
         ticker = _ticker_of(row, holdings)
-        name = row["name"] or (holdings.company(cik).name if holdings.has(cik) else ticker)
+        name = display_name(holdings, cik, row["name"]) or ticker
         latest = prices.latest_close(cik)
         out[cik] = {
             "cik": cik,

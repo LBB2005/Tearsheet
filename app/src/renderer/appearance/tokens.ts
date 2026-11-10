@@ -13,25 +13,48 @@ type Inputs = Core & RatingColours
 // The colour names worked out from a look, each from the colours it depends on.
 interface Rule {
   deps: (keyof Inputs)[]
-  make: (c: Inputs, shade: Shade) => string
+  // `side` is the sidebar's ground as drawn (--side), which the quieter greys must read on too.
+  make: (c: Inputs, shade: Shade, side: string) => string
 }
 
 const surface = (c: Inputs, shade: Shade) => (shade === 'dark' ? mix(c.base, c.ink, 0.075) : mix(c.base, '#FFFFFF', 0.85))
 const onAccent = (accent: string, k: number) => (luminance(accent) > 0.3 ? mix(accent, '#000000', k) : '#FFFFFF')
 const see = (hex: string, alpha: string) => `rgb(${triple(hex)} / ${alpha})`
 
-// In light mode the quieter greys (made by mixing the secondary text into the page) faded too far:
-// sidebar prices, shortcut hints and placeholders fell to 2.3-3.9:1. There each is pulled toward
-// the text colour until it reads on both the page and the sidebar: 4.5:1 for small text, 3:1 for
-// placeholders and box edges (WCAG AA). Dark mode keeps its designed values.
-export const LIGHT_FLOOR: Record<string, number> = { '--faint': 4.5, '--faint2': 4.5, '--dim': 4.5, '--dim2': 4.5, '--edge': 3 }
-function readable(name: string, fg: string, c: Inputs, shade: Shade): string {
-  const min = LIGHT_FLOOR[name]
-  if (shade === 'dark' || !min) return fg
-  const worst = (hex: string) => Math.min(contrast(hex, c.base), contrast(hex, c.bg))
+// The quieter greys (made by mixing the secondary text into the page) can fade too far: in light
+// mode sidebar prices, shortcut hints and placeholders fell to 2.3-3.9:1, and in dark mode the
+// log's counts and the shortcut hints sat at 3.3-3.7:1 (UI checks of 9 and 10 Nov 2026). Each is
+// pulled toward the text colour until it reads on both the page and the sidebar: 4.5:1 for small
+// text, 3:1 for placeholders and box edges (WCAG AA), in dark and light alike.
+export const FLOOR: Record<string, number> = { '--faint': 4.5, '--faint2': 4.5, '--dim': 4.5, '--dim2': 4.5, '--edge': 3 }
+
+// `fg` pulled toward `to` until it reaches `min` against every ground given.
+export function floor(fg: string, to: string, grounds: string[], min: number): string {
+  const worst = (hex: string) => Math.min(...grounds.map((g) => contrast(hex, g)))
   let out = fg
-  for (let step = 1; step <= 50 && worst(out) < min; step++) out = mix(fg, c.text, step / 50)
+  for (let step = 1; step <= 50 && worst(out) < min; step++) out = mix(fg, to, step / 50)
   return out
+}
+
+function readable(name: string, fg: string, c: Inputs, side: string): string {
+  const min = FLOOR[name]
+  return min ? floor(fg, c.text, [c.base, c.bg, side], min) : fg
+}
+
+// The accent where it is text on a light tint of itself (the tinted buttons, links): pulled toward
+// the text until it reads at 4.5:1 there and on the page. Most looks' accents already do, so this
+// is the accent itself; a few light looks get a step darker (ui check B2, 10 Nov 2026).
+const accentFg = (c: Inputs) => floor(c.accent, c.text, [c.base, mix(c.base, c.accent, 0.12)], 4.5)
+
+// Buy, Hold and Sell in light mode, as small text on their own 7% tint and on the grey sidebar: a
+// touch darker, same hue, until 4.5:1 (Liam, 10 Nov 2026). Dark mode keeps the tested colours.
+function ratingsReadable(c: Inputs, side: string): void {
+  for (const k of ['up', 'hold', 'down'] as const) {
+    const from = c[k]
+    // The tint is made of the colour itself, so it is worked out again at each step.
+    const worst = (hex: string) => Math.min(contrast(hex, c.base), contrast(hex, side), contrast(hex, mix(c.base, hex, 0.07)))
+    for (let step = 1; step <= 50 && worst(c[k]) < 4.5; step++) c[k] = mix(from, c.text, step / 50)
+  }
 }
 
 const RULES: Record<string, Rule> = {
@@ -55,11 +78,11 @@ const RULES: Record<string, Rule> = {
   '--soft': { deps: ['muted', 'text'], make: (c) => mix(c.muted, c.text, 0.4) },
   '--soft3': { deps: ['muted', 'text'], make: (c) => mix(c.muted, c.text, 0.32) },
   '--icon': { deps: ['muted', 'base'], make: (c) => mix(c.muted, c.base, 0.06) },
-  '--faint': { deps: ['muted', 'base'], make: (c, s) => readable('--faint', mix(c.muted, c.base, 0.07), c, s) },
-  '--faint2': { deps: ['muted', 'base'], make: (c, s) => readable('--faint2', mix(c.muted, c.base, 0.16), c, s) },
-  '--dim': { deps: ['muted', 'base'], make: (c, s) => readable('--dim', mix(c.muted, c.base, 0.31), c, s) },
-  '--dim2': { deps: ['muted', 'base'], make: (c, s) => readable('--dim2', mix(c.muted, c.base, 0.34), c, s) },
-  '--edge': { deps: ['muted', 'base'], make: (c, s) => readable('--edge', mix(c.muted, c.base, 0.38), c, s) },
+  '--faint': { deps: ['muted', 'base'], make: (c, _s, side) => readable('--faint', mix(c.muted, c.base, 0.07), c, side) },
+  '--faint2': { deps: ['muted', 'base'], make: (c, _s, side) => readable('--faint2', mix(c.muted, c.base, 0.16), c, side) },
+  '--dim': { deps: ['muted', 'base'], make: (c, _s, side) => readable('--dim', mix(c.muted, c.base, 0.31), c, side) },
+  '--dim2': { deps: ['muted', 'base'], make: (c, _s, side) => readable('--dim2', mix(c.muted, c.base, 0.34), c, side) },
+  '--edge': { deps: ['muted', 'base'], make: (c, _s, side) => readable('--edge', mix(c.muted, c.base, 0.38), c, side) },
   '--accent-text': { deps: ['accent', 'ink'], make: (c) => mix(c.accent, c.ink, 0.69) },
   '--accent-hover': { deps: ['accent', 'ink'], make: (c) => mix(c.accent, c.ink, 0.3) },
   '--on-accent': { deps: ['accent'], make: (c) => onAccent(c.accent, 0.87) },
@@ -69,8 +92,13 @@ const RULES: Record<string, Rule> = {
   '--bad-text': { deps: ['down', 'ink'], make: (c) => mix(c.down, c.ink, 0.4) },
   '--bad-text2': { deps: ['down', 'ink'], make: (c) => mix(c.down, c.ink, 0.5) },
   '--bad-text3': { deps: ['down', 'ink'], make: (c) => mix(c.down, c.ink, 0.2) },
-  '--c-spy': { deps: ['muted', 'text'], make: (c) => mix(c.muted, c.text, 0.8) }
+  '--c-spy': { deps: ['muted', 'text'], make: (c) => mix(c.muted, c.text, 0.8) },
+  '--accent-fg': { deps: ['accent', 'base', 'text'], make: (c) => accentFg(c) },
+  // A text field: a touch lighter than its panel in dark mode, white in light (a Mac field is
+  // lighter than what's around it).
+  '--field-bg': { deps: ['ink'], make: (c, s) => (s === 'dark' ? `rgb(${triple(c.ink)} / .06)` : '#FFFFFF') }
 }
+
 
 // The values the window was designed with (styles.css :root, report.html.j2 :root), kept while
 // the dark Tearsheet look's colours they come from are unchanged.
@@ -97,8 +125,9 @@ export const EXACT: Record<string, string> = {
   '--icon': '#8C99A8',
   '--faint': '#8A97A6',
   '--faint2': '#7C8A9A',
-  '--dim': '#67768A',
-  '--dim2': '#637287',
+  // Lifted from #67768A / #637287 (3.6 / 3.4:1) to 4.5:1 on the Raised sidebar, 10 Nov 2026.
+  '--dim': '#7C8996',
+  '--dim2': '#7B8795',
   '--edge': '#5D6B7D',
   '--accent-text': '#D6F6FD',
   '--accent-hover': '#A6EDFA',
@@ -134,7 +163,8 @@ export interface Resolved {
   // The CSS names to set on <html>, with their values.
   tokens: Record<string, string>
   zoom: number
-  // The window's own colour, shown before the page draws and while it resizes.
+  // The window's own colour, shown before the page draws and in the strip macOS fills while the
+  // window grows: the main area's colour at its right and bottom edges (windowColour).
   background: string
 }
 
@@ -166,6 +196,17 @@ export function num(n: number): string {
   return s.startsWith('0.') ? s.slice(1) : s.startsWith('-0.') ? `-${s.slice(2)}` : s
 }
 
+// The main area's colour where a growing window uncovers it (its right and bottom edges): the page
+// colour under the glows as styles.css .mainarea draws them. At the right edge, halfway down, the
+// purple glow (92% 30%, 720 x 520) reaches about 54% of its strength; at the bottom, 70% across,
+// the bottom glow (55% 112%, 520 x 420) about 46%; the top-left glow reaches neither. The two
+// edges are averaged (they differ by a step or two), at a 1,280 x 840 window.
+export function windowColour(c: Pick<Core, 'base' | 'g2' | 'g3'>, glow: number): string {
+  const right = mix(c.base, c.g2, 0.18 * glow * 0.54)
+  const bottom = mix(c.base, c.g3, 0.16 * glow * 0.46)
+  return mix(right, bottom, 0.5)
+}
+
 export function shadeOf(look: Appearance, systemDark: boolean): Shade {
   return look.mode === 'auto' ? (systemDark ? 'dark' : 'light') : look.mode
 }
@@ -184,6 +225,7 @@ export function resolve(look: Appearance, systemDark = true): Resolved {
 
   const exact = base.id === 'tearsheet' && shade === 'dark'
   const side = sideOf(look, c, shade)
+  if (shade === 'light') ratingsReadable(c, side)
   const tokens: Record<string, string> = {
     '--bg': c.bg,
     '--side': side,
@@ -210,7 +252,7 @@ export function resolve(look: Appearance, systemDark = true): Resolved {
   }
   for (const [name, rule] of Object.entries(RULES)) {
     const same = rule.deps.every((d) => c[d].toUpperCase() === own[d].toUpperCase())
-    tokens[name] = exact && same && EXACT[name] ? EXACT[name] : rule.make(c, shade)
+    tokens[name] = exact && same && EXACT[name] ? EXACT[name] : rule.make(c, shade, side)
   }
   const spy = look.colours['chart-sp500']
   if (spy) tokens['--c-spy'] = spy
@@ -235,7 +277,7 @@ export function resolve(look: Appearance, systemDark = true): Resolved {
     chart: { company: company ?? c.accent, peers: peers ?? c.accent2, spy: tokens['--c-spy'] },
     tokens,
     zoom: look.size / 100,
-    background: c.bg
+    background: windowColour(c, look.glow / 100)
   }
 }
 

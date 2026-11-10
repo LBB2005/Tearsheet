@@ -30,6 +30,16 @@ export function shortDate(iso: string, now: Date = new Date()): string {
   return year === now.getFullYear() ? text : `${text}, ${year}`
 }
 
+// A date the engine wrote out for the reader ("6 Nov 2026"), or a stored one (2026-11-06), as the
+// app writes dates: "Nov 6" (shortDate). Anything else is left as it came.
+export function dayText(text: string, now: Date = new Date()): string {
+  const m = /^(\d{1,2}) ([A-Z][a-z]{2}) (\d{4})$/.exec(text.trim())
+  if (!m) return shortDate(text, now)
+  const month = MONTHS.indexOf(m[2]) + 1
+  if (month === 0) return text
+  return shortDate(`${m[3]}-${String(month).padStart(2, '0')}-${m[1].padStart(2, '0')}`, now)
+}
+
 export interface StatusInput {
   // A report being written: the company's ticker and its step states so far.
   // A report being written: its ticker, how far it has got (0–1) and "about 3 min left".

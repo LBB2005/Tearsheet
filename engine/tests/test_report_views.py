@@ -271,7 +271,15 @@ def test_tables_are_every_table_the_full_report_shows(database):
     seed(database.conn)
     tables = views(database.conn)["tables"]
     assert [t["key"] for t in tables] == ["score", "valuation"]
-    assert [t["rows"] for t in tables] == [TABLES["score"], TABLES["valuation"]]
+    # As the page shows them: factors with a capital, methods by name (readouts.shown_tables).
+    assert [t["rows"] for t in tables] == [
+        [TABLES["score"][0], ["Profitability", "93", "30.0%"], ["Momentum", "35", "25.0%"]],
+        [
+            TABLES["valuation"][0],
+            ["Discounted cash flow", "$115.24", ""],
+            ["Multiples", "$236.36", ""],
+        ],
+    ]
     report = make_report()
     report["sections"][1]["title"] = "Score"
     assert views(database.conn, report)["tables"][0]["title"] == "Score"

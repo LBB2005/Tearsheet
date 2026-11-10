@@ -17,6 +17,7 @@ import type { CompanyRow, GradeResult, SearchHit, SettingsResult } from '../shar
 import { bootView, GIVE_UP_AFTER_MS, STARTING_AFTER_MS } from './boot'
 import { forgetOldChartPrefs, setSidebarHidden, sidebarHidden } from './chart/prefs'
 import { perReportOf, usualReport, waitsForCheck, waitText } from './home/line'
+import { ConfirmButton } from './home/Confirm'
 import { LineAdder, LinePaused, LineStrip, LineWaiting } from './home/LineParts'
 import { runTitle } from './home/run'
 import { RunView } from './home/RunView'
@@ -437,6 +438,7 @@ export function App() {
     else if (command === 'sidebar') toggleSidebar()
     else if (command === 'find') openFind()
     else if (command === 'settings') go('settings')
+    else if (command === 'log') go('log')
     else if (command === 'help') {
       setSettingsTopic('about')
       go('settings')
@@ -751,9 +753,7 @@ export function App() {
                 </div>
               )}
               {runView && report.running && (
-                <button className="btn2" onClick={() => void report.cancel()}>
-                  Cancel run
-                </button>
+                <ConfirmButton label="Cancel run" question="Stop this report?" yes="Cancel run" no="Keep going" onConfirm={() => void report.cancel()} />
               )}
               {page === 'report' && <ReportTools page={reportPage} wide={wide} onRefresh={refreshShown ? () => setRefreshing([refreshShown]) : undefined} />}
             </Toolbar>

@@ -142,6 +142,43 @@ def method_label(code: str) -> str:
     return known.get(code) or code.replace("_", " ").capitalize()
 
 
+def table_cell(section: str, cell: str) -> str:
+    """A stored table's first cell in a row, as the page shows it: a valuation method by its name
+    ("Residual income", not the stored "RESIDUAL_INCOME"), a factor with a capital ("Capital
+    discipline"). Anything else is left as stored."""
+    if section == "valuation" and cell.replace("_", "").isalpha() and cell.isupper():
+        return method_label(cell)
+    if section == "score":
+        return _upper_first(cell)
+    return cell
+
+
+def shown_tables(report: dict) -> dict:
+    """The report with each stored table's first column as the page shows it (table_cell). The
+    stored report is left as it is; only the copy that is drawn changes."""
+    sections = report.get("sections")
+    if not isinstance(sections, list):
+        return report
+
+    def shown(s: object) -> object:
+        if not isinstance(s, dict) or not isinstance(s.get("table"), list) or not s["table"]:
+            return s
+        key = str(s.get("key") or "")
+        head, *rows = s["table"]
+        return {
+            **s,
+            "table": [head]
+            + [
+                [table_cell(key, row[0]), *row[1:]]
+                if isinstance(row, list) and row and isinstance(row[0], str)
+                else row
+                for row in rows
+            ],
+        }
+
+    return {**report, "sections": [shown(s) for s in sections]}
+
+
 def method(code: str, value: float, today: float | None) -> str:
     return (
         f"{method_label(code)}: {format_value('price', value)} a share"
