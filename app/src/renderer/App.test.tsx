@@ -146,13 +146,25 @@ describe('the report page', () => {
     await waitFor(() => expect(frameHeading()).toBe('AAPL summary text'))
   })
 
-  test('a narrow window asks for the narrow layout, and the chart stays beside the report', async () => {
+  test('the window crossing 1,100 px never loads the report again', async () => {
+    const { user } = await renderApp()
+    await openReport(user)
+    await waitFor(() => expect(frameHeading()).toBe('AAPL summary text'))
+    const asked = bridge.getReport.mock.calls.length
+    setWindowWidth(1000)
+    setWindowWidth(1280)
+    setWindowWidth(1000)
+    expect(bridge.getReport.mock.calls.length).toBe(asked)
+  })
+
+  test('a narrow window asks for the same layout as a wide one, and the chart stays beside the report', async () => {
     setWindowWidth(900)
     const { user } = await renderApp()
     await user.click(screen.getByRole('button', { name: 'Show the sidebar' }))
     await openReport(user)
     sizeReportPage(900)
-    expect(bridge.getReport).toHaveBeenLastCalledWith('r-aapl-2', expect.objectContaining({ narrow: true }))
+    // The report lays itself out by its own width; the window's width never changes what is asked.
+    expect(bridge.getReport).toHaveBeenLastCalledWith('r-aapl-2', expect.objectContaining({ narrow: false }))
     menu('chart')
     expect(chartPane().style.width).toBe('450px')
     expect(screen.getByRole('separator', { name: 'Resize the chart' })).toBeInTheDocument()

@@ -61,13 +61,13 @@ describe('reportChoice', () => {
 })
 
 describe('renderOptions', () => {
-  it('asks for the layout that follows the frame, so the chart never reloads the report', () => {
-    expect(renderOptions({ view: 'summary', side: 'text', wide: true, motion: true })).toEqual({ view: 'summary', column: 'auto', side: 'text', narrow: false, motion: true })
-    expect(renderOptions({ view: 'full', side: 'numbers', wide: true, motion: false })).toEqual({ view: 'full', column: 'auto', side: 'numbers', narrow: false, motion: false })
+  it('asks for the layout that follows the frame, with the view and the side', () => {
+    expect(renderOptions({ view: 'summary', side: 'text', motion: true })).toEqual({ view: 'summary', column: 'auto', side: 'text', narrow: false, motion: true })
+    expect(renderOptions({ view: 'full', side: 'numbers', motion: false })).toEqual({ view: 'full', column: 'auto', side: 'numbers', narrow: false, motion: false })
   })
 
-  it('asks for the key tiles in a narrow window', () => {
-    expect(renderOptions({ view: 'summary', side: 'text', wide: false, motion: true })).toEqual({ view: 'summary', column: 'auto', side: 'text', narrow: true, motion: true })
+  it('never asks for the narrow layout: the window crossing 1,100 px doesn’t reload the report', () => {
+    expect(renderOptions({ view: 'summary', side: 'text', motion: true }).narrow).toBe(false)
   })
 })
 

@@ -1,5 +1,5 @@
 // The report's text frames, so the report area is never blank between two of them. When another
-// report opens, or the same one loads again (⌘1, ⌘2, a narrower window), the frame on show stays
+// report opens, or the same one loads again (⌘1, ⌘2), the frame on show stays
 // until the new one has loaded and faded in over it (report.css, `wait` and `fadein`).
 
 import { useCallback, useEffect, useRef, useState } from 'react'
