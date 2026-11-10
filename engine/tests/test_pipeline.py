@@ -1676,3 +1676,30 @@ def test_a_run_records_seconds_per_step(database, tmp_path):
     assert time_line({"total_s": 272, "steps": {"fetch": 36, "rate": 0.1, "extract": 95}}) == (
         "Time: 4.5 min (fetch 36 s, extract 1.6 min)."
     )
+
+
+def test_fred_or_form_4_not_answering_leaves_those_out_instead_of_failing(database, tmp_path):
+    from tearsheet.http import HTTPFailure
+
+    class Down(FakeData):
+        async def macro(self, day):
+            raise HTTPFailure("fred", "https://api.stlouisfed.org/fred/series", "HTTP 500", 500)
+
+        async def form4_trades(self, cik, *, today):
+            raise HTTPFailure("sec", "https://www.sec.gov/x/form4.xml", "HTTP 404", 404)
+
+    run, result = run_full(database, tmp_path, data=Down())
+    assert result.report_id
+    assert any("FRED didn't answer" in n for n in run.notes)
+    assert any("Form 4" in n for n in run.notes)
+
+
+def test_sec_blocking_form_4_still_stops_the_run(database, tmp_path):
+    from tearsheet.http import SECBlocked
+
+    class Blocked(FakeData):
+        async def form4_trades(self, cik, *, today):
+            raise SECBlocked("sec", "https://www.sec.gov/x/form4.xml", "HTTP 403", 403)
+
+    with pytest.raises(SECBlocked):
+        run_full(database, tmp_path, data=Blocked())

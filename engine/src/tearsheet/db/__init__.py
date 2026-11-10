@@ -74,11 +74,16 @@ def _private_copy(conn: sqlite3.Connection, target: Path) -> None:
     """Copy the database to `target`, a new file only the user can read. The file is made
     with its mode before SQLite writes to it, so it is never readable by others."""
     os.close(os.open(target, os.O_CREAT | os.O_EXCL | os.O_WRONLY, FILE_MODE))
-    copy = sqlite3.connect(target)
     try:
-        conn.backup(copy)
-    finally:
-        copy.close()
+        copy = sqlite3.connect(target)
+        try:
+            conn.backup(copy)
+        finally:
+            copy.close()
+    except BaseException:
+        # A half-written copy would sort as the newest and push a good one out.
+        target.unlink(missing_ok=True)
+        raise
     os.chmod(target, FILE_MODE)
 
 
@@ -106,12 +111,32 @@ def _prune_upgrade_copies(path: Path) -> None:
 
 
 BACKUPS_KEPT = 10
+# Of those, the newest few are kept as they are; the rest are one per earlier day. A copy is
+# made after every official prediction, so a run of reports used to leave ten copies from the
+# last quarter of an hour and nothing older (seen on 10 Nov 2026).
+BACKUPS_NEWEST = 5
+
+
+def _backups_to_keep(copies: list[Path]) -> set[Path]:
+    """The newest `BACKUPS_NEWEST` copies, then the newest copy of each earlier day, up to
+    `BACKUPS_KEPT` in all. `copies` are sorted oldest first (their names hold UTC stamps)."""
+    newest = copies[-BACKUPS_NEWEST:]
+    keep = set(newest)
+    days = {p.name.removeprefix("tearsheet-")[:8] for p in newest}
+    for p in reversed(copies[:-BACKUPS_NEWEST]):
+        if len(keep) >= BACKUPS_KEPT:
+            break
+        day = p.name.removeprefix("tearsheet-")[:8]
+        if day not in days:
+            keep.add(p)
+            days.add(day)
+    return keep
 
 
 def backup(conn: sqlite3.Connection, folder: Path, *, stamp: str | None = None) -> Path:
-    """A live copy of the database with SQLite's online backup (design item 16). Keeps the
-    newest `BACKUPS_KEPT` copies in `folder`. A folder this makes is the user's only (0700),
-    as is each copy (0600)."""
+    """A live copy of the database with SQLite's online backup (design item 16). Keeps
+    `BACKUPS_KEPT` copies in `folder`: the newest few and one for each day before them. A folder
+    this makes is the user's only (0700), as is each copy (0600)."""
     if not folder.exists():
         folder.mkdir(parents=True, mode=FOLDER_MODE)
         os.chmod(folder, FOLDER_MODE)
@@ -121,10 +146,14 @@ def backup(conn: sqlite3.Connection, folder: Path, *, stamp: str | None = None) 
         target.unlink()
     _private_copy(conn, target)
     copies = sorted(folder.glob("tearsheet-*.sqlite"))
-    for old in copies[:-BACKUPS_KEPT]:
-        old.unlink()
+    keep = _backups_to_keep(copies)
+    for old in copies:
+        if old not in keep:
+            old.unlink()
+            for extra in ("-wal", "-shm"):
+                old.with_name(old.name + extra).unlink(missing_ok=True)
     # Copies made before this rule become private too.
-    for kept in copies[-BACKUPS_KEPT:]:
+    for kept in keep:
         if kept.stat().st_mode & 0o077:
             os.chmod(kept, FILE_MODE)
     return target
@@ -153,7 +182,15 @@ def open_database(path: Path) -> Database:
     for number, sql in pending:
         # executescript commits first, so the migration and its version number
         # are applied together inside one explicit transaction.
-        conn.executescript(f"BEGIN;\n{sql}\nPRAGMA user_version = {number};\nCOMMIT;")
+        try:
+            conn.executescript(f"BEGIN;\n{sql}\nPRAGMA user_version = {number};\nCOMMIT;")
+        except BaseException:
+            # Undone, and the connection closed: left open inside the failed transaction it
+            # held the database's write lock.
+            if conn.in_transaction:
+                conn.rollback()
+            conn.close()
+            raise
     if pending and current > 0:
         _prune_upgrade_copies(path)
     version = pending[-1][0] if pending else current

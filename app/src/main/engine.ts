@@ -70,12 +70,22 @@ export function reachesCap(stops: number[], now: number): boolean {
   return stops.filter((at) => now - at < RESTART_WINDOW_MS).length + 1 >= RESTART_CAP
 }
 
-export function restartCapMessage(signal: string | null, code: number | null): string {
+// An engine that exits by itself with a code said why on standard error (a data folder from a
+// newer Tearsheet, say): that last line is the reason given, not macOS. A signal is what macOS
+// stopping an untrusted app looks like, so only then are the first-open steps named.
+export function restartCapMessage(signal: string | null, code: number | null, lastLine?: string | null): string {
   const how = signal ? `by ${signal}` : `with exit code ${code ?? 'unknown'}`
-  return (
-    `Tearsheet’s engine was stopped ${how} three times in 30 seconds, so Tearsheet stopped restarting it. ` +
-    'If macOS stopped it, follow the first-open steps in “How to open Tearsheet.txt”, then open Tearsheet again.'
-  )
+  const capped = `Tearsheet’s engine was stopped ${how} three times in 30 seconds, so Tearsheet stopped restarting it. `
+  if (!signal && lastLine) return `${capped}It said: “${lastLine}”`
+  return capped + 'If macOS stopped it, follow the first-open steps in “How to open Tearsheet.txt”, then open Tearsheet again.'
+}
+
+// The last line an engine wrote on standard error, kept short.
+export function lastErrorLine(text: string): string | null {
+  const lines = text.split('\n').map((line) => line.trim()).filter(Boolean)
+  const last = lines.at(-1)
+  if (!last) return null
+  return last.length > 300 ? `${last.slice(0, 299)}…` : last
 }
 
 export interface Notification {
@@ -105,6 +115,9 @@ export class Engine extends EventEmitter {
   lastRunId: string | null = null
   // When the engine stopped by itself lately, for the restart cap.
   private stops: number[] = []
+  // The end of what the engine wrote on standard error, kept across restarts (a child's last
+  // lines can arrive after its exit), for why it stopped (restartCapMessage).
+  private stderrTail = ''
   // Why the engine can't be used, once that is known: it couldn't start, or its version doesn't
   // match. It is kept, so a window that loads after the failure still learns of it.
   fatalMessage: string | null = null
@@ -129,7 +142,10 @@ export class Engine extends EventEmitter {
     child.on('spawn', () => {
       spawned = true
     })
-    child.stderr?.on('data', (chunk) => this.log.write(chunk))
+    child.stderr?.on('data', (chunk) => {
+      this.log.write(chunk)
+      this.stderrTail = (this.stderrTail + String(chunk)).slice(-4000)
+    })
     // Writing to an engine that has just gone fails here, not in the main process.
     child.stdin?.on('error', (error) => this.log.write(`\n[engine standard input: ${error.message}]\n`))
     createInterface({ input: child.stdout! }).on('line', (line) => this.onLine(line))
@@ -148,7 +164,7 @@ export class Engine extends EventEmitter {
       const now = Date.now()
       const capped = crashed && reachesCap(this.stops, now)
       if (crashed) this.stops = [...this.stops.filter((at) => now - at < RESTART_WINDOW_MS), now]
-      if (capped) this.fatalMessage = restartCapMessage(signal, code)
+      if (capped) this.fatalMessage = restartCapMessage(signal, code, lastErrorLine(this.stderrTail))
       gone(this.fatalMessage ?? 'The engine stopped.')
       if (capped) {
         this.log.write(`[engine not restarted: ${RESTART_CAP} stops in ${RESTART_WINDOW_MS / 1000} seconds]\n`)
@@ -206,6 +222,13 @@ export class Engine extends EventEmitter {
         this.stop()
         return
       }
+    }
+    // The run under way, for the restart notice: a line's runs start in the engine, not with a
+    // run_report call, so their progress notes set it too; a finished report clears it.
+    const runId = (note.params as { run_id?: unknown } | undefined)?.run_id
+    if (typeof runId === 'string') {
+      if (note.method === 'progress') this.lastRunId = runId
+      else if (note.method === 'report_ready' && this.lastRunId === runId) this.lastRunId = null
     }
     this.emit('notification', note)
   }

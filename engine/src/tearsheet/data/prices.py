@@ -9,6 +9,7 @@ the last completed NYSE session before the run time, or the session before it.
 from __future__ import annotations
 
 import sqlite3
+from bisect import bisect_right
 from collections.abc import Iterable
 from datetime import UTC, date, datetime, time, timedelta
 from functools import cache
@@ -129,20 +130,21 @@ class PriceStore:
         self, data: dict[str, Any], tickers: dict[str, tuple[int, str]]
     ) -> int:
         """Whole-market dividends; only those for the given tickers (Massive spelling) are kept."""
-        rows = []
+        found = []
         for d in data.get("results") or []:
             key = tickers.get(d.get("ticker", ""))
             if key and d.get("ex_dividend_date") and d.get("cash_amount") is not None:
-                rows.append(
-                    (
-                        key[0],
-                        key[1],
-                        d["ex_dividend_date"],
-                        "dividend",
-                        float(d["cash_amount"]),
-                        SOURCE,
-                    )
-                )
+                found.append((key[0], key[1], d["ex_dividend_date"], float(d["cash_amount"])))
+        return self._store_dividend_rows(found)
+
+    def _store_dividend_rows(self, found: list[tuple[int, str, str, float]]) -> int:
+        """Dividends as (cik, share class, ex-date, amount). Two on one ex-date (a regular
+        and a special one) are added together: the table keeps one row per day, so storing
+        them one by one kept only the first."""
+        totals: dict[tuple[int, str, str], float] = {}
+        for cik, share_class, day, amount in found:
+            totals[(cik, share_class, day)] = totals.get((cik, share_class, day), 0.0) + amount
+        rows = [(k[0], k[1], k[2], "dividend", v, SOURCE) for k, v in totals.items()]
         with self.conn:
             self.conn.executemany(
                 "INSERT OR IGNORE INTO corporate_actions VALUES (?, ?, ?, ?, ?, ?)", rows
@@ -159,16 +161,13 @@ class PriceStore:
         }
 
     def store_dividends(self, cik: int, share_class: str, data: dict[str, Any]) -> int:
-        rows = [
-            (cik, share_class, d["ex_dividend_date"], "dividend", float(d["cash_amount"]), SOURCE)
-            for d in data.get("results") or []
-            if d.get("ex_dividend_date") and d.get("cash_amount") is not None
-        ]
-        with self.conn:
-            self.conn.executemany(
-                "INSERT OR IGNORE INTO corporate_actions VALUES (?, ?, ?, ?, ?, ?)", rows
-            )
-        return len(rows)
+        return self._store_dividend_rows(
+            [
+                (cik, share_class, d["ex_dividend_date"], float(d["cash_amount"]))
+                for d in data.get("results") or []
+                if d.get("ex_dividend_date") and d.get("cash_amount") is not None
+            ]
+        )
 
     def store_splits(self, data: dict[str, Any], tickers: dict[str, tuple[int, str]]) -> int:
         """Market-wide splits; only those for the given tickers (Massive spelling) are kept."""
@@ -229,13 +228,24 @@ class PriceStore:
     def daily_gross_returns(
         self, cik: int, share_class: str = "", *, up_to: date | None = None
     ) -> list[tuple[date, float]]:
-        """(day, total return factor from the previous stored close to this one)."""
+        """(day, total return factor from the previous stored close to this one). A split or
+        dividend on a day with no stored close (a gap in the bars) counts on the next close:
+        missed, a 2-for-1 split read as the price halving."""
         closes = self.closes(cik, share_class, up_to=up_to)
         splits, dividends = self.splits(cik, share_class), self.dividends(cik, share_class)
+        split_days, dividend_days = sorted(splits), sorted(dividends)
         out = []
-        for (_, before), (day, close) in zip(closes, closes[1:], strict=False):
-            ratio = splits.get(day, 1.0)
-            out.append((day, ratio * (close + dividends.get(day, 0.0)) / before))
+        for (previous, before), (day, close) in zip(closes, closes[1:], strict=False):
+            ratio = 1.0
+            for d in split_days[bisect_right(split_days, previous) : bisect_right(split_days, day)]:
+                ratio *= splits[d]
+            paid = sum(
+                dividends[d]
+                for d in dividend_days[
+                    bisect_right(dividend_days, previous) : bisect_right(dividend_days, day)
+                ]
+            )
+            out.append((day, ratio * (close + paid) / before))
         return out
 
     def total_return(self, cik: int, share_class: str, start: date, end: date) -> float | None:
@@ -299,7 +309,6 @@ async def fetch_company(
         kind="daily_bars",
         params={"adjusted": "false", "sort": "asc", "limit": "50000"},
     )
-    store.store_bars(cik, share_class, fetched.json(), raw_hash=fetched.raw_hash)
     dividends = await http.fetch(
         "massive",
         _url(config.MASSIVE_DIVIDENDS),
@@ -310,7 +319,10 @@ async def fetch_company(
             "limit": "1000",
         },
     )
+    # Dividends are stored before the bars: the next run starts after the latest stored bar,
+    # so bars stored ahead of a failed dividends call left those dividends out for good.
     store.store_dividends(cik, share_class, dividends.json())
+    store.store_bars(cik, share_class, fetched.json(), raw_hash=fetched.raw_hash)
 
 
 HISTORY_START = date(2000, 1, 1)
@@ -325,8 +337,10 @@ async def fetch_history_bars(
     *,
     end: date | None = None,
 ) -> int:
-    """The full daily history from 2000-01-01 in one call. Returns the rows stored."""
-    end = end or datetime.now(EASTERN).date()
+    """The full daily history from 2000-01-01 in one call, up to the last completed session
+    (a bar for today before the close would be stored as that day's close and never
+    replaced). Returns the rows stored."""
+    end = end or last_completed_session(datetime.now(UTC))
     fetched = await http.fetch(
         "massive",
         _url(

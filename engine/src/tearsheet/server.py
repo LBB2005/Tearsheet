@@ -21,6 +21,7 @@ import json
 import logging
 import re
 import sys
+import threading
 import uuid
 from collections.abc import Callable
 from contextlib import asynccontextmanager
@@ -181,6 +182,14 @@ def error_code(exc: BaseException) -> tuple[str, dict[str, Any]]:
     if isinstance(exc, config.SettingMissing):
         return "ENGINE_ERROR", {}
     return "ENGINE_ERROR", {}
+
+
+def no_connection(exc: BaseException) -> bool:
+    """Whether a run failed for want of a connection: a data service gave no answer at all
+    (no internet), rather than turning the request down."""
+    from tearsheet.http import HTTPFailure
+
+    return isinstance(exc, HTTPFailure) and exc.status is None
 
 
 def history_failure_line(exc: BaseException) -> str:
@@ -686,6 +695,9 @@ class Server:
             )
             return
         id_, method = message.get("id"), message["method"]
+        if not isinstance(method, str):
+            self._error(id_, INVALID_REQUEST, "A request's method must be a name.")
+            return
         model = METHODS.get(method)
         if model is None:
             self._error(id_, METHOD_NOT_FOUND, f"No method '{method}'.")
@@ -710,7 +722,19 @@ class Server:
         except EngineError as exc:
             self._error(id_, ENGINE_ERROR_CODE, str(exc), {"code": exc.code, **exc.data})
             return
+        except (json.JSONDecodeError, ValidationError):
+            # A ValueError of the engine's own (stored data it couldn't read), not the
+            # request's: logged, and said in plain words rather than as "bad parameters".
+            log.exception("request %s failed", method)
+            self._error(
+                id_,
+                ENGINE_ERROR_CODE,
+                "Something went wrong reading stored data (it’s in the engine log).",
+                {"code": "ENGINE_ERROR"},
+            )
+            return
         except ValueError as exc:
+            log.info("request %s refused: %s", method, exc)
             self._error(id_, INVALID_PARAMS, str(exc))
             return
         except Exception as exc:  # noqa: BLE001 - every failure becomes a protocol error
@@ -781,6 +805,8 @@ class Server:
         resolved: asyncio.Event,
         outcome: dict[str, Any],
         steps: dict[str, str | None],
+        *,
+        data_factory=None,
     ) -> None:
         from tearsheet.pipeline import RunCancelled
 
@@ -788,7 +814,8 @@ class Server:
         # How the run ended, for the line (batch.py): ready, stopped, failed or cancelled.
         ended: dict[str, Any] = {"how": "failed", "code": "ENGINE_ERROR"}
         try:
-            async with self.data_factory(run_id, self.db.conn, self.rawstore) as data:
+            factory = data_factory or self.data_factory
+            async with factory(run_id, self.db.conn, self.rawstore) as data:
                 run, query, resume = make_run(data)
                 self.active = run
                 result = await run.run(query, resume=resume)
@@ -819,6 +846,8 @@ class Server:
             log.exception("run %s failed", run_id)
             code, data_ = error_code(exc)
             ended = {"how": "failed", "code": code, "message": str(exc), **data_}
+            if no_connection(exc):
+                ended["connection"] = True
             if not resolved.is_set():
                 outcome["error"] = exc
             else:
@@ -864,7 +893,9 @@ class Server:
         ]
         return usage_readings(calls)
 
-    async def _start_job(self, run_id: str, make_run, *, wait_for_resolve: bool) -> None:
+    async def _start_job(
+        self, run_id: str, make_run, *, wait_for_resolve: bool, data_factory=None
+    ) -> None:
         resolved = asyncio.Event()
         outcome: dict[str, Any] = {}
         # The last step that started, and the one under way when the AI steps stopped (the
@@ -890,14 +921,16 @@ class Server:
             return run, query, resume
 
         self.job = asyncio.create_task(
-            self._job(run_id, with_resolve_signal, resolved, outcome, steps)
+            self._job(
+                run_id, with_resolve_signal, resolved, outcome, steps, data_factory=data_factory
+            )
         )
         if wait_for_resolve:
             await resolved.wait()
             if "error" in outcome:
                 exc = outcome["error"]
                 code, data = error_code(exc)
-                raise EngineError(code, str(exc), **data)
+                raise EngineError(code, str(exc), **data) from exc
         else:
             resolved.set()
 
@@ -1000,13 +1033,11 @@ class Server:
         async def no_data(run_id, conn, rawstore):
             yield None  # resume reads the run's own stored inputs
 
-        factory, self.data_factory = self.data_factory, no_data
-        try:
-            await self._start_job(
-                p.run_id, lambda data: (run, ticker, True), wait_for_resolve=False
-            )
-        finally:
-            self.data_factory = factory
+        # Passed to the job itself: swapping self.data_factory around _start_job restored it
+        # before the job ran, so a resume opened live data (and read keys) it never used.
+        await self._start_job(
+            p.run_id, lambda data: (run, ticker, True), wait_for_resolve=False, data_factory=no_data
+        )
         # Resume of the report that paused the line carries on with the line after it.
         if self.line.resume(p.run_id) is not None:
             self._line_changed()
@@ -1085,6 +1116,46 @@ class Server:
         return self._busy() or self._grading() or self._downloading() or self._safety_running()
 
     async def _run_line(self) -> None:
+        """Write the line's reports one at a time. An error in the line itself (not in a
+        report) used to end this task silently, with a company left showing as being written;
+        now that report is ended and the line pauses with a sentence, for Carry on."""
+        try:
+            await self._line_loop()
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # noqa: BLE001 - logged; the line pauses instead of stopping unseen
+            log.exception("the report line stopped on an error")
+            await self._line_recover()
+
+    async def _line_recover(self) -> None:
+        from tearsheet.batch import LINE_ERROR, Pause
+
+        line = self.line
+        entry = line.writing
+        if entry is not None:
+            if self.job is not None:
+                await asyncio.wait({self.job})
+            ended = (
+                self.last_end[1]
+                if entry.run_id and self.last_end and self.last_end[0] == entry.run_id
+                else {"how": "failed", "code": "ENGINE_ERROR"}
+            )
+            try:
+                line.end(entry, ended, now=self.now())
+            except Exception:  # noqa: BLE001
+                line.writing = None
+        if line.paused is None and line.waiting:
+            line.paused = Pause(
+                LINE_ERROR,
+                "The line stopped on an unexpected error (it’s in the engine log). "
+                "Carry on to go on.",
+            )
+        try:
+            self._line_changed()
+        except Exception:  # noqa: BLE001
+            log.exception("the report line's state couldn't be saved")
+
+    async def _line_loop(self) -> None:
         """Write the line's reports one at a time, each once nothing else is running."""
         line = self.line
         while True:
@@ -1099,6 +1170,8 @@ class Server:
                     return
                 entry = line.take_next()
                 self._line_changed()
+                if entry.run_id is not None and await self._resume_in_line(entry):
+                    continue
                 try:
                     started = await self._begin_report(entry.ticker, None)
                 except Exception as exc:  # noqa: BLE001 - that company is marked stopped
@@ -1110,7 +1183,14 @@ class Server:
                     if line.round == round_:
                         line.end(
                             entry,
-                            {"how": "failed", "code": code, "message": str(exc), **data},
+                            {
+                                "how": "failed",
+                                "code": code,
+                                "message": str(exc),
+                                "connection": no_connection(exc)
+                                or no_connection(exc.__cause__ or exc),
+                                **data,
+                            },
                             now=self.now(),
                         )
                         self._line_changed()
@@ -1132,6 +1212,25 @@ class Server:
             if self.last_usage and self.last_usage[0] == entry.run_id:
                 line.check_usage(self.last_usage[1], self.now())
             self._line_changed()
+
+    async def _resume_in_line(self, entry: Entry) -> bool:
+        """The report being written when Tearsheet quit: resumed where it stopped, if its run
+        can be (it was interrupted). Says whether it was; if not, it starts again."""
+        from tearsheet.protocol import RunIdParams
+
+        row = self.db.conn.execute(
+            "SELECT status FROM runs WHERE run_id = ?", (entry.run_id,)
+        ).fetchone()
+        if row is None or row[0] != "interrupted":
+            entry.run_id = None
+            return False
+        try:
+            await self.m_resume(RunIdParams(run_id=entry.run_id))
+        except EngineError as exc:
+            log.warning("the line couldn't resume %s: %s", entry.run_id, exc)
+            entry.run_id = None
+            return False
+        return True
 
     def _line_plan(self, p) -> tuple[list[Entry], list[Skip]]:
         from tearsheet.companies import _aliases
@@ -1954,6 +2053,27 @@ class Server:
         self.db.close()
 
 
+def stdin_lines(loop: asyncio.AbstractEventLoop) -> asyncio.Queue[str]:
+    """Standard input's lines, read on a daemon thread ("" when it closes). The executor's
+    thread it used before was waited for at exit, so a SIGTERM while the app still held stdin
+    open left the engine running."""
+    queue: asyncio.Queue[str] = asyncio.Queue()
+
+    def put(line: str) -> None:
+        try:
+            loop.call_soon_threadsafe(queue.put_nowait, line)
+        except RuntimeError:  # the loop has closed: the engine is stopping
+            pass
+
+    def read() -> None:
+        for line in iter(sys.stdin.readline, ""):
+            put(line)
+        put("")
+
+    threading.Thread(target=read, name="stdin", daemon=True).start()
+    return queue
+
+
 async def serve(paths: config.Paths) -> int:
     """Read requests from standard input until it closes."""
     out = sys.stdout
@@ -1969,14 +2089,17 @@ async def serve(paths: config.Paths) -> int:
     sweep_stale()
     server = Server(paths, write=write)
     await server.start()
-    loop = asyncio.get_running_loop()
+    lines = stdin_lines(asyncio.get_running_loop())
     try:
         while True:
-            line = await loop.run_in_executor(None, sys.stdin.readline)
+            line = await lines.get()
             if not line:
                 break
             if line.strip():
-                await server.handle(line)
+                try:
+                    await server.handle(line)
+                except Exception:  # noqa: BLE001 - one bad request mustn't end the engine
+                    log.exception("a request couldn't be handled")
         # The line stops first, so it neither counts the cancelled report nor starts the next;
         # it is kept as it is, and comes back paused next time.
         if server.line_job is not None:
@@ -1984,7 +2107,9 @@ async def serve(paths: config.Paths) -> int:
         if server.line_wake is not None:
             server.line_wake.cancel()
         if server.active is not None:
-            server.active.cancel()
+            # Interrupted, not cancelled: the line resumes it next time instead of starting
+            # the company again (whose official prediction may already be logged).
+            server.active.cancel(interrupted=True)
         if server.job is not None:
             try:
                 await server.job

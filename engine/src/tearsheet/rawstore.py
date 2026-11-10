@@ -96,6 +96,10 @@ class RawStore:
         try:
             with os.fdopen(fd, "wb") as handle:
                 handle.write(compressed)
+                # On disk before it gets its name: a stored file is never replaced, so one cut
+                # short by a power loss would stay cut short.
+                handle.flush()
+                os.fsync(handle.fileno())
             # A hard link fails if the name exists, so a stored file is never replaced.
             try:
                 os.link(tmp, path)

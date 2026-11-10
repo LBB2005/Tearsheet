@@ -241,3 +241,73 @@ def test_the_log_methods_answer_on_the_protocol(tmp_path):
     PredictionPrices.model_validate(prices["result"])
     assert bad["error"]["code"] == -32602
     h.server.close()
+
+
+def test_a_prediction_cannot_be_replaced(database, tmp_path):
+    # INSERT OR REPLACE skips the delete trigger; the insert trigger refuses it.
+    pid = log_if_official(database.conn, prediction(T0), backup_dir=tmp_path / "b")
+    row = dict(database.conn.execute("SELECT * FROM predictions").fetchone())
+    row["rating"] = "Sell"
+    with pytest.raises(sqlite3.IntegrityError):
+        with database.conn:
+            database.conn.execute(
+                f"INSERT OR REPLACE INTO predictions ({', '.join(row)}) "
+                f"VALUES ({', '.join('?' * len(row))})",
+                list(row.values()),
+            )
+    assert (
+        database.conn.execute(
+            "SELECT rating FROM predictions WHERE prediction_id = ?", (pid,)
+        ).fetchone()[0]
+        == "Buy"
+    )
+
+
+def test_grades_cannot_be_changed_or_replaced(database, tmp_path):
+    pid = log_if_official(database.conn, prediction(T0), backup_dir=tmp_path / "b")
+    insert = (
+        "INSERT {} INTO grades (prediction_id, horizon_months, graded_at, grading_version,"
+        " start_price, results_json) VALUES (?, 3, '2027-02-05', 1, 100, '{{}}')"
+    )
+    with database.conn:
+        database.conn.execute(insert.format(""), (pid,))
+    for sql in (
+        insert.format("OR REPLACE"),
+        "UPDATE grades SET start_price = 1",
+        "DELETE FROM grades",
+    ):
+        with pytest.raises(sqlite3.IntegrityError):
+            with database.conn:
+                database.conn.execute(sql, (pid,) if "?" in sql else ())
+    assert database.conn.execute("SELECT start_price FROM grades").fetchone()[0] == 100
+
+
+def test_a_run_that_started_first_but_rated_second_does_not_log_twice(database, tmp_path):
+    # The line and a terminal run on one company: the later-started run logs first.
+    first = log_if_official(
+        database.conn, prediction(T0 + timedelta(hours=1), run_id="later"), backup_dir=tmp_path
+    )
+    second = log_if_official(database.conn, prediction(T0, run_id="earlier"), backup_dir=tmp_path)
+    assert first is not None and second is None
+    assert database.conn.execute("SELECT COUNT(*) FROM predictions").fetchone()[0] == 1
+
+
+def test_two_connections_cannot_both_log(tmp_path):
+    from tearsheet.db import open_database
+
+    path = tmp_path / "data" / "t.sqlite"
+    a, b = open_database(path), open_database(path)
+    first = log_if_official(a.conn, prediction(T0, run_id="a"), backup_dir=tmp_path / "b")
+    second = log_if_official(b.conn, prediction(T0, run_id="b"), backup_dir=tmp_path / "b")
+    assert first is not None and second is None
+    assert a.conn.execute("SELECT COUNT(*) FROM predictions").fetchone()[0] == 1
+    a.close()
+    b.close()
+
+
+def test_a_failed_backup_keeps_the_prediction_and_the_run(database, tmp_path):
+    blocker = tmp_path / "not-a-folder"
+    blocker.write_text("x")
+    pid = log_if_official(database.conn, prediction(T0), backup_dir=blocker / "b")
+    assert pid is not None
+    assert database.conn.execute("SELECT COUNT(*) FROM predictions").fetchone()[0] == 1

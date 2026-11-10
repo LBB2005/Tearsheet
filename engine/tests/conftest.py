@@ -40,6 +40,10 @@ def offline(request, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     # removes, never in the Mac's temp folder.
     (tmp_path / "tmp").mkdir(exist_ok=True)
     monkeypatch.setattr(tempfile, "tempdir", str(tmp_path / "tmp"))
+    # Backups go in the test's own folder too. Without this a test that logs a prediction
+    # wrote a copy of its fixture database into the real ~/Tearsheet Backups, where it took
+    # one of the ten kept places and pushed out a real backup.
+    monkeypatch.setattr(config, "DEFAULT_BACKUP_DIR", tmp_path / "backups")
     if request.node.get_closest_marker("live"):
         # Live tests (tests/live/, run only with -m live) use the real AI tool on purpose. They
         # still keep to their own temporary data folder.

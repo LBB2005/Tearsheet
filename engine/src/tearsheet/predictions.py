@@ -4,17 +4,16 @@ The first run that produces a rating starts a rolling 30-day window for that com
 hours from the official run's start), and that run's prediction is official. Later runs in the
 window save a report but no prediction. Failed runs and withheld ratings don't use the slot,
 because they never get here. A run with no valid valuation is official: rated Hold, with no
-range or probability. Code only inserts prediction rows; database triggers reject updates and
-deletes. Each official prediction is followed by a backup.
-
-Not yet called by the pipeline: logging is switched on once the full method is finished and
-Liam has agreed, because rows can never be removed.
+range or probability. Code only inserts prediction rows; database triggers reject updates,
+deletes and a row put in again over an existing one (0005). Each official prediction is followed
+by a backup; a failed backup is logged and doesn't undo the prediction.
 """
 
 from __future__ import annotations
 
 import csv
 import json
+import logging
 import sqlite3
 import uuid
 from dataclasses import asdict, dataclass, field
@@ -22,6 +21,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from tearsheet.db import backup
+
+log = logging.getLogger(__name__)
 
 WINDOW = timedelta(days=30)
 
@@ -74,12 +75,25 @@ def previous_official(
 
 
 def log_if_official(conn: sqlite3.Connection, p: Prediction, *, backup_dir: Path) -> str | None:
-    """Insert the prediction if this run is official; back up the database. Returns its ID."""
-    if not slot_open(conn, p.cik, p.run_at):
-        return None
-    previous = previous_official(conn, p.cik, p.run_at)
+    """Insert the prediction if this run is official; back up the database. Returns its ID.
+
+    The check and the insert are one write transaction (BEGIN IMMEDIATE), so two runs for one
+    company (the app's line and a terminal `run --full`, say) can't both find the slot open.
+    A prediction already logged inside 30 days *after* this run's start also closes the slot:
+    a run that started first but reached its rating second doesn't log a second one."""
     prediction_id = f"pred-{uuid.uuid4().hex[:12]}"
-    with conn:
+    if conn.in_transaction:
+        conn.commit()
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        later = conn.execute(
+            "SELECT 1 FROM predictions WHERE cik = ? AND run_at > ? AND run_at < ? LIMIT 1",
+            (p.cik, p.run_at.isoformat(), (p.run_at + WINDOW).isoformat()),
+        ).fetchone()
+        if later or not slot_open(conn, p.cik, p.run_at):
+            conn.rollback()
+            return None
+        previous = previous_official(conn, p.cik, p.run_at)
         conn.execute(
             "INSERT INTO predictions (prediction_id, run_id, cik, ticker, share_class, run_at, score, rating,"
             " previous_rating, previous_rating_at, probability, bear, base, bull, uncertainty,"
@@ -113,7 +127,14 @@ def log_if_official(conn: sqlite3.Connection, p: Prediction, *, backup_dir: Path
                 p.inputs_hash,
             ),
         )
-    backup(conn, backup_dir)
+        conn.commit()
+    except BaseException:
+        conn.rollback()
+        raise
+    try:
+        backup(conn, backup_dir)
+    except Exception:  # noqa: BLE001 - the prediction is stored; a failed copy mustn't fail the run
+        log.exception("The backup after prediction %s failed", prediction_id)
     return prediction_id
 
 

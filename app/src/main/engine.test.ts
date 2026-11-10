@@ -4,7 +4,7 @@ import { join } from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { Engine, engineCommand, reachesCap, restartCapMessage } from './engine'
+import { Engine, engineCommand, lastErrorLine, reachesCap, restartCapMessage } from './engine'
 import type { SetupEvent, SetupFields } from './setupLog'
 
 describe('where the engine comes from', () => {
@@ -154,6 +154,32 @@ describe('the restart cap', () => {
     expect(restartCapMessage('SIGKILL', null)).toMatch(/first-open steps/)
   })
 
+  it('gives the engine’s own last words for an exit with a code, and leaves macOS out of it', () => {
+    const said = 'This data folder was written by a newer Tearsheet. Update Tearsheet.'
+    const message = restartCapMessage(null, 2, said)
+    expect(message).toMatch(/with exit code 2/)
+    expect(message).toContain(`It said: “${said}”`)
+    expect(message).not.toMatch(/macOS/)
+    // A signal is still read as macOS, whatever was written.
+    expect(restartCapMessage('SIGKILL', null, said)).toMatch(/first-open steps/)
+    expect(lastErrorLine('Traceback\n  File x\nKeyError: boom\n\n')).toBe('KeyError: boom')
+    expect(lastErrorLine('')).toBeNull()
+    expect(lastErrorLine('x'.repeat(400))).toHaveLength(300)
+  })
+
+  it('names what an engine that keeps exiting with a code wrote last', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
+    const e = node("process.stderr.write('Database is newer than this engine.\\n'); process.exit(2)")
+    const fatal = new Promise<unknown>((resolve) => e.once('fatal', resolve))
+    for (let i = 0; i < 2; i++) {
+      const crashed = new Promise((resolve) => e.once('crashed', resolve))
+      if (i === 0) e.start()
+      await crashed
+      vi.advanceTimersByTime(1000)
+    }
+    expect(await fatal).toMatch(/It said: “Database is newer than this engine\.”/)
+  })
+
   it('stops restarting at the third stop in 30 seconds, answers every call with why, and logs it once', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
     const entries: [SetupEvent, SetupFields][] = []
@@ -204,5 +230,18 @@ describe('the restart cap', () => {
     }
     expect(fatal).not.toHaveBeenCalled()
     expect(e.fatalMessage).toBeNull()
+  })
+})
+
+describe('the run a restart notice names', () => {
+  it('follows progress notes (a line’s runs too) and forgets a run once its report is ready', () => {
+    const e = node('setInterval(() => undefined, 1000)')
+    const feed = (note: object) => (e as unknown as { onLine(line: string): void }).onLine(JSON.stringify(note))
+    feed({ jsonrpc: '2.0', method: 'progress', params: { run_id: 'run-line-1', step: 'fetch', state: 'started' } })
+    expect(e.lastRunId).toBe('run-line-1')
+    feed({ jsonrpc: '2.0', method: 'report_ready', params: { run_id: 'run-other', report_id: 'r' } })
+    expect(e.lastRunId).toBe('run-line-1')
+    feed({ jsonrpc: '2.0', method: 'report_ready', params: { run_id: 'run-line-1', report_id: 'r' } })
+    expect(e.lastRunId).toBeNull()
   })
 })
