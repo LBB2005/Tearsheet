@@ -3,8 +3,8 @@
 *   **Author:** Liam Blackshaw-Brown
 *   **Status:** Approved
 *   **Date:** 2026-11-02
-*   **Revised:** 2026-11-02 and 2026-11-03, with the fixes from the Goldfish review (`goldfish_review_report.md`, `intermediate_zoom_out_report.md` and `implementation_readiness_report.md`)
-*   **Review:** EGM Goldfish review, Stages 5–9, finished 2026-11-03. The drafter defaults listed at the end of `implementation_readiness_report.md` can still be changed before the first official prediction.
+*   **Revised:** 2026-11-02 and 2026-11-03, with the fixes from the Goldfish review (`docs/designs/review/goldfish_review_report.md`, `docs/designs/review/intermediate_zoom_out_report.md` and `docs/designs/review/implementation_readiness_report.md`)
+*   **Review:** EGM Goldfish review, Stages 5–9, finished 2026-11-03. The drafter defaults listed at the end of `docs/designs/review/implementation_readiness_report.md` can still be changed before the first official prediction.
 
 --------------------------------------------------------------------------------
 
@@ -185,7 +185,7 @@ In the Status column, "Liam, Nov 2" means Liam decided it. "Drafter default" mea
 | Decision | Choice | Status |
 | :-- | :-- | :-- |
 | Who runs each report | The Python engine runs every step, including the AI calls. The Electron app shows the window, finds the AI tools, offers install and sign-in (Phase 3) and handles updates. | Liam, Nov 2 |
-| App shell | Electron, Mac first | Liam, Nov 2 (answer 3 in `concepts_brief.md`) |
+| App shell | Electron, Mac first | Liam, Nov 2 (answer 3 in `docs/designs/review/concepts_brief.md`) |
 | Prices | Massive with the user's free key. Unadjusted daily closes, splits and dividends are stored locally, per company and share class (§5). There is no second price source in v1. | Liam, Nov 2 (Massive); drafter default (unadjusted storage) |
 | Storage | One SQLite file, written only by the engine, plus a folder of raw downloads that is never overwritten (§6) | Drafter default |
 | S&P 500 member list | The daily holdings file of the iShares Core S&P 500 ETF (IVV; terms checked in Phase 0). It also gives each member's GICS sector and index weight, which set the peer groups. A copy bundled with each release is the fallback. Every record is keyed by SEC CIK, not by ticker. | Drafter default |
@@ -705,7 +705,7 @@ Keys are stored in the macOS Keychain, never in the database or in plain files. 
 
 ## Alternatives Considered
 
-Grouped by the question each one answered. Each alternative has a **Source** line. Numbers such as "#12" refer to the Alternatives Weighed list in `concepts_brief.md`: #1–10 came from the brief, and #11–23 were raised by the Goldfish review of the brief.
+Grouped by the question each one answered. Each alternative has a **Source** line. Numbers such as "#12" refer to the Alternatives Weighed list in `docs/designs/review/concepts_brief.md`: #1–10 came from the brief, and #11–23 were raised by the Goldfish review of the brief.
 
 ### Where the app runs and who pays
 
@@ -735,7 +735,7 @@ Grouped by the question each one answered. Each alternative has a **Source** lin
 *   **Source:** brief (#4).
 *   **Pros:** The least to build. One language. Easy to test.
 *   **Cons:** Unusable for anyone who can't run a terminal command.
-*   **Reason for rejection:** Liam wants a real Mac app, not a website or a terminal tool (answer 3 in `concepts_brief.md`). Its useful part survives as the engine's terminal mode, which Phase 0 and Phase 1 use for testing.
+*   **Reason for rejection:** Liam wants a real Mac app, not a website or a terminal tool (answer 3 in `docs/designs/review/concepts_brief.md`). Its useful part survives as the engine's terminal mode, which Phase 0 and Phase 1 use for testing.
 
 #### A4. A Claude Code command as the Phase 1 tool (`/stock-report TICKER`)
 
@@ -1045,9 +1045,9 @@ Grouped by the question each one answered. Each alternative has a **Source** lin
 *   `docs/brief.md`: concept brief v5, plus `docs/brief-v3.md` and `docs/brief-v4.md`.
 *   `docs/local-cli-pivot.md`: the record of the switch to local AI tools, with each of Liam's answers.
 *   `docs/brief-stress-test.md`: the stress test of brief v3.
-*   `concepts_brief.md`: the Goldfish review of the brief, with Liam's answers at the end.
-*   `reports/Stock price prediction methods.md` and `reports/AI stock price prediction.md`: the research behind the factor, valuation, rating and evaluation choices, and the figures in The Problem.
-*   `zoom_out_report.md`, `comprehension_report.md`, `critic_report.md`, `goldfish_review_report.md`, `intermediate_zoom_out_report.md` and `implementation_readiness_report.md`: the Goldfish review of this design and how each finding was resolved.
+*   `docs/designs/review/concepts_brief.md`: the Goldfish review of the brief, with Liam's answers at the end.
+*   `docs/research/reports/Stock price prediction methods.md` and `docs/research/reports/AI stock price prediction.md`: the research behind the factor, valuation, rating and evaluation choices, and the figures in The Problem.
+*   `docs/designs/review/zoom_out_report.md`, `docs/designs/review/comprehension_report.md`, `docs/designs/review/critic_report.md`, `docs/designs/review/goldfish_review_report.md`, `docs/designs/review/intermediate_zoom_out_report.md` and `docs/designs/review/implementation_readiness_report.md`: the Goldfish review of this design and how each finding was resolved.
 *   `docs/references/local-cli-guide.txt` (text of `docs/references/local-cli-guide.pdf`): *Auto-Connect to Local AI CLIs Implementation Guide* (Nov 2, 2026), based on Realm ([github.com/31Carlton7/realm](https://github.com/31Carlton7/realm), MIT). It is the source for tool detection, sign-in checks, the install and sign-in buttons, and the `codex app-server` protocol notes.
 
 ### Future Improvements

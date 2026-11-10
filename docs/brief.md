@@ -12,8 +12,8 @@ Starting notes for `/egm-brainstorm` → `/egm-draft`. Updated Nov 2, 2026.
 
 **Sources**
 
-- **[T]**: `reports/Stock price prediction methods.md` (academic research, sell-side analysts, valuation, commercial ratings).
-- **[AI]**: `reports/AI stock price prediction.md` (machine learning, text analysis, LLMs, forecast evaluation, AI track records).
+- **[T]**: `docs/research/reports/Stock price prediction methods.md` (academic research, sell-side analysts, valuation, commercial ratings).
+- **[AI]**: `docs/research/reports/AI stock price prediction.md` (machine learning, text analysis, LLMs, forecast evaluation, AI track records).
 - **[P]**: `docs/local-cli-pivot.md` (the stress test of the switch and the record of each answer).
 - **[ST]**: `docs/brief-stress-test.md` (the stress test of v3).
 - **Guide**: `Auto-Connect to Local AI CLIs Implementation Guide.pdf` (Nov 2, 2026; based on Realm, github.com/31Carlton7/realm, MIT).

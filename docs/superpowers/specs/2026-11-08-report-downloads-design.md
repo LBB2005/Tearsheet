@@ -2,7 +2,7 @@
 
 * **Date:** 2026-11-08
 * **Status:** approved by Liam and built on branch `claude/report-downloads-5a7309` (8 Nov 2026). The Excel became a classic bank model with a Financials tab (see the decisions below); the PDF includes analystdb's ratings and targets, never S&P Global's figures.
-* **Research behind it:** `reports/Bank style equity research templates.md`; sample looks in
+* **Research behind it:** `docs/research/reports/Bank style equity research templates.md`; sample looks in
   `docs/designs/download-looks/` (Liam picked **Look 2, Modern research**).
 
 ## Why
@@ -25,7 +25,7 @@ own signature, and match the report exactly.
 | Older reports | Every saved report can be downloaded. All 24 of Liam's saved reports load their full numbers (checked on a copy of the data). |
 | AI | None. Every file is built from the saved report when Liam clicks. Writing a report takes no longer; a click takes seconds. |
 | Excel scope | **Option A now, the live model (B) later.** A numbers workbook copied from the saved report, with the EGM review's fixes (`docs/designs/downloads-excel-review.md`). |
-| Deck length | **12 main slides + 6 appendix**, like a CFA Research Challenge deck (`research_notes/Bank style equity research templates/deck_length.md`). |
+| Deck length | **12 main slides + 6 appendix**, like a CFA Research Challenge deck (`docs/research/notes/Bank style equity research templates/deck_length.md`). |
 | After the downloads | Save each valuation method's assumptions when a report is written (a new step row replay doesn't compare), so later workbooks can show them and support what-ifs. A separate step, after this one. |
 
 ## Goals

@@ -5,10 +5,10 @@ Starting notes for `/egm-brainstorm` → `/egm-draft`. Updated Nov 2, 2026.
 
 **Sources for v4 changes**
 
-- **[T]** `reports/Stock price prediction methods.md`: academic research, sell-side analysts, valuation, commercial ratings.
-- **[AI]** `reports/AI stock price prediction.md`: machine learning, deep learning, text analysis, LLMs, forecast evaluation, AI track records.
+- **[T]** `docs/research/reports/Stock price prediction methods.md`: academic research, sell-side analysts, valuation, commercial ratings.
+- **[AI]** `docs/research/reports/AI stock price prediction.md`: machine learning, deep learning, text analysis, LLMs, forecast evaluation, AI track records.
 - **[ST]** `docs/brief-stress-test.md`: the stress test of v3. Its counter-proposals (filing-driven text layer, cost model, SIC overrides and others) are **not** folded in here until the §16 questions settle them. They appear below only where the research supports them independently.
-- The notes behind both reports are in `research_notes/`. Brief v3 is kept at `docs/brief-v3.md`.
+- The notes behind both reports are in `docs/research/notes/`. Brief v3 is kept at `docs/brief-v3.md`.
 
 ## What changed in v4
 
