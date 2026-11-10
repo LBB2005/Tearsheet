@@ -424,21 +424,17 @@ class ReportLine:
             official = slot_open(conn, found.cik, now)
             if skip_recent:
                 since = now - WINDOW
-                last = max(
-                    (
-                        at
-                        for at in (
-                            reports.get(found.cik),
-                            None if official else _latest_prediction(conn, found.cik, now),
-                        )
-                        if at is not None and at >= since
-                    ),
-                    default=None,
-                )
-                if last is not None:
-                    skipped.append(
-                        Skip(query, f"{ticker} has a report from {_day(last)}.", "recent")
-                    )
+                report = reports.get(found.cik)
+                predicted = None if official else _latest_prediction(conn, found.cik, now)
+                if report is not None and report >= since:
+                    why = f"{ticker} has a report from {_day(report)}."
+                elif predicted is not None and predicted >= since:
+                    # A run that logged its prediction, then stopped before its report.
+                    why = f"{ticker} has an official prediction from {_day(predicted)}."
+                else:
+                    why = None
+                if why is not None:
+                    skipped.append(Skip(query, why, "recent"))
                     taken.add(found.cik)
                     return
             taken.add(found.cik)

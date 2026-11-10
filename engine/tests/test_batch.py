@@ -172,6 +172,8 @@ def test_skip_recent_leaves_out_companies_with_a_report_from_the_last_30_days(tm
     assert [e.ticker for e in entries] == ["T2", "T4", "T5"]
     assert [(s.query, s.kind) for s in skipped] == [("T1", "recent"), ("T3", "recent")]
     assert skipped[0].reason.startswith("T1 has a report from Nov ")
+    # T3 has no report, only its prediction: the reason says so.
+    assert skipped[1].reason.startswith("T3 has an official prediction from Oct ")
     # Off (as Refresh asks): all five, T3 not a new official prediction.
     entries, skipped = plan(ReportLine(), queries, db.conn)
     assert [(e.ticker, e.official) for e in entries] == [
