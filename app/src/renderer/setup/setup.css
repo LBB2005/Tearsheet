@@ -14,7 +14,7 @@
 .setup .top .ttl { margin: 0; font-size: var(--fs-sm); color: var(--muted); }
 /* The screen stands at a fixed height, as the home page does, so the list on top stays put while
    the question under it changes (List.tsx: the AI row never moves under the pointer). */
-.setup .screen { flex: 1; min-height: 0; overflow: auto; position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding: clamp(16px, calc(25vh - 100px), 160px) 60px 56px; }
+.setup .screen { flex: 1; min-height: 0; overflow: auto; scrollbar-gutter: stable both-edges; position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding: clamp(16px, calc(25vh - 100px), 160px) 60px 56px; }
 .setup .screen:focus { outline: none; }
 
 /* ---------- the safety chip ----------

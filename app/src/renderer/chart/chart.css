@@ -23,7 +23,7 @@
   transition: width .45s var(--ease-move); animation: split-in .45s var(--ease-move) backwards; }
 /* The pane scrolls: the chart (.cview) keeps the pane's full height, as it always had, and the
    Key numbers (.kn) sit under it, reached by scrolling down. */
-.cpane .cpin { flex: none; display: flex; flex-direction: column; gap: 10px; min-width: 0; height: 100%; padding: 14px 16px 12px; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; }
+.cpane .cpin { flex: none; display: flex; flex-direction: column; gap: 10px; min-width: 0; height: 100%; padding: 14px 16px 12px; overflow-x: hidden; overflow-y: auto; scrollbar-gutter: stable; overscroll-behavior: contain; }
 .cpane .cview { flex: none; display: flex; flex-direction: column; gap: 10px; min-width: 0; height: 100%; }
 @keyframes split-in { from { width: 0; } }
 @keyframes split-out { to { width: 0; } }

@@ -8,12 +8,12 @@
    scoped under .setv. */
 
 /* The page fills the frame: the topic list stays put and the page beside it scrolls. */
-.pagebody[data-page="settings"] { padding: 0; overflow: hidden; }
+.pagebody[data-page="settings"] { padding: 0; overflow: hidden; scrollbar-gutter: auto; }
 .enter > .setv { animation: none; }
 .setv { position: absolute; inset: 0; display: flex; }
 
 /* ---------- the topic list: flat, like the app sidebar ---------- */
-.setv .topics { width: 212px; flex: none; overflow-y: auto; padding: 18px 10px; border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 1px; }
+.setv .topics { width: 212px; flex: none; overflow-y: auto; scrollbar-gutter: stable; padding: 18px 10px; border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 1px; }
 .setv .topic { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 10px; width: 100%; padding: 7px 10px; border-radius: var(--r-md); color: var(--text2); font-size: var(--fs-md); white-space: nowrap; cursor: pointer; transition: background var(--dur-1), color var(--dur-1); }
 .setv .topic:hover { background: rgb(var(--ink) / .045); color: var(--text); }
 .setv .topic.on { background: rgb(var(--ink) / .085); color: var(--text); }
@@ -28,7 +28,7 @@
 .setv .vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 /* ---------- a topic's page: it settles in part by part, 70 ms apart ---------- */
-.setv .tpage { flex: 1; min-width: 0; overflow-y: auto; padding: 28px 40px 48px; }
+.setv .tpage { flex: 1; min-width: 0; overflow-y: auto; scrollbar-gutter: stable; padding: 28px 40px 48px; }
 .setv .tpin.panels { display: block; max-width: 640px; }
 .setv .tpin > * { animation: settle-in var(--dur-4) var(--ease-out) backwards; animation-delay: 60ms; }
 .setv .tpin > :nth-child(2) { animation-delay: 130ms; }

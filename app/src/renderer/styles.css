@@ -356,7 +356,9 @@ html { accent-color: var(--accent); }
 
 /* ---------- the page frame ---------- */
 .pagebody { flex: 1; min-height: 0; overflow: auto; scrollbar-gutter: stable; position: relative; padding: 26px 32px 48px; }
-.pagebody[data-page="report"] { padding: 0; overflow: hidden; }
+.pagebody[data-page="report"] { padding: 0; overflow: hidden; scrollbar-gutter: auto; }
+/* A page whose content is centred keeps the bar's room on both sides, so it stays centred. */
+.pagebody[data-page="home"], .pagebody[data-page="setup"] { scrollbar-gutter: stable both-edges; }
 .fatal { margin: 12px 20px 0; flex: none; }
 
 /* ---------- motion: A. Settle, calmed (motion.ts decides which plays) ----------

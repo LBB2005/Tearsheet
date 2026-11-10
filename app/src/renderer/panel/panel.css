@@ -19,5 +19,5 @@
 .narrowp .vread { min-width: 150px; }
 
 /* The view's body: what it draws, scrolling when it is taller than the pane. */
-.vbody { flex: 1; min-height: 0; position: relative; overflow: auto; }
+.vbody { flex: 1; min-height: 0; position: relative; overflow: auto; scrollbar-gutter: stable; }
 .vbody .skel { inset: 4px 0 12px; }
