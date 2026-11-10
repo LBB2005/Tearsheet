@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { CompanyRow, SearchHit } from '../shared/protocol'
 import type { LockdownState } from '../shared/protocol'
-import { freshHits, nextCompany, peerRule, safetyFailed, safetyUnfinished, shortDate, statusLine } from './nav'
+import { dayText, freshHits, nextCompany, peerRule, safetyFailed, safetyUnfinished, shortDate, statusLine } from './nav'
 import { safetyStarted, type SafetyState } from './setup/state/safety'
 
 const row = (ticker: string): CompanyRow => ({
@@ -222,5 +222,20 @@ describe('peerRule', () => {
     expect(peerRule([], 0)).toBeNull()
     expect(peerRule([hit('LIN')], 0)).toBeNull()
     expect(peerRule([hit('LIN', null)], 3)).toBeNull()
+  })
+})
+
+describe('dayText', () => {
+  const now = new Date(2026, 10, 10)
+
+  it('writes the engine’s "6 Nov 2026" the app’s way, month first', () => {
+    expect(dayText('6 Nov 2026', now)).toBe('Nov 6')
+    expect(dayText('1 Oct 2025', now)).toBe('Oct 1, 2025')
+  })
+
+  it('takes a stored date too, and leaves anything else as it is', () => {
+    expect(dayText('2026-11-06', now)).toBe('Nov 6')
+    expect(dayText('not stored', now)).toBe('not stored')
+    expect(dayText('6 Foo 2026', now)).toBe('6 Foo 2026')
   })
 })

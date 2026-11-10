@@ -70,7 +70,7 @@ describe('the firms', () => {
     openView('analysts', 'firms')
     const view = await pane()
     const ubs = (await view.findByText('UBS')).closest('tr') as HTMLElement
-    expect(within(ubs).getAllByRole('cell').map((c) => c.textContent)).toEqual(['UBS', 'Buy', '$700', '4 Nov 2026', '#38 of 77', '−0.5%'])
+    expect(within(ubs).getAllByRole('cell').map((c) => c.textContent)).toEqual(['UBS', 'Buy', '$700', 'Nov 4', '#38 of 77', '−0.5%'])
     const stonex = view.getByText('StoneX').closest('tr') as HTMLElement
     expect(within(stonex).getByText('not ranked')).toBeInTheDocument()
     expect(within(stonex).getByText('not enough data')).toBeInTheDocument()
@@ -124,7 +124,7 @@ describe('the recent changes', () => {
     await view.findByText('UBS')
     await user.click(view.getByRole('tab', { name: 'Recent changes 20' }))
     expect(bodyRows(view)).toHaveLength(20)
-    expect(within(bodyRows(view)[0]).getAllByRole('cell').map((c) => c.textContent)).toEqual(['4 Nov 2026', 'UBS', 'Maintained', 'Buy', '$730 → $700'])
+    expect(within(bodyRows(view)[0]).getAllByRole('cell').map((c) => c.textContent)).toEqual(['Nov 4', 'UBS', 'Maintained', 'Buy', '$730 → $700'])
     fireEvent.pointerEnter(bodyRows(view)[0])
     expect(vread()).toBe('UBS maintained Buy and cut its target from $730.00 to $700.00 on 4 Nov 2026.')
   })
@@ -150,7 +150,7 @@ describe('the trust check', () => {
     expect(within(hero).getByText('−9.6%')).toBeInTheDocument()
     expect(within(hero).getByText('outside the 3% tolerance')).toBeInTheDocument()
     expect(bodyRows(view)).toHaveLength(8)
-    expect(view.getByText('S&P Global, fetched 6 Nov 2026', { exact: false })).toBeInTheDocument()
+    expect(view.getByText('S&P Global, fetched Nov 6', { exact: false })).toBeInTheDocument()
     fireEvent.pointerEnter(bodyRows(view)[0])
     expect(vread()).toBe('Average target: analystdb $587.92, S&P Global $650.01, 9.6% lower; outside the 3% tolerance.')
   })
@@ -170,9 +170,9 @@ describe('what it always says', () => {
     openView('analysts', 'firms')
     const view = await pane()
     await view.findByText('UBS')
-    expect(view.getByText('AMD · analystdb, as of 6 Nov 2026')).toBeInTheDocument()
+    expect(view.getByText('AMD · analystdb, as of Nov 6')).toBeInTheDocument()
     expect(view.getByText(/Research data, not investment advice\./)).toBeInTheDocument()
-    expect(view.getByText(/Track records as of 7 Nov 2026/)).toBeInTheDocument()
+    expect(view.getByText(/Track records as of Nov 7/)).toBeInTheDocument()
   })
 
   test('a source that missed analystdb’s evening run, and a day rebuilt from history', async () => {

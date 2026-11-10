@@ -6,6 +6,7 @@ import { useState, type ReactElement } from 'react'
 
 import type { EconomyItem, Ring, Slice } from '../../shared/protocol'
 import { ViewFrame, type ViewProps } from '../panel/ViewFrame'
+import { dayText } from '../nav'
 import { viewTitle } from '../panel/titles'
 import { NO_PEER_LIST, ringArcs, SLICE_COLOUR } from './figures'
 import { pickKey } from './pick'
@@ -82,7 +83,7 @@ export function Economy({ chrome, numbers, ticker, item }: ViewProps<null>): Rea
           >
             <small>{e.label}</small>
             <b>{e.value}</b>
-            <small>{e.date}</small>
+            <small>{dayText(e.date)}</small>
           </button>
         ))}
       </div>
