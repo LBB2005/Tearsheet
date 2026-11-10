@@ -128,7 +128,7 @@ export function lineProgress(line: LineState, perReport: number): string {
 
 // About how long and how many AI calls a number of reports take: "about 14 hours and 7,100 AI calls".
 export function lineCost(reports: number, perReport: number, callsPerReport: number): string {
-  return `${lineTime(reports, perReport)} and about ${(reports * callsPerReport).toLocaleString('en-US')} AI calls`
+  return `${lineTime(reports, perReport)} and ${(reports * callsPerReport).toLocaleString('en-US')} AI calls`
 }
 
 // The warning before a big line starts: each company's first rated report in 30 days is logged

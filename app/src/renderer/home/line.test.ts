@@ -70,7 +70,7 @@ describe('a big line', () => {
     const big = state({ finished: Array.from({ length: 37 }, (_, i) => item(`D${i}`)), writing: item('W'), waiting: Array.from({ length: 174 }, (_, i) => item(`T${i}`)) })
     expect(lineProgress(big, 240)).toBe('37 of 212 done, about 12 hours left')
     expect(lineProgress(state({ finished: [item('A'), item('B')] }), 240)).toBe('2 of 2 done')
-    expect(lineCost(212, 240, 34)).toBe('about 14 hours and about 7,208 AI calls')
+    expect(lineCost(212, 240, 34)).toBe('about 14 hours and 7,208 AI calls')
   })
 
   it('counts long times in hours, then days', () => {

@@ -56,7 +56,7 @@ describe('pasting and typing a long list', () => {
     const { user } = await renderApp()
     await user.type(field(), 'T0, T1{Enter}')
     expect(await card().findByText('Write 212 reports, one after another?')).toBeInTheDocument()
-    expect(card().getByText('About 14 hours and about 7,208 AI calls in all. Keep your Mac open; Tearsheet keeps it awake until they’re done.')).toBeInTheDocument()
+    expect(card().getByText('About 14 hours and 7,208 AI calls in all. Keep your Mac open; Tearsheet keeps it awake until they’re done.')).toBeInTheDocument()
     expect(card().getByText(/the line waits for it to reset and carries on by itself\. Past 80% of your weekly usage, it asks you first\./)).toBeInTheDocument()
     expect(card().getByRole('note')).toHaveTextContent(
       'Each first report is an official prediction for 30 days. 210 new ones will be logged. 2 companies were rated in the last 30 days, so they won’t be.'
@@ -173,6 +173,8 @@ describe('a long line on screen', () => {
     expect(chips()).toHaveLength(200)
     await user.click(strip().getByRole('button', { name: 'Take T150 out of the line' }))
     expect(strips.onRemove).toHaveBeenCalledWith('T150')
+    await user.click(strip().getByRole('button', { name: 'Cancel all' }))
+    expect(strips.onCancelAll).not.toHaveBeenCalled()
     await user.click(strip().getByRole('button', { name: 'Cancel all' }))
     expect(strips.onCancelAll).toHaveBeenCalled()
     expect(strip().getByText('adder')).toBeInTheDocument()

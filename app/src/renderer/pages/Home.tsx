@@ -66,12 +66,17 @@ export function Home({ companies, tool, fieldRef, buttonOn, refresh, onStart, on
   const [sel, setSel] = useState(0)
   const [starting, setStarting] = useState<string | null>(null)
   const [why, setWhy] = useState<string | null>(null)
+  // The list of companies shows only while the field has the cursor.
+  const [focused, setFocused] = useState(true)
   // Several companies: the engine's check of them, shown before anything starts.
   const linePlan = useLinePlan()
   const { plan, checking } = linePlan
   const [predictions, setPredictions] = useState<PredictionSummary[] | null>(null)
   const [settings, setSettings] = useState<SettingsResult | null>(null)
   const latest = useRef(0)
+  // Return pressed before the look-up answered: the text it was pressed on, so the answer for that
+  // text starts its first company.
+  const enterFor = useRef<string | null>(null)
 
   // The since lines need the predictions and the keys; asked for each time the page opens, and
   // again after grading.
@@ -100,7 +105,13 @@ export function Home({ companies, tool, fieldRef, buttonOn, refresh, onStart, on
       setLookFailed(reply.ok ? null : reply.error?.message || 'The look-up didn’t work.')
       setSearched(q)
       setSel(0)
+      if (enterFor.current === q) {
+        enterFor.current = null
+        const top = reply.ok && reply.result ? reply.result[0] : undefined
+        if (top) void begin(top.ticker)
+      }
     })
+    // begin is this render's; the answer only needs it for a Return pressed on this text.
   }, [query])
 
   // Return on a list: the engine looks each company up, and says which would be new official
@@ -156,7 +167,12 @@ export function Home({ companies, tool, fieldRef, buttonOn, refresh, onStart, on
   const listed = isList(q) ? splitQueries(q) : null
   // The hits shown belong to what is in the field now, so Return never starts an older one.
   const current = q !== '' && searched === q
-  const shown = freshHits(query, searched, hits)
+  // Return only ever starts a company found for the text in the field now.
+  const fresh = freshHits(query, searched, hits)
+  // On screen, the last answer stays until the next one comes, so the list never blinks out and
+  // in again with each letter typed.
+  const shown = current ? fresh : hits
+  const listOpen = q !== '' && !why && !listed && focused && (searched !== '' || lookFailed !== null)
   const first = companies !== null && companies.length === 0
 
   const lines = sinceLines({
@@ -182,12 +198,14 @@ export function Home({ companies, tool, fieldRef, buttonOn, refresh, onStart, on
         if (listed.length && !plan) void check({ queries: splitQueries(q) })
         return
       }
-      const hit = shown[sel]
+      const hit = fresh[sel]
       if (hit) void begin(hit.ticker)
+      else if (!current && q !== '') enterFor.current = q
     } else if (e.key === 'Escape') {
       e.preventDefault()
       setQuery('')
       setWhy(null)
+      linePlan.clear()
     }
   }
 
@@ -213,7 +231,7 @@ export function Home({ companies, tool, fieldRef, buttonOn, refresh, onStart, on
           autoFocus
           role="combobox"
           aria-label="Look up a company"
-          aria-expanded={q !== '' && !why && !listed}
+          aria-expanded={listOpen}
           aria-controls="home-hits"
           aria-activedescendant={shown.length ? `home-hit-${sel}` : undefined}
           aria-autocomplete="list"
@@ -229,11 +247,14 @@ export function Home({ companies, tool, fieldRef, buttonOn, refresh, onStart, on
           }}
           onPaste={onPaste}
           onKeyDown={onKey}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
         />
         <kbd>⌘K</kbd>
         {/* Why a report didn't start shows in the dropdown's place until the text changes. */}
-        {q !== '' && (current || lookFailed) && !why && (
-          <div className="dd" id="home-hits" role="listbox" aria-label="Companies">
+        {listOpen && (
+          // A press on the list keeps the cursor in the field, so the list stays open for the click.
+          <div className="dd" id="home-hits" role="listbox" aria-label="Companies" onMouseDown={(e) => e.preventDefault()}>
             {shown.map((h, i) => (
               <button
                 key={h.cik}
@@ -258,7 +279,7 @@ export function Home({ companies, tool, fieldRef, buttonOn, refresh, onStart, on
             {peerRule(shown, sel) && <div className="rule">{peerRule(shown, sel)}</div>}
             {shown.length > 0 && <div className="ft">Return starts the report. The up and down arrows move. Several at once? Separate them with commas, or paste a list.</div>}
             {lookFailed && <div className="none">{lookFailed}</div>}
-            {!lookFailed && current && shown.length === 0 && <div className="none">No S&amp;P 500 company matches “{searched}”. Tearsheet covers the S&amp;P 500 only.</div>}
+            {!lookFailed && shown.length === 0 && <div className="none">No S&amp;P 500 company matches “{searched}”. Tearsheet covers the S&amp;P 500 only.</div>}
           </div>
         )}
       </div>
@@ -284,7 +305,10 @@ export function Home({ companies, tool, fieldRef, buttonOn, refresh, onStart, on
           skipRecent={linePlan.skipRecent}
           onSkipRecent={linePlan.changeSkip}
           onStart={() => void beginLine(plan.items.map((item) => item.ticker))}
-          onCancel={linePlan.clear}
+          onCancel={() => {
+            linePlan.clear()
+            fieldRef.current?.focus()
+          }}
         />
       )}
       {why && (
@@ -385,7 +409,7 @@ function Problem({ line, kind, buttonOn, onRecheck, onKeys }: { line: SinceLine;
       )}
       {line.action === 'recheck' && (
         <button className="btn2" disabled={busy} onClick={() => void recheck()}>
-          Run the check again
+          {busy ? 'Checking…' : 'Run the check again'}
         </button>
       )}
       {line.action === 'addMassive' && (
