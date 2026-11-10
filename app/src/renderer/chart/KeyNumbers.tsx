@@ -7,7 +7,7 @@
 // groups are open is kept across reports (prefs.ts). You scroll the chart panel down to reach it;
 // the chart above is left as it is.
 
-import { useState, type ReactElement } from 'react'
+import { memo, useState, type ReactElement } from 'react'
 
 import type { KeyNumbers as Numbers, KeyRow } from '../../shared/protocol'
 import { shortDate } from '../nav'
@@ -32,7 +32,8 @@ function Row({ row, id }: { row: KeyRow; id: string }): ReactElement {
   )
 }
 
-export function KeyNumbers({ numbers }: { numbers: Numbers }): ReactElement {
+// Memoised: the chart pane draws again on every frame of a resize, and the numbers don't change.
+export const KeyNumbers = memo(function KeyNumbers({ numbers }: { numbers: Numbers }): ReactElement {
   const [open, setOpen] = useState<string[]>(keyGroupsOpen)
   // From the latest state, so two quick clicks both count; kept for the next report.
   const toggle = (key: string) =>
@@ -77,4 +78,4 @@ export function KeyNumbers({ numbers }: { numbers: Numbers }): ReactElement {
       <p className="knsrc">{numbers.source}</p>
     </section>
   )
-}
+})
