@@ -1,10 +1,15 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { downloadToast } from './downloads'
+import { downloadToast, SAVING_MS } from './downloads'
 
 describe('the download toast', () => {
   it('says it is making the file', () => {
     expect(downloadToast({ state: 'saving', kind: 'pptx', reportId: 'r' }, vi.fn()).title).toBe('Making the slide deck…')
+  })
+
+  it('stays up while the file is made, until the answer replaces it', () => {
+    expect(downloadToast({ state: 'saving', kind: 'pdf', reportId: 'r' }, vi.fn()).ms).toBe(SAVING_MS)
+    expect(SAVING_MS).toBeGreaterThanOrEqual(60_000)
   })
 
   it('names the saved file and offers Show in Finder', () => {
