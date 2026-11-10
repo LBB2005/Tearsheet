@@ -74,12 +74,13 @@
 .narrowp .cpbig { min-width: 150px; }
 .narrowp .cpctl { margin-left: 0; max-width: none; justify-content: flex-start; flex-basis: 100%; }
 /* Every control in the head is one height (30 px): the switches, the toggles and the close button
-   sit on one line without steps between them. */
+   sit on one line without steps between them. Their side padding is kept tight so that, at Half
+   in a 1,280 px window, the toggles, the width switch and the close button share one row.
 .cpane .segc { box-sizing: border-box; height: 30px; }
 .cpane .segc button { padding: 0 10px; line-height: 24px; }
 /* The width buttons: Narrow, Half, Wide and Full (panel/PanelHead.tsx, shared by every view). */
-.cpane .cwid button { padding: 0 8px; font-size: var(--fs-sm); }
-.tg { all: unset; box-sizing: border-box; height: 30px; cursor: pointer; padding: 0 10px; border-radius: var(--r-pill); border: 1px solid var(--line); font-size: var(--fs-sm); color: var(--muted); display: inline-flex; gap: 6px; align-items: center; transition: background var(--dur-2), color var(--dur-2), border-color var(--dur-2); }
+.cpane .cwid button { padding: 0 7px; font-size: var(--fs-sm); }
+.tg { all: unset; box-sizing: border-box; height: 30px; cursor: pointer; padding: 0 9px; border-radius: var(--r-pill); border: 1px solid var(--line); font-size: var(--fs-sm); color: var(--muted); display: inline-flex; gap: 5px; align-items: center; transition: background var(--dur-2), color var(--dur-2), border-color var(--dur-2); }
 .tg i { width: 12px; height: 3px; border-radius: var(--r-xs); }
 .tg:hover { color: var(--text); }
 .tg.on { color: var(--text); border-color: var(--chipline); background: rgb(var(--accent-rgb) / .08); }
