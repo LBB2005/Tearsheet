@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import json
 
-from tearsheet.companies import list_companies, search_companies
+from tearsheet.companies import display_name, list_companies, search_companies
+from tearsheet.data import membership
 
 
 def add_report(conn, run_id, report_id, cik, ticker, created):
@@ -102,3 +103,32 @@ def test_peer_rule_reads_the_cap_from_the_methodology():
     from tearsheet.companies import bundled_peer_cap
 
     assert bundled_peer_cap() == 40
+
+
+def test_display_name_takes_the_s_and_p_list_name_over_sec():
+    holdings = membership.load_bundled()
+    assert display_name(holdings, 36104, "US BANCORP \\DE\\") == "U.S. Bancorp"
+
+
+def test_display_name_leaves_off_sec_state_tags_outside_the_list():
+    holdings = membership.load_bundled()
+    for raw, shown in [
+        ("SOME BANCORP \\DE\\", "SOME BANCORP"),
+        ("SOME CORP /DE/", "SOME CORP"),
+        ("SOME INC/", "SOME INC"),
+        ("SOME ENERGY CORP/TX", "SOME ENERGY CORP"),
+        ("SOME PHARMACEUTICALS INC / MA", "SOME PHARMACEUTICALS INC"),
+        ("AT&T INC.", "AT&T INC."),
+    ]:
+        assert display_name(holdings, 1, raw) == shown
+    assert display_name(holdings, None, None) is None
+
+
+def test_list_companies_shows_the_s_and_p_list_name(database):
+    add_report(database.conn, "run-usb", "rep-usb", 36104, "USB", "2026-11-09T12:00:00+00:00")
+    with database.conn:
+        database.conn.execute(
+            "UPDATE companies SET name = ? WHERE cik = 36104", ("US BANCORP \\DE\\",)
+        )
+    (row,) = list_companies(database.conn)
+    assert row["name"] == "U.S. Bancorp"
