@@ -60,6 +60,11 @@ function useWidth(ref: RefObject<HTMLElement>): number {
   return width
 }
 
+// Whether the report last went to one column, or back to two, because the page was resized
+// (rather than the chart opening, closing or changing width). ReportTools reads it to show the
+// Numbers / Text switch at once when a resize brings it.
+let oneByResize = false
+
 export function Report({ page, wide }: { page: ReportPage; wide: boolean }) {
   const { report, error, chartOpen, chartClosing, panel } = page
   const box = useRef<HTMLDivElement>(null)
@@ -100,7 +105,9 @@ export function Report({ page, wide }: { page: ReportPage; wide: boolean }) {
   const reportW = split && !full ? Math.max(0, avail - chartW - DIV) : avail
   const one = oneColumn(reportW)
   useLayoutEffect(() => {
-    if (page.oneColumn !== one) page.setOneColumn(one)
+    if (page.oneColumn === one) return
+    oneByResize = resizing
+    page.setOneColumn(one)
   })
   const showing = shownSide(page.side, one, page.numbers !== null && page.numbersReady, chartOpen && wide)
 
@@ -275,6 +282,26 @@ export function Report({ page, wide }: { page: ReportPage; wide: boolean }) {
   )
 }
 
+// The Numbers / Text switch: which column of the report sits beside the chart. `still` is read
+// as it appears: it then shows without its settle-in.
+function SideSwitch({ page, still }: { page: ReportPage; still: boolean }) {
+  const [quiet] = useState(still)
+  const pick = (side: 'numbers' | 'text') => () => page.setSide(side)
+  return (
+    <span className={quiet ? 'sidesw still' : 'sidesw'} role="group" aria-label="Beside the chart">
+      Beside the chart
+      <span className="segc">
+        <button className={page.side === 'numbers' ? 'on' : ''} aria-pressed={page.side === 'numbers'} onClick={pick('numbers')}>
+          Numbers
+        </button>
+        <button className={page.side === 'text' ? 'on' : ''} aria-pressed={page.side === 'text'} onClick={pick('text')}>
+          Text
+        </button>
+      </span>
+    </span>
+  )
+}
+
 const REFRESH_ICON = (
   <svg viewBox="0 0 24 24" aria-hidden="true">
     <path d="M20 12a8 8 0 1 1-2.34-5.66" />
@@ -286,22 +313,17 @@ const REFRESH_ICON = (
 // beside the report, Refresh (a new report on this company, after a confirm: shell/refresh.ts)
 // and the Chart button.
 export function ReportTools({ page, wide, onRefresh }: { page: ReportPage; wide: boolean; onRefresh?: () => void }) {
-  const pick = (side: 'numbers' | 'text') => () => page.setSide(side)
+  // The switch settles in when the chart brings it (opening, or leaving Full). A resize that
+  // brings it (the window widened past 1,100 px, or the report narrowed to one column) shows it
+  // at once, as the rest of the window moves at once.
+  const seen = useRef({ wide, one: page.oneColumn })
+  useLayoutEffect(() => {
+    seen.current = { wide, one: page.oneColumn }
+  })
+  const byResize = wide !== seen.current.wide || (page.oneColumn !== seen.current.one && oneByResize)
   return (
     <>
-      {page.chartOpen && wide && page.split?.mode !== 'full' && page.oneColumn && (
-        <span className="sidesw" role="group" aria-label="Beside the chart">
-          Beside the chart
-          <span className="segc">
-            <button className={page.side === 'numbers' ? 'on' : ''} aria-pressed={page.side === 'numbers'} onClick={pick('numbers')}>
-              Numbers
-            </button>
-            <button className={page.side === 'text' ? 'on' : ''} aria-pressed={page.side === 'text'} onClick={pick('text')}>
-              Text
-            </button>
-          </span>
-        </span>
-      )}
+      {page.chartOpen && wide && page.split?.mode !== 'full' && page.oneColumn && <SideSwitch page={page} still={byResize} />}
       {onRefresh && (
         <button className="cbtn" aria-label="Refresh" title="Write a new report on this company. You’re asked first." onClick={onRefresh}>
           {REFRESH_ICON}

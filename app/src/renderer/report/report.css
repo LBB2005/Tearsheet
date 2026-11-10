@@ -34,6 +34,8 @@ iframe.report-frame.fadein { animation: fade .15s ease-out both; background: tra
 .top .cbtn svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.7; }
 .top .cbtn kbd { font: 11px var(--ui); font-weight: calc(400 + var(--wt)); color: var(--muted); }
 .sidesw { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); white-space: nowrap; animation: settle-in .3s var(--settle) backwards; }
+/* Brought by a resize, it is just there (pages/Report.tsx ReportTools). */
+.sidesw.still { animation: none; }
 .segc { display: inline-flex; padding: 2px; border-radius: calc(9px * var(--round)); background: rgb(var(--ink) / .06); border: 1px solid var(--line); }
 .segc button { all: unset; padding: 3px 11px; border-radius: calc(7px * var(--round)); color: var(--muted); cursor: pointer; font-size: 12.5px; transition: background .2s, color .2s; }
 .segc button:hover { color: var(--text); }
