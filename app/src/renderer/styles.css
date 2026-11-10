@@ -507,6 +507,10 @@ button.primary:hover, .btn2.primary2:hover { background: var(--accent-hover); }
 button:disabled, button:disabled:hover { opacity: .45; cursor: default; transform: none; }
 button.plain + button.plain { margin-left: 6px; }
 .top .btn2 { padding: 5px 12px; }
+/* The toolbar's plain buttons (the report's Refresh and Chart): as tall as the report's top bar
+   box (34 px), spaced by the toolbar's own gap. */
+.top button.plain { min-height: 34px; padding: 0 12px; }
+.top button.plain + button.plain { margin-left: 0; }
 /* Two more sizes (UI check #21): small, beside a line of text or in a list row, and large, beside
    a big field (setup's key). The one-off places that took them are listed with the class. */
 .btn2.sm, .homev .sr .btn2, .linestrip .done .btn2 { padding: 4px 10px; font-size: var(--fs-sm); }

@@ -325,12 +325,12 @@ export function ReportTools({ page, wide, onRefresh }: { page: ReportPage; wide:
     <>
       {page.chartOpen && wide && page.split?.mode !== 'full' && page.oneColumn && <SideSwitch page={page} still={byResize} />}
       {onRefresh && (
-        <button className="cbtn" aria-label="Refresh" title="Write a new report on this company. You’re asked first." onClick={onRefresh}>
+        <button className="plain cbtn" aria-label="Refresh" title="Write a new report on this company. You’re asked first." onClick={onRefresh}>
           {REFRESH_ICON}
           {wide && 'Refresh'}
         </button>
       )}
-      <button className={page.chartOpen ? 'cbtn on' : 'cbtn'} aria-pressed={page.chartOpen} title="Open or close the chart (⌘3)" onClick={page.toggleChart}>
+      <button className={page.chartOpen ? 'plain cbtn on' : 'plain cbtn'} aria-pressed={page.chartOpen} title="Open or close the chart (⌘3)" onClick={page.toggleChart}>
         {CHART_ICON}Chart
       </button>
     </>
