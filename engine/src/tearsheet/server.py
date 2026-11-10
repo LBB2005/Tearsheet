@@ -183,6 +183,14 @@ def error_code(exc: BaseException) -> tuple[str, dict[str, Any]]:
     return "ENGINE_ERROR", {}
 
 
+def no_connection(exc: BaseException) -> bool:
+    """Whether a run failed for want of a connection: a data service gave no answer at all
+    (no internet), rather than turning the request down."""
+    from tearsheet.http import HTTPFailure
+
+    return isinstance(exc, HTTPFailure) and exc.status is None
+
+
 def history_failure_line(exc: BaseException) -> str:
     """What the chart says when the full price history fails to download: why, in plain words,
     and what to do. The failure's own text, with its address, goes to the engine's log."""
@@ -819,6 +827,8 @@ class Server:
             log.exception("run %s failed", run_id)
             code, data_ = error_code(exc)
             ended = {"how": "failed", "code": code, "message": str(exc), **data_}
+            if no_connection(exc):
+                ended["connection"] = True
             if not resolved.is_set():
                 outcome["error"] = exc
             else:
@@ -897,7 +907,7 @@ class Server:
             if "error" in outcome:
                 exc = outcome["error"]
                 code, data = error_code(exc)
-                raise EngineError(code, str(exc), **data)
+                raise EngineError(code, str(exc), **data) from exc
         else:
             resolved.set()
 
@@ -1110,7 +1120,14 @@ class Server:
                     if line.round == round_:
                         line.end(
                             entry,
-                            {"how": "failed", "code": code, "message": str(exc), **data},
+                            {
+                                "how": "failed",
+                                "code": code,
+                                "message": str(exc),
+                                "connection": no_connection(exc)
+                                or no_connection(exc.__cause__ or exc),
+                                **data,
+                            },
                             now=self.now(),
                         )
                         self._line_changed()

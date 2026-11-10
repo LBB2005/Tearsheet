@@ -1071,3 +1071,57 @@ def test_a_reset_clock_time_across_a_clock_change_keeps_its_wall_time(monkeypatc
     finally:
         monkeypatch.undo()
         time.tzset()
+
+
+def test_no_internet_pauses_the_line_and_writes_those_companies_again():
+    line = _line_of(4)
+    for _ in range(2):
+        line.end(
+            line.take_next(), {"how": "failed", "code": "ENGINE_ERROR", "connection": True}, now=NOW
+        )
+    assert line.paused is not None and line.paused.code == "OFFLINE"
+    assert line.paused.wait_until == (NOW + timedelta(minutes=15)).isoformat()
+    assert [e.ticker for e in line.waiting] == ["T2", "T3"]
+    assert line.wake() is None and line.paused is None
+    assert [e.ticker for e in line.waiting] == ["T0", "T1", "T2", "T3"]
+    assert line.finished == [] and line.waiting[0].code is None
+
+
+def test_one_report_that_couldnt_connect_doesnt_pause_the_line():
+    line = _line_of(3)
+    line.end(
+        line.take_next(), {"how": "failed", "code": "ENGINE_ERROR", "connection": True}, now=NOW
+    )
+    line.end(line.take_next(), {"how": "ready"}, now=NOW)
+    line.end(
+        line.take_next(), {"how": "failed", "code": "ENGINE_ERROR", "connection": True}, now=NOW
+    )
+    assert line.paused is None
+
+
+def test_no_internet_through_the_engine_pauses_instead_of_failing_every_company(
+    tmp_path, fake_list
+):
+    from tearsheet.http import HTTPFailure
+    from tests.test_pipeline import FakeData
+
+    class Down(FakeData):
+        async def sec_tickers(self):
+            raise HTTPFailure("sec", "https://www.sec.gov/files/company_tickers.json", "no answer")
+
+    h = Harness(tmp_path, data_cls=Down)
+
+    async def go():
+        await h.server.start()
+        await h.call("add_to_line", {"queries": [f"T{i}" for i in range(1, 6)]})
+        await h.server.wait_for_line()
+
+    run(go())
+    final = _line_notes(h)[-1]
+    assert final["paused"]["code"] == "OFFLINE" and final["paused"]["wait_until"]
+    assert [i["ticker"] for i in final["waiting"]] == ["T3", "T4", "T5"]
+    assert [(i["ticker"], i["code"]) for i in final["finished"]] == [
+        ("T1", "OFFLINE"),
+        ("T2", "OFFLINE"),
+    ]
+    h.server.close()

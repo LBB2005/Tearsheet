@@ -46,6 +46,12 @@ PAUSE_CODES = frozenset(
 )
 # The pause a line comes back with when Tearsheet opens again.
 REOPENED = "REOPENED"
+# No internet: OFFLINE_AFTER reports in a row couldn't reach SEC, Massive or FRED at all. The
+# line waits OFFLINE_WAIT, then writes those companies again and goes on, instead of failing
+# every company left.
+OFFLINE = "OFFLINE"
+OFFLINE_AFTER = 2
+OFFLINE_WAIT = timedelta(minutes=15)
 # The plan's 5-hour window is past USAGE_SHARE: the line waits for it to reset.
 USAGE_HIGH = "USAGE_HIGH"
 # The plan's weekly window is past USAGE_SHARE: the line asks Liam before it goes on.
@@ -366,6 +372,8 @@ class ReportLine:
     round: int = 0
     # Until when Liam's carry on past the weekly 80% holds (ISO): the week's reset.
     week_ok_until: str | None = None
+    # Reports in a row that ended for want of a connection (not kept across a quit).
+    offline_in_a_row: int = 0
 
     # --- what is in it ----------------------------------------------------------------------
 
@@ -482,6 +490,18 @@ class ReportLine:
         if self.writing is entry:
             self.writing = None
         self.finished.append(entry)
+        if entry.outcome == "failed" and how.get("connection"):
+            entry.code = OFFLINE
+            self.offline_in_a_row += 1
+            if self.offline_in_a_row >= OFFLINE_AFTER and self.paused is None and now is not None:
+                self.paused = Pause(
+                    OFFLINE,
+                    f"{self.offline_in_a_row} reports in a row couldn’t reach SEC or Massive. "
+                    "Check your internet connection. The line tries them again in 15 minutes.",
+                    wait_until=(now + OFFLINE_WAIT).astimezone(UTC).isoformat(),
+                )
+            return
+        self.offline_in_a_row = 0
         if entry.outcome in ("stopped", "failed") and entry.code in PAUSE_CODES:
             wait = None
             if entry.code == "USAGE_LIMIT" and now is not None:
@@ -561,6 +581,15 @@ class ReportLine:
     def _put_back_unstarted(self, pause: Pause) -> None:
         """The company whose report couldn't start (no AI tool, SEC blocked, sign-in expired)
         goes back first in the line: it never ran, so going on must write it too."""
+        if pause.code == OFFLINE:
+            # Every report that couldn't connect is written again, in its place in the line.
+            again = [e for e in self.finished if e.code == OFFLINE]
+            self.finished = [e for e in self.finished if e.code != OFFLINE]
+            for e in again:
+                e.run_id = e.outcome = e.report_id = e.code = e.message = None
+            self.waiting[:0] = again
+            self.offline_in_a_row = 0
+            return
         if pause.run_id is not None or pause.code not in PAUSE_CODES:
             return
         unstarted = next(
