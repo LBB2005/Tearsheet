@@ -2,7 +2,7 @@
 // (the root's data-snap, styles.css), and they are back on as soon as its style is worked out.
 
 import { render } from '@testing-library/react'
-import { describe, expect, test } from 'vitest'
+import { afterEach, describe, expect, test, vi } from 'vitest'
 
 import { setWindowWidth } from '../test/screen'
 import { snap, useWide } from './useWide'
@@ -12,20 +12,23 @@ function Probe({ seen }: { seen: boolean[] }) {
   return null
 }
 
-// A root that says when its size was read, and what data-snap was then.
+// A root that says when its style was worked out, and what data-snap was then.
 function fakeRoot() {
   const reads: boolean[] = []
   const root = document.createElement('div')
-  Object.defineProperty(root, 'offsetWidth', {
-    get: () => {
-      reads.push(root.dataset.snap !== undefined)
-      return 0
-    }
+  const real = window.getComputedStyle
+  vi.spyOn(window, 'getComputedStyle').mockImplementation((el, pseudo) => {
+    if (el === root) reads.push(root.dataset.snap !== undefined)
+    return real(el, pseudo)
   })
   return { root, reads }
 }
 
 describe('useWide', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   test('follows the window across 1,100 px', () => {
     const seen: boolean[] = []
     render(<Probe seen={seen} />)
