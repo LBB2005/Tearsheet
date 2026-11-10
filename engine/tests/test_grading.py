@@ -297,3 +297,23 @@ def test_the_grading_job_tops_up_prices_grades_and_backs_up(database, tmp_path):
         )
     )
     assert again["graded"] == 0
+
+
+def test_a_company_whose_prices_just_stopped_waits_instead_of_being_held_as_cash(database):
+    # Closes that stop a few days before the 3-month target may just not be fetched yet;
+    # a grade is permanent, so it waits until the market has gone on 30 days without them.
+    store = setup(database)
+    target = add_months(date(2025, 1, 7), 3)
+    database.conn.execute(
+        "DELETE FROM prices_daily WHERE cik = ? AND date > ?", (PEERS[0], "2025-04-01")
+    )
+    database.conn.execute(
+        "DELETE FROM prices_daily WHERE cik = ? AND date > ?", (SPY_CIK, "2025-04-20")
+    )
+    database.conn.commit()
+    assert target.isoformat() == "2025-04-07"
+    grade_due(database.conn, store, RULES, now=datetime(2025, 4, 21, tzinfo=UTC))
+    assert [r[1] for r in grades(database)] == []
+    fill(store, SPY_CIK, 0.0003, until=date(2025, 5, 15))
+    grade_due(database.conn, store, RULES, now=datetime(2025, 5, 16, tzinfo=UTC))
+    assert [r[1] for r in grades(database)] == [3]

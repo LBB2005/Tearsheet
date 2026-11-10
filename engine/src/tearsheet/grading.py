@@ -71,6 +71,21 @@ def is_due(store: PriceStore, target: date) -> bool:
     return latest is not None and latest[0] >= target
 
 
+# A company whose closes stop before the target is graded to its last price (bought out or
+# delisted) only once the market has gone on without it this long. A shorter gap may be prices
+# that weren't fetched yet, and a grade, once stored, is never changed.
+GONE_AFTER = timedelta(days=30)
+
+
+def prices_settled(store: PriceStore, cik: int, target: date) -> bool:
+    """Whether this company's closes reach the target, or stopped long enough ago to count as
+    gone."""
+    own, market = store.latest_close(cik), store.latest_close(SPY_CIK)
+    if own is None or own[0] >= target:
+        return True
+    return market is not None and market[0] - own[0] >= GONE_AFTER
+
+
 # --- rules ------------------------------------------------------------------------------------
 
 
@@ -128,6 +143,8 @@ def grade_one(
     start_date, start_price = start
     target = add_months(start_date, months)
     if not is_due(store, target):
+        return None
+    if not all(prices_settled(store, c, target) for c in (p["cik"], *peers)):
         return None
     end = end_point(store, p["cik"], target)
     company = _return(store, p["cik"], start_date, target)
