@@ -66,8 +66,10 @@ a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outli
 /* The app's layout that follows the frame (column "auto"): both columns from {{ two_min }} px, and
    below that the one column the side names. The other is put away at its own size, out of
    sight, so it keeps its scroll for when the frame widens again. The key tiles above the text
-   show only in one column; with both columns the numbers are beside it. The page decides this by
-   its own width alone, so the app never loads it again for a narrower window. */
+   show only in one column as wide as a narrow window ({{ keys_min }}-{{ two_min - 1 }} px): with
+   both columns the numbers are beside the text, and in a frame beside the app's chart the Key
+   numbers sit under the chart. The page decides this by its own width alone, so the app never
+   loads it again for a narrower window. */
 {%- macro one_column(at) %}
   {{ at }}.side-text .nums, {{ at }}.side-numbers .textcol { position: absolute; top: 0; left: -300vw; height: 100vh; visibility: hidden; }
   {{ at }}.side-numbers .textcol { width: 100vw; }
@@ -76,7 +78,8 @@ a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outli
 @media (max-width: {{ two_min - 1 }}px) {
 {{- one_column(".col-auto") }}
 }
-@media (min-width: {{ two_min }}px) { .col-auto .keys { display: none; } }
+.col-auto .keys { display: none; }
+@media (min-width: {{ keys_min }}px) and (max-width: {{ two_min - 1 }}px) { .col-auto .keys { display: grid; } }
 .tscroll { flex: 1; min-height: 0; overflow: auto; }
 .mode-file .layout { display: block; height: auto; max-width: 1140px; margin: 0 auto; padding-bottom: 40px; }
 .mode-file .nums { width: auto; overflow: visible; border-right: 0; grid-auto-flow: dense; }
@@ -235,15 +238,16 @@ a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outli
 .g-track { stroke: var(--track); fill: none; } .g-fill { stroke: url(#ring-g); fill: none; stroke-linecap: round; }
 .dn-seg { fill: none; } .dn-buy { stroke: var(--up); } .dn-hold { stroke: var(--hold); } .dn-sell, .dn-removed { stroke: var(--down); } .dn-kept { stroke: var(--accent); }
 
-/* One column: five key-number tiles above the text. */
-.keys { position: relative; flex: none; display: grid; grid-template-columns: 1.2fr 1fr 1fr 1.6fr 1fr; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+/* One column: five key-number tiles above the text. They wrap onto a second row rather than cut
+   their labels and figures short when the frame is narrow. */
+.keys { position: relative; flex: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
 /* The key strip is a readout box: a tile's readout shows just below the strip. */
 .keys .ro { top: 100%; left: 14px; right: 14px; }
 .keys .hot, .keys .hot:focus-visible { border-radius: calc(12px * var(--round)); }
 /* A hot tile's link is the grid item, so it narrows with the frame as the tile does. */
 .keys > .hot { min-width: 0; }
 .kt { padding: 8px 11px; border-radius: calc(12px * var(--round)); background: var(--panel); border: 1px solid var(--line); min-width: 0; }
-.kt span { display: block; color: var(--muted); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kt span { display: block; color: var(--muted); font-size: 11.5px; line-height: 1.3; overflow-wrap: anywhere; }
 .kt b { font: 16px var(--num); font-weight: calc(600 + var(--wt)); white-space: nowrap; }
 .kt b.miss { font: 12px/1.95 var(--ui); font-weight: calc(400 + var(--wt)); color: var(--muted); }
 .kt b.up { color: var(--up); } .kt b.down { color: var(--down); }

@@ -48,8 +48,9 @@ export function reportChoice(report: ReportSummary, now: Date = new Date()): { l
 
 // What a frame asks the engine for: the layout that follows the frame's own width (column
 // "auto"), so opening, closing or resizing the chart, or the window crossing 1,100 px, never
-// loads the report again: under TWO_COLUMNS_MIN the report shows one column with its key-number
-// tiles, by its own CSS (Liam's pick, 10 Nov 2026). `narrow` stays in the protocol, always false.
+// loads the report again: under TWO_COLUMNS_MIN the report shows one column, by its own CSS, with
+// its key-number tiles only when that column is (nearly) the whole page (engine KEY_TILES_MIN;
+// Liam's pick, 10 Nov 2026). `narrow` stays in the protocol, always false.
 // The text frame plays the report's entrance the first time the report is opened (useReport,
 // motion.ts); a numbers frame, loaded when the switch first picks Numbers, never does.
 export function renderOptions(o: { view: View; side: Side; motion: boolean }): RenderOptions {

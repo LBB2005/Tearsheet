@@ -310,16 +310,34 @@ def test_auto_layout_holds_both_columns_and_names_its_side():
         render_html(r, mode="app", column="auto", side="left")
 
 
-def test_auto_layout_always_carries_the_key_strip_shown_in_one_column_only():
-    """The key tiles are always in an "auto" page; its own CSS shows them only in one column
-    (under TWO_COLUMNS_MIN), so a narrower window never needs the report loaded again."""
+def test_auto_layout_shows_the_key_strip_only_in_a_page_wide_single_column():
+    """The key tiles are always in an "auto" page; its own CSS shows them only in one column as
+    wide as a narrow window (KEY_TILES_MIN up to TWO_COLUMNS_MIN), never beside the app's chart
+    (a frame of about 340-730 px, with Key numbers under the chart), so a narrower window never
+    needs the report loaded again."""
+    from tearsheet.render import KEY_TILES_MIN, TWO_COLUMNS_MIN
+
     r = report("Plain sentence.")
     html = render_html(r, mode="app", column="auto", numbers=numbers())
     assert key_tiles(html).count('class="kt"') == 5
     css = html[: html.index("</style>")]
-    assert re.search(
-        r"@media \(min-width: 860px\) \{ \.col-auto \.keys \{ display: none; \} \}", css
+    assert re.search(r"(^|\n)\.col-auto \.keys \{ display: none; \}", css)
+    shown = f"@media (min-width: {KEY_TILES_MIN}px) and (max-width: {TWO_COLUMNS_MIN - 1}px)"
+    assert shown + " { .col-auto .keys { display: grid; } }" in css
+    # The window's smallest width, with the chart closed, is a page-wide single column.
+    assert 730 < KEY_TILES_MIN <= 820
+
+
+def test_the_key_tiles_wrap_rather_than_cut_short():
+    """In a narrow frame the tiles go onto a second row and their labels wrap: no "Rating a…" and
+    no figure clipped at the frame's edge."""
+    css = style_of(
+        render_html(report("Plain sentence."), mode="app", column="auto", numbers=numbers())
     )
+    keys = [body for selector, body in css_rules(css) if selector.strip() == ".keys"]
+    assert keys and "repeat(auto-fit, minmax(" in keys[0]
+    label = [body for selector, body in css_rules(css) if selector.strip() == ".kt span"]
+    assert label and "ellipsis" not in label[0] and "nowrap" not in label[0]
 
 
 def test_still_render_has_no_entrance_motion():
