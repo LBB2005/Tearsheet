@@ -1,7 +1,7 @@
 // Small pieces the setup screens share: icons, the progress ring, cards, a line to copy, and a
 // wrapper that fades a line up when it changes in place.
 
-import { useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 
 // A part's place in the A. Settle entrance (class mv): 70 ms apart.
 export const at = (i: number): CSSProperties => ({ ['--i' as string]: i })
@@ -48,9 +48,17 @@ export function Card({ i, className, children }: { i: number; className?: string
   )
 }
 
+// How long Copy says "Copied" before it is a Copy button again.
+export const COPIED_MS = 2000
+
 // A line to type in Terminal, with a Copy button. Nothing is run; the person pastes it.
 export function CodeLine({ text }: { text: string }) {
   const [copied, setCopied] = useState(false)
+  useEffect(() => {
+    if (!copied) return
+    const timer = window.setTimeout(() => setCopied(false), COPIED_MS)
+    return () => window.clearTimeout(timer)
+  }, [copied])
   const copy = () => {
     void navigator.clipboard.writeText(text).then(
       () => setCopied(true),

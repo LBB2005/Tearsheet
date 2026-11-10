@@ -77,6 +77,7 @@ export function Setup({ settings, leaving, safety, onSafetyStarted, onStopSafety
   const [away, setAway] = useState(false)
   const keyRef = useRef<HTMLInputElement>(null)
   const emailRef = useRef<HTMLInputElement>(null)
+  const startRef = useRef<HTMLButtonElement>(null)
   const finish = useRef(onFinish)
   finish.current = onFinish
 
@@ -182,6 +183,17 @@ export function Setup({ settings, leaving, safety, onSafetyStarted, onStopSafety
     if (view.focus === 'email' && lastFocus.current !== 'email') emailRef.current?.focus()
     lastFocus.current = view.focus
   }, [view.focus])
+  // A new question takes the keyboard when nothing else has it: the key field as the key card
+  // opens (so ⌘V lands there after the trip to massive.com), and Start once it can be pressed
+  // with the email already in (so Return starts, as a Mac sheet's default button does).
+  const nothingFocused = () => document.activeElement === null || document.activeElement === document.body
+  useEffect(() => {
+    if (view.card === 'key' && nothingFocused()) keyRef.current?.focus()
+  }, [view.card])
+  const startReady = view.card === 'finish' && view.finish.emailFixed && view.start.enabled
+  useEffect(() => {
+    if (startReady && nothingFocused()) startRef.current?.focus()
+  }, [startReady])
   // Back from massive.com: the key field, if the key is still missing and nothing else was focused.
   const viewNow = useRef(view)
   viewNow.current = view
@@ -325,6 +337,7 @@ export function Setup({ settings, leaving, safety, onSafetyStarted, onStopSafety
             email={email}
             keyRef={keyRef}
             emailRef={emailRef}
+            startRef={startRef}
             saving={saving}
             problem={problem}
             note={note}

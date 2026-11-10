@@ -567,6 +567,12 @@ describe('the price key', () => {
     await waitFor(() => expect(keyField()).toHaveFocus())
   })
 
+  test('the key question opens with the cursor in the key field', async () => {
+    await open([CLAUDE.ready, CODEX.missing])
+    expect(await card('Your price key')).toBeInTheDocument()
+    expect(keyField()).toHaveFocus()
+  })
+
   test('back from massive.com, the key field takes the focus', async () => {
     const { user } = await open([CLAUDE.ready, CODEX.missing])
     await user.click(button('Get a free key'))
@@ -577,6 +583,8 @@ describe('the price key', () => {
   test('a key saved before counts, and goes straight to the finish', async () => {
     await open([CLAUDE.ready, CODEX.missing], { over: { keys: { massive: 'set', fred: 'missing' } } })
     expect(await card('Your email, then Start')).toBeInTheDocument()
+    // With the email in from the Claude sign-in, Start has the keyboard, so Return starts.
+    await waitFor(() => expect(button('Start Tearsheet')).toHaveFocus())
     expect(row('Price key').getByText('Massive key saved')).toBeInTheDocument()
   })
 })
@@ -611,9 +619,8 @@ describe('the email', () => {
     bridge.setSetting.mockResolvedValue(ok({ ok: true }))
     await user.type(emailField(), 'm')
     expect(button('Start Tearsheet')).toBeEnabled()
-    // The row's own Change does the same.
-    await user.click(row('SEC email').getByRole('button', { name: 'Change the SEC email' }))
-    await waitFor(() => expect(emailField()).toHaveFocus())
+    // The email has one Change, on the card: the list's row has none on this question.
+    expect(row('SEC email').queryByRole('button', { name: 'Change the SEC email' })).toBeNull()
   })
 
   test('an email saved before shows with Change, and setup reopened after a failed Start keeps the saved tool', async () => {
@@ -674,9 +681,12 @@ describe('the safety check', () => {
     await user.click(details.getByRole('button', { name: 'Run the check again' }))
     expect(bridge.runSafetyCheck).toHaveBeenCalledTimes(2)
     expect(screen.queryByRole('dialog', { name: 'Safety check details' })).toBeNull()
+    // The details take the keyboard as they open, and Esc gives it back to the chip.
     await user.click(screen.getByRole('button', { name: /^Safety check/ }))
+    expect(screen.getByRole('dialog', { name: 'Safety check details' })).toHaveFocus()
     await user.keyboard('{Escape}')
     expect(screen.queryByRole('dialog', { name: 'Safety check details' })).toBeNull()
+    expect(screen.getByRole('button', { name: /^Safety check/ })).toHaveFocus()
   })
 
   test('doesn’t run again when a full check passed for this version, and says why when it can’t start', async () => {

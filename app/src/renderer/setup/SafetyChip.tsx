@@ -97,6 +97,19 @@ export function SafetyPopover({ view, tool, onRetry, onClose, onStop }: SafetyPo
   const close = useRef(onClose)
   close.current = onClose
 
+  // It takes the keyboard as it opens, so Esc and Tab work at once, and gives it back to what had
+  // it (the chip) when it closes, unless the person has moved on to something else.
+  useEffect(() => {
+    const opener = document.activeElement
+    const el = box.current
+    el?.focus()
+    return () => {
+      const now = document.activeElement
+      const lost = now === null || now === document.body || (el?.contains(now) ?? false)
+      if (lost && opener instanceof HTMLElement && opener.isConnected) opener.focus()
+    }
+  }, [])
+
   // A click anywhere else, or Esc, closes it. The chip toggles it by itself.
   useEffect(() => {
     const down = (e: MouseEvent) => {
@@ -115,7 +128,7 @@ export function SafetyPopover({ view, tool, onRetry, onClose, onStop }: SafetyPo
 
   const passed = view.state === 'passed' ? SAFETY_CHECKS.length : view.state === 'running' ? checksPassed(view.n) : -1
   return (
-    <div className="popv" role="dialog" aria-label="Safety check details" ref={box}>
+    <div className="popv" role="dialog" aria-label="Safety check details" ref={box} tabIndex={-1}>
       <h4>{chipText(view)}</h4>
       <p>Tearsheet sends {tool.short} 25 short test requests and makes sure that:</p>
       <ul>

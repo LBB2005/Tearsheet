@@ -167,7 +167,10 @@ export const signingWords = (kinds: ToolKind[]) =>
 export const waitTool = (kind: ToolKind) => `Waiting for ${TOOL_TEXT[kind].name} to sign in`
 
 // The email row before an email is in.
-export const emailHint = (claudeFound: boolean) => (claudeFound ? 'Fills in from your Claude sign-in' : 'Codex doesn’t share one, so you type it')
+// The SEC email row before an email is in: where it will come from. With no AI tool on the Mac
+// yet, neither is known.
+export const emailHint = (from: 'claude' | 'codex' | 'none') =>
+  from === 'claude' ? 'Fills in from your Claude sign-in' : from === 'codex' ? 'Codex doesn’t share one, so you type it' : 'From your Claude sign-in, or you type it'
 
 // ---------- where data goes (Goal 6) ----------
 

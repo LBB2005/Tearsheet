@@ -12,7 +12,9 @@
 .setup .top.stp { justify-content: center; padding: 0 120px; border-bottom-color: transparent; }
 /* Centred: no margin pushing it left, as the app's toolbar title has (styles.css .top .ttl). */
 .setup .top .ttl { margin: 0; font-size: 12.5px; color: var(--muted); }
-.setup .screen { flex: 1; min-height: 0; overflow: auto; position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: safe center; padding: 12px 60px 56px; }
+/* The screen stands at a fixed height, as the home page does, so the list on top stays put while
+   the question under it changes (List.tsx: the AI row never moves under the pointer). */
+.setup .screen { flex: 1; min-height: 0; overflow: auto; position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding: clamp(16px, calc(25vh - 100px), 160px) 60px 56px; }
 .setup .screen:focus { outline: none; }
 
 /* ---------- the safety chip ----------
@@ -32,7 +34,8 @@
 :is(.setup, .tsafe) .ring .rt { stroke: var(--track); fill: none; }
 :is(.setup, .tsafe) .ring .rf { stroke: var(--accent); fill: none; stroke-linecap: round; transition: stroke-dashoffset .6s var(--slide); }
 
-:is(.setup, .tsafe) .popv { position: absolute; z-index: 20; right: 14px; top: 46px; width: 390px; border-radius: calc(14px * var(--round)); background: var(--card-bg); border: 1px solid rgb(var(--ink) / .14); box-shadow: 0 20px 50px rgb(var(--shade) / calc(.5 * var(--shade-k))); padding: 14px 16px 12px; animation: setup-drop .18s ease-out backwards; }
+:is(.setup, .tsafe) .popv { position: absolute; z-index: 20; right: 14px; top: 46px; width: 390px; border-radius: calc(14px * var(--round)); background: var(--card-bg); border: 1px solid rgb(var(--ink) / .14); box-shadow: 0 20px 50px rgb(var(--shade) / calc(.5 * var(--shade-k))); padding: 14px 16px 12px; animation: pop-in var(--dur-2) var(--ease-out) backwards; }
+:is(.setup, .tsafe) .popv:focus { outline: none; }
 :is(.setup, .tsafe) .popv h4 { margin: 0 0 4px; font: 14px var(--ui); font-weight: calc(600 + var(--wt)); }
 :is(.setup, .tsafe) .popv p { margin: 0 0 8px; color: var(--muted); font-size: 12.5px; }
 :is(.setup, .tsafe) .popv p.last { margin: 8px 0 0; }
@@ -52,11 +55,11 @@
 
 /* ---------- page parts ---------- */
 .setup .col { width: 620px; max-width: 100%; display: flex; flex-direction: column; align-items: flex-start; gap: 14px; }
-.setup .h1 { margin: 0; font: 30px/1.15 var(--ui); font-weight: calc(600 + var(--wt)); letter-spacing: -.2px; display: flex; align-items: center; gap: 12px; }
-.setup .lead { margin: 0; font-size: 15px; line-height: 1.5; color: var(--muted); max-width: 58ch; }
+.setup .h1 { margin: 0; font: 30px/1.15 var(--ui); font-weight: calc(600 + var(--wt)); letter-spacing: -.2px; display: flex; align-items: center; gap: 12px; text-wrap: balance; }
+.setup .lead { margin: 0; font-size: 15px; line-height: 1.5; color: var(--muted); max-width: 58ch; text-wrap: pretty; }
 .setup .lead b { color: var(--text); font-weight: calc(600 + var(--wt)); }
 .setup .lead.small { font-size: 14px; }
-.setup .fine { margin: 0; font-size: 12.5px; color: var(--muted); }
+.setup .fine { margin: 0; font-size: 12.5px; color: var(--muted); text-wrap: pretty; }
 .setup .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .setup .row.mid { justify-content: center; }
 /* The big main button: the shared main button (styles.css), a size up. */
@@ -76,13 +79,14 @@
 .setup .card.done { border-color: rgb(var(--up-rgb) / .28); }
 .setup .card h4 { margin: 0; font: 14.5px var(--ui); font-weight: calc(600 + var(--wt)); display: flex; align-items: center; gap: 10px; }
 .setup .card p { margin: 0; color: var(--muted); font-size: 13.5px; }
-.setup .n { width: 22px; height: 22px; flex: none; border-radius: 50%; border: 1px solid var(--chipline); color: var(--accent); font: 12px var(--ui); font-weight: calc(600 + var(--wt)); display: grid; place-items: center; }
+/* A step's number: in the list on top (.snum) and on a key card (.n). */
+.setup :is(.n, .snum) { width: 22px; height: 22px; flex: none; border-radius: 50%; border: 1px solid var(--chipline); color: var(--accent); font: 12px var(--ui); font-weight: calc(600 + var(--wt)); display: grid; place-items: center; }
 .setup .n svg { width: 12px; height: 12px; stroke: var(--up); fill: none; stroke-width: 2.8; }
 .setup .done .n { border-color: rgb(var(--up-rgb) / .45); }
 /* The copy-a-command box (.code, .cbtn) is home.css's, shared with Home and Settings. */
 .setup .st { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); min-height: 20px; }
 .setup .st.ok { color: var(--up); }
-.setup .st.bad { color: var(--down); }
+.setup .st.bad { color: var(--bad-text); }
 .setup .st svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 2.4; flex: none; }
 .setup .field { display: flex; gap: 8px; width: 100%; }
 .setup .field input { flex: 1; min-width: 0; background: rgb(var(--ink) / .06); border: 1px solid var(--line); border-radius: calc(10px * var(--round)); padding: 9px 12px; color: var(--text); font: 14px var(--mono); font-weight: calc(400 + var(--wt)); outline: none; transition: border-color .2s, box-shadow .2s; }
@@ -105,7 +109,6 @@
 .setup .sv { min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; overflow-wrap: anywhere; }
 .setup .srb { padding: 2px 16px 12px 138px; border-top: 0; }
 .setup .srb .again { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
-.setup .snum { width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--chipline); color: var(--accent); font: 12px var(--ui); font-weight: calc(600 + var(--wt)); display: grid; place-items: center; flex: none; }
 .setup .tick { width: 16px; height: 16px; fill: none; stroke: var(--up); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; flex: none; display: block; }
 .setup .tick path { stroke-dasharray: 16; animation: setup-draw .5s .05s var(--settle) backwards; }
 .setup .duo { display: flex; flex-direction: column; gap: 4px; }
@@ -116,7 +119,7 @@
 .setup .pill i { width: 6px; height: 6px; border-radius: 50%; background: var(--up); box-shadow: 0 0 0 3px rgb(var(--up-rgb) / .2); }
 
 /* The question card. */
-.setup .ask { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; animation: setup-rise .55s .08s var(--settle) backwards; }
+.setup .ask { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; animation: settle-in var(--dur-4) .08s var(--ease-out) backwards; }
 .setup .ask > .pick, .setup .ask > .inst, .setup .ask > .prog, .setup .ask > .erow, .setup .ask > .keyask, .setup .ask > .ein, .setup .ask > .cmdbox, .setup .ask > .code { align-self: stretch; }
 .setup .step { margin: 0; font-size: 12px; font-weight: calc(600 + var(--wt)); letter-spacing: .5px; text-transform: uppercase; color: var(--accent); }
 .setup .h1.big3 { font-size: 34px; letter-spacing: -.4px; }
@@ -147,7 +150,7 @@
 .setup .opt .code { align-self: stretch; font-size: 12px; padding: 8px 12px; }
 .setup .ot { font-size: 13.5px; font-weight: calc(600 + var(--wt)); }
 .setup .keys { display: inline-flex; align-items: center; gap: 5px; vertical-align: middle; }
-.setup .kc { display: inline-grid; place-items: center; min-width: 24px; height: 22px; padding: 0 6px; border-radius: calc(6px * var(--round)); background: rgb(var(--ink) / .06); border: 1px solid rgb(var(--ink) / .16); border-bottom-width: 2px; font-size: 11.5px; color: var(--text); animation: setup-press 2.6s ease-in-out infinite; }
+.setup .kc { display: inline-grid; place-items: center; min-width: 24px; height: 22px; padding: 0 6px; border-radius: calc(6px * var(--round)); background: rgb(var(--ink) / .06); border: 1px solid rgb(var(--ink) / .16); border-bottom-width: 2px; font-size: 11.5px; color: var(--text); animation: setup-press 2.6s ease-in-out 3; }
 .setup .kc.k2 { animation-delay: .15s; }
 .setup .kc.k3 { animation-delay: .9s; }
 .setup .then { font-size: 12px; color: var(--muted); }
@@ -172,17 +175,15 @@
 @media (max-width: 760px) { .setup .pick, .setup .inst { grid-template-columns: 1fr; } .setup .srb { padding-left: 16px; } }
 
 /* ---------- motion, from the mockup ----------
-   The list fades in (mv), its ticks are drawn, the question card rises as it changes, Start
-   pulses once when it can be pressed, and a change in place (chg) fades up. The key caps press in
-   turn. Leaving: the screen fades and lifts 8 px. Nothing moves under Reduce motion (styles.css),
+   The list fades in (mv), its ticks are drawn, the question card settles in (10 px, as every
+   page part does) as it changes, Start pulses once when it can be pressed, and a change in place
+   (chg) fades up. The key caps press in turn, three times, then rest. Leaving: the screen fades and lifts 8 px. Nothing moves under Reduce motion (styles.css),
    nor here when the Mac asks for less motion. */
-@keyframes setup-drop { from { opacity: 0; transform: translateY(-4px); } }
 .setup-in .mv { animation: settle-in .5s var(--settle) backwards; animation-delay: calc(var(--i, 0) * 70ms + 60ms); }
 .setup .chg { animation: settle-in .4s var(--settle) backwards; }
 :is(.setup, .tsafe) .chip.cnew { animation: settle-in .45s .15s var(--settle) backwards; }
 .setup.leaving .screen, .setup.leaving .top > *, .setup.leaving .popv { animation: settle-out .24s ease-in forwards; }
 @keyframes setup-draw { from { stroke-dashoffset: 16; } to { stroke-dashoffset: 0; } }
-@keyframes setup-rise { from { opacity: 0; transform: translateY(26px); } }
 @keyframes setup-wake { 0% { box-shadow: 0 0 0 0 rgb(var(--accent-rgb) / .55); } 100% { box-shadow: 0 0 0 16px rgb(var(--accent-rgb) / 0); } }
 @keyframes setup-pillin { from { opacity: 0; transform: scale(.8); } }
 @keyframes setup-press { 0%, 30%, 100% { transform: none; background: rgb(var(--ink) / .06); } 8% { transform: translateY(2px); background: rgb(var(--accent-rgb) / .28); } }
