@@ -107,6 +107,24 @@ def test_a_failed_upgrade_keeps_every_copy(tmp_path, monkeypatch):
     assert len(list(tmp_path.glob("t.sqlite.v*.bak"))) == 3
 
 
+def test_a_failed_migration_is_undone_and_lets_go_of_the_database(tmp_path, monkeypatch):
+    from tearsheet import db as db_module
+
+    path = tmp_path / "t.sqlite"
+    open_database(path).close()
+    real = db_module.migrations()
+    bad = (real[-1][0] + 1, "CREATE TABLE half_done (a);\nNOT SQL;")
+    monkeypatch.setattr(db_module, "migrations", lambda: [*real, bad])
+    with pytest.raises(sqlite3.Error):
+        db_module.open_database(path)
+    other = sqlite3.connect(path, timeout=0)
+    other.execute("BEGIN IMMEDIATE")  # no write lock left behind
+    other.rollback()
+    assert other.execute("PRAGMA user_version").fetchone()[0] == real[-1][0]
+    assert not other.execute("SELECT 1 FROM sqlite_master WHERE name = 'half_done'").fetchone()
+    other.close()
+
+
 def test_backups_are_readable_by_the_user_only(tmp_path):
     from tearsheet.db import backup
 

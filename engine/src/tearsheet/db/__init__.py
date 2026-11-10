@@ -182,7 +182,15 @@ def open_database(path: Path) -> Database:
     for number, sql in pending:
         # executescript commits first, so the migration and its version number
         # are applied together inside one explicit transaction.
-        conn.executescript(f"BEGIN;\n{sql}\nPRAGMA user_version = {number};\nCOMMIT;")
+        try:
+            conn.executescript(f"BEGIN;\n{sql}\nPRAGMA user_version = {number};\nCOMMIT;")
+        except BaseException:
+            # Undone, and the connection closed: left open inside the failed transaction it
+            # held the database's write lock.
+            if conn.in_transaction:
+                conn.rollback()
+            conn.close()
+            raise
     if pending and current > 0:
         _prune_upgrade_copies(path)
     version = pending[-1][0] if pending else current
