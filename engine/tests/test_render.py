@@ -310,12 +310,16 @@ def test_auto_layout_holds_both_columns_and_names_its_side():
         render_html(r, mode="app", column="auto", side="left")
 
 
-def test_auto_layout_keeps_the_key_strip_for_a_narrow_window_only():
+def test_auto_layout_always_carries_the_key_strip_shown_in_one_column_only():
+    """The key tiles are always in an "auto" page; its own CSS shows them only in one column
+    (under TWO_COLUMNS_MIN), so a narrower window never needs the report loaded again."""
     r = report("Plain sentence.")
-    narrow = render_html(r, mode="app", column="auto", narrow=True, numbers=numbers())
-    assert key_tiles(narrow).count('class="kt"') == 5
-    wide = render_html(r, mode="app", column="auto", numbers=numbers())
-    assert 'id="keys"' not in wide
+    html = render_html(r, mode="app", column="auto", numbers=numbers())
+    assert key_tiles(html).count('class="kt"') == 5
+    css = html[: html.index("</style>")]
+    assert re.search(
+        r"@media \(min-width: 860px\) \{ \.col-auto \.keys \{ display: none; \} \}", css
+    )
 
 
 def test_still_render_has_no_entrance_motion():
@@ -333,17 +337,18 @@ def test_a_file_keeps_both_columns_whatever_is_asked():
     assert 'id="numbers"' in file and 'id="summary"' in file
 
 
-def test_a_narrow_window_keeps_one_column_at_any_frame_width():
-    """A window under about 1,100 px shows the text with the key tiles, whatever the frame's
-    width: the one-column rules hold without the 860 px media query."""
+def test_narrow_no_longer_changes_the_auto_layout():
+    """The window crossing 1,100 px used to ask for a page with one column at any width, which
+    loaded the report again and lost the reader's place. "auto" is now the same page either way:
+    the frame's own width decides, by the 860 px media query alone."""
     r = report("Plain sentence.")
     narrow = render_html(r, mode="app", column="auto", narrow=True, numbers=numbers())
-    assert 'class="mode-app col-auto side-text narrow"' in narrow
-    css = narrow[: narrow.index("</style>")]
-    outside = re.sub(r"@media[^{]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}", "", css)
-    assert ".col-auto.narrow.side-text .nums" in outside
     wide = render_html(r, mode="app", column="auto", numbers=numbers())
+    assert narrow == wide
     assert 'class="mode-app col-auto side-text"' in wide
+    css = wide[: wide.index("</style>")]
+    outside = re.sub(r"@media[^{]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}", "", css)
+    assert ".side-text .nums" not in outside
 
 
 def _range_chart(html: str) -> str:

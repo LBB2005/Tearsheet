@@ -217,8 +217,10 @@ def render_html(
     "both", or "numbers" or "text" alone for beside the chart, or "auto": both columns, laid out
     by the frame's own width, so the app can open, close and resize the chart without loading
     the report again. From TWO_COLUMNS_MIN px both show; below it, the one `side` names.
-    `narrow` is a window under about 1,100 px: with the text alone, a row of five key-number
-    tiles sits above it. `motion` False leaves out the entrance motion, for a frame loaded
+    With "auto" the row of five key-number tiles is always in the page, above the text, and the
+    page's own CSS shows it only in one column (under TWO_COLUMNS_MIN), so the window crossing
+    1,100 px never needs the report loaded again. `narrow` adds the tiles to the text column
+    alone ("text"); it no longer changes "auto". `motion` False leaves out the entrance motion, for a frame loaded
     after the report was already on show. A file is read without the app, so it always shows
     both columns, stacked, with the Full view open.
 
@@ -246,7 +248,7 @@ def render_html(
     if mode != "app":
         analysts = None
     shows_analysts = bool(analysts) and analysts.get("state") == "ok"
-    key_tiles = bool(narrow) and column in ("text", "auto")
+    key_tiles = column == "auto" or (bool(narrow) and column == "text")
     return _ENV.get_template("report.html.j2").render(
         r=readouts.shown_tables(report),
         n={key: given.get(key) for key in NUMBER_KEYS},
@@ -258,7 +260,6 @@ def render_html(
         side=side,
         motion=motion,
         two_min=TWO_COLUMNS_MIN,
-        narrow_layout=bool(narrow) and column == "auto",
         key_tiles=key_tiles,
         csp=CSP,
         safe_url=_safe_url,

@@ -39,7 +39,7 @@
 {%- if text %}{% call hot(view, item, text) %}{{ body }}{% endcall %}{% else %}{{ body }}{% endif -%}
 {%- endmacro -%}
 
-{#- A narrow window's five key-number tiles, above the text (the spec's "Narrow windows"): the
+{#- Five key-number tiles above the text, in one column (the spec's "Narrow windows"): the
     rating and score, price, estimated value, the 12-month range and the past year. -#}
 {%- macro key_strip() -%}
 {%- set today = n.price.value if n.price else (n.weekly[-1].close if n.weekly else none) -%}
