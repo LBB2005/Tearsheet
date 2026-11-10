@@ -1100,6 +1100,46 @@ class Server:
         return self._busy() or self._grading() or self._downloading() or self._safety_running()
 
     async def _run_line(self) -> None:
+        """Write the line's reports one at a time. An error in the line itself (not in a
+        report) used to end this task silently, with a company left showing as being written;
+        now that report is ended and the line pauses with a sentence, for Carry on."""
+        try:
+            await self._line_loop()
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # noqa: BLE001 - logged; the line pauses instead of stopping unseen
+            log.exception("the report line stopped on an error")
+            await self._line_recover()
+
+    async def _line_recover(self) -> None:
+        from tearsheet.batch import LINE_ERROR, Pause
+
+        line = self.line
+        entry = line.writing
+        if entry is not None:
+            if self.job is not None:
+                await asyncio.wait({self.job})
+            ended = (
+                self.last_end[1]
+                if entry.run_id and self.last_end and self.last_end[0] == entry.run_id
+                else {"how": "failed", "code": "ENGINE_ERROR"}
+            )
+            try:
+                line.end(entry, ended, now=self.now())
+            except Exception:  # noqa: BLE001
+                line.writing = None
+        if line.paused is None and line.waiting:
+            line.paused = Pause(
+                LINE_ERROR,
+                "The line stopped on an unexpected error (it’s in the engine log). "
+                "Carry on to go on.",
+            )
+        try:
+            self._line_changed()
+        except Exception:  # noqa: BLE001
+            log.exception("the report line's state couldn't be saved")
+
+    async def _line_loop(self) -> None:
         """Write the line's reports one at a time, each once nothing else is running."""
         line = self.line
         while True:

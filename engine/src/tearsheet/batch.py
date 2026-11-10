@@ -52,6 +52,8 @@ REOPENED = "REOPENED"
 OFFLINE = "OFFLINE"
 OFFLINE_AFTER = 2
 OFFLINE_WAIT = timedelta(minutes=15)
+# The line itself met an unexpected error (server._run_line): it waits for Carry on.
+LINE_ERROR = "LINE_ERROR"
 # The plan's 5-hour window is past USAGE_SHARE: the line waits for it to reset.
 USAGE_HIGH = "USAGE_HIGH"
 # The plan's weekly window is past USAGE_SHARE: the line asks Liam before it goes on.

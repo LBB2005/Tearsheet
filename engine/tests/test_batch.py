@@ -1189,3 +1189,33 @@ def test_a_report_cut_short_by_quitting_is_resumed_when_the_line_carries_on(
     texts = [r[0] for r in conn.execute("SELECT json FROM sections")]
     assert any(f"Logged as an official prediction ({prediction_id})" in t for t in texts)
     again.server.close()
+
+
+def test_an_error_in_the_line_itself_pauses_it_instead_of_stopping_unseen(
+    tmp_path, fake_list, monkeypatch
+):
+    import sqlite3
+
+    h = Harness(tmp_path)
+    real = config.Settings.set_internal
+    calls = {"n": 0}
+
+    def flaky(self, key, value):
+        calls["n"] += 1
+        if calls["n"] == 4:  # saving the line, after the first report has started
+            raise sqlite3.OperationalError("database is locked")
+        return real(self, key, value)
+
+    monkeypatch.setattr(config.Settings, "set_internal", flaky)
+
+    async def go():
+        await h.server.start()
+        await h.call("add_to_line", {"queries": ["T1", "T2", "T3"]})
+        await h.server.wait_for_line()
+
+    run(go())
+    final = _line_notes(h)[-1]
+    assert final["writing"] is None
+    assert final["paused"] is not None and final["paused"]["code"] == "LINE_ERROR"
+    assert final["waiting"], "the companies not yet written are still in the line"
+    h.server.close()
