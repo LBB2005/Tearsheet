@@ -266,7 +266,7 @@ describe('the prediction log', () => {
   test('lists the logged reports and grades what is due', async () => {
     const { user } = await renderApp()
     await user.click(sidebar().getByRole('button', { name: /Prediction log/ }))
-    const row = (await screen.findByRole('cell', { name: 'AAPL' })).closest('tr') as HTMLElement
+    const row = (await screen.findByRole('cell', { name: 'AAPL' })).closest('[role="row"]') as HTMLElement
     expect(within(row).getByText('Buy')).toBeInTheDocument()
     expect(within(row).getByText('$250.00')).toBeInTheDocument()
     // The row's arrow opens its report.
@@ -287,8 +287,8 @@ describe('the prediction log', () => {
     expect(toolbarTitle()).toBe('Prediction logNothing logged yet')
     // The log shows ratings and ranges, so it carries the line too (launch-readiness M5).
     expect(screen.getByText(/Research data, not investment advice\./)).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Grade what is due' }))
-    expect(await screen.findByText('Nothing new was due.')).toBeInTheDocument()
+    // Nothing is logged, so there is nothing to grade.
+    expect(screen.queryByRole('button', { name: 'Grade what is due' })).toBeNull()
   })
 
   test('says so when the log doesn’t load', async () => {
@@ -302,8 +302,7 @@ describe('the prediction log', () => {
     bridge.listPredictions.mockResolvedValue(ok([{ ...PREDICTIONS[0], grades: [{ horizon_months: 3, graded_at: '2026-11-01', grading_version: 1, start_price: 210, hit: true, excess: 0.04, company_return: 0.09, end_date: '2026-11-01', inside_range: true }] }]))
     const { user } = await renderApp()
     await user.click(sidebar().getByRole('button', { name: /Prediction log/ }))
-    expect(await screen.findByText('3 months')).toBeInTheDocument()
-    expect(screen.getByText('hit')).toBeInTheDocument()
+    expect(await screen.findByText('3 mo hit')).toBeInTheDocument()
     expect(screen.queryByText('Nothing graded yet')).toBeNull()
   })
 })
