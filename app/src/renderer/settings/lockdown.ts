@@ -3,6 +3,8 @@
 
 import type { ToolStatus } from '../../preload/api'
 import type { LockdownState } from '../../shared/protocol'
+import { isoDay } from '../home/since'
+import { shortDate } from '../nav'
 
 // A tool is usable once it is found and has passed the lock-down check for its version
 // (Technical Plan §4). A changed version is checked again before the next AI step.
@@ -17,5 +19,5 @@ export function lockdownText(tool: ToolStatus, state: LockdownState | undefined)
   if (tool.version && state.version && !tool.version.includes(state.version) && !state.version.includes(tool.version)) {
     return `Passed for ${state.version}; this version is checked again before the next AI step.`
   }
-  return `Passed (${state.form} check${state.checked_at ? `, ${new Date(state.checked_at).toLocaleDateString()}` : ''})`
+  return `Passed (${state.form} check${state.checked_at ? `, ${shortDate(isoDay(new Date(state.checked_at)))}` : ''})`
 }

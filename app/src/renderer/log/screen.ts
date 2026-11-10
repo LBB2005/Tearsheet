@@ -241,7 +241,8 @@ export const signedPct = (v: number | null, digits = 0) => (v === null ? '—' :
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 export function csvFileName(now: Date = new Date()): string {
-  return `Tearsheet predictions ${now.getDate()} ${MONTHS[now.getMonth()]} ${now.getFullYear()}.csv`
+  // Month first, as the app writes dates.
+  return `Tearsheet predictions ${MONTHS[now.getMonth()]} ${now.getDate()} ${now.getFullYear()}.csv`
 }
 
 const cell = (v: unknown): string => {

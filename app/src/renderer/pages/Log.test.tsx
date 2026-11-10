@@ -138,7 +138,7 @@ describe('export and reports', () => {
     await user.click(within(screen.getByRole('complementary', { name: 'Filters' })).getByRole('checkbox', { name: /Financials/ }))
     await user.click(screen.getByRole('button', { name: 'Export 1 row (CSV)' }))
     const [name, text] = bridge.saveCsv.mock.calls[0]
-    expect(name).toMatch(/^Tearsheet predictions \d+ \w{3} \d{4}\.csv$/)
+    expect(name).toMatch(/^Tearsheet predictions \w{3} \d+ \d{4}\.csv$/)
     expect((text as string).trim().split('\n')).toHaveLength(2)
     expect(text).toContain('BLK')
     expect(await screen.findByText(`Saved ${name} to Downloads.`)).toBeInTheDocument()

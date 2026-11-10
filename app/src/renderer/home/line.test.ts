@@ -118,7 +118,7 @@ describe('waiting for the plan', () => {
   it('says times on Liam’s clock, with the day when it isn’t today', () => {
     expect(clockTime(at(15, 40), now)).toBe('3:40 pm')
     expect(clockTime(at(9, 5, 9), now)).toBe('9:05 am tomorrow')
-    expect(clockTime(at(9, 5, 11), now)).toMatch(/^9:05 am on Wed,? 11 Nov$/)
+    expect(clockTime(at(9, 5, 11), now)).toBe('9:05 am on Wed, Nov 11')
     expect(clockTime('soon', now)).toBe('soon')
   })
 

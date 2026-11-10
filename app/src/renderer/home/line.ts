@@ -180,7 +180,8 @@ export function clockTime(iso: string, now: Date = new Date()): string {
   const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)
   if (day(at) === day(now)) return time
   if (day(at) === day(tomorrow)) return `${time} tomorrow`
-  return `${time} on ${at.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}`
+  // Month first, as the app writes dates: "9:05 am on Wed, Nov 11".
+  return `${time} on ${at.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`
 }
 
 // Whether the line waits for something to reset and then carries on by itself.
