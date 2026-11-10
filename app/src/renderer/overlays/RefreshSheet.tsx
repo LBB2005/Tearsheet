@@ -2,12 +2,15 @@
 // Refresh is picked in the sidebar or on the report page. It asks the engine's check first
 // (plan_line: nothing changes), then says how old each latest report is, what new ones cost, and
 // whether they will be official predictions. Write adds them to the line; Esc or Cancel closes it.
+// Tab stays inside the sheet, and the focus goes back where it was once it closes. Return starts
+// nothing on its own: a new report costs about 40 AI calls, so it takes a click or Space on Write.
 
 import { useEffect, useRef, useState } from 'react'
 
 import type { LinePlan } from '../../shared/protocol'
 import { leaveMs } from '../motion'
 import { refreshText, type Refreshing } from '../shell/refresh'
+import { keepTabIn, useOpener } from './sheetFocus'
 
 export interface RefreshSheetProps {
   asked: Refreshing[]
@@ -24,7 +27,7 @@ export function RefreshSheet({ asked, busy, onStart, onClose }: RefreshSheetProp
   const [starting, setStarting] = useState(false)
   const [leaving, setLeaving] = useState(false)
   const box = useRef<HTMLDivElement>(null)
-  const opener = useRef<Element | null>(document.activeElement)
+  const opener = useOpener()
 
   useEffect(() => {
     box.current?.focus()
@@ -45,8 +48,7 @@ export function RefreshSheet({ asked, busy, onStart, onClose }: RefreshSheetProp
     setLeaving(true)
     window.setTimeout(() => {
       onClose()
-      const back = opener.current
-      if (back instanceof HTMLElement && back.isConnected) back.focus()
+      opener.back()
     }, leaveMs())
   }
   const start = async () => {
@@ -79,11 +81,16 @@ export function RefreshSheet({ asked, busy, onStart, onClose }: RefreshSheetProp
             e.preventDefault()
             e.stopPropagation()
             close()
-          }
+          } else keepTabIn(e, box.current)
         }}
       >
         <b id="refresh-title">{title}</b>
-        {!text && !problem && <p>Checking…</p>}
+        {!text && !problem && (
+          <p className="checking" role="status">
+            <span className="sp" aria-hidden="true" />
+            Checking…
+          </p>
+        )}
         {text && text.ages.length > 0 && (
           <ul className="ages" aria-label="Latest reports">
             {text.ages.map((a) => (
