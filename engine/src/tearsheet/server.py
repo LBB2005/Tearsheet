@@ -21,6 +21,7 @@ import json
 import logging
 import re
 import sys
+import threading
 import uuid
 from collections.abc import Callable
 from contextlib import asynccontextmanager
@@ -694,6 +695,9 @@ class Server:
             )
             return
         id_, method = message.get("id"), message["method"]
+        if not isinstance(method, str):
+            self._error(id_, INVALID_REQUEST, "A request's method must be a name.")
+            return
         model = METHODS.get(method)
         if model is None:
             self._error(id_, METHOD_NOT_FOUND, f"No method '{method}'.")
@@ -718,7 +722,19 @@ class Server:
         except EngineError as exc:
             self._error(id_, ENGINE_ERROR_CODE, str(exc), {"code": exc.code, **exc.data})
             return
+        except (json.JSONDecodeError, ValidationError):
+            # A ValueError of the engine's own (stored data it couldn't read), not the
+            # request's: logged, and said in plain words rather than as "bad parameters".
+            log.exception("request %s failed", method)
+            self._error(
+                id_,
+                ENGINE_ERROR_CODE,
+                "Something went wrong reading stored data (it’s in the engine log).",
+                {"code": "ENGINE_ERROR"},
+            )
+            return
         except ValueError as exc:
+            log.info("request %s refused: %s", method, exc)
             self._error(id_, INVALID_PARAMS, str(exc))
             return
         except Exception as exc:  # noqa: BLE001 - every failure becomes a protocol error
@@ -2037,6 +2053,27 @@ class Server:
         self.db.close()
 
 
+def stdin_lines(loop: asyncio.AbstractEventLoop) -> asyncio.Queue[str]:
+    """Standard input's lines, read on a daemon thread ("" when it closes). The executor's
+    thread it used before was waited for at exit, so a SIGTERM while the app still held stdin
+    open left the engine running."""
+    queue: asyncio.Queue[str] = asyncio.Queue()
+
+    def put(line: str) -> None:
+        try:
+            loop.call_soon_threadsafe(queue.put_nowait, line)
+        except RuntimeError:  # the loop has closed: the engine is stopping
+            pass
+
+    def read() -> None:
+        for line in iter(sys.stdin.readline, ""):
+            put(line)
+        put("")
+
+    threading.Thread(target=read, name="stdin", daemon=True).start()
+    return queue
+
+
 async def serve(paths: config.Paths) -> int:
     """Read requests from standard input until it closes."""
     out = sys.stdout
@@ -2052,14 +2089,17 @@ async def serve(paths: config.Paths) -> int:
     sweep_stale()
     server = Server(paths, write=write)
     await server.start()
-    loop = asyncio.get_running_loop()
+    lines = stdin_lines(asyncio.get_running_loop())
     try:
         while True:
-            line = await loop.run_in_executor(None, sys.stdin.readline)
+            line = await lines.get()
             if not line:
                 break
             if line.strip():
-                await server.handle(line)
+                try:
+                    await server.handle(line)
+                except Exception:  # noqa: BLE001 - one bad request mustn't end the engine
+                    log.exception("a request couldn't be handled")
         # The line stops first, so it neither counts the cancelled report nor starts the next;
         # it is kept as it is, and comes back paused next time.
         if server.line_job is not None:
