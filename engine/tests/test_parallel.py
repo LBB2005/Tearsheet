@@ -99,7 +99,8 @@ def test_a_cancel_mid_batch_starts_no_more_calls(database, tmp_path):
     run = make_run(database, tmp_path, connector)
     with pytest.raises(RunCancelled):
         asyncio.run(run.run("T0"))
-    assert [r.task for r in connector.requests].count("extract") == config.AI_CALLS_IN_PARALLEL
+    # The calls already under way are stopped too, so some may not even have been sent.
+    assert [r.task for r in connector.requests].count("extract") <= config.AI_CALLS_IN_PARALLEL
     status = database.conn.execute(
         "SELECT status FROM runs WHERE run_id = ?", (run.run_id,)
     ).fetchone()[0]
@@ -302,3 +303,45 @@ def test_a_failed_run_stops_its_early_reads(database, tmp_path):
     run = asyncio.run(go())
     assert run._reads == {}
     assert connector.active == 0
+
+
+def test_cancel_stops_the_ai_calls_under_way(database, tmp_path):
+    # A cancel used to wait for the calls already sent (up to 5 minutes each).
+    import time
+
+    run = None
+    started = []
+
+    def fake(request):
+        if request.task == "extract" and not started:
+            started.append(time.monotonic())
+            asyncio.get_running_loop().call_later(0.05, run.cancel)
+        return news_ai(request)
+
+    connector = FakeConnector(default=fake, delay_s=5.0)
+    run = make_run(database, tmp_path, connector)
+    with pytest.raises(RunCancelled):
+        asyncio.run(run.run("T0"))
+    assert time.monotonic() - started[0] < 2.0
+    status = database.conn.execute(
+        "SELECT status FROM runs WHERE run_id = ?", (run.run_id,)
+    ).fetchone()[0]
+    assert status == "cancelled"
+
+
+def test_a_run_stopped_by_quitting_is_interrupted_so_it_can_be_resumed(database, tmp_path):
+    run = None
+
+    def fake(request):
+        if request.task == "extract":
+            run.cancel(interrupted=True)
+        return news_ai(request)
+
+    connector = FakeConnector(default=fake, delay_s=0.01)
+    run = make_run(database, tmp_path, connector)
+    with pytest.raises(RunCancelled):
+        asyncio.run(run.run("T0"))
+    status = database.conn.execute(
+        "SELECT status FROM runs WHERE run_id = ?", (run.run_id,)
+    ).fetchone()[0]
+    assert status == "interrupted"

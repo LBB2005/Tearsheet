@@ -789,6 +789,8 @@ class Server:
         resolved: asyncio.Event,
         outcome: dict[str, Any],
         steps: dict[str, str | None],
+        *,
+        data_factory=None,
     ) -> None:
         from tearsheet.pipeline import RunCancelled
 
@@ -796,7 +798,8 @@ class Server:
         # How the run ended, for the line (batch.py): ready, stopped, failed or cancelled.
         ended: dict[str, Any] = {"how": "failed", "code": "ENGINE_ERROR"}
         try:
-            async with self.data_factory(run_id, self.db.conn, self.rawstore) as data:
+            factory = data_factory or self.data_factory
+            async with factory(run_id, self.db.conn, self.rawstore) as data:
                 run, query, resume = make_run(data)
                 self.active = run
                 result = await run.run(query, resume=resume)
@@ -874,7 +877,9 @@ class Server:
         ]
         return usage_readings(calls)
 
-    async def _start_job(self, run_id: str, make_run, *, wait_for_resolve: bool) -> None:
+    async def _start_job(
+        self, run_id: str, make_run, *, wait_for_resolve: bool, data_factory=None
+    ) -> None:
         resolved = asyncio.Event()
         outcome: dict[str, Any] = {}
         # The last step that started, and the one under way when the AI steps stopped (the
@@ -900,7 +905,9 @@ class Server:
             return run, query, resume
 
         self.job = asyncio.create_task(
-            self._job(run_id, with_resolve_signal, resolved, outcome, steps)
+            self._job(
+                run_id, with_resolve_signal, resolved, outcome, steps, data_factory=data_factory
+            )
         )
         if wait_for_resolve:
             await resolved.wait()
@@ -1010,13 +1017,11 @@ class Server:
         async def no_data(run_id, conn, rawstore):
             yield None  # resume reads the run's own stored inputs
 
-        factory, self.data_factory = self.data_factory, no_data
-        try:
-            await self._start_job(
-                p.run_id, lambda data: (run, ticker, True), wait_for_resolve=False
-            )
-        finally:
-            self.data_factory = factory
+        # Passed to the job itself: swapping self.data_factory around _start_job restored it
+        # before the job ran, so a resume opened live data (and read keys) it never used.
+        await self._start_job(
+            p.run_id, lambda data: (run, ticker, True), wait_for_resolve=False, data_factory=no_data
+        )
         # Resume of the report that paused the line carries on with the line after it.
         if self.line.resume(p.run_id) is not None:
             self._line_changed()
@@ -1109,6 +1114,8 @@ class Server:
                     return
                 entry = line.take_next()
                 self._line_changed()
+                if entry.run_id is not None and await self._resume_in_line(entry):
+                    continue
                 try:
                     started = await self._begin_report(entry.ticker, None)
                 except Exception as exc:  # noqa: BLE001 - that company is marked stopped
@@ -1149,6 +1156,25 @@ class Server:
             if self.last_usage and self.last_usage[0] == entry.run_id:
                 line.check_usage(self.last_usage[1], self.now())
             self._line_changed()
+
+    async def _resume_in_line(self, entry: Entry) -> bool:
+        """The report being written when Tearsheet quit: resumed where it stopped, if its run
+        can be (it was interrupted). Says whether it was; if not, it starts again."""
+        from tearsheet.protocol import RunIdParams
+
+        row = self.db.conn.execute(
+            "SELECT status FROM runs WHERE run_id = ?", (entry.run_id,)
+        ).fetchone()
+        if row is None or row[0] != "interrupted":
+            entry.run_id = None
+            return False
+        try:
+            await self.m_resume(RunIdParams(run_id=entry.run_id))
+        except EngineError as exc:
+            log.warning("the line couldn't resume %s: %s", entry.run_id, exc)
+            entry.run_id = None
+            return False
+        return True
 
     def _line_plan(self, p) -> tuple[list[Entry], list[Skip]]:
         from tearsheet.companies import _aliases
@@ -2001,7 +2027,9 @@ async def serve(paths: config.Paths) -> int:
         if server.line_wake is not None:
             server.line_wake.cancel()
         if server.active is not None:
-            server.active.cancel()
+            # Interrupted, not cancelled: the line resumes it next time instead of starting
+            # the company again (whose official prediction may already be logged).
+            server.active.cancel(interrupted=True)
         if server.job is not None:
             try:
                 await server.job

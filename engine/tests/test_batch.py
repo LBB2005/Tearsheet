@@ -390,8 +390,9 @@ def test_the_line_comes_back_paused_with_the_report_being_written_first():
     line.add([Entry("T1", "Company 1", 1001, True), Entry("T2", "Company 2", 1002, False)])
     line.take_next().run_id = "run-1"
     back = ReportLine.loads(line.dumps())
+    # The report being written keeps its run, so an interrupted one is resumed.
     assert [(e.ticker, e.run_id, e.official) for e in back.waiting] == [
-        ("T1", None, True),
+        ("T1", "run-1", True),
         ("T2", None, False),
     ]
     assert back.writing is None and back.paused.code == REOPENED
@@ -1125,3 +1126,66 @@ def test_no_internet_through_the_engine_pauses_instead_of_failing_every_company(
         ("T2", "OFFLINE"),
     ]
     h.server.close()
+
+
+def test_a_report_cut_short_by_quitting_is_resumed_when_the_line_carries_on(
+    tmp_path, fake_list, monkeypatch
+):
+    # Quitting used to cancel the run: the line then started the company again, and the
+    # first run's official prediction was left with no report.
+    from contextlib import asynccontextmanager
+
+    from tearsheet.data import membership
+    from tests.test_replay import LoggedData
+
+    monkeypatch.setattr(membership, "MIN_ROWS", 1)
+    holder: dict = {}
+
+    def quits_at_narrate(request):
+        server = holder["h"].server
+        if request.task == "narrate" and server.active is not None:
+            # What serve() does on quit: the line stops first, then the run, as interrupted.
+            server.line_job.cancel()
+            server.active.cancel(interrupted=True)
+        return clean_ai(request)
+
+    @asynccontextmanager
+    async def logged(run_id, conn, rawstore):
+        yield LoggedData(rawstore, run_id)
+
+    first = Harness(tmp_path, ai_default=quits_at_narrate, log_predictions=True)
+    holder["h"] = first
+    first.server.data_factory = logged
+
+    async def before_quit():
+        await first.server.start()
+        await first.call("add_to_line", {"queries": ["T0"]})
+        while first.server.job is None or not first.server.job.done():
+            await asyncio.sleep(0.01)
+
+    run(before_quit())
+    conn = first.server.db.conn
+    [(run_id, status)] = conn.execute("SELECT run_id, status FROM runs").fetchall()
+    assert status == "interrupted"
+    [prediction_id] = [r[0] for r in conn.execute("SELECT prediction_id FROM predictions")]
+    first.server.close()
+
+    again = Harness(tmp_path, log_predictions=True)
+    again.server.data_factory = logged
+
+    async def after_reopen():
+        await again.server.start()
+        await again.call("carry_on_line", {})
+        await again.server.wait_for_line()
+
+    run(after_reopen())
+    conn = again.server.db.conn
+    assert [tuple(r) for r in conn.execute("SELECT run_id, status FROM runs")] == [(run_id, "done")]
+    assert [
+        (i["ticker"], i["outcome"], i["run_id"]) for i in _line_notes(again)[-1]["finished"]
+    ] == [("T0", "ready", run_id)]
+    # One prediction, and the resumed report says it is the official one.
+    assert [r[0] for r in conn.execute("SELECT prediction_id FROM predictions")] == [prediction_id]
+    texts = [r[0] for r in conn.execute("SELECT json FROM sections")]
+    assert any(f"Logged as an official prediction ({prediction_id})" in t for t in texts)
+    again.server.close()

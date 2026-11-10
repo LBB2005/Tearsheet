@@ -401,6 +401,11 @@ class Run:
         self.ai_stopped: str | None = None
         self.stop_error: AIError | None = None
         self.cancel_requested = False
+        # Quitting the app stops the run as interrupted, so it can be resumed (item 34).
+        self.cancel_interrupted = False
+        # AI calls under way (`_cancellable`), and those that cancel() stopped.
+        self._in_flight: set[asyncio.Task] = set()
+        self._stopped_calls: set[asyncio.Task] = set()
         self.dropped: list[str] = []
         # Step 9's link search, started right after step 1 (`_start_link_search`).
         self._link_search: asyncio.Task | None = None
@@ -550,9 +555,38 @@ class Run:
     def _tool_name(client: AIClient | None) -> str | None:
         return getattr(getattr(client, "connector", None), "display_name", None)
 
-    def cancel(self) -> None:
-        """Ask the run to stop at the next step or AI call."""
+    def cancel(self, *, interrupted: bool = False) -> None:
+        """Stop the run: AI calls under way are stopped now (their programs are ended), and
+        the run ends at the next step. `interrupted` (the app is quitting) marks it interrupted
+        rather than cancelled, so it can be resumed."""
         self.cancel_requested = True
+        self.cancel_interrupted = self.cancel_interrupted or interrupted
+        for task in list(self._in_flight):
+            if not task.done():
+                self._stopped_calls.add(task)
+                task.cancel()
+
+    async def _cancellable(self, label: str, awaitable):
+        """Await an AI call so that cancel() can stop it: its stop comes out as RunCancelled."""
+        task = asyncio.current_task()
+        if task is None:
+            return await awaitable
+        self._in_flight.add(task)
+        try:
+            result = await awaitable
+        except asyncio.CancelledError:
+            if task in self._stopped_calls:
+                self._stopped_calls.discard(task)
+                task.uncancel()
+                raise RunCancelled(label) from None
+            raise
+        finally:
+            self._in_flight.discard(task)
+        if task in self._stopped_calls:  # the call ended just as it was stopped
+            self._stopped_calls.discard(task)
+            task.uncancel()
+            raise RunCancelled(label)
+        return result
 
     # --- the run ----------------------------------------------------------------------------
 
@@ -733,7 +767,7 @@ class Run:
                 self.timings,
             )
         except RunCancelled:
-            self._finish("cancelled")
+            self._finish("interrupted" if self.cancel_interrupted else "cancelled")
             raise
         except RunFailed as exc:
             self._finish("failed", exc.step)
@@ -1386,6 +1420,18 @@ class Run:
         from tearsheet import predictions
 
         self.previous_rating = predictions.previous_official(self.conn, self.cik, self.now)
+        own = self.conn.execute(
+            "SELECT prediction_id FROM predictions WHERE run_id = ?", (self.run_id,)
+        ).fetchone()
+        if own is not None:
+            # A resumed run whose prediction was logged before it stopped: the report says so,
+            # rather than that resumes never log one.
+            self.prediction_id = own[0]
+            self.prediction_note = (
+                f"Logged as an official prediction ({own[0]}). It is graded at 3, 6 "
+                "and 12 months against this report's peer group, and can't be changed."
+            )
+            return
         if self.mode != "full":
             self.prediction_note = "No prediction is logged: thin-slice reports never log one."
             return
@@ -1542,7 +1588,7 @@ class Run:
             coro.close()  # never started, so nothing to clean up
             return None
         try:
-            return await coro
+            return await self._cancellable(label, coro)
         except STOPPING as exc:
             # With calls in parallel, two can meet the same limit: the run says so once.
             if self.ai_stopped is None:
@@ -1748,7 +1794,7 @@ class Run:
                         return None  # step 10 makes nothing of it: the AI steps had stopped
                     sent = True
                     self._tally(now=[*self.tally.get("now", []), name])
-                    result = await make()
+                    result = await self._cancellable("extract", make())
                     return result
                 except (*STOPPING, AIBudgetExhausted) as exc:
                     if self._reads_stop is None:
@@ -2079,7 +2125,7 @@ class Run:
                 raise RunCancelled(f"skeptic {section.value}")
             if self.ai_stopped is None:
                 try:
-                    marks = await check(self.checker)
+                    marks = await self._cancellable(f"skeptic {section.value}", check(self.checker))
                 except AIBudgetExhausted as exc:
                     if self.ai_stopped is None:
                         self.ai_stopped = str(exc)

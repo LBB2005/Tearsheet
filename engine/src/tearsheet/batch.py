@@ -649,9 +649,10 @@ class ReportLine:
 
     @classmethod
     def loads(cls, text: str | None) -> ReportLine:
-        """The line as it was when Tearsheet closed. A report being written then starts again
-        from the beginning, first in the line; a line with anything waiting comes back paused,
-        and a wait for a usage limit to reset waits for Liam instead."""
+        """The line as it was when Tearsheet closed. A report being written then goes first in
+        the line, resumed where it stopped (or started again if its run can't be resumed); a
+        line with anything waiting comes back paused, and a wait for a usage limit to reset
+        waits for Liam instead."""
         try:
             data = json.loads(text) if text else {}
         except ValueError:
@@ -661,7 +662,8 @@ class ReportLine:
         waiting = [_entry(e) for e in data.get("waiting") or []]
         writing = data.get("writing")
         if writing:
-            waiting.insert(0, _entry({**writing, "run_id": None}))
+            # Its run_id is kept: an interrupted run is resumed rather than started again.
+            waiting.insert(0, _entry(writing))
         paused = data.get("paused")
         if not waiting and not paused:
             return cls(week_ok_until=data.get("week_ok_until"))
