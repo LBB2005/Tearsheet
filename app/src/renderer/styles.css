@@ -433,6 +433,11 @@ button.plain + button.plain { margin-left: 6px; }
 .panels .chg { animation: settle-in .4s var(--settle) backwards; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* ---------- A resize across 1,100 px: the layout changes at once (shell/useWide.ts) ----------
+   The root carries data-snap only while that change is drawn, so the sidebar and the toolbar
+   take their new places in the frame the window reached them, and never glide after it. */
+:root[data-snap] *, :root[data-snap] *::before, :root[data-snap] *::after { transition: none !important; }
+
 /* ---------- Reduce motion, or Animations Off: nothing moves ---------- */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
