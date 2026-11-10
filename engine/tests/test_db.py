@@ -107,6 +107,24 @@ def test_a_failed_upgrade_keeps_every_copy(tmp_path, monkeypatch):
     assert len(list(tmp_path.glob("t.sqlite.v*.bak"))) == 3
 
 
+def test_a_failed_migration_is_undone_and_lets_go_of_the_database(tmp_path, monkeypatch):
+    from tearsheet import db as db_module
+
+    path = tmp_path / "t.sqlite"
+    open_database(path).close()
+    real = db_module.migrations()
+    bad = (real[-1][0] + 1, "CREATE TABLE half_done (a);\nNOT SQL;")
+    monkeypatch.setattr(db_module, "migrations", lambda: [*real, bad])
+    with pytest.raises(sqlite3.Error):
+        db_module.open_database(path)
+    other = sqlite3.connect(path, timeout=0)
+    other.execute("BEGIN IMMEDIATE")  # no write lock left behind
+    other.rollback()
+    assert other.execute("PRAGMA user_version").fetchone()[0] == real[-1][0]
+    assert not other.execute("SELECT 1 FROM sqlite_master WHERE name = 'half_done'").fetchone()
+    other.close()
+
+
 def test_backups_are_readable_by_the_user_only(tmp_path):
     from tearsheet.db import backup
 
@@ -223,9 +241,63 @@ def test_backup_keeps_the_last_10_copies(tmp_path):
     folder = tmp_path / "backups"
     made = [backup(db.conn, folder, stamp=f"20261105T0000{n:02d}Z") for n in range(12)]
     kept = sorted(p.name for p in folder.iterdir())
-    assert len(kept) == 10
-    assert kept == sorted(p.name for p in made[2:])
+    # All on one day: the newest five.
+    assert kept == sorted(p.name for p in made[-5:])
     copy = sqlite3.connect(made[-1])
     assert copy.execute("SELECT value FROM settings WHERE key = 'k'").fetchone()[0] == "v"
     copy.close()
+    db.close()
+
+
+def test_tests_never_back_up_into_the_real_folder(tmp_path):
+    # conftest moves the default backup folder into the test's own folder.
+    from pathlib import Path
+
+    from tearsheet import config as cfg
+
+    real = Path.home() / "Tearsheet Backups"
+    assert cfg.DEFAULT_BACKUP_DIR != real
+    assert cfg.DEFAULT_BACKUP_DIR.is_relative_to(tmp_path)
+
+
+def test_backups_keep_the_newest_five_and_one_for_each_day_before(tmp_path):
+    # A report line backs up after every prediction; ten copies from one quarter of an hour
+    # would leave nothing older to go back to.
+    from tearsheet.db import backup
+
+    db = open_database(tmp_path / "t.sqlite")
+    folder = tmp_path / "backups"
+    for day in range(1, 9):
+        for hour in (9, 12, 18):
+            backup(db.conn, folder, stamp=f"202611{day:02d}T{hour:02d}0000Z")
+    kept = sorted(p.name.removeprefix("tearsheet-")[:11] for p in folder.glob("*.sqlite"))
+    assert kept == [
+        "20261102T18",
+        "20261103T18",
+        "20261104T18",
+        "20261105T18",
+        "20261106T18",
+        "20261107T12",
+        "20261107T18",
+        "20261108T09",
+        "20261108T12",
+        "20261108T18",
+    ]
+    db.close()
+
+
+def test_a_failed_backup_leaves_no_half_copy(tmp_path, monkeypatch):
+    from tearsheet import db as db_module
+
+    db = open_database(tmp_path / "t.sqlite")
+    folder = tmp_path / "backups"
+    db_module.backup(db.conn, folder, stamp="20261105T000000Z")
+
+    class Broken:
+        def backup(self, target):
+            raise sqlite3.OperationalError("disk I/O error")
+
+    with pytest.raises(sqlite3.OperationalError):
+        db_module.backup(Broken(), folder, stamp="20261106T000000Z")  # type: ignore[arg-type]
+    assert [p.name for p in folder.glob("*.sqlite")] == ["tearsheet-20261105T000000Z.sqlite"]
     db.close()

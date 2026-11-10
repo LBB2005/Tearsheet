@@ -221,6 +221,41 @@ def test_unknown_methods_and_bad_requests(tmp_path):
     h.server.close()
 
 
+def test_a_method_that_isnt_a_name_is_a_bad_request_not_a_crash(tmp_path):
+    h = Harness(tmp_path)
+
+    async def go():
+        await h.server.start()
+        await h.server.handle(json.dumps({"jsonrpc": "2.0", "id": 7, "method": ["x"]}))
+        await h.server.handle(json.dumps({"jsonrpc": "2.0", "id": 8, "method": {"a": 1}}))
+
+    run(go())
+    errors = {m.get("id"): m["error"]["code"] for m in h.messages if "error" in m}
+    assert errors == {7: -32600, 8: -32600}
+    h.server.close()
+
+
+def test_stored_data_the_engine_cant_read_is_logged_not_called_bad_parameters(tmp_path, caplog):
+    h = Harness(tmp_path)
+
+    async def broken(params):
+        json.loads("{bad")
+
+    h.server.m_get_line = broken  # type: ignore[method-assign]
+
+    async def go():
+        await h.server.start()
+        return await h.call("get_line", {}, id_=9)
+
+    with caplog.at_level("ERROR"):
+        reply = run(go())
+    assert reply["error"]["code"] == -32000
+    assert reply["error"]["data"]["code"] == "ENGINE_ERROR"
+    assert "Expecting property name" not in reply["error"]["message"]
+    assert "request get_line failed" in caplog.text
+    h.server.close()
+
+
 def test_every_method_and_error_code_is_declared():
     assert set(METHODS) >= {
         "run_report",

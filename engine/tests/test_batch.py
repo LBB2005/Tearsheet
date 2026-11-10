@@ -172,6 +172,8 @@ def test_skip_recent_leaves_out_companies_with_a_report_from_the_last_30_days(tm
     assert [e.ticker for e in entries] == ["T2", "T4", "T5"]
     assert [(s.query, s.kind) for s in skipped] == [("T1", "recent"), ("T3", "recent")]
     assert skipped[0].reason.startswith("T1 has a report from Nov ")
+    # T3 has no report, only its prediction: the reason says so.
+    assert skipped[1].reason.startswith("T3 has an official prediction from Oct ")
     # Off (as Refresh asks): all five, T3 not a new official prediction.
     entries, skipped = plan(ReportLine(), queries, db.conn)
     assert [(e.ticker, e.official) for e in entries] == [
@@ -390,8 +392,9 @@ def test_the_line_comes_back_paused_with_the_report_being_written_first():
     line.add([Entry("T1", "Company 1", 1001, True), Entry("T2", "Company 2", 1002, False)])
     line.take_next().run_id = "run-1"
     back = ReportLine.loads(line.dumps())
+    # The report being written keeps its run, so an interrupted one is resumed.
     assert [(e.ticker, e.run_id, e.official) for e in back.waiting] == [
-        ("T1", None, True),
+        ("T1", "run-1", True),
         ("T2", None, False),
     ]
     assert back.writing is None and back.paused.code == REOPENED
@@ -1009,4 +1012,212 @@ def test_quick_adds_the_whole_list_a_sector_or_the_rest(tmp_path, fake_list):
     assert "Nowhere" in nowhere["error"]["message"]
     # A typical report, once a few have finished, rides along with the line.
     assert everything["result"]["line"]["typical"] is None
+    h.server.close()
+
+
+def test_carry_on_after_a_report_that_couldnt_start_writes_that_company_too():
+    # No AI tool connected, or SEC blocked: Liam fixes it and presses Carry on.
+    for code in ("NO_TOOL", "SEC_BLOCKED", "AUTH_EXPIRED"):
+        line = ReportLine()
+        line.add([Entry("T1", "Company 1", 1001, True), Entry("T2", "Company 2", 1002, True)])
+        line.end(line.take_next(), {"how": "failed", "code": code}, now=NOW)
+        assert line.paused is not None and line.paused.run_id is None
+        line.carry_on(NOW)
+        assert line.paused is None
+        assert [e.ticker for e in line.waiting] == ["T1", "T2"] and line.finished == []
+
+
+def test_carry_on_past_a_stopped_report_still_leaves_it_behind():
+    line = ReportLine()
+    line.add([Entry("T1", "Company 1", 1001, True), Entry("T2", "Company 2", 1002, True)])
+    first = line.take_next()
+    first.run_id = "run-1"
+    line.end(first, {"how": "stopped", "code": "AUTH_EXPIRED"}, now=NOW)
+    line.carry_on(NOW)
+    assert [e.ticker for e in line.waiting] == ["T2"]
+    assert [e.ticker for e in line.finished] == ["T1"]
+
+
+def test_a_low_model_only_weekly_window_does_not_hide_a_full_one():
+    got = usage_readings(
+        [
+            {"status": "allowed_warning", "type": "seven_day", "utilization": 0.85},
+            {"status": "allowed", "type": "seven_day_opus", "utilization": 0.1},
+        ]
+    )
+    assert got["week"].used == 0.85 and got["week"].high()
+    # A later reading of the same window still replaces the earlier one.
+    got = usage_readings(
+        [
+            {"status": "allowed_warning", "type": "seven_day", "utilization": 0.85},
+            {"status": "allowed", "type": "seven_day", "utilization": 0.2},
+        ]
+    )
+    assert got["week"].used == 0.2
+
+
+def test_reset_times_that_cant_be_dates_are_unreadable_not_a_crash():
+    for text in ("Nov 31, 3pm", "Feb 30, 1am"):
+        assert reset_moment(text, NOW, local=LA) is None
+
+
+def test_a_reset_clock_time_across_a_clock_change_keeps_its_wall_time(monkeypatch):
+    # The Mac's own zone (no zone given): 1 Nov 2026 ends summer time in Los Angeles, so "3am"
+    # the next morning is 11:00 UTC, not the 10:00 a fixed summer-time offset gave.
+    import time
+
+    monkeypatch.setenv("TZ", "America/Los_Angeles")
+    time.tzset()
+    try:
+        before = datetime(2026, 11, 1, 6, 0, tzinfo=UTC)  # 11pm on 31 Oct, summer time
+        assert reset_moment("3am", before) == datetime(2026, 11, 1, 11, 0, tzinfo=UTC)
+    finally:
+        monkeypatch.undo()
+        time.tzset()
+
+
+def test_no_internet_pauses_the_line_and_writes_those_companies_again():
+    line = _line_of(4)
+    for _ in range(2):
+        line.end(
+            line.take_next(), {"how": "failed", "code": "ENGINE_ERROR", "connection": True}, now=NOW
+        )
+    assert line.paused is not None and line.paused.code == "OFFLINE"
+    assert line.paused.wait_until == (NOW + timedelta(minutes=15)).isoformat()
+    assert [e.ticker for e in line.waiting] == ["T2", "T3"]
+    assert line.wake() is None and line.paused is None
+    assert [e.ticker for e in line.waiting] == ["T0", "T1", "T2", "T3"]
+    assert line.finished == [] and line.waiting[0].code is None
+
+
+def test_one_report_that_couldnt_connect_doesnt_pause_the_line():
+    line = _line_of(3)
+    line.end(
+        line.take_next(), {"how": "failed", "code": "ENGINE_ERROR", "connection": True}, now=NOW
+    )
+    line.end(line.take_next(), {"how": "ready"}, now=NOW)
+    line.end(
+        line.take_next(), {"how": "failed", "code": "ENGINE_ERROR", "connection": True}, now=NOW
+    )
+    assert line.paused is None
+
+
+def test_no_internet_through_the_engine_pauses_instead_of_failing_every_company(
+    tmp_path, fake_list
+):
+    from tearsheet.http import HTTPFailure
+    from tests.test_pipeline import FakeData
+
+    class Down(FakeData):
+        async def sec_tickers(self):
+            raise HTTPFailure("sec", "https://www.sec.gov/files/company_tickers.json", "no answer")
+
+    h = Harness(tmp_path, data_cls=Down)
+
+    async def go():
+        await h.server.start()
+        await h.call("add_to_line", {"queries": [f"T{i}" for i in range(1, 6)]})
+        await h.server.wait_for_line()
+
+    run(go())
+    final = _line_notes(h)[-1]
+    assert final["paused"]["code"] == "OFFLINE" and final["paused"]["wait_until"]
+    assert [i["ticker"] for i in final["waiting"]] == ["T3", "T4", "T5"]
+    assert [(i["ticker"], i["code"]) for i in final["finished"]] == [
+        ("T1", "OFFLINE"),
+        ("T2", "OFFLINE"),
+    ]
+    h.server.close()
+
+
+def test_a_report_cut_short_by_quitting_is_resumed_when_the_line_carries_on(
+    tmp_path, fake_list, monkeypatch
+):
+    # Quitting used to cancel the run: the line then started the company again, and the
+    # first run's official prediction was left with no report.
+    from contextlib import asynccontextmanager
+
+    from tearsheet.data import membership
+    from tests.test_replay import LoggedData
+
+    monkeypatch.setattr(membership, "MIN_ROWS", 1)
+    holder: dict = {}
+
+    def quits_at_narrate(request):
+        server = holder["h"].server
+        if request.task == "narrate" and server.active is not None:
+            # What serve() does on quit: the line stops first, then the run, as interrupted.
+            server.line_job.cancel()
+            server.active.cancel(interrupted=True)
+        return clean_ai(request)
+
+    @asynccontextmanager
+    async def logged(run_id, conn, rawstore):
+        yield LoggedData(rawstore, run_id)
+
+    first = Harness(tmp_path, ai_default=quits_at_narrate, log_predictions=True)
+    holder["h"] = first
+    first.server.data_factory = logged
+
+    async def before_quit():
+        await first.server.start()
+        await first.call("add_to_line", {"queries": ["T0"]})
+        while first.server.job is None or not first.server.job.done():
+            await asyncio.sleep(0.01)
+
+    run(before_quit())
+    conn = first.server.db.conn
+    [(run_id, status)] = conn.execute("SELECT run_id, status FROM runs").fetchall()
+    assert status == "interrupted"
+    [prediction_id] = [r[0] for r in conn.execute("SELECT prediction_id FROM predictions")]
+    first.server.close()
+
+    again = Harness(tmp_path, log_predictions=True)
+    again.server.data_factory = logged
+
+    async def after_reopen():
+        await again.server.start()
+        await again.call("carry_on_line", {})
+        await again.server.wait_for_line()
+
+    run(after_reopen())
+    conn = again.server.db.conn
+    assert [tuple(r) for r in conn.execute("SELECT run_id, status FROM runs")] == [(run_id, "done")]
+    assert [
+        (i["ticker"], i["outcome"], i["run_id"]) for i in _line_notes(again)[-1]["finished"]
+    ] == [("T0", "ready", run_id)]
+    # One prediction, and the resumed report says it is the official one.
+    assert [r[0] for r in conn.execute("SELECT prediction_id FROM predictions")] == [prediction_id]
+    texts = [r[0] for r in conn.execute("SELECT json FROM sections")]
+    assert any(f"Logged as an official prediction ({prediction_id})" in t for t in texts)
+    again.server.close()
+
+
+def test_an_error_in_the_line_itself_pauses_it_instead_of_stopping_unseen(
+    tmp_path, fake_list, monkeypatch
+):
+    import sqlite3
+
+    h = Harness(tmp_path)
+    real = config.Settings.set_internal
+    calls = {"n": 0}
+
+    def flaky(self, key, value):
+        calls["n"] += 1
+        if calls["n"] == 4:  # saving the line, after the first report has started
+            raise sqlite3.OperationalError("database is locked")
+        return real(self, key, value)
+
+    monkeypatch.setattr(config.Settings, "set_internal", flaky)
+
+    async def go():
+        await h.server.start()
+        await h.call("add_to_line", {"queries": ["T1", "T2", "T3"]})
+        await h.server.wait_for_line()
+
+    run(go())
+    final = _line_notes(h)[-1]
+    assert final["writing"] is None
+    assert final["paused"] is not None and final["paused"]["code"] == "LINE_ERROR"
+    assert final["waiting"], "the companies not yet written are still in the line"
     h.server.close()

@@ -201,3 +201,49 @@ def test_a_saved_answer_that_lost_most_of_its_citations_is_read_again(database):
     result = _read(database, client(database, connector), paras)
     assert not result.cached and len(connector.requests) == 1
     assert [i.statement for i in result.items] == ["Sales grew."]
+
+
+def test_ids_missing_their_version_or_prefix_name_the_real_paragraph(database):
+    # Seen in Liam's log (9-10 Nov 2026): "acc#Item_7#p24" and "p4754@1" for "acc#Item_7#p24@1".
+    paras = paragraphs(3)
+    cited = EvidenceList(
+        items=[
+            EvidenceItem(statement="No version.", type="driver", paragraph_ids=["acc-1#Item_1#p1"]),
+            EvidenceItem(statement="No prefix.", type="driver", paragraph_ids=["p2@1"]),
+            EvidenceItem(statement="Bare.", type="driver", paragraph_ids=["p3"]),
+        ],
+        quotes=[
+            QuotedValue(
+                kind="date", paragraph_id="acc-1#Item_1#p2", quote="Paragraph 2.", value_text="2"
+            )
+        ],
+    )
+    connector = FakeConnector([answer(cited)])
+    result = _read(database, client(database, connector), paras)
+    assert len(connector.requests) == 1  # not asked again
+    assert result.dropped == {}
+    assert [i.paragraph_ids for i in result.items] == [[paras[0].id], [paras[1].id], [paras[2].id]]
+    assert result.quotes[0].paragraph_id == paras[1].id
+
+
+def test_ids_from_another_section_or_version_are_still_unknown(database):
+    paras = paragraphs(3)
+    wrong = EvidenceList(
+        items=[
+            EvidenceItem(
+                statement="Other section.", type="driver", paragraph_ids=["acc-1#Item_7#p1"]
+            ),
+            EvidenceItem(
+                statement="Other filing.", type="driver", paragraph_ids=["acc-2#Item_1#p1@1"]
+            ),
+            EvidenceItem(
+                statement="Old parser.", type="driver", paragraph_ids=["acc-1#Item_1#p1@0"]
+            ),
+            EvidenceItem(statement="No such paragraph.", type="driver", paragraph_ids=["p9"]),
+            *_good(paras).items,
+        ]
+    )
+    connector = FakeConnector([answer(wrong), answer(wrong)])
+    result = _read(database, client(database, connector), paras)
+    assert [i.statement for i in result.items] == ["Sales grew."]
+    assert result.dropped == {"unknown paragraph": 4}

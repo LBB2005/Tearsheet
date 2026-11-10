@@ -12,13 +12,15 @@ answer: on 7 Nov 2026, Meta's 10-K Item 7 kept 0 of 21 items that way, and one p
 Robinhood's Item 1A lost its items too, while the same read asked again came back clean. The
 check itself is unchanged: an item still needs every cited paragraph to exist. An answer
 that is still mostly unknown is not saved, and a saved one is not reused, so the next run reads
-the section again.
+the section again. The two usual miscopies (the `@1` at the end left off, or everything
+before the paragraph number) are matched back to the real paragraph first (`_repaired`).
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import re
 import sqlite3
 from collections import Counter
 from collections.abc import Mapping
@@ -101,9 +103,53 @@ def reread_filing(conn: sqlite3.Connection, accession: str) -> int:
         ).rowcount
 
 
+_CITED = re.compile(r"^(?:(?P<prefix>.*)#)?p(?P<ordinal>\d+)(?:@(?P<version>\d+))?$")
+
+
+def _repaired(cited: str, by_id: dict[str, Paragraph]) -> str:
+    """The real paragraph ID a cited one names. The AI often drops the `@1` parser version at
+    the end ("…#Item_7#p24") or everything before the paragraph number ("p24@1"); 33 answers
+    in Liam's log from 9-10 Nov 2026 lost every citation that way and were asked for again.
+    Such an ID is matched to this section's paragraph with that number, only when what is
+    left of it agrees with the real ID; anything else is returned as it was (and dropped)."""
+    if cited in by_id:
+        return cited
+    found = _CITED.match(cited.strip())
+    if not found:
+        return cited
+    prefix, version = found["prefix"], found["version"]
+    if version is not None and int(version) != PARSER_VERSION:
+        return cited
+    for p in by_id.values():
+        if p.ordinal != int(found["ordinal"]):
+            continue
+        real_prefix = p.id.rsplit("#", 1)[0]
+        if prefix is None or prefix == real_prefix:
+            return p.id
+    return cited
+
+
+def _with_real_ids(answer: EvidenceList, by_id: dict[str, Paragraph]) -> EvidenceList:
+    return answer.model_copy(
+        update={
+            "items": [
+                i.model_copy(
+                    update={"paragraph_ids": [_repaired(pid, by_id) for pid in i.paragraph_ids]}
+                )
+                for i in answer.items
+            ],
+            "quotes": [
+                q.model_copy(update={"paragraph_id": _repaired(q.paragraph_id, by_id)})
+                for q in answer.quotes
+            ],
+        }
+    )
+
+
 def _check(
     answer: EvidenceList, by_id: dict[str, Paragraph]
 ) -> tuple[list[EvidenceItem], list[QuotedValue], Counter]:
+    answer = _with_real_ids(answer, by_id)
     dropped: Counter = Counter()
     items = []
     for item in answer.items:
@@ -152,7 +198,7 @@ def _unknown_ids(answer: EvidenceList, by_id: dict[str, Paragraph]) -> list[str]
     """The cited IDs that aren't in the source, in the answer's order, each once."""
     cited = [p for item in answer.items for p in item.paragraph_ids]
     cited += [q.paragraph_id for q in answer.quotes]
-    return list(dict.fromkeys(p for p in cited if p not in by_id))
+    return list(dict.fromkeys(p for p in cited if _repaired(p, by_id) not in by_id))
 
 
 async def extract_section(

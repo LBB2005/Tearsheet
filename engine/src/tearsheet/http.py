@@ -42,6 +42,8 @@ KEY_PARAMS = frozenset({"apikey", "api_key", "key", "token", "access_token"})
 RETRY_WAITS_S = (2, 4, 8)
 RETRY_AFTER_MAX_S = 60
 DATA_TIME_LIMIT_S = 30
+# The whole of one download, retried like no answer when it runs over.
+DATA_TOTAL_LIMIT_S = 180
 
 PAGE_MAX_BYTES = 5 * 1024 * 1024
 PAGE_TIME_LIMIT_S = 20
@@ -396,12 +398,19 @@ class Service:
     check_json: Callable[[Any], str | None] | None = None
 
 
+# SEC's refusal page. It normally comes with HTTP 403, but a filing is stored for good, so a
+# copy sent with 200 must never be kept as the filing.
+SEC_REFUSAL_MARKS = (b"Request Rate Threshold Exceeded", b"Undeclared Automated Tool")
+
+
 def check_body(service: Service, expect: str, content_type: str, body: bytes) -> str | None:
     """Why a status-200 response is not valid data, or None when it is."""
     wanted = EXPECTED_TYPES[expect]
     lowered = content_type.lower()
     if not any(part in lowered for part in wanted):
         return f"expected {expect}, got content type '{content_type or 'none'}'"
+    if service.name == "sec" and len(body) < 20_000 and any(m in body for m in SEC_REFUSAL_MARKS):
+        return "SEC's request-rate refusal page instead of the document"
     if expect not in ("html", "text") and _looks_like_html(body):
         return f"an HTML page where {expect} was expected"
     if expect == "json":
@@ -539,8 +548,12 @@ class HttpClient:
             self.requests[(service, kind)] += 1
             log.debug("GET %s", redact_url(full_url))
             try:
-                response = await self._client.get(full_url, headers=svc.headers)
-            except httpx.TransportError as exc:
+                # The client's time limit is per read; this one is for the whole download, so a
+                # body that trickles in can't hold a run up for ever.
+                response = await asyncio.wait_for(
+                    self._client.get(full_url, headers=svc.headers), DATA_TOTAL_LIMIT_S
+                )
+            except (httpx.TransportError, TimeoutError) as exc:
                 if attempt < len(RETRY_WAITS_S):
                     await self._sleep(RETRY_WAITS_S[attempt])
                     attempt += 1
@@ -549,6 +562,10 @@ class HttpClient:
                     service,
                     full_url,
                     f"no response after {attempt + 1} tries ({type(exc).__name__})",
+                ) from None
+            except httpx.RequestError as exc:  # too many redirects, a body that won't decode
+                raise HTTPFailure(
+                    service, full_url, f"the request failed ({type(exc).__name__})", 0
                 ) from None
 
             status = response.status_code
@@ -667,7 +684,7 @@ class HttpClient:
                         if total > max_bytes:
                             raise PageRejected(url, "larger than 5 MB")
                         chunks.append(chunk)
-            except httpx.TransportError as exc:
+            except httpx.RequestError as exc:
                 raise PageRejected(url, f"could not download ({type(exc).__name__})") from None
             body = b"".join(chunks)
             raw_hash = self._store.put(body, current, "article", content_type, self.run_id)

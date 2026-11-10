@@ -46,6 +46,14 @@ PAUSE_CODES = frozenset(
 )
 # The pause a line comes back with when Tearsheet opens again.
 REOPENED = "REOPENED"
+# No internet: OFFLINE_AFTER reports in a row couldn't reach SEC, Massive or FRED at all. The
+# line waits OFFLINE_WAIT, then writes those companies again and goes on, instead of failing
+# every company left.
+OFFLINE = "OFFLINE"
+OFFLINE_AFTER = 2
+OFFLINE_WAIT = timedelta(minutes=15)
+# The line itself met an unexpected error (server._run_line): it waits for Carry on.
+LINE_ERROR = "LINE_ERROR"
 # The plan's 5-hour window is past USAGE_SHARE: the line waits for it to reset.
 USAGE_HIGH = "USAGE_HIGH"
 # The plan's weekly window is past USAGE_SHARE: the line asks Liam before it goes on.
@@ -196,23 +204,30 @@ def reset_moment(text: Any, now: datetime, *, local: tzinfo | None = None) -> da
         return None  # a bare number isn't a time
     if minute > 59:
         return None
-    zone: tzinfo = local or now.astimezone().tzinfo or UTC
+    zone: tzinfo | None = local
     if found["tz"]:
         try:
             zone = ZoneInfo(found["tz"])
         except (ZoneInfoNotFoundError, ValueError):
             pass
-    base = now.astimezone(zone)
+    # With no zone given, the Mac's own: worked out on a plain local clock time and given its
+    # offset last, so "3am" the morning after a clock change isn't an hour out.
+    base = (
+        now.astimezone(zone).replace(tzinfo=None) if zone else now.astimezone().replace(tzinfo=None)
+    )
     month = _MONTHS.get((found["mon"] or "")[:3].lower())
-    if month:
-        at = datetime(base.year, month, int(found["day"]), hour, minute, tzinfo=zone)
-        if at < base - timedelta(days=180):
-            at = at.replace(year=base.year + 1)
-    else:
-        at = base.replace(hour=hour, minute=minute, second=0, microsecond=0)
-        if at <= base:
-            at += timedelta(days=1)
-    return at.astimezone(UTC)
+    try:
+        if month:
+            at = datetime(base.year, month, int(found["day"]), hour, minute)
+            if at < base - timedelta(days=180):
+                at = at.replace(year=base.year + 1)
+        else:
+            at = base.replace(hour=hour, minute=minute, second=0, microsecond=0)
+            if at <= base:
+                at += timedelta(days=1)
+    except ValueError:  # "Nov 31", or 29 Feb in a year without it
+        return None
+    return (at.replace(tzinfo=zone) if zone else at.astimezone()).astimezone(UTC)
 
 
 def _wait_until(reset: Any, now: datetime) -> str:
@@ -261,12 +276,28 @@ def _readings(info: dict[str, Any]) -> Iterator[Reading]:
 def usage_readings(rate_limits: Iterable[dict[str, Any] | None]) -> dict[str, Reading]:
     """The latest reading of each usage window from a run's AI calls, taken in call order:
     Claude Code's rate-limit events and Codex's rate-limit updates (ai/client.py's CallRecord)."""
-    out: dict[str, Reading] = {}
+    # Claude Code has several weekly windows (seven_day, seven_day_opus, seven_day_sonnet):
+    # the latest reading of each, then the fullest of them stands for the week, so a low
+    # model-only window read last can't hide a weekly window past 80%.
+    latest: dict[tuple[str, str], Reading] = {}
     for info in rate_limits:
         if isinstance(info, dict):
+            kind = str(info.get("type") or "")
             for reading in _readings(info):
-                out[reading.window] = reading
+                latest[(reading.window, kind)] = reading
+    out: dict[str, Reading] = {}
+    for (window, _), reading in latest.items():
+        if window not in out or _fuller(reading, out[window]):
+            out[window] = reading
     return out
+
+
+def _fuller(a: Reading, b: Reading) -> bool:
+    """Whether reading `a` says its window is fuller than `b` does."""
+    return (a.high(), a.used if a.used is not None else -1.0) > (
+        b.high(),
+        b.used if b.used is not None else -1.0,
+    )
 
 
 def _gone(resets_at: str | None, now: datetime) -> bool:
@@ -343,6 +374,8 @@ class ReportLine:
     round: int = 0
     # Until when Liam's carry on past the weekly 80% holds (ISO): the week's reset.
     week_ok_until: str | None = None
+    # Reports in a row that ended for want of a connection (not kept across a quit).
+    offline_in_a_row: int = 0
 
     # --- what is in it ----------------------------------------------------------------------
 
@@ -391,21 +424,17 @@ class ReportLine:
             official = slot_open(conn, found.cik, now)
             if skip_recent:
                 since = now - WINDOW
-                last = max(
-                    (
-                        at
-                        for at in (
-                            reports.get(found.cik),
-                            None if official else _latest_prediction(conn, found.cik, now),
-                        )
-                        if at is not None and at >= since
-                    ),
-                    default=None,
-                )
-                if last is not None:
-                    skipped.append(
-                        Skip(query, f"{ticker} has a report from {_day(last)}.", "recent")
-                    )
+                report = reports.get(found.cik)
+                predicted = None if official else _latest_prediction(conn, found.cik, now)
+                if report is not None and report >= since:
+                    why = f"{ticker} has a report from {_day(report)}."
+                elif predicted is not None and predicted >= since:
+                    # A run that logged its prediction, then stopped before its report.
+                    why = f"{ticker} has an official prediction from {_day(predicted)}."
+                else:
+                    why = None
+                if why is not None:
+                    skipped.append(Skip(query, why, "recent"))
                     taken.add(found.cik)
                     return
             taken.add(found.cik)
@@ -459,6 +488,18 @@ class ReportLine:
         if self.writing is entry:
             self.writing = None
         self.finished.append(entry)
+        if entry.outcome == "failed" and how.get("connection"):
+            entry.code = OFFLINE
+            self.offline_in_a_row += 1
+            if self.offline_in_a_row >= OFFLINE_AFTER and self.paused is None and now is not None:
+                self.paused = Pause(
+                    OFFLINE,
+                    f"{self.offline_in_a_row} reports in a row couldn’t reach SEC or Massive. "
+                    "Check your internet connection. The line tries them again in 15 minutes.",
+                    wait_until=(now + OFFLINE_WAIT).astimezone(UTC).isoformat(),
+                )
+            return
+        self.offline_in_a_row = 0
         if entry.outcome in ("stopped", "failed") and entry.code in PAUSE_CODES:
             wait = None
             if entry.code == "USAGE_LIMIT" and now is not None:
@@ -531,7 +572,33 @@ class ReportLine:
         if pause is not None and pause.code == USAGE_WEEK and now is not None:
             at = reset_moment(pause.reset_at, now) if pause.reset_at else None
             self.week_ok_until = (at if at and at > now else now + WEEK).isoformat()
+        if pause is not None:
+            self._put_back_unstarted(pause)
         self.paused = None
+
+    def _put_back_unstarted(self, pause: Pause) -> None:
+        """The company whose report couldn't start (no AI tool, SEC blocked, sign-in expired)
+        goes back first in the line: it never ran, so going on must write it too."""
+        if pause.code == OFFLINE:
+            # Every report that couldn't connect is written again, in its place in the line.
+            again = [e for e in self.finished if e.code == OFFLINE]
+            self.finished = [e for e in self.finished if e.code != OFFLINE]
+            for e in again:
+                e.run_id = e.outcome = e.report_id = e.code = e.message = None
+            self.waiting[:0] = again
+            self.offline_in_a_row = 0
+            return
+        if pause.run_id is not None or pause.code not in PAUSE_CODES:
+            return
+        unstarted = next(
+            (e for e in reversed(self.finished) if e.run_id is None and e.code == pause.code),
+            None,
+        )
+        if unstarted is not None:
+            self.finished.remove(unstarted)
+            unstarted.outcome = unstarted.report_id = unstarted.code = None
+            unstarted.message = None
+            self.waiting.insert(0, unstarted)
 
     def wake(self) -> str | None:
         """A pause's wait is over. Gives the stopped report to resume, if there is one; else the
@@ -541,16 +608,7 @@ class ReportLine:
             return None
         if pause.run_id is not None:
             return pause.run_id
-        if pause.code in PAUSE_CODES:
-            unstarted = next(
-                (e for e in reversed(self.finished) if e.run_id is None and e.code == pause.code),
-                None,
-            )
-            if unstarted is not None:
-                self.finished.remove(unstarted)
-                unstarted.outcome = unstarted.report_id = unstarted.code = None
-                unstarted.message = None
-                self.waiting.insert(0, unstarted)
+        self._put_back_unstarted(pause)
         self.paused = None
         return None
 
@@ -589,9 +647,10 @@ class ReportLine:
 
     @classmethod
     def loads(cls, text: str | None) -> ReportLine:
-        """The line as it was when Tearsheet closed. A report being written then starts again
-        from the beginning, first in the line; a line with anything waiting comes back paused,
-        and a wait for a usage limit to reset waits for Liam instead."""
+        """The line as it was when Tearsheet closed. A report being written then goes first in
+        the line, resumed where it stopped (or started again if its run can't be resumed); a
+        line with anything waiting comes back paused, and a wait for a usage limit to reset
+        waits for Liam instead."""
         try:
             data = json.loads(text) if text else {}
         except ValueError:
@@ -601,7 +660,8 @@ class ReportLine:
         waiting = [_entry(e) for e in data.get("waiting") or []]
         writing = data.get("writing")
         if writing:
-            waiting.insert(0, _entry({**writing, "run_id": None}))
+            # Its run_id is kept: an interrupted run is resumed rather than started again.
+            waiting.insert(0, _entry(writing))
         paused = data.get("paused")
         if not waiting and not paused:
             return cls(week_ok_until=data.get("week_ok_until"))
