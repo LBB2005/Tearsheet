@@ -563,3 +563,67 @@ def test_a_checked_page_pins_its_address(rawstore):
             return dict(http._pins.pins)
 
     assert run(go()) == {"reuters.com": "93.184.216.34"}
+
+
+FILING_URL = "https://www.sec.gov/Archives/edgar/data/320193/000032019326000001/a10-k.htm"
+
+
+@respx.mock
+def test_secs_refusal_page_sent_with_200_is_never_stored_as_a_filing(rawstore, database):
+    respx.get(FILING_URL).mock(
+        return_value=httpx.Response(
+            200,
+            html="<html><body><h1>Your Request Originates from an Undeclared Automated Tool"
+            "</h1><p>Request Rate Threshold Exceeded</p></body></html>",
+        )
+    )
+
+    async def go():
+        async with HttpClient(rawstore, "r1", sec_user_agent=UA) as http:
+            await http.fetch("sec", FILING_URL, kind="filing_document", expect="html")
+
+    with pytest.raises(InvalidResponse):
+        run(go())
+    assert stored_rows(database) == 0
+
+
+@respx.mock
+def test_a_redirect_loop_is_an_http_failure_not_a_crash(rawstore, database):
+    respx.get(SEC_URL).mock(return_value=httpx.Response(302, headers={"location": SEC_URL}))
+
+    async def go():
+        async with HttpClient(rawstore, "r1", sec_user_agent=UA) as http:
+            await http.fetch("sec", SEC_URL, kind="company_facts")
+
+    with pytest.raises(HTTPFailure) as failed:
+        run(go())
+    assert "TooManyRedirects" in str(failed.value)
+    assert failed.value.status is not None  # an answer came: not a lost connection
+
+
+def test_a_download_that_trickles_past_the_whole_time_limit_is_retried(
+    rawstore, database, monkeypatch
+):
+    from tearsheet import http as http_module
+
+    monkeypatch.setattr(http_module, "DATA_TOTAL_LIMIT_S", 0.05)
+    calls = []
+
+    async def slow(request):
+        calls.append(1)
+        await asyncio.sleep(1)
+        return httpx.Response(200, json={})
+
+    async def go():
+        async with HttpClient(
+            rawstore,
+            "r1",
+            sec_user_agent=UA,
+            transport=httpx.MockTransport(slow),
+            sleep=lambda s: asyncio.sleep(0),
+        ) as http:
+            await http.fetch("sec", SEC_URL, kind="company_facts")
+
+    with pytest.raises(HTTPFailure) as failed:
+        run(go())
+    assert "no response" in str(failed.value) and len(calls) == 4
