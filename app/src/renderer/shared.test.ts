@@ -43,7 +43,7 @@ describe('the shared parts', () => {
 // The shared scale (styles.css :root; UI check of 10 Nov 2026): seven text sizes, five corners and a
 // pill, four motion times, one recipe for what floats. A sheet moved onto the scale is listed here,
 // and then may not type a size, a corner or a transition time of its own again.
-const ON_SCALE = ['styles.css', 'log/log.css', 'settings/settings.css', 'settings/appearance.css', 'mark/mark.css', 'panel/panel.css']
+const ON_SCALE = ['styles.css', 'log/log.css', 'settings/settings.css', 'settings/appearance.css', 'mark/mark.css', 'panel/panel.css', 'home/home.css', 'setup/setup.css', 'report/report.css', 'views/views.css', 'chart/chart.css']
 const outsideRoot = (text: string) => {
   const start = text.indexOf(':root {')
   return (start < 0 ? text : text.slice(0, start) + text.slice(text.indexOf('}', start) + 1)).replace(/\/\*[\s\S]*?\*\//g, '')
@@ -72,9 +72,12 @@ describe('the shared scale', () => {
     for (const r of radii) expect(r, `${file}: border-radius ${r}`).toMatch(/^((var\(--r(-[a-z]+)?\)|50%|0)\s*)+$/)
   })
 
+  // A width or height that glides (the chart split, progress bars) keeps the time tuned to its
+  // page's own moves; everything else takes the scale's.
   test.each(ON_SCALE)('%s times its transitions with --dur-*', (file) => {
     const text = outsideRoot(CSS.find((c) => c.file === file)!.text)
-    const raw = [...text.matchAll(/transition:\s*([^;}]+)/g)].flatMap((m) => m[1].match(/(?<![\w-])\d*\.?\d+m?s\b/g) ?? []).filter((t) => !/^0m?s$/.test(t))
+    const parts = [...text.matchAll(/transition:\s*([^;}]+)/g)].flatMap((m) => m[1].split(',')).filter((p) => !/^\s*(width|height)\s/.test(p))
+    const raw = parts.flatMap((p) => p.match(/(?<![\w-])\d*\.?\d+m?s\b/g) ?? []).filter((t) => !/^0m?s$/.test(t))
     expect(raw).toEqual([])
   })
 

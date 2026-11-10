@@ -6,12 +6,12 @@
 
 .setup { flex: 1; min-height: 0; display: flex; flex-direction: column; position: relative; }
 .setup button { font-family: inherit; }
-.setup button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.setup button:focus-visible { outline: var(--focus); outline-offset: 2px; }
 
 /* The toolbar holds only the window's name, centred, and the safety chip once a check is asked for. */
 .setup .top.stp { justify-content: center; padding: 0 120px; border-bottom-color: transparent; }
 /* Centred: no margin pushing it left, as the app's toolbar title has (styles.css .top .ttl). */
-.setup .top .ttl { margin: 0; font-size: 12.5px; color: var(--muted); }
+.setup .top .ttl { margin: 0; font-size: var(--fs-sm); color: var(--muted); }
 /* The screen stands at a fixed height, as the home page does, so the list on top stays put while
    the question under it changes (List.tsx: the AI row never moves under the pointer). */
 .setup .screen { flex: 1; min-height: 0; overflow: auto; position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding: clamp(16px, calc(25vh - 100px), 160px) 60px 56px; }
@@ -20,9 +20,9 @@
 /* ---------- the safety chip ----------
    The chip and its popover also show in the app's toolbar after setup while a check runs
    (App.tsx, inside .tsafe), so their rules hold there too. */
-:is(.setup, .tsafe) .chip { all: unset; position: absolute; right: 16px; top: 13px; display: flex; align-items: center; gap: 8px; height: 26px; padding: 0 11px 0 5px; border-radius: 999px; background: rgb(var(--ink) / .05); border: 1px solid var(--line); font-size: 12px; color: var(--text2); cursor: pointer; white-space: nowrap; -webkit-app-region: no-drag; transition: background .15s; }
+:is(.setup, .tsafe) .chip { all: unset; position: absolute; right: 16px; top: 13px; display: flex; align-items: center; gap: 8px; height: 26px; padding: 0 11px 0 5px; border-radius: var(--r-pill); background: rgb(var(--ink) / .05); border: 1px solid var(--line); font-size: var(--fs-sm); color: var(--text2); cursor: pointer; white-space: nowrap; -webkit-app-region: no-drag; transition: background var(--dur-1); }
 :is(.setup, .tsafe) .chip:hover { background: rgb(var(--ink) / .08); }
-:is(.setup, .tsafe) .chip:focus-visible { outline: 2px solid var(--accent); }
+:is(.setup, .tsafe) .chip:focus-visible { outline: var(--focus); }
 :is(.setup, .tsafe) .chip .ring { width: 18px; height: 18px; }
 :is(.setup, .tsafe) .chip .okdot, :is(.setup, .tsafe) .chip .baddot { width: 18px; display: grid; place-items: center; }
 :is(.setup, .tsafe) .chip .okdot svg { width: 13px; height: 13px; stroke: var(--up); fill: none; stroke-width: 2.6; }
@@ -32,22 +32,22 @@
 :is(.setup, .tsafe) .chip.bad { color: var(--bad-text); border-color: rgb(var(--down-rgb) / .3); }
 :is(.setup, .tsafe) .ring { display: block; }
 :is(.setup, .tsafe) .ring .rt { stroke: var(--track); fill: none; }
-:is(.setup, .tsafe) .ring .rf { stroke: var(--accent); fill: none; stroke-linecap: round; transition: stroke-dashoffset .6s var(--slide); }
+:is(.setup, .tsafe) .ring .rf { stroke: var(--accent); fill: none; stroke-linecap: round; transition: stroke-dashoffset var(--dur-4) var(--ease-move); }
 
-:is(.setup, .tsafe) .popv { position: absolute; z-index: 20; right: 14px; top: 46px; width: 390px; border-radius: calc(14px * var(--round)); background: var(--card-bg); border: 1px solid rgb(var(--ink) / .14); box-shadow: 0 20px 50px rgb(var(--shade) / calc(.5 * var(--shade-k))); padding: 14px 16px 12px; animation: pop-in var(--dur-2) var(--ease-out) backwards; }
+:is(.setup, .tsafe) .popv { position: absolute; z-index: 20; right: 14px; top: 46px; width: 390px; border-radius: var(--r); background: var(--float-bg); border: 1px solid var(--float-line); backdrop-filter: var(--float-blur); -webkit-backdrop-filter: var(--float-blur); box-shadow: var(--shadow-1); padding: 14px 16px 12px; animation: pop-in var(--dur-2) var(--ease-out) backwards; }
 :is(.setup, .tsafe) .popv:focus { outline: none; }
-:is(.setup, .tsafe) .popv h4 { margin: 0 0 4px; font: 14px var(--ui); font-weight: calc(600 + var(--wt)); }
-:is(.setup, .tsafe) .popv p { margin: 0 0 8px; color: var(--muted); font-size: 12.5px; }
+:is(.setup, .tsafe) .popv h4 { margin: 0 0 4px; font: var(--fs-md) var(--ui); font-weight: calc(600 + var(--wt)); }
+:is(.setup, .tsafe) .popv p { margin: 0 0 8px; color: var(--muted); font-size: var(--fs-sm); }
 :is(.setup, .tsafe) .popv p.last { margin: 8px 0 0; }
 :is(.setup, .tsafe) .popv p.bad { color: var(--bad-text); }
 :is(.setup, .tsafe) .popv ul { list-style: none; margin: 0; padding: 0; }
-:is(.setup, .tsafe) .popv li { display: grid; grid-template-columns: 20px 1fr; gap: 8px; align-items: start; padding: 6px 0; border-top: 1px solid var(--line); font-size: 13px; }
+:is(.setup, .tsafe) .popv li { display: grid; grid-template-columns: 20px 1fr; gap: 8px; align-items: start; padding: 6px 0; border-top: 1px solid var(--line); font-size: var(--fs-md); }
 :is(.setup, .tsafe) .popv li svg { width: 14px; height: 14px; stroke: var(--up); fill: none; stroke-width: 2.6; margin-top: 3px; }
 :is(.setup, .tsafe) .popv li .sp { margin-top: 3px; }
 :is(.setup, .tsafe) .popv li.w { color: var(--dim); }
 :is(.setup, .tsafe) .popv .row { margin-top: 8px; }
 :is(.setup, .tsafe) .chip .mins { color: var(--muted); }
-:is(.setup, .tsafe) .popv .stopping { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); }
+:is(.setup, .tsafe) .popv .stopping { display: inline-flex; align-items: center; gap: 8px; font-size: var(--fs-sm); color: var(--muted); }
 /* In the app's toolbar the chip sits in the row with the page's own buttons, and the popover
    drops from the toolbar's right end (its place in .mainarea). */
 .tsafe { display: contents; }
@@ -55,41 +55,41 @@
 
 /* ---------- page parts ---------- */
 .setup .col { width: 620px; max-width: 100%; display: flex; flex-direction: column; align-items: flex-start; gap: 14px; }
-.setup .h1 { margin: 0; font: 30px/1.15 var(--ui); font-weight: calc(600 + var(--wt)); letter-spacing: -.2px; display: flex; align-items: center; gap: 12px; text-wrap: balance; }
-.setup .lead { margin: 0; font-size: 15px; line-height: 1.5; color: var(--muted); max-width: 58ch; text-wrap: pretty; }
+.setup .h1 { margin: 0; font: var(--fs-2xl)/1.15 var(--ui); font-weight: calc(600 + var(--wt)); letter-spacing: -.2px; display: flex; align-items: center; gap: 12px; text-wrap: balance; }
+.setup .lead { margin: 0; font-size: var(--fs-lg); line-height: 1.5; color: var(--muted); max-width: 58ch; text-wrap: pretty; }
 .setup .lead b { color: var(--text); font-weight: calc(600 + var(--wt)); }
-.setup .lead.small { font-size: 14px; }
-.setup .fine { margin: 0; font-size: 12.5px; color: var(--muted); text-wrap: pretty; }
+.setup .lead.small { font-size: var(--fs-md); }
+.setup .fine { margin: 0; font-size: var(--fs-sm); color: var(--muted); text-wrap: pretty; }
 .setup .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .setup .row.mid { justify-content: center; }
 /* The big main button: the shared main button (styles.css), a size up. */
-.setup .btn { all: unset; cursor: pointer; border-radius: calc(9px * var(--round)); padding: 9px 18px; font: 14px var(--ui); font-weight: calc(600 + var(--wt)); background: var(--accent); color: var(--on-accent); transition: transform .12s, background .15s, opacity .2s; }
+.setup .btn { all: unset; cursor: pointer; border-radius: var(--r-md); padding: 9px 18px; font: var(--fs-md) var(--ui); font-weight: calc(600 + var(--wt)); background: var(--accent); color: var(--on-accent); transition: transform var(--dur-1), background var(--dur-1), opacity var(--dur-2); }
 .setup .btn:hover { background: var(--accent-hover); }
 .setup .btn:active { transform: scale(.97); }
-.setup .btn.big { padding: 11px 24px; font-size: 15px; }
+.setup .btn.big { padding: 11px 24px; font-size: var(--fs-lg); }
 .setup .btn2 svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 2; }
-.setup .btn3 { all: unset; cursor: pointer; color: var(--muted); font-size: 13.5px; padding: 6px 4px; border-radius: calc(6px * var(--round)); transition: color .15s; }
+.setup .btn3 { all: unset; cursor: pointer; color: var(--muted); font-size: var(--fs-md); padding: 6px 4px; border-radius: var(--r-sm); transition: color var(--dur-1); }
 .setup .btn3:hover { color: var(--text); }
-.setup .btn3.small { font-size: 12.5px; }
+.setup .btn3.small { font-size: var(--fs-sm); }
 .setup .link { all: unset; cursor: pointer; color: var(--accent); }
 .setup .link:hover { text-decoration: underline; }
 .setup .btn:disabled { opacity: .45; cursor: default; transform: none; }
 
-.setup .card { width: 100%; position: relative; overflow: hidden; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 15px 18px; text-align: left; display: flex; flex-direction: column; gap: 9px; transition: opacity .35s, border-color .35s; }
+.setup .card { width: 100%; position: relative; overflow: hidden; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 15px 18px; text-align: left; display: flex; flex-direction: column; gap: 9px; transition: opacity var(--dur-3), border-color var(--dur-3); }
 .setup .card.done { border-color: rgb(var(--up-rgb) / .28); }
-.setup .card h4 { margin: 0; font: 14.5px var(--ui); font-weight: calc(600 + var(--wt)); display: flex; align-items: center; gap: 10px; }
-.setup .card p { margin: 0; color: var(--muted); font-size: 13.5px; }
+.setup .card h4 { margin: 0; font: var(--fs-lg) var(--ui); font-weight: calc(600 + var(--wt)); display: flex; align-items: center; gap: 10px; }
+.setup .card p { margin: 0; color: var(--muted); font-size: var(--fs-md); }
 /* A step's number: in the list on top (.snum) and on a key card (.n). */
-.setup :is(.n, .snum) { width: 22px; height: 22px; flex: none; border-radius: 50%; border: 1px solid var(--chipline); color: var(--accent); font: 12px var(--ui); font-weight: calc(600 + var(--wt)); display: grid; place-items: center; }
+.setup :is(.n, .snum) { width: 22px; height: 22px; flex: none; border-radius: 50%; border: 1px solid var(--chipline); color: var(--accent); font: var(--fs-sm) var(--ui); font-weight: calc(600 + var(--wt)); display: grid; place-items: center; }
 .setup .n svg { width: 12px; height: 12px; stroke: var(--up); fill: none; stroke-width: 2.8; }
 .setup .done .n { border-color: rgb(var(--up-rgb) / .45); }
 /* The copy-a-command box (.code, .cbtn) is home.css's, shared with Home and Settings. */
-.setup .st { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); min-height: 20px; }
+.setup .st { display: flex; align-items: center; gap: 8px; font-size: var(--fs-md); color: var(--muted); min-height: 20px; }
 .setup .st.ok { color: var(--up); }
 .setup .st.bad { color: var(--bad-text); }
 .setup .st svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 2.4; flex: none; }
 .setup .field { display: flex; gap: 8px; width: 100%; }
-.setup .field input { flex: 1; min-width: 0; background: rgb(var(--ink) / .06); border: 1px solid var(--line); border-radius: calc(10px * var(--round)); padding: 9px 12px; color: var(--text); font: 14px var(--mono); font-weight: calc(400 + var(--wt)); outline: none; transition: border-color .2s, box-shadow .2s; }
+.setup .field input { flex: 1; min-width: 0; background: var(--field-bg); border: 1px solid var(--line); border-radius: var(--r-md); padding: 9px 12px; color: var(--text); font: var(--fs-md) var(--mono); font-weight: calc(400 + var(--wt)); outline: none; transition: border-color var(--dur-2), box-shadow var(--dur-2); }
 .setup .field input:focus { border-color: var(--chipline); box-shadow: 0 0 0 3px rgb(var(--accent-rgb) / .12); }
 .setup .field input::placeholder { color: var(--edge); font-family: var(--ui); }
 
@@ -99,8 +99,8 @@
 .setup .mono { font-family: var(--mono); }
 
 /* The list: three rows. */
-.setup .spine { display: flex; flex-direction: column; border-radius: calc(14px * var(--round)); background: rgb(var(--ink) / .035); border: 1px solid var(--line); overflow: hidden; }
-.setup .sr { display: grid; grid-template-columns: 26px 86px 1fr; gap: 10px; align-items: center; padding: 11px 16px; border-top: 1px solid var(--line); font-size: 13.5px; transition: background .45s, opacity .45s; }
+.setup .spine { display: flex; flex-direction: column; border-radius: var(--r); background: rgb(var(--ink) / .035); border: 1px solid var(--line); overflow: hidden; }
+.setup .sr { display: grid; grid-template-columns: 26px 86px 1fr; gap: 10px; align-items: center; padding: 11px 16px; border-top: 1px solid var(--line); font-size: var(--fs-md); transition: background var(--dur-4), opacity var(--dur-4); }
 .setup .sr:first-child { border-top: 0; }
 .setup .sr.cur { background: rgb(var(--accent-rgb) / .06); }
 .setup .sr.later { opacity: .55; }
@@ -110,66 +110,65 @@
 .setup .srb { padding: 2px 16px 12px 138px; border-top: 0; }
 .setup .srb .again { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
 .setup .tick { width: 16px; height: 16px; fill: none; stroke: var(--up); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; flex: none; display: block; }
-.setup .tick path { stroke-dasharray: 16; animation: setup-draw .5s .05s var(--settle) backwards; }
+.setup .tick path { stroke-dasharray: 16; animation: setup-draw var(--dur-4) .05s var(--ease-out) backwards; }
 .setup .duo { display: flex; flex-direction: column; gap: 4px; }
 .setup .duo1 { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
-.setup .role { font-size: 12px; color: var(--accent); }
+.setup .role { font-size: var(--fs-sm); color: var(--accent); }
 /* The Connected pill. */
-.setup .pill { display: inline-flex; align-items: center; gap: 6px; padding: 1px 9px; border-radius: 999px; background: rgb(var(--up-rgb) / .13); color: var(--up); font: 11.5px var(--ui); font-weight: calc(600 + var(--wt)); vertical-align: 1px; animation: setup-pillin .5s .15s var(--settle) backwards; }
+.setup .pill { display: inline-flex; align-items: center; gap: 6px; padding: 1px 9px; border-radius: var(--r-pill); background: rgb(var(--up-rgb) / .13); color: var(--up); font: var(--fs-xs) var(--ui); font-weight: calc(600 + var(--wt)); vertical-align: 1px; animation: setup-pillin var(--dur-4) .15s var(--ease-out) backwards; }
 .setup .pill i { width: 6px; height: 6px; border-radius: 50%; background: var(--up); box-shadow: 0 0 0 3px rgb(var(--up-rgb) / .2); }
 
 /* The question card. */
-.setup .ask { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; animation: settle-in var(--dur-4) .08s var(--ease-out) backwards; }
+.setup .ask { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; animation: settle-in var(--dur-4) var(--dur-1) var(--ease-out) backwards; }
 .setup .ask > .pick, .setup .ask > .inst, .setup .ask > .prog, .setup .ask > .erow, .setup .ask > .keyask, .setup .ask > .ein, .setup .ask > .cmdbox, .setup .ask > .code { align-self: stretch; }
-.setup .step { margin: 0; font-size: 12px; font-weight: calc(600 + var(--wt)); letter-spacing: .5px; text-transform: uppercase; color: var(--accent); }
-.setup .h1.big3 { font-size: 34px; letter-spacing: -.4px; }
+.setup .step { margin: 0; font-size: var(--fs-sm); font-weight: calc(600 + var(--wt)); letter-spacing: .5px; text-transform: uppercase; color: var(--accent); }
+.setup .h1.big3 { font-size: var(--fs-2xl); letter-spacing: -.4px; }
 .setup .lead.bad { color: var(--bad-text); }
 .setup .code.grow { flex: 1; min-width: 0; }
 
 /* The three Install buttons. */
 .setup .pick { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
-.setup .pbtn { all: unset; cursor: pointer; display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: calc(12px * var(--round)); background: rgb(var(--accent-rgb) / .08); border: 1px solid var(--chipline); transition: background .15s, transform .12s; }
+.setup .pbtn { all: unset; cursor: pointer; display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: var(--r-lg); background: rgb(var(--accent-rgb) / .08); border: 1px solid var(--chipline); transition: background var(--dur-1), transform var(--dur-1); }
 .setup .pbtn:hover { background: rgb(var(--accent-rgb) / .15); }
 .setup .pbtn:active { transform: scale(.98); }
-.setup .pbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.setup .pbtn b { display: block; font-size: 15px; color: var(--text); font-weight: calc(600 + var(--wt)); }
-.setup .pbtn small { display: block; font-size: 12.5px; color: var(--muted); }
-.setup .pg { width: 34px; height: 34px; flex: none; border-radius: calc(10px * var(--round)); display: grid; place-items: center; background: rgb(var(--ink) / .06); border: 1px solid var(--line); font: 12px var(--mono); font-weight: calc(600 + var(--wt)); color: var(--accent); }
+.setup .pbtn:focus-visible { outline: var(--focus); outline-offset: 2px; }
+.setup .pbtn b { display: block; font-size: var(--fs-lg); color: var(--text); font-weight: calc(600 + var(--wt)); }
+.setup .pbtn small { display: block; font-size: var(--fs-sm); color: var(--muted); }
+.setup .pg { width: 34px; height: 34px; flex: none; border-radius: var(--r-md); display: grid; place-items: center; background: rgb(var(--ink) / .06); border: 1px solid var(--line); font: var(--fs-sm) var(--mono); font-weight: calc(600 + var(--wt)); color: var(--accent); }
 .setup .cmdbox { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.setup .cmds { font: 11.5px var(--mono); color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; user-select: text; }
+.setup .cmds { font: var(--fs-xs) var(--mono); color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; user-select: text; }
 
 /* The progress lines while installing. */
-.setup .prog { display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; border-radius: calc(12px * var(--round)); background: rgb(var(--shade) / calc(.25 * var(--shade-k))); border: 1px solid var(--line); animation: settle-in .4s var(--settle) backwards; }
-.setup .pl { display: flex; align-items: center; gap: 10px; font-size: 15px; }
-.setup .pline { font-size: 13px; color: var(--text2); animation: fade .3s ease backwards; }
+.setup .prog { display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; border-radius: var(--r-lg); background: rgb(var(--shade) / calc(.25 * var(--shade-k))); border: 1px solid var(--line); animation: settle-in var(--dur-3) var(--ease-out) backwards; }
+.setup .pl { display: flex; align-items: center; gap: 10px; font-size: var(--fs-lg); }
+.setup .pline { font-size: var(--fs-md); color: var(--text2); animation: fade var(--dur-3) ease backwards; }
 .setup .pline.ok { color: var(--up); }
 
 /* The paste command, when the button is off: three options and the key-cap picture. */
 .setup .inst { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
-.setup .opt { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 12px; border-radius: calc(12px * var(--round)); background: rgb(var(--ink) / .04); border: 1px solid var(--line); min-width: 0; }
-.setup .opt .code { align-self: stretch; font-size: 12px; padding: 8px 12px; }
-.setup .ot { font-size: 13.5px; font-weight: calc(600 + var(--wt)); }
+.setup .opt { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 12px; border-radius: var(--r-lg); background: rgb(var(--ink) / .04); border: 1px solid var(--line); min-width: 0; }
+.setup .opt .code { align-self: stretch; font-size: var(--fs-sm); padding: 8px 12px; }
+.setup .ot { font-size: var(--fs-md); font-weight: calc(600 + var(--wt)); }
 .setup .keys { display: inline-flex; align-items: center; gap: 5px; vertical-align: middle; }
-.setup .kc { display: inline-grid; place-items: center; min-width: 24px; height: 22px; padding: 0 6px; border-radius: calc(6px * var(--round)); background: rgb(var(--ink) / .06); border: 1px solid rgb(var(--ink) / .16); border-bottom-width: 2px; font-size: 11.5px; color: var(--text); animation: setup-press 2.6s ease-in-out 3; }
+.setup .kc { display: inline-grid; place-items: center; min-width: 24px; height: 22px; padding: 0 6px; border-radius: var(--r-sm); background: rgb(var(--ink) / .06); border: 1px solid rgb(var(--ink) / .16); border-bottom-width: 2px; font-size: var(--fs-xs); color: var(--text); animation: setup-press 2.6s ease-in-out 3; }
 .setup .kc.k2 { animation-delay: .15s; }
 .setup .kc.k3 { animation-delay: .9s; }
-.setup .then { font-size: 12px; color: var(--muted); }
+.setup .then { font-size: var(--fs-sm); color: var(--muted); }
 .setup .copyfail { display: flex; flex-direction: column; gap: 8px; align-self: stretch; }
 
 /* The price key: Get a free key beside the field. */
 .setup .keyask { display: flex; flex-direction: column; gap: 8px; }
 .setup .krow3 { display: flex; gap: 10px; align-items: center; }
-.setup .krow3 .btn2 { padding: 9px 15px; font-size: 14px; }
-.setup .kin, .setup .ein { flex: 1; min-width: 0; background: rgb(var(--ink) / .06); border: 1px solid var(--line); border-radius: calc(10px * var(--round)); padding: 10px 14px; color: var(--text); font: 15px var(--mono); font-weight: calc(400 + var(--wt)); outline: none; transition: border-color .2s, box-shadow .2s; }
-.setup .ein { font-size: 14px; padding: 8px 12px; }
+.setup .kin, .setup .ein { flex: 1; min-width: 0; background: var(--field-bg); border: 1px solid var(--line); border-radius: var(--r-md); padding: 10px 14px; color: var(--text); font: var(--fs-lg) var(--mono); font-weight: calc(400 + var(--wt)); outline: none; transition: border-color var(--dur-2), box-shadow var(--dur-2); }
+.setup .ein { font-size: var(--fs-md); padding: 8px 12px; }
 .setup .kin:focus, .setup .ein:focus { border-color: var(--chipline); box-shadow: 0 0 0 3px rgb(var(--accent-rgb) / .12); }
 .setup .kin::placeholder, .setup .ein::placeholder { color: var(--edge); font-family: var(--ui); }
 
 /* The email and Start. */
-.setup .erow { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: calc(12px * var(--round)); background: rgb(var(--ink) / .04); border: 1px solid var(--line); font-size: 14px; }
+.setup .erow { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: var(--r-lg); background: rgb(var(--ink) / .04); border: 1px solid var(--line); font-size: var(--fs-md); }
 .setup .erow .grow { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .setup .go { display: flex; align-items: center; gap: 14px; margin-top: 2px; }
-.setup .why { font-size: 13px; color: var(--muted); }
+.setup .why { font-size: var(--fs-md); color: var(--muted); }
 .setup .btn.ready { animation: setup-wake 1.2s ease-out 1; }
 
 @media (max-width: 760px) { .setup .pick, .setup .inst { grid-template-columns: 1fr; } .setup .srb { padding-left: 16px; } }
@@ -179,10 +178,10 @@
    page part does) as it changes, Start pulses once when it can be pressed, and a change in place
    (chg) fades up. The key caps press in turn, three times, then rest. Leaving: the screen fades and lifts 8 px. Nothing moves under Reduce motion (styles.css),
    nor here when the Mac asks for less motion. */
-.setup-in .mv { animation: settle-in .5s var(--settle) backwards; animation-delay: calc(var(--i, 0) * 70ms + 60ms); }
-.setup .chg { animation: settle-in .4s var(--settle) backwards; }
-:is(.setup, .tsafe) .chip.cnew { animation: settle-in .45s .15s var(--settle) backwards; }
-.setup.leaving .screen, .setup.leaving .top > *, .setup.leaving .popv { animation: settle-out .24s ease-in forwards; }
+.setup-in .mv { animation: settle-in var(--dur-4) var(--ease-out) backwards; animation-delay: calc(var(--i, 0) * 70ms + 60ms); }
+.setup .chg { animation: settle-in var(--dur-3) var(--ease-out) backwards; }
+:is(.setup, .tsafe) .chip.cnew { animation: settle-in var(--dur-4) .15s var(--ease-out) backwards; }
+.setup.leaving .screen, .setup.leaving .top > *, .setup.leaving .popv { animation: settle-out var(--dur-2) var(--ease-in) forwards; }
 @keyframes setup-draw { from { stroke-dashoffset: 16; } to { stroke-dashoffset: 0; } }
 @keyframes setup-wake { 0% { box-shadow: 0 0 0 0 rgb(var(--accent-rgb) / .55); } 100% { box-shadow: 0 0 0 16px rgb(var(--accent-rgb) / 0); } }
 @keyframes setup-pillin { from { opacity: 0; transform: scale(.8); } }

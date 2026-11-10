@@ -20,7 +20,7 @@ iframe.report-frame.on { visibility: inherit; }
    It has no background of its own meanwhile: a frame says it has loaded a little before it draws
    its first picture, and until then the report under it shows through, not an empty box. */
 iframe.report-frame.wait { opacity: 0; pointer-events: none; background: transparent; }
-iframe.report-frame.fadein { animation: fade .15s ease-out both; background: transparent; }
+iframe.report-frame.fadein { animation: fade var(--dur-1) var(--ease-out) both; background: transparent; }
 .rerror { display: flex; align-items: center; gap: 14px; margin: 14px 16px 0; }
 .rerror span { flex: 1; min-width: 0; }
 .rerror b { color: var(--bad-text2); font-weight: calc(600 + var(--wt)); }
@@ -34,20 +34,20 @@ iframe.report-frame.fadein { animation: fade .15s ease-out both; background: tra
 /* A narrow window keeps the report beside the chart, as a wide one does (chart/chart.css). */
 
 /* ---------- the toolbar: the Chart button and the Numbers / Text switch ---------- */
-.top .cbtn { all: unset; display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px; border-radius: calc(8px * var(--round)); border: 1px solid var(--line); color: var(--text); cursor: pointer; background: rgb(var(--ink) / .04); font-size: 13px; white-space: nowrap; transition: background .2s, border-color .2s, color .2s; }
+.top .cbtn { all: unset; display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px; border-radius: var(--r-md); border: 1px solid var(--line); color: var(--text); cursor: pointer; background: rgb(var(--ink) / .04); font-size: var(--fs-md); white-space: nowrap; transition: background var(--dur-2), border-color var(--dur-2), color var(--dur-2); }
 .top .cbtn:hover { background: rgb(var(--ink) / .08); }
 .top .cbtn.on { border-color: var(--chipline); background: rgb(var(--accent-rgb) / .12); color: var(--accent); }
-.top .cbtn:focus-visible { outline: 2px solid var(--accent); }
+.top .cbtn:focus-visible { outline: var(--focus); }
 .top .cbtn svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.7; }
-.top .cbtn kbd { font: 11px var(--ui); font-weight: calc(400 + var(--wt)); color: var(--muted); }
-.sidesw { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); white-space: nowrap; animation: settle-in .3s var(--settle) backwards; }
+.top .cbtn kbd { font: var(--fs-xs) var(--ui); font-weight: calc(400 + var(--wt)); color: var(--muted); }
+.sidesw { display: inline-flex; align-items: center; gap: 8px; font-size: var(--fs-sm); color: var(--muted); white-space: nowrap; animation: settle-in var(--dur-3) var(--ease-out) backwards; }
 /* Brought by a resize, it is just there (pages/Report.tsx ReportTools). */
 .sidesw.still { animation: none; }
-.segc { display: inline-flex; padding: 2px; border-radius: calc(9px * var(--round)); background: rgb(var(--ink) / .06); border: 1px solid var(--line); }
-.segc button { all: unset; padding: 3px 11px; border-radius: calc(7px * var(--round)); color: var(--muted); cursor: pointer; font-size: 12.5px; transition: background .2s, color .2s; }
+.segc { display: inline-flex; padding: 2px; border-radius: var(--r-md); background: rgb(var(--ink) / .06); border: 1px solid var(--line); }
+.segc button { all: unset; padding: 3px 11px; border-radius: var(--r-sm); color: var(--muted); cursor: pointer; font-size: var(--fs-sm); transition: background var(--dur-2), color var(--dur-2); }
 .segc button:hover { color: var(--text); }
 .segc button.on { background: rgb(var(--ink) / .14); color: var(--text); box-shadow: 0 1px 2px rgb(var(--shade) / calc(.3 * var(--shade-k))); }
-.segc button:focus-visible { outline: 2px solid var(--accent); }
+.segc button:focus-visible { outline: var(--focus); }
 /* A span or range that can't be picked (3Y and 5Y without the full history): faded, with no
    pointer and no hover. `all: unset` above wipes the shared disabled look (styles.css), so it is
    set again here. */
@@ -60,17 +60,17 @@ iframe.report-frame.fadein { animation: fade .15s ease-out both; background: tra
 .rbar-line { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; white-space: nowrap; }
 .rbar-ruler { position: absolute; left: 0; top: 0; display: grid; justify-items: start; visibility: hidden; pointer-events: none; }
 .rbar-ruler .rbar-line { flex: none; width: max-content; }
-.rbar-tk { margin: 0; font: 15px/1 var(--ui); font-weight: calc(600 + var(--wt)); letter-spacing: .5px; color: var(--text); }
-.rbar-px { font: 21px/1 var(--ui); font-weight: calc(600 + var(--wt)); letter-spacing: -.2px; color: var(--text); }
-.rbar-mv { font: 14px var(--ui); font-weight: calc(500 + var(--wt)); }
-.rbar-when { font-size: 13px; color: var(--muted); }
+.rbar-tk { margin: 0; font: var(--fs-lg)/1 var(--ui); font-weight: calc(600 + var(--wt)); letter-spacing: .5px; color: var(--text); }
+.rbar-px { font: var(--fs-xl)/1 var(--ui); font-weight: calc(600 + var(--wt)); letter-spacing: -.2px; color: var(--text); }
+.rbar-mv { font: var(--fs-md) var(--ui); font-weight: calc(500 + var(--wt)); }
+.rbar-when { font-size: var(--fs-md); color: var(--muted); }
 .rbar .up { color: var(--up); }
 .rbar .down { color: var(--down); }
 .rbar .flat { color: var(--soft2); }
-.rbar-box { margin-left: auto; flex: none; display: flex; align-items: center; height: 34px; border-radius: calc(10px * var(--round)); background: rgb(var(--ink) / .045); border: 1px solid var(--line); }
-.rbar-box > span { display: inline-flex; align-items: center; gap: 7px; height: 100%; padding: 0 12px; font-size: 13.5px; border-left: 1px solid var(--line); }
+.rbar-box { margin-left: auto; flex: none; display: flex; align-items: center; height: 34px; border-radius: var(--r-md); background: rgb(var(--ink) / .045); border: 1px solid var(--line); }
+.rbar-box > span { display: inline-flex; align-items: center; gap: 7px; height: 100%; padding: 0 12px; font-size: var(--fs-md); border-left: 1px solid var(--line); }
 .rbar-box > span:first-child { border-left: 0; }
-.rbar-box small { font: 13px var(--ui); font-weight: calc(400 + var(--wt)); color: var(--muted); }
+.rbar-box small { font: var(--fs-md) var(--ui); font-weight: calc(400 + var(--wt)); color: var(--muted); }
 .rbar-box b { font-weight: calc(600 + var(--wt)); color: var(--text); }
 .rbar-rate { --rc: var(--hold); }
 .rbar-rate.buy { --rc: var(--up); }
@@ -88,46 +88,26 @@ iframe.report-frame.fadein { animation: fade .15s ease-out both; background: tra
 .top .rbar > .rbar-line > *, .top .rbar > .rbar-line .rbar-box > span { -webkit-app-region: no-drag; }
 
 /* The report's date beside the bar: the menu of the company's other reports when it has some. */
-.top .rdate { all: unset; flex: none; display: inline-flex; align-items: center; gap: 3px; padding: 4px 6px; margin: 0 -2px; border-radius: calc(6px * var(--round)); color: var(--soft2); font-size: 13px; white-space: nowrap; -webkit-app-region: no-drag; transition: background .15s, color .15s; }
+.top .rdate { all: unset; flex: none; display: inline-flex; align-items: center; gap: 3px; padding: 4px 6px; margin: 0 -2px; border-radius: var(--r-sm); color: var(--soft2); font-size: var(--fs-md); white-space: nowrap; -webkit-app-region: no-drag; transition: background var(--dur-1), color var(--dur-1); }
 .top button.rdate { cursor: pointer; }
 .top button.rdate:hover, .top button.rdate[aria-expanded="true"] { background: rgb(var(--ink) / .06); color: var(--text); }
-.top .rdate:focus-visible { outline: 2px solid var(--accent); }
+.top .rdate:focus-visible { outline: var(--focus); }
 .top .rdate svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; }
 .top .rdate svg.doc { width: 15px; height: 15px; stroke-width: 1.6; margin-right: 3px; }
 
 /* ---------- the subtitle: a small menu of the company's other reports ---------- */
-.top .ttl .subbtn { all: unset; display: inline-flex; align-items: center; gap: 3px; cursor: pointer; border-radius: calc(5px * var(--round)); -webkit-app-region: no-drag; transition: color .15s; }
+.top .ttl .subbtn { all: unset; display: inline-flex; align-items: center; gap: 3px; cursor: pointer; border-radius: var(--r-sm); -webkit-app-region: no-drag; transition: color var(--dur-1); }
 .top .ttl .subbtn:hover, .top .ttl .subbtn[aria-expanded="true"] { color: var(--text); }
-.top .ttl .subbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.top .ttl .subbtn:focus-visible { outline: var(--focus); outline-offset: 1px; }
 .top .ttl .subbtn svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 2; }
 .rmenu-scrim { position: fixed; inset: 0; z-index: 30; -webkit-app-region: no-drag; }
 /* Drawn like the sidebar's menus (styles.css .menu4): ground, corners, rows, heading and hover. */
-.rmenu { position: fixed; z-index: 31; min-width: 220px; padding: 5px; display: flex; flex-direction: column; border-radius: calc(10px * var(--round)); background: var(--menu-bg); border: 1px solid rgb(var(--ink) / .12);
-  box-shadow: 0 14px 36px rgb(var(--shade) / calc(.5 * var(--shade-k))); font: 13px var(--ui); font-weight: calc(400 + var(--wt)); color: var(--text3); white-space: nowrap; -webkit-app-region: no-drag; animation: fade .12s ease-out both; }
-.rmenu-h { display: block; padding: 6px 10px 2px; font-size: 10.5px; font-weight: calc(600 + var(--wt)); letter-spacing: .5px; text-transform: uppercase; color: var(--faint); }
-.rmenu button { all: unset; display: flex; align-items: center; gap: 16px; padding: 5px 10px; border-radius: calc(6px * var(--round)); cursor: pointer; }
+.rmenu { position: fixed; z-index: 31; min-width: 220px; padding: 5px; display: flex; flex-direction: column; border-radius: var(--r-md); background: var(--float-bg); border: 1px solid var(--float-line); backdrop-filter: var(--float-blur); -webkit-backdrop-filter: var(--float-blur);
+  box-shadow: var(--shadow-1); font: var(--fs-md) var(--ui); font-weight: calc(400 + var(--wt)); color: var(--text3); white-space: nowrap; -webkit-app-region: no-drag; animation: pop-in var(--dur-1) var(--ease-out) both; }
+.rmenu-h { display: block; padding: 6px 10px 2px; font-size: var(--fs-xs); font-weight: calc(600 + var(--wt)); color: var(--faint); }
+.rmenu button { all: unset; display: flex; align-items: center; gap: 16px; padding: 5px 10px; border-radius: var(--r-sm); cursor: pointer; }
 .rmenu button:hover, .rmenu button:focus-visible { background: rgb(var(--accent-rgb) / .16); color: var(--hi); outline: none; }
 .rmenu button span { flex: 1; }
-.rmenu button small { color: var(--muted); font-size: 12px; }
+.rmenu button small { color: var(--muted); font-size: var(--fs-sm); }
 .rmenu button.danger { color: var(--bad-text3); }
 .rmenu-sep { display: block; height: 1px; margin: 4px 6px; background: rgb(var(--ink) / .09); }
-
-/* ---------- the flag sheet: it drops from the toolbar ---------- */
-.sheet { position: absolute; z-index: 21; top: 52px; left: 50%; width: 520px; margin-left: -260px; padding: 18px 18px 16px; display: grid; gap: 10px; border-radius: 0 0 calc(16px * var(--round)) calc(16px * var(--round));
-  background: rgb(var(--surface) / .9); border: 1px solid rgb(var(--ink) / .14); border-top: 0; backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px); box-shadow: 0 30px 70px rgb(var(--shade) / calc(.5 * var(--shade-k))); -webkit-app-region: no-drag; animation: drop .26s var(--slide) both; }
-.sheet.leave { animation: settle-out .24s ease-in forwards; }
-.sheet b { font-size: 15px; font-weight: calc(600 + var(--wt)); }
-.sheet q { color: var(--muted); font-size: 13.5px; line-height: 1.5; max-height: 7.5em; overflow: auto; }
-.sheet textarea { min-height: 78px; resize: vertical; font-size: 13.5px; }
-.sheet .why { margin: 0; color: var(--bad-text); font-size: 13px; }
-.sheet .row { display: flex; gap: 8px; justify-content: flex-end; }
-
-/* The Refresh confirm (overlays/RefreshSheet.tsx) drops the same way. */
-.sheet.refresh:focus { outline: none; }
-.sheet.refresh p { margin: 0; color: var(--muted); font-size: 13.5px; line-height: 1.5; }
-.sheet.refresh .checking { display: flex; align-items: center; gap: 8px; }
-.sheet.refresh ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 3px; font-size: 13.5px; line-height: 1.5; }
-.sheet.refresh ul b { font-size: 13.5px; }
-.sheet.refresh .ages { color: var(--muted); }
-.sheet.refresh .ages b { color: var(--text); margin-right: 4px; }
-.sheet.refresh .left li { color: var(--bad-text); }
