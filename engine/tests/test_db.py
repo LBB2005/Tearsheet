@@ -229,3 +229,14 @@ def test_backup_keeps_the_last_10_copies(tmp_path):
     assert copy.execute("SELECT value FROM settings WHERE key = 'k'").fetchone()[0] == "v"
     copy.close()
     db.close()
+
+
+def test_tests_never_back_up_into_the_real_folder(tmp_path):
+    # conftest moves the default backup folder into the test's own folder.
+    from pathlib import Path
+
+    from tearsheet import config as cfg
+
+    real = Path.home() / "Tearsheet Backups"
+    assert cfg.DEFAULT_BACKUP_DIR != real
+    assert cfg.DEFAULT_BACKUP_DIR.is_relative_to(tmp_path)
