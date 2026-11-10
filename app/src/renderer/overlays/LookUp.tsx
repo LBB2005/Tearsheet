@@ -112,8 +112,9 @@ export function LookUp({ onPick, onClose }: { onPick: (hit: SearchHit) => void; 
         {failed && <p className="none">{failed}</p>}
         {!failed && searched && hits.length === 0 && <p className="none">No S&amp;P 500 company matches “{searched}”.</p>}
         <div className="ft">
-          <span>↑ ↓ to move</span>
-          <span>Return to open, or write a new report</span>
+          {/* With nothing to move to or open, only Esc is left to say. */}
+          {hits.length > 0 && <span>↑ ↓ to move</span>}
+          {hits.length > 0 && <span>Return to open, or write a new report</span>}
           <span>Esc to close</span>
         </div>
       </div>

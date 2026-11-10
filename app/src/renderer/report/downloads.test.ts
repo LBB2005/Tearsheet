@@ -9,6 +9,7 @@ describe('the download toast', () => {
 
   it('stays up while the file is made, until the answer replaces it', () => {
     expect(downloadToast({ state: 'saving', kind: 'pdf', reportId: 'r' }, vi.fn()).ms).toBe(SAVING_MS)
+    expect(downloadToast({ state: 'saving', kind: 'pdf', reportId: 'r' }, vi.fn()).busy).toBe(true)
     expect(SAVING_MS).toBeGreaterThanOrEqual(60_000)
   })
 

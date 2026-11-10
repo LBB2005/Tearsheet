@@ -6,6 +6,7 @@
 import { useEffect, useRef, useState } from 'react'
 
 import { leaveMs } from '../motion'
+import { Spinner } from '../setup/parts'
 
 export interface Notice {
   id: number
@@ -13,6 +14,8 @@ export interface Notice {
   text?: string
   tone?: 'ok' | 'stop'
   action?: { label: string; run: () => void }
+  // Work is going on (a file being made): a spinner before the title.
+  busy?: boolean
   // How long it stays; SHOW_MS by default, ACTION_MS with an action.
   ms?: number
 }
@@ -60,7 +63,7 @@ export function Toast({ notice, onDone }: { notice: Notice; onDone: () => void }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const cls = ['toast4', notice.tone === 'stop' ? 'stop' : '', notice.action ? 'act' : '', leaving ? 'leave' : ''].filter(Boolean).join(' ')
+  const cls = ['toast4', notice.tone === 'stop' ? 'stop' : '', notice.action || notice.busy ? 'act' : '', notice.busy ? 'busy' : '', leaving ? 'leave' : ''].filter(Boolean).join(' ')
   const action = notice.action
   return (
     <div
@@ -76,6 +79,7 @@ export function Toast({ notice, onDone }: { notice: Notice; onDone: () => void }
         }
       }}
     >
+      {notice.busy && <Spinner />}
       <div>
         <b>{notice.title}</b>
         {notice.text && <span>{notice.text}</span>}

@@ -54,4 +54,10 @@ describe('a notice', () => {
     later(1000)
     expect(onDone).toHaveBeenCalled()
   })
+
+  test('busy shows a spinner before its title', () => {
+    render(<Toast notice={{ id: 2, title: 'Making the PDF…', busy: true }} onDone={vi.fn()} />)
+    const box = screen.getByText('Making the PDF…').closest('.toast4')!
+    expect(box.querySelector('.sp')).not.toBeNull()
+  })
 })

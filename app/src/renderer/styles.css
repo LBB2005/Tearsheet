@@ -446,6 +446,7 @@ html { accent-color: var(--accent); }
 .toast4 span { color: var(--muted); font-size: var(--fs-sm); }
 /* A notice with an action (Undo, after a delete). */
 .toast4.act { display: flex; align-items: center; gap: 16px; }
+.toast4.busy { gap: 12px; }
 .toast4 > button { all: unset; flex: none; padding: 4px 10px; border-radius: var(--r-sm); color: var(--accent-fg); font-weight: calc(600 + var(--wt)); cursor: pointer; }
 .toast4 > button:hover, .toast4 > button:focus-visible { background: rgb(var(--accent-rgb) / .14); }
 

@@ -13,7 +13,7 @@ export function downloadToast(note: DownloadNote, show: (path: string) => void):
   const what = NAMES[note.kind] ?? 'file'
   // While it is made, the notice stays up until the answer replaces it (saved, or why not), so
   // a slow PDF never leaves a gap where nothing says it is still working.
-  if (note.state === 'saving') return { title: `Making the ${what}…`, text: 'From the saved report. It stays here until it’s saved.', ms: SAVING_MS }
+  if (note.state === 'saving') return { title: `Making the ${what}…`, text: 'From the saved report. It stays here until it’s saved.', ms: SAVING_MS, busy: true }
   if (note.state === 'saved') {
     const path = note.path ?? ''
     return {
