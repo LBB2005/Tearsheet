@@ -195,3 +195,24 @@ def test_full_history_stops_at_the_last_completed_session(database, rawstore, mo
     asyncio.run(prices.fetch_history_bars(Http(), PriceStore(database.conn), CIK, "", "AAPL"))
     end = asked[0].rsplit("/", 1)[-1]
     assert end == prices.last_completed_session(datetime.now(UTC)).isoformat()
+
+
+def test_a_split_on_a_day_with_no_stored_close_still_counts(database):
+    # A gap in the bars on the split day: the split counts on the next close, so a 2-for-1
+    # split isn't graded as the price halving.
+    store = store_with(database, {"2026-11-02": 100.0, "2026-11-04": 51.0})
+    store.store_splits(
+        {
+            "results": [
+                {"ticker": "AAPL", "execution_date": "2026-11-03", "split_from": 1, "split_to": 2}
+            ]
+        },
+        {"AAPL": (CIK, "")},
+    )
+    store.store_dividends(
+        CIK, "", {"results": [{"ex_dividend_date": "2026-11-03", "cash_amount": 1.0}]}
+    )
+    assert store.total_return(CIK, "", date(2026, 11, 2), date(2026, 11, 4)) == pytest.approx(
+        2 * (51.0 + 1.0) / 100 - 1
+    )
+    assert store.unexplained_moves(CIK, "") == []

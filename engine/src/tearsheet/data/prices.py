@@ -9,6 +9,7 @@ the last completed NYSE session before the run time, or the session before it.
 from __future__ import annotations
 
 import sqlite3
+from bisect import bisect_right
 from collections.abc import Iterable
 from datetime import UTC, date, datetime, time, timedelta
 from functools import cache
@@ -227,13 +228,24 @@ class PriceStore:
     def daily_gross_returns(
         self, cik: int, share_class: str = "", *, up_to: date | None = None
     ) -> list[tuple[date, float]]:
-        """(day, total return factor from the previous stored close to this one)."""
+        """(day, total return factor from the previous stored close to this one). A split or
+        dividend on a day with no stored close (a gap in the bars) counts on the next close:
+        missed, a 2-for-1 split read as the price halving."""
         closes = self.closes(cik, share_class, up_to=up_to)
         splits, dividends = self.splits(cik, share_class), self.dividends(cik, share_class)
+        split_days, dividend_days = sorted(splits), sorted(dividends)
         out = []
-        for (_, before), (day, close) in zip(closes, closes[1:], strict=False):
-            ratio = splits.get(day, 1.0)
-            out.append((day, ratio * (close + dividends.get(day, 0.0)) / before))
+        for (previous, before), (day, close) in zip(closes, closes[1:], strict=False):
+            ratio = 1.0
+            for d in split_days[bisect_right(split_days, previous) : bisect_right(split_days, day)]:
+                ratio *= splits[d]
+            paid = sum(
+                dividends[d]
+                for d in dividend_days[
+                    bisect_right(dividend_days, previous) : bisect_right(dividend_days, day)
+                ]
+            )
+            out.append((day, ratio * (close + paid) / before))
         return out
 
     def total_return(self, cik: int, share_class: str, start: date, end: date) -> float | None:
