@@ -53,7 +53,7 @@ async function openLog() {
   return app
 }
 
-const tickers = () => within(screen.getByRole('region', { name: 'Predictions' })).getAllByRole('row').slice(1).map((r) => r.querySelector('td.tk')?.textContent)
+const tickers = () => within(screen.getByRole('region', { name: 'Predictions' })).getAllByRole('row').slice(1).map((r) => r.querySelector('.tk')?.textContent)
 const cards = () => within(screen.getByRole('region', { name: 'Good picks' })).queryAllByRole('button').map((b) => b.querySelector('.tk')?.textContent)
 const legend = () => [...document.querySelectorAll('.legend li b')].map((b) => b.textContent)
 
@@ -150,5 +150,39 @@ describe('export and reports', () => {
     const { user } = await openLog()
     await user.click(screen.getByRole('button', { name: 'Open the CMCSA report' }))
     await waitFor(() => expect(bridge.getReport).toHaveBeenCalledWith('rep-CMCSA', expect.anything()))
+  })
+})
+
+describe('the 10 Nov polish', () => {
+  test('the table says when each next grade is due, on one short row', async () => {
+    await openLog()
+    const table = screen.getByRole('table', { name: 'Logged predictions' })
+    expect(within(table).getByRole('columnheader', { name: 'Next grade' })).toBeInTheDocument()
+    const mu = within(table).getAllByRole('row').find((r) => r.querySelector('.tk')?.textContent === 'MU')!
+    expect(mu).toHaveTextContent(/Feb 8/)
+    expect(mu).toHaveTextContent(/Made Nov 8/)
+    expect(within(mu).getByTitle('The 3-month grade')).toHaveTextContent('Feb 8')
+  })
+
+  test('the first 8 good picks show, and Show all brings the rest', async () => {
+    const many = Array.from({ length: 11 }, (_, i) => p(`T${i}`, 100 + i, { rating: 'Buy', base: 190, score: 90, probability: 0.8 }))
+    bridge.listPredictions.mockResolvedValue(ok(many))
+    const app = await renderApp()
+    await app.user.click(within(screen.getByRole('complementary', { name: 'Sidebar' })).getByRole('button', { name: /Prediction log/ }))
+    await screen.findByRole('cell', { name: 'T0' })
+    const region = within(screen.getByRole('region', { name: 'Good picks' }))
+    expect(region.getAllByRole('button').filter((b) => b.classList.contains('pcard'))).toHaveLength(8)
+    await app.user.click(region.getByRole('button', { name: 'Show all 11' }))
+    expect(region.getAllByRole('button').filter((b) => b.classList.contains('pcard'))).toHaveLength(11)
+  })
+
+  test('a log that didn’t load can be tried again', async () => {
+    bridge.listPredictions.mockResolvedValue({ ok: false, error: { code: 'ENGINE', message: 'No answer.' } } as never)
+    const app = await renderApp()
+    await app.user.click(within(screen.getByRole('complementary', { name: 'Sidebar' })).getByRole('button', { name: /Prediction log/ }))
+    const again = await screen.findByRole('button', { name: 'Try again' })
+    bridge.listPredictions.mockResolvedValue(ok(LOG))
+    await app.user.click(again)
+    expect(await screen.findByRole('cell', { name: 'MU' })).toBeInTheDocument()
   })
 })

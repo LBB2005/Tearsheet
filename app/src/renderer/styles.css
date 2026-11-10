@@ -73,6 +73,8 @@
   --accent2: #8FA2FF;
   --accent2-rgb: 143 162 255;
   --accent2-text: #B9C4FF;
+  /* Between the two accents: the log chart's sixth line. */
+  --accent-lo: #4C8DFF;
   /* Buy, Hold and Sell, up and down; red text for what went wrong. */
   --up: #63DFA5;
   --hold: #FFC56B;
@@ -353,7 +355,7 @@ html { accent-color: var(--accent); }
 .x4 svg { width: 12px; height: 12px; stroke: currentColor; fill: none; stroke-width: 2; }
 
 /* ---------- the page frame ---------- */
-.pagebody { flex: 1; min-height: 0; overflow: auto; position: relative; padding: 26px 32px 48px; }
+.pagebody { flex: 1; min-height: 0; overflow: auto; scrollbar-gutter: stable; position: relative; padding: 26px 32px 48px; }
 .pagebody[data-page="report"] { padding: 0; overflow: hidden; }
 .fatal { margin: 12px 20px 0; flex: none; }
 

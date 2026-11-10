@@ -21,7 +21,8 @@ export const COMPARE_RANGES: [key: CompareRange, label: string][] = [
 const SPAN: Record<Exclude<CompareRange, 'since'>, number> = { '1M': 21, '3M': 63, '1Y': 252 }
 
 // Line colours, by the order they were ticked: the app's colour names, never typed colours.
-export const LINE_COLOURS = ['var(--accent)', 'var(--hold)', 'var(--accent2)', 'var(--up)', 'var(--bad-text3)', 'var(--soft)']
+// No greys: the S&P 500's line is the pale one (C6 of the UI check, 10 Nov 2026).
+export const LINE_COLOURS = ['var(--accent)', 'var(--hold)', 'var(--accent2)', 'var(--up)', 'var(--bad-text3)', 'var(--accent-lo)']
 
 export interface Pick {
   cik: number

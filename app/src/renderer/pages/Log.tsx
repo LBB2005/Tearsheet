@@ -12,8 +12,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CallResult } from '../../preload/api'
 import type { GradeResult, PredictionPrices, PredictionSummary } from '../../shared/protocol'
 import { CompareChart } from '../log/CompareChart'
-import { compareSeries, sinceFor, type CompareRange, type Pick } from '../log/compare'
-import { gradeCells, gradedLine, logSubtitle, ratingTone } from '../log/log'
+import { compareSeries, sinceFor, type CompareRange, type CompareSeries, type Pick } from '../log/compare'
+import { gradeCells, gradedLine, logSubtitle, nextGrade, ratingTone } from '../log/log'
 import {
   applyFilters,
   BAR_TICKS,
@@ -42,6 +42,7 @@ import {
   type SortKey
 } from '../log/screen'
 import { shortDate } from '../nav'
+import { PopUp, rangeFill } from '../settings/General'
 import { at, Changes, Spinner } from '../setup/parts'
 import { money } from '../shell/Sidebar'
 
@@ -58,6 +59,9 @@ export interface LogProps {
   // Opens a prediction's report.
   onOpenReport?: (reportId: string) => void
 }
+
+// Two rows of four cards show at first.
+const CARDS_SHOWN = 8
 
 const price = (v: number | null | undefined) => (v === null || v === undefined ? '—' : money.format(v))
 const pctOf = (v: number | null | undefined) => (v === null || v === undefined ? '—' : `${Math.round(v * 100)}%`)
@@ -82,10 +86,9 @@ function Bar({ p }: { p: PredictionSummary }) {
         <i className="range" style={{ left: `${bar.left}%`, width: `${bar.width}%` }} />
         <i className="base" style={{ left: `${bar.base}%` }} />
       </span>
+      {/* The base case's price sits under its own mark; bear and bull are in the tooltip. */}
       <span className="ends">
-        <span>{price(p.bear)}</span>
-        <span>{price(p.base)}</span>
-        <span>{price(p.bull)}</span>
+        <span style={{ left: `${Math.min(82, Math.max(18, bar.base))}%` }}>{price(p.base)}</span>
       </span>
     </span>
   )
@@ -94,7 +97,7 @@ function Bar({ p }: { p: PredictionSummary }) {
 function Options({ title, facet, options, filters, counts, onFlip }: { title: string; facet: Facet; options: [value: string, label: string][]; filters: Filters; counts: Map<string, number>; onFlip: (facet: Facet, value: string) => void }) {
   return (
     <fieldset className="fs">
-      <legend>{title}</legend>
+      <legend className="eyebrow">{title}</legend>
       {options.map(([value, label]) => (
         <label key={value} className="ck">
           <input type="checkbox" checked={(filters[facet] as string[]).includes(value)} onChange={() => onFlip(facet, value)} />
@@ -109,6 +112,7 @@ function Options({ title, facet, options, filters, counts, onFlip }: { title: st
 export function Log({ grading, refresh, onGrade, onSubtitle, onOpenReport }: LogProps) {
   const [all, setAll] = useState<PredictionSummary[] | null>(null)
   const [failed, setFailed] = useState<string | null>(null)
+  const [tries, setTries] = useState(0)
   const [line, setLine] = useState<string | null>(null)
   const [rule, setRuleState] = useState<Rule>(() => loadRule())
   const [filters, setFilters] = useState<Filters>(NO_FILTERS)
@@ -116,8 +120,13 @@ export function Log({ grading, refresh, onGrade, onSubtitle, onOpenReport }: Log
   const [picks, setPicks] = useState<number[] | null>(null)
   const [range, setRange] = useState<CompareRange>('1Y')
   const [allCards, setAllCards] = useState(false)
+  // The first two rows of cards show; the rest behind Show all (Liam, 10 Nov 2026).
+  const [moreCards, setMoreCards] = useState(false)
   const [prices, setPrices] = useState<{ key: string; data: PredictionPrices | null } | null>(null)
   const [saved, setSaved] = useState<{ text: string; path?: string } | null>(null)
+  // The chart last drawn: it stays up, dimmed, while the next one's prices load, so the panel
+  // never collapses to a line of text and springs back on every tick.
+  const drawnLast = useRef<CompareSeries | null>(null)
   const subtitle = useRef(onSubtitle)
   subtitle.current = onSubtitle
 
@@ -137,7 +146,7 @@ export function Log({ grading, refresh, onGrade, onSubtitle, onOpenReport }: Log
     return () => {
       live = false
     }
-  }, [refresh])
+  }, [refresh, tries])
 
   const rows = useMemo(() => logRows(all ?? [], rule), [all, rule])
   // The chart opens on the good picks (up to 6), until Liam ticks something himself.
@@ -212,11 +221,24 @@ export function Log({ grading, refresh, onGrade, onSubtitle, onOpenReport }: Log
     return (
       <div className="logv panels">
         {failed ? (
-          <p className="notice error mv" role="alert">
-            The prediction log didn’t load. {failed}
-          </p>
+          <div className="notice error mv lfail" role="alert">
+            <span>The prediction log didn’t load. {failed}</span>
+            <button
+              className="btn2"
+              type="button"
+              onClick={() => {
+                setFailed(null)
+                setTries((n) => n + 1)
+              }}
+            >
+              Try again
+            </button>
+          </div>
         ) : (
-          <p className="loading">Loading the prediction log…</p>
+          <p className="loading fine">
+            <Spinner />
+            Loading the prediction log…
+          </p>
         )}
       </div>
     )
@@ -235,7 +257,6 @@ export function Log({ grading, refresh, onGrade, onSubtitle, onOpenReport }: Log
         <section className="p glass mv" style={at(1)}>
           <h4>
             <span>Logged predictions</span>
-            {head(null)}
           </h4>
           {said}
           <div className="empty">
@@ -251,7 +272,11 @@ export function Log({ grading, refresh, onGrade, onSubtitle, onOpenReport }: Log
   const good = shown.filter((r) => r.good)
   const cards = allCards ? shown : good
   const anyGraded = rows.some((r) => r.graded)
-  const series = compareSeries(prices && prices.key === priceKey ? prices.data : null, pickList, range)
+  const loadingPrices = !!priceKey && prices?.key !== priceKey
+  const fresh = compareSeries(prices && prices.key === priceKey ? prices.data : null, pickList, range)
+  if (!loadingPrices && !fresh.empty) drawnLast.current = fresh
+  const stale = loadingPrices && drawnLast.current !== null
+  const series = stale ? (drawnLast.current as CompareSeries) : fresh
   const count = (facet: Facet) => facetCounts(rows, filters, facet)
   const goodCount = rows.filter((r) => r.good).length
   const setNum = (key: 'minUpside' | 'minScore' | 'minChance') => (e: { target: { value: string } }) => setRule({ ...rule, [key]: Number(e.target.value) })
@@ -263,7 +288,7 @@ export function Log({ grading, refresh, onGrade, onSubtitle, onOpenReport }: Log
       <div className="split">
         <aside className="p glass mv side" style={at(1)} aria-label="Filters">
           <fieldset className="fs">
-            <legend>★ Good-pick consensus</legend>
+            <legend className="eyebrow">★ Good-pick consensus</legend>
             <p className="lead">A good pick meets at least this many of the 4 checks:</p>
             <div className="chips" role="group" aria-label="Checks that must agree">
               {[1, 2, 3, 4].map((n) => (
@@ -276,21 +301,21 @@ export function Log({ grading, refresh, onGrade, onSubtitle, onOpenReport }: Log
             <label className="rl">
               <span><i className="on" aria-hidden="true" />Upside to base case</span>
               <b>{rule.minUpside}%+</b>
-              <input type="range" min={RULE_LIMITS.minUpside[0]} max={RULE_LIMITS.minUpside[1]} step={5} value={rule.minUpside} onChange={setNum('minUpside')} aria-label="Upside check, at least" />
+              <input type="range" min={RULE_LIMITS.minUpside[0]} max={RULE_LIMITS.minUpside[1]} step={5} value={rule.minUpside} style={rangeFill(rule.minUpside, ...RULE_LIMITS.minUpside)} onChange={setNum('minUpside')} aria-label="Upside check, at least" />
             </label>
             <label className="rl">
               <span><i className="on" aria-hidden="true" />Peer score</span>
               <b>{rule.minScore}+</b>
-              <input type="range" min={RULE_LIMITS.minScore[0]} max={RULE_LIMITS.minScore[1]} step={5} value={rule.minScore} onChange={setNum('minScore')} aria-label="Peer score check, at least" />
+              <input type="range" min={RULE_LIMITS.minScore[0]} max={RULE_LIMITS.minScore[1]} step={5} value={rule.minScore} style={rangeFill(rule.minScore, ...RULE_LIMITS.minScore)} onChange={setNum('minScore')} aria-label="Peer score check, at least" />
             </label>
             <label className="rl">
               <span><i className="on" aria-hidden="true" />Chance of beating peers</span>
               <b>{rule.minChance}%+</b>
-              <input type="range" min={RULE_LIMITS.minChance[0]} max={RULE_LIMITS.minChance[1]} step={5} value={rule.minChance} onChange={setNum('minChance')} aria-label="Chance of beating peers check, at least" />
+              <input type="range" min={RULE_LIMITS.minChance[0]} max={RULE_LIMITS.minChance[1]} step={5} value={rule.minChance} style={rangeFill(rule.minChance, ...RULE_LIMITS.minChance)} onChange={setNum('minChance')} aria-label="Chance of beating peers check, at least" />
             </label>
           </fieldset>
           <fieldset className="fs">
-            <legend>Show</legend>
+            <legend className="eyebrow">Show</legend>
             <label className="ck">
               <input type="radio" name="logshow" checked={!filters.goodOnly} onChange={() => setFilters((f) => ({ ...f, goodOnly: false }))} />
               <span>All predictions</span>
@@ -326,7 +351,7 @@ export function Log({ grading, refresh, onGrade, onSubtitle, onOpenReport }: Log
               <p className="fine">No prediction meets {rule.need} of the 4 checks with these filters. Lower a number on the left, or ask for fewer checks.</p>
             ) : (
               <div className="cards">
-                {cards.map((r) => {
+                {(moreCards ? cards : cards.slice(0, CARDS_SHOWN)).map((r) => {
                   const on = chosen.includes(r.p.cik) && r.newest
                   return (
                     <button key={r.p.prediction_id} type="button" className={`pcard${on ? ' on' : ''}${r.good ? ' good' : ''}`} aria-pressed={on} disabled={!r.newest} onClick={() => tick(r.p.cik)} title={r.newest ? `Add ${r.p.ticker} to the chart` : 'An older prediction for this company'}>
@@ -344,22 +369,23 @@ export function Log({ grading, refresh, onGrade, onSubtitle, onOpenReport }: Log
                 })}
               </div>
             )}
+            {cards.length > CARDS_SHOWN && (
+              <button className="link more" type="button" aria-expanded={moreCards} onClick={() => setMoreCards((v) => !v)}>
+                {moreCards ? 'Show fewer' : `Show all ${cards.length}`}
+              </button>
+            )}
           </section>
 
-          <section className="p glass mv" style={at(3)} aria-label="Predictions">
+          <section className="p glass mv tablep" style={at(3)} aria-label="Predictions">
             <h4>
               <span>
                 {shown.length} of {rows.length} predictions
-                <label className="sortby">
-                  Sort
-                  <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
-                    {SORTS.map(([key, label]) => (
-                      <option key={key} value={key}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <span className="sortby">
+                  <span id="log-sort">Sort</span>
+                  <span className="small">
+                    <PopUp labelledBy="log-sort" value={sort} options={SORTS} onChange={(v) => setSort(v as SortKey)} />
+                  </span>
+                </span>
               </span>
               {head(shown.length)}
             </h4>
@@ -391,94 +417,112 @@ export function Log({ grading, refresh, onGrade, onSubtitle, onOpenReport }: Log
                 </span>
               </div>
             ) : (
-              <div className="tablebox">
-                <table className="t small">
-                  <thead>
-                    <tr>
-                      <th aria-label="Compare" />
-                      <th>Ticker</th>
-                      <th>Company</th>
-                      <th>Rating</th>
-                      <th>Checks</th>
-                      <th className="r" title="Peer score, and the chance of beating its peers">
-                        Peer
-                        <br />
-                        beat
-                      </th>
-                      <th className="barh">
-                        <span className="ticks" aria-hidden="true">
-                          {BAR_TICKS.map((t) => (
-                            <span key={t.label} style={{ left: `${t.x}%` }}>
-                              {t.label}
-                            </span>
-                          ))}
+              // A grid, not an auto-sized table: every row shares one column template, so a row never
+              // waits on the others to size itself, and rows out of view skip layout and paint
+              // (content-visibility). The header row stays at the top while the page scrolls.
+              <div className="ltable" role="table" aria-label="Logged predictions" aria-rowcount={shown.length + 1}>
+                <div className="lhead" role="rowgroup">
+                  <div className="lrow" role="row">
+                    <span role="columnheader" className="c-ck">
+                      <span className="sr">Compare</span>
+                    </span>
+                    <span role="columnheader">Ticker</span>
+                    <span role="columnheader">Company</span>
+                    <span role="columnheader">Rating</span>
+                    <span role="columnheader" className="c-checks">
+                      Checks
+                    </span>
+                    <span role="columnheader" className="r c-peer" title="Peer score, and the chance of beating its peers">
+                      Peer
+                    </span>
+                    <span role="columnheader" className="c-bar">
+                      <span className="ticks" aria-hidden="true">
+                        {BAR_TICKS.map((t) => (
+                          <span key={t.label} style={{ left: `${t.x}%` }}>
+                            {t.label}
+                          </span>
+                        ))}
+                      </span>
+                      <span className="sr">Bear, base and bull against today’s price</span>
+                    </span>
+                    <span role="columnheader" className="r">
+                      Upside
+                    </span>
+                    <span role="columnheader">Next grade</span>
+                    <span role="columnheader">
+                      <span className="sr">Report</span>
+                    </span>
+                  </div>
+                </div>
+                <div role="rowgroup">
+                  {shown.map((r) => {
+                    const cells = gradeCells(r.p, now)
+                    const next = nextGrade(r.p, now)
+                    const on = r.newest && chosen.includes(r.p.cik)
+                    return (
+                      <div key={r.p.prediction_id} role="row" className={`lrow${r.good ? ' good' : ''}${on ? ' on' : ''}`}>
+                        <span role="cell" className="c-ck">
+                          <input type="checkbox" checked={on} disabled={!r.newest} onChange={() => tick(r.p.cik)} aria-label={`Compare ${r.p.ticker}`} />
                         </span>
-                        <span className="sr">Bear, base and bull against today’s price</span>
-                      </th>
-                      <th className="r">Upside</th>
-                      <th aria-label="Report" />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {shown.map((r) => {
-                      const cells = gradeCells(r.p, now)
-                      const on = r.newest && chosen.includes(r.p.cik)
-                      return (
-                        <tr key={r.p.prediction_id} className={`${r.good ? 'good' : ''}${on ? ' on' : ''}`}>
-                          <td>
-                            <input type="checkbox" checked={on} disabled={!r.newest} onChange={() => tick(r.p.cik)} aria-label={`Compare ${r.p.ticker}`} />
-                          </td>
-                          <td className="tk">{r.p.ticker}</td>
-                          <td className="co">
-                            <span className="nm">{companyName(r.p.name ?? r.p.ticker)}</span>
-                            <span className="sub">
-                              {r.p.sector ?? 'Unknown sector'} · {riskLabel(r.p.uncertainty).toLowerCase()} risk
-                            </span>
-                            <span className="grades">
-                              <span className="made">
-                                Made {shortDate(r.p.run_at.slice(0, 10), now)}
-                                {!r.newest && ' · older prediction'}
+                        <span role="cell" className="tk">
+                          {r.p.ticker}
+                        </span>
+                        <span role="cell" className="co" title={companyName(r.p.name ?? r.p.ticker)}>
+                          <span className="nm">{companyName(r.p.name ?? r.p.ticker)}</span>
+                          <span className="sub">
+                            {r.p.sector ?? 'Unknown sector'} · {riskLabel(r.p.uncertainty).toLowerCase()} risk
+                          </span>
+                        </span>
+                        <span role="cell">
+                          <span className={`pill ${ratingTone(r.p.rating)}`}>{r.p.rating}</span>
+                        </span>
+                        <span role="cell" className="cks c-checks">
+                          {r.good && <span className="star" aria-label="Good pick">★ </span>}
+                          <Squares row={r} />
+                        </span>
+                        <span role="cell" className="r pb c-peer">
+                          {r.p.score == null ? '—' : Math.round(r.p.score)}
+                          <span>{pctOf(r.p.probability)}</span>
+                        </span>
+                        <span role="cell" className="c-bar">
+                          <Bar p={r.p} />
+                        </span>
+                        <span role="cell" className={`r upv ${r.up === null ? '' : r.up >= 0 ? 'up' : 'down'}`}>
+                          {signedPct(r.up)}
+                        </span>
+                        <span role="cell" className="ng">
+                          <span className="ngl">
+                            {cells.graded.map((g) => (
+                              <span key={g.months} className={`pill ${g.verdict === 'hit' ? 'ok' : g.verdict === 'miss' ? 'bad' : 'off'}`} title={[g.label, g.detail].filter(Boolean).join(': ')}>
+                                {g.months} mo {g.text}
                               </span>
-                                {cells.graded.map((g) => (
-                                  <span key={g.months} className="gr">
-                                    <span className="gm">{g.label}</span>
-                                    <span className={`pill ${g.verdict === 'hit' ? 'ok' : g.verdict === 'miss' ? 'bad' : 'off'}`}>{g.text}</span>
-                                    {g.detail && <span className="gd">{g.detail}</span>}
-                                  </span>
-                                ))}
-                                {cells.next && <span className="pill off">{cells.next}</span>}
-                            </span>
-                          </td>
-                          <td>
-                            <span className={`pill ${ratingTone(r.p.rating)}`}>{r.p.rating}</span>
-                          </td>
-                          <td className="cks">
-                            {r.good && <span className="star" aria-label="Good pick">★ </span>}
-                            <Squares row={r} />
-                          </td>
-                          <td className="r pb">
-                            {r.p.score == null ? '—' : Math.round(r.p.score)}
-                            <br />
-                            <span>{pctOf(r.p.probability)}</span>
-                          </td>
-                          <td>
-                            <Bar p={r.p} />
-                          </td>
-                          <td className={`r upv ${r.up === null ? '' : r.up >= 0 ? 'up' : 'down'}`}>{signedPct(r.up)}</td>
-                          <td>
-                            {r.p.report_id && onOpenReport && (
-                              <button className="open" type="button" aria-label={`Open the ${r.p.ticker} report`} onClick={() => onOpenReport(r.p.report_id as string)}>
-                                <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true">
-                                  <path d="M6 3l5 5-5 5" />
-                                </svg>
-                              </button>
+                            ))}
+                            {next ? (
+                              <span className="due" title={`The ${next.months}-month grade`}>
+                                {next.when === 'due now' ? 'Due now' : next.when}
+                              </span>
+                            ) : (
+                              !cells.graded.length && '—'
                             )}
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
+                          </span>
+                          <span className="sub">
+                            Made {shortDate(r.p.run_at.slice(0, 10), now)}
+                            {!r.newest && ' · older'}
+                          </span>
+                        </span>
+                        <span role="cell">
+                          {r.p.report_id && onOpenReport && (
+                            <button className="open" type="button" aria-label={`Open the ${r.p.ticker} report`} onClick={() => onOpenReport(r.p.report_id as string)}>
+                              <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true">
+                                <path d="M6 3l5 5-5 5" />
+                              </svg>
+                            </button>
+                          )}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
             )}
           </section>
@@ -486,7 +530,8 @@ export function Log({ grading, refresh, onGrade, onSubtitle, onOpenReport }: Log
           <CompareChart
             series={series}
             range={range}
-            loading={!!priceKey && prices?.key !== priceKey}
+            loading={loadingPrices}
+            stale={stale}
             picked={pickList.length}
             onRange={setRange}
             onRemove={(key) => setPicks(chosen.filter((c) => String(c) !== key))}

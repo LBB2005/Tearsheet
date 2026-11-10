@@ -43,7 +43,7 @@ describe('the shared parts', () => {
 // The shared scale (styles.css :root; UI check of 10 Nov 2026): seven text sizes, five corners and a
 // pill, four motion times, one recipe for what floats. A sheet moved onto the scale is listed here,
 // and then may not type a size, a corner or a transition time of its own again.
-const ON_SCALE = ['styles.css', 'settings/settings.css', 'settings/appearance.css', 'mark/mark.css', 'panel/panel.css']
+const ON_SCALE = ['styles.css', 'log/log.css', 'settings/settings.css', 'settings/appearance.css', 'mark/mark.css', 'panel/panel.css']
 const outsideRoot = (text: string) => {
   const start = text.indexOf(':root {')
   return (start < 0 ? text : text.slice(0, start) + text.slice(text.indexOf('}', start) + 1)).replace(/\/\*[\s\S]*?\*\//g, '')
