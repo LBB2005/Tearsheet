@@ -84,6 +84,8 @@ describe('moving between pages', () => {
     const { user } = await renderApp()
     menu('settings')
     expect(win()).toHaveClass('on-settings')
+    menu('log')
+    expect(win()).toHaveClass('on-log')
     menu('new')
     expect(win()).toHaveClass('on-home')
     menu('next')

@@ -438,6 +438,7 @@ export function App() {
     else if (command === 'sidebar') toggleSidebar()
     else if (command === 'find') openFind()
     else if (command === 'settings') go('settings')
+    else if (command === 'log') go('log')
     else if (command === 'help') {
       setSettingsTopic('about')
       go('settings')
