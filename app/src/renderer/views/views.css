@@ -45,18 +45,18 @@
 .mpeer:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 /* Value per share by method: a strip of marks on top (the range, today's price and the estimate,
-   which carry the readouts), one row for each method below it, and the band and lines drawn over
-   the rows. The overlay lines up with the tracks, which sit --vpad in from the rows' edges: keep it
-   equal to .mrow's horizontal padding plus its border (10px + 1px). The rows start at 30px: the
-   plot's 4px padding, the 22px strip and its 4px gap. */
+   which carry the readouts), one row for each method below it. Each row's track draws the band
+   and the two lines again, under the method's dot, so they line up with the strip and never run
+   across a method's name or value. The strip lines up with the tracks, which sit --vpad in from
+   the rows' edges: keep it equal to .mrow's horizontal padding plus its border (10px + 1px). */
 .vplot { --vpad: 11px; position: relative; padding: 4px 0 12px; }
 .vhead { position: relative; height: 22px; margin: 0 var(--vpad) 4px; }
 .vrows { display: flex; flex-direction: column; gap: 4px; }
-.vover { position: absolute; left: var(--vpad); right: var(--vpad); top: 30px; bottom: 12px; pointer-events: none; }
-.vband { position: absolute; top: 0; bottom: 0; background: var(--accent2); opacity: .16; }
-.vline { position: absolute; top: 0; bottom: 0; width: 0; }
+.vband { position: absolute; top: 2px; height: 10px; border-radius: calc(3px * var(--round)); background: rgb(var(--accent2-rgb) / .22); }
+.vline { position: absolute; top: -2px; height: 18px; width: 0; transform: translateX(-1px); }
 .vline.price { border-left: 2px dashed var(--hold); }
 .vline.est { border-left: 2px solid var(--accent); }
+.mtrack .mdot { z-index: 1; }
 /* The marks in the strip are the targets for hover and focus; the band and lines below are only drawn. */
 .vmark { all: unset; box-sizing: border-box; cursor: pointer; position: absolute; top: 2px; height: 18px; }
 .vmark.range { border-radius: calc(4px * var(--round)); background: var(--accent2); opacity: .5; min-width: 6px; }

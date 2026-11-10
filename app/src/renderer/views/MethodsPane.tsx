@@ -70,6 +70,15 @@ export function Methods({ chrome, numbers, ticker, item, state, setState }: View
   const range = state.range ? numbers.range : null
   const price = state.price ? numbers.price : null
   const estimate = state.estimate ? numbers.estimate : null
+  // The range, today's price and the estimate, drawn again in each row's track, under the
+  // method's dot: in line with the marks in the strip above, and never across a name or a value.
+  const marks = (
+    <>
+      {range && <i className="vband" aria-hidden="true" style={{ left: `${at(range.bear, scale)}%`, width: `${at(range.bull, scale) - at(range.bear, scale)}%` }} />}
+      {price && <i className="vline price" aria-hidden="true" style={{ left: `${at(price.value, scale)}%` }} />}
+      {estimate && <i className="vline est" aria-hidden="true" style={{ left: `${at(estimate.value, scale)}%` }} />}
+    </>
+  )
   const hover = (p: Pointed) => ({ onPointerEnter: () => setPointed(p), onFocus: () => setPointed(p), onBlur: () => setPointed(null) })
 
   return (
@@ -87,11 +96,6 @@ export function Methods({ chrome, numbers, ticker, item, state, setState }: View
           {price && <button className="vmark tick price" style={{ left: `${at(price.value, scale)}%` }} aria-label="Today’s price" {...hover({ kind: 'price' })} />}
           {estimate && <button className="vmark tick est" style={{ left: `${at(estimate.value, scale)}%` }} aria-label="Estimate" {...hover({ kind: 'estimate' })} />}
         </div>
-        <div className="vover" aria-hidden="true">
-          {range && <i className="vband" style={{ left: `${at(range.bear, scale)}%`, width: `${at(range.bull, scale) - at(range.bear, scale)}%` }} />}
-          {price && <i className="vline price" style={{ left: `${at(price.value, scale)}%` }} />}
-          {estimate && <i className="vline est" style={{ left: `${at(estimate.value, scale)}%` }} />}
-        </div>
         <div className="vrows">
           {methods.map((m) => (
             <div
@@ -104,6 +108,7 @@ export function Methods({ chrome, numbers, ticker, item, state, setState }: View
               <span className="mname">{m.label}</span>
               <span className="mval">{money.format(m.value)}</span>
               <span className="mtrack">
+                {marks}
                 <i className="mdot" style={{ left: `${at(m.value, scale)}%` }} />
               </span>
             </div>
