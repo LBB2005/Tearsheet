@@ -307,14 +307,14 @@ def _claims(numbers: dict, report: dict) -> dict:
 
 
 def _tables(report: dict) -> list[dict]:
-    """Every table the Full report shows, as its stored text."""
+    """Every table the Full report shows, as the page shows it (readouts.shown_tables)."""
     return [
         {
             "key": str(s.get("key") or ""),
             "title": _title(s),
             "rows": [[str(cell) for cell in row] for row in s["table"] if isinstance(row, list)],
         }
-        for s in _sections(report)
+        for s in _sections(readouts.shown_tables(report))
         if s.get("table")
     ]
 

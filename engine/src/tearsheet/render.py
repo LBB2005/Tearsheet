@@ -248,7 +248,7 @@ def render_html(
     shows_analysts = bool(analysts) and analysts.get("state") == "ok"
     key_tiles = bool(narrow) and column in ("text", "auto")
     return _ENV.get_template("report.html.j2").render(
-        r=report,
+        r=readouts.shown_tables(report),
         n={key: given.get(key) for key in NUMBER_KEYS},
         analysts=analysts or None,
         hide_line=NOT_AVAILABLE if shows_analysts else None,

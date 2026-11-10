@@ -234,3 +234,24 @@ def test_no_readout_holds_markup_of_its_own() -> None:
     ]
     for text in results:
         assert not any(ch in text for ch in "<>&"), text
+
+
+def test_table_cells_show_methods_by_name_and_factors_with_a_capital():
+    assert r.table_cell("valuation", "RESIDUAL_INCOME") == "Residual income"
+    assert r.table_cell("valuation", "DCF") == "Discounted cash flow"
+    assert r.table_cell("valuation", "not meaningful") == "not meaningful"
+    assert r.table_cell("score", "capital discipline") == "Capital discipline"
+    assert r.table_cell("rating", "keep me") == "keep me"
+
+
+def test_shown_tables_changes_only_the_drawn_copy():
+    stored = {
+        "sections": [
+            {"key": "valuation", "table": [["Method", "Value"], ["MULTIPLES", "$1.00"]]},
+            {"key": "rating", "paragraphs": ["x"]},
+        ]
+    }
+    shown = r.shown_tables(stored)
+    assert shown["sections"][0]["table"] == [["Method", "Value"], ["Multiples", "$1.00"]]
+    assert stored["sections"][0]["table"][1][0] == "MULTIPLES"
+    assert shown["sections"][1] == stored["sections"][1]
