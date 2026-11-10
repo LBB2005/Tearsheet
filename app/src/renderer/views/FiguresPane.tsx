@@ -49,7 +49,7 @@ export function RedFlags({ chrome, numbers, ticker, item }: ViewProps<null>): Re
             onBlur={() => setPointed(null)}
           >
             <span>{f.label}</span>
-            <span className={f.found ? 'rfstate found' : 'rfstate'}>{f.found ? 'found' : 'clear'}</span>
+            <span className={f.found ? 'rfstate found' : 'rfstate'}>{f.found ? 'Found' : 'Clear'}</span>
           </button>
         ))}
       </div>

@@ -42,7 +42,7 @@ export function Table({ chrome, view, numbers, ticker, item, state, setState }: 
       <div className="tctl">
         <input
           type="search"
-          className="tfilter"
+          className="tfilter textfield"
           aria-label="Filter rows"
           placeholder="Filter rows"
           value={state.filter}

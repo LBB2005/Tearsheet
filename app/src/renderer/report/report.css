@@ -27,10 +27,10 @@ iframe.report-frame.fadein { animation: fade .15s ease-out both; background: tra
 /* With no report on show behind it (the first opening failed), the notice is the page: centred,
    the title on its own line and the reason under it, like the chart's message (chart.css .cmsg).
    A later reload that fails keeps the report on show, with the notice as a strip above it. */
-.rmain > .rerror:only-child { margin: auto; max-width: 52ch; padding: 0 24px; flex-direction: column; gap: 14px; text-align: center; color: var(--muted); font-size: 13.5px;
+.rmain > .rerror:only-child { margin: auto; max-width: 52ch; padding: 0 24px; flex-direction: column; gap: 14px; text-align: center; color: var(--muted); font-size: var(--fs-md);
   background: none; border: 0; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
 .rmain > .rerror:only-child span { flex: none; }
-.rmain > .rerror:only-child b { display: block; margin-bottom: 4px; color: var(--text); font-size: 15px; }
+.rmain > .rerror:only-child b { display: block; margin-bottom: 4px; color: var(--text); font-size: var(--fs-lg); }
 /* A narrow window keeps the report beside the chart, as a wide one does (chart/chart.css). */
 
 /* ---------- the toolbar: the Chart button and the Numbers / Text switch ---------- */

@@ -11,7 +11,9 @@
 .frow:hover { background: rgb(var(--accent-rgb) / .06); }
 .frow:focus-visible { outline: 2px solid var(--accent); }
 .frow.picked { border-color: var(--accent); background: rgb(var(--accent-rgb) / .08); }
-.fname { text-transform: capitalize; overflow-wrap: anywhere; }
+/* The engine names a factor in lower case ("capital discipline"); it starts with a capital, as in the report. */
+.fname { overflow-wrap: anywhere; }
+.fname::first-letter { text-transform: uppercase; }
 .fmid { position: relative; display: flex; flex-direction: column; gap: 5px; min-width: 0; }
 .ftrack { display: block; height: 10px; border-radius: calc(5px * var(--round)); background: var(--line); overflow: hidden; }
 .fbar { display: block; height: 100%; border-radius: calc(5px * var(--round)); background: var(--accent); }
@@ -52,7 +54,7 @@
 .vplot { --vpad: 11px; position: relative; padding: 4px 0 12px; }
 .vhead { position: relative; height: 22px; margin: 0 var(--vpad) 4px; }
 .vrows { display: flex; flex-direction: column; gap: 4px; }
-.vband { position: absolute; top: 2px; height: 10px; border-radius: calc(3px * var(--round)); background: rgb(var(--accent2-rgb) / .22); }
+.vband { position: absolute; top: 2px; height: 10px; border-radius: var(--r-xs); background: rgb(var(--accent2-rgb) / .22); }
 .vline { position: absolute; top: -2px; height: 18px; width: 0; transform: translateX(-1px); }
 .vline.price { border-left: 2px dashed var(--hold); }
 .vline.est { border-left: 2px solid var(--accent); }
@@ -74,8 +76,8 @@
 
 /* A Full-report table: the filter and its count above, then the table, whose header cells sort. */
 .tctl { display: flex; align-items: center; gap: 12px; padding: 4px 0 10px; }
-.tfilter { flex: 1; min-width: 0; box-sizing: border-box; padding: 6px 10px; border-radius: calc(8px * var(--round)); border: 1px solid var(--line); background: var(--panel); color: var(--text); font: inherit; font-size: 13px; }
-.tfilter:focus-visible { outline: 2px solid var(--accent); }
+/* The filter is the app's text field (styles.css .textfield); here it only takes the row's room. */
+.tfilter { flex: 1; min-width: 0; }
 .tcount { flex: none; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 .tscroll { overflow-x: auto; padding-bottom: 12px; }
 .ttable { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -90,10 +92,12 @@ th[aria-sort='ascending'] .tsort, th[aria-sort='descending'] .tsort { color: var
 .ttable tbody tr.picked { background: rgb(var(--accent-rgb) / .08); outline: 1px solid var(--accent); outline-offset: -1px; }
 .tnone { color: var(--muted); padding: 12px 10px; }
 
-/* Red flags: the meter is one cell for each check, then one button for each check. */
-.rfmeter { display: flex; align-items: center; gap: 12px; padding: 6px 4px 14px; font-size: 18px; }
+/* Red flags: the meter is one cell for each check, then one button for each check. A check that
+   found nothing is a faint green cell (an empty grey one read as still loading), one that found a
+   flag amber. The meter's right edge lines up with the rows' (their padding and border). */
+.rfmeter { display: flex; align-items: center; gap: 12px; padding: 6px 11px 14px; font-size: 18px; }
 .rfcells { flex: 1; display: flex; gap: 4px; }
-.rfcells i { flex: 1; height: 14px; border-radius: calc(4px * var(--round)); background: var(--line); }
+.rfcells i { flex: 1; height: 14px; border-radius: calc(4px * var(--round)); background: rgb(var(--up-rgb) / .28); }
 .rfcells i.found { background: var(--hold); }
 .rfrows { display: flex; flex-direction: column; gap: 4px; padding-bottom: 12px; }
 .rfrow { all: unset; box-sizing: border-box; cursor: pointer; display: flex; justify-content: space-between; gap: 12px; padding: 10px; border-radius: calc(10px * var(--round));
@@ -123,6 +127,9 @@ th[aria-sort='ascending'] .tsort, th[aria-sort='descending'] .tsort { color: var
 .rtotal { fill: var(--text); font-size: 28px; font-weight: calc(600 + var(--wt)); stroke: none; }
 .rlists details { border-top: 1px solid var(--line); padding: 8px 4px; font-size: 13px; }
 .rlists summary { cursor: pointer; display: flex; align-items: center; gap: 8px; }
+/* Each list opens and closes: a small chevron at the right says so, turned down while open. */
+.rlists summary::after { content: ''; margin: 0 4px 0 auto; width: 6px; height: 6px; border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted); transform: rotate(-45deg); }
+.rlists details[open] > summary::after { transform: rotate(45deg); }
 .rlists summary:focus-visible { outline: 2px solid var(--accent); }
 .rlists summary i { width: 10px; height: 10px; border-radius: 50%; }
 .rcount { color: var(--muted); font-variant-numeric: tabular-nums; }
