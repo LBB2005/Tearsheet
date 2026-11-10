@@ -39,6 +39,10 @@ iframe.report-frame.fadein { animation: fade .15s ease-out both; background: tra
 .segc button:hover { color: var(--text); }
 .segc button.on { background: rgb(var(--ink) / .14); color: var(--text); box-shadow: 0 1px 2px rgb(var(--shade) / calc(.3 * var(--shade-k))); }
 .segc button:focus-visible { outline: 2px solid var(--accent); }
+/* A span or range that can't be picked (3Y and 5Y without the full history): faded, with no
+   pointer and no hover. `all: unset` above wipes the shared disabled look (styles.css), so it is
+   set again here. */
+.segc button:disabled, .segc button:disabled:hover { opacity: .45; color: var(--muted); cursor: default; }
 
 /* ---------- the top bar (report/ReportBar.tsx): the ticker, the last close and the day's move,
    then the report's call in one box. It fills the room left of the toolbar's buttons; the hidden
