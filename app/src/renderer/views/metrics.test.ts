@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { MetricItem, PeerValue } from '../../shared/protocol'
-import { METRICS_START, metricScale, sortMetrics } from './metrics'
+import { METRICS_START, metricScale, sortMetrics, withMinus } from './metrics'
 
 const peer = (value: number): PeerValue => ({ ticker: 'P', value, text: String(value), readout: '' })
 const m = (name: string, percentile: number | null, over: Partial<MetricItem> = {}): MetricItem => ({
@@ -71,5 +71,18 @@ describe('metricScale', () => {
   it('skips a null median', () => {
     const s = metricScale(m('y', 1, { peer_median: null }), METRICS_START)
     expect(s).toEqual({ lo: 9, hi: 11 })
+  })
+})
+
+describe('withMinus', () => {
+  it('writes a minus sign where the engine wrote a hyphen', () => {
+    expect(withMinus('-0.7%')).toBe('−0.7%')
+    expect(withMinus('-$1.2B')).toBe('−$1.2B')
+    expect(withMinus('Peers -3.1x (median)')).toBe('Peers −3.1x (median)')
+  })
+
+  it('leaves a hyphen inside words and ranges alone', () => {
+    expect(withMinus('3-for-1')).toBe('3-for-1')
+    expect(withMinus('12.5%')).toBe('12.5%')
   })
 })

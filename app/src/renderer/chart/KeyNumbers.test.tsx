@@ -132,10 +132,11 @@ describe('the Key numbers', () => {
 })
 
 describe('in the chart panel', () => {
-  function pane(keyNumbers = KEY_NUMBERS as typeof KEY_NUMBERS | null) {
+  // `loading`: the report hasn't loaded yet, so the pane has no Key numbers at all (undefined).
+  function pane(keyNumbers: typeof KEY_NUMBERS | null = KEY_NUMBERS, loading = false) {
     setSize('.chartwrap', 520, 420)
     bridge.getChart.mockResolvedValue(ok(chart()))
-    render(<ChartPane reportId="r-aapl-2" cik={5000} ticker="AAPL" name="Apple Inc." width={560} split size="half" onClose={vi.fn()} onSize={vi.fn()} keyNumbers={keyNumbers} />)
+    render(<ChartPane reportId="r-aapl-2" cik={5000} ticker="AAPL" name="Apple Inc." width={560} split size="half" onClose={vi.fn()} onSize={vi.fn()} keyNumbers={loading ? undefined : keyNumbers} />)
   }
 
   test('sit under the chart, which keeps the panel’s height, in the panel that scrolls', async () => {
@@ -150,9 +151,15 @@ describe('in the chart panel', () => {
   })
 
   test('aren’t shown until the report’s numbers are there', async () => {
-    pane(null)
+    pane(null, true)
     await screen.findByRole('img', { name: /daily price/ })
     expect(screen.queryByRole('region', { name: 'Key numbers' })).toBeNull()
+  })
+
+  test('that can’t be read say so, in one line', async () => {
+    pane(null)
+    await screen.findByRole('img', { name: /daily price/ })
+    expect(screen.getByRole('region', { name: 'Key numbers' })).toHaveTextContent('Key numbers aren’t available for this report.')
   })
 
   test('on the report page, are the open report’s, under its chart', async () => {

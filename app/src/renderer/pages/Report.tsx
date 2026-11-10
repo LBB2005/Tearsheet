@@ -260,7 +260,7 @@ export function Report({ page, wide }: { page: ReportPage; wide: boolean }) {
           swap={openBefore.current}
           rangeAsk={panel.rangeAsk}
           onHistory={page.historyDownloaded}
-          keyNumbers={report?.key_numbers ?? null}
+          keyNumbers={report ? report.key_numbers : undefined}
         />
       )}
       {chartOpen && reportId && away && (
@@ -331,7 +331,7 @@ export function ReportTools({ page, wide, onRefresh }: { page: ReportPage; wide:
         </button>
       )}
       <button className={page.chartOpen ? 'cbtn on' : 'cbtn'} aria-pressed={page.chartOpen} title="Open or close the chart (⌘3)" onClick={page.toggleChart}>
-        {CHART_ICON}Chart{wide && <kbd>⌘3</kbd>}
+        {CHART_ICON}Chart
       </button>
     </>
   )

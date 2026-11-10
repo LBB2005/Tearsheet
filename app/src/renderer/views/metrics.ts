@@ -33,3 +33,6 @@ export function metricScale(m: MetricItem, s: MetricsState): Scale {
   if (s.median && m.peer_median !== null) values.push(m.peer_median)
   return scaleOf(values, 0.08)
 }
+
+// A figure as the app writes it: a minus sign, not the engine's hyphen ("-0.7%" reads "−0.7%").
+export const withMinus = (text: string): string => text.replace(/(^|[\s(])-(?=[\d$.])/g, '$1−')
