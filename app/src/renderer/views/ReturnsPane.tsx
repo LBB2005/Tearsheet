@@ -7,12 +7,22 @@ import { useEffect, useRef, useState, type ReactElement } from 'react'
 
 import { ViewFrame, type ViewProps } from '../panel/ViewFrame'
 import { viewTitle } from '../panel/titles'
-import { PEERS_NOTE, SPANS_NOTE, returnRows, returnText, shownSpan, spansOffered, type ReturnsState, type Years } from './returns'
+import { PEERS_NOTE, SPANS_NOTE, returnRows, returnText, shownSpan, spansOffered, type ReturnKind, type ReturnsState, type Years } from './returns'
 import { at, scaleOf } from './scale'
 
 import './views.css'
 
 const SPANS: Years[] = [1, 3, 5]
+
+// The price chart's colours (chart/chart.css: --c-co, --c-peer, --c-spy), so the company, its
+// peers and the S&P 500 are the same colour in both views; each peer is the peers' colour, lighter.
+// A bar left of the zero line is a loss; its number says so too.
+const COLOURS: Record<ReturnKind, string> = {
+  company: 'var(--c-co)',
+  peers: 'var(--c-peer)',
+  spy: 'var(--c-spy)',
+  peer: 'rgb(var(--accent2-rgb) / .5)'
+}
 
 export function Returns({ chrome, numbers, ticker, item, state, setState }: ViewProps<ReturnsState>): ReactElement {
   const spans = numbers.returns && numbers.returns.length > 0 ? numbers.returns : null
@@ -76,9 +86,9 @@ export function Returns({ chrome, numbers, ticker, item, state, setState }: View
           )
         })}
       </div>
-      {toggle('peers', 'Peers', 'var(--accent)', true)}
-      {toggle('spy', 'S&P 500', 'var(--accent)', false)}
-      {toggle('each', 'Each peer', 'var(--accent)', true)}
+      {toggle('peers', 'Peers', COLOURS.peers, true)}
+      {toggle('spy', 'S&P 500', COLOURS.spy, false)}
+      {toggle('each', 'Each peer', COLOURS.peer, true)}
     </>
   )
 
@@ -91,7 +101,7 @@ export function Returns({ chrome, numbers, ticker, item, state, setState }: View
       <div className="rrows" onPointerLeave={() => setPointed(null)}>
         {rows.map(({ kind, row }, i) => {
           const v = row.value
-          const colour = kind === 'company' ? 'var(--hold)' : v !== null && v < 0 ? 'var(--down)' : 'var(--accent)'
+          const colour = COLOURS[kind]
           const isPicked = kind === pickedKind
           const end = v === null ? zero : at(v, scale)
           return (
