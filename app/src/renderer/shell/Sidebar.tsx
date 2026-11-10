@@ -482,6 +482,23 @@ export function Sidebar(props: SidebarProps) {
                 if (!query) setSearching(false)
               }}
             />
+            {query && (
+              // Clears the words and keeps the search open, with the cursor in it (a press here
+              // never takes the cursor out of the field first).
+              <button
+                className="x4"
+                aria-label="Clear the search"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  setQuery('')
+                  searchField.current?.focus()
+                }}
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M6 6l12 12M18 6L6 18" />
+                </svg>
+              </button>
+            )}
           </label>
         )}
         <div className="list4" ref={list} onKeyDown={onListKey}>
@@ -498,11 +515,11 @@ export function Sidebar(props: SidebarProps) {
           {!writing && companies.length === 0 && <div className="empty4">Your reports will show here.</div>}
           {companies.length > 0 && visible.length === 0 && (
             <div className="empty4">
-              {query.trim() ? (
+              {query.trim() && filters === 0 ? (
                 <>No reports match “{query.trim()}”.</>
               ) : (
                 <>
-                  No reports match these filters.{' '}
+                  {query.trim() ? <>No reports match “{query.trim()}” with these filters.</> : 'No reports match these filters.'}{' '}
                   <button className="link4" onClick={() => setPrefs({ ...prefs, hideRatings: [], officialOnly: false, sector: null })}>
                     Clear filters
                   </button>
@@ -544,7 +561,7 @@ export function Sidebar(props: SidebarProps) {
           </div>
         )}
         <button className={row(page === 'log')} aria-current={page === 'log' ? 'page' : undefined} onClick={() => onPage('log')}>
-          {ICONS.log}Prediction log
+          {ICONS.log}Prediction log<kbd>⌘L</kbd>
         </button>
         <button className={row(page === 'settings')} aria-current={page === 'settings' ? 'page' : undefined} onClick={() => onPage('settings')}>
           {ICONS.gear}Settings<kbd>⌘,</kbd>

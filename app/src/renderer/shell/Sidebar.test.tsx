@@ -40,9 +40,28 @@ describe('the search', () => {
     await user.clear(field)
     await user.type(field, 'zz')
     expect(side().getByText('No reports match “zz”.')).toBeInTheDocument()
+    // The × clears the words and keeps the search open, with the cursor in it.
+    await user.click(side().getByRole('button', { name: 'Clear the search' }))
+    expect(field).toHaveValue('')
+    expect(field).toHaveFocus()
+    expect(shown()).toEqual(['AAPL', 'MSFT'])
+    expect(side().queryByRole('button', { name: 'Clear the search' })).toBeNull()
     await user.keyboard('{Escape}')
     expect(side().queryByRole('textbox')).toBeNull()
     expect(shown()).toEqual(['AAPL', 'MSFT'])
+  })
+
+  test('a search the filters hide says so, with Clear filters', async () => {
+    const { user } = await renderApp()
+    await user.click(sortButton())
+    // Hide Hold: MSFT is a Hold.
+    await user.click(screen.getByRole('menuitemcheckbox', { name: /Hold/ }))
+    await user.keyboard('{Escape}')
+    await user.click(side().getByRole('button', { name: 'Search your reports' }))
+    await user.keyboard('msft')
+    expect(side().getByText('No reports match “msft” with these filters.')).toBeInTheDocument()
+    await user.click(side().getByRole('button', { name: 'Clear filters' }))
+    expect(shown()).toEqual(['MSFT'])
   })
 
   test('↓ goes from the field to the first match, and Return opens it', async () => {
