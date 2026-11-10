@@ -13,6 +13,7 @@ import asyncio
 import contextvars
 import hashlib
 import json
+import logging
 import math
 import re
 import sqlite3
@@ -41,6 +42,7 @@ from tearsheet.data.articles import Allowlist, Skipped
 from tearsheet.data.prices import SPY_CIK, PriceStore, last_completed_session
 from tearsheet.extract import Extracted, extract_section, planned_calls
 from tearsheet.flags import insider_buying_note, red_flags
+from tearsheet.http import HTTPFailure, SECBlocked
 from tearsheet.methodology import Methodology
 from tearsheet.metrics import Metric, compute_metrics, inputs_from, tax_rate
 from tearsheet.narrate import Draft, narrate_section
@@ -79,6 +81,8 @@ from tearsheet.verify.citations import check_citations
 from tearsheet.verify.flow import Claim, decide
 from tearsheet.verify.numeric_guard import NumericGuard
 from tearsheet.verify.skeptic import skeptic_section
+
+log = logging.getLogger(__name__)
 
 STEPS = (
     "resolve",
@@ -929,18 +933,39 @@ class Run:
                 self.empty_sections.add(SectionKey.TRENDS)
                 self.notes.append("The trends section has no peer filings with these inputs.")
             macro = getattr(self.data, "macro", None)
+            # Rates (section 8) and insider trades are extras: when FRED or a Form 4 doesn't
+            # answer, the report goes on without them and says so, rather than failing.
             if macro is not None:
                 self._tally(fetching="rates")
-                self.macro = await macro(self.today)
+                try:
+                    self.macro = await macro(self.today)
+                except HTTPFailure as exc:
+                    if isinstance(exc, SECBlocked):
+                        raise
+                    log.warning("rates for section 8 not fetched: %s", exc)
+                    self.notes.append(
+                        "FRED didn't answer, so the economic figures in section 8 are left out."
+                    )
                 self._tally(rates=True)
             trades = getattr(self.data, "form4_trades", None)
             self.insider_note = None
+            self.insider_checked = False
             if trades:
                 self._tally(fetching="insider trades")
-                found = list(await trades(self.cik, today=self.today))
-                self._tally(insider=len(found))
-                self.insider_note = insider_buying_note(found, self.today)
-            self.insider_checked = trades is not None
+                try:
+                    found = list(await trades(self.cik, today=self.today))
+                except HTTPFailure as exc:
+                    if isinstance(exc, SECBlocked):
+                        raise
+                    log.warning("insider trades not fetched: %s", exc)
+                    self.notes.append(
+                        "SEC's insider trade filings (Form 4) couldn't be read, so insider "
+                        "buying isn't checked in this report."
+                    )
+                else:
+                    self._tally(insider=len(found))
+                    self.insider_note = insider_buying_note(found, self.today)
+                    self.insider_checked = True
         self._tally(fetching=None)
         return docs + self.peer_docs
 
