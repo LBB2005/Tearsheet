@@ -141,7 +141,23 @@ describe('every look', () => {
     expect(r.tokens['--ink']).toBe('14 23 38')
     expect(r.tokens['--shade-k']).toBe('.35')
     expect(contrast(r.colours.text, r.colours.base)).toBeGreaterThan(12)
-    expect(r.background).toBe('#E8EDF2')
+    // The window's colour is the page's at its edges, not the sidebar's grey.
+    expect(r.background).toBe('#F0F3F9')
+  })
+
+  // Measured in a hidden window (10 Nov 2026, 1,280 x 840, glow 35%): the main area's pixels at its
+  // right edge halfway down and at the bottom, 70% across. The window's colour sits within 2 of them,
+  // so the strip macOS fills as the window grows matches the page.
+  test.each([
+    ['tearsheet', 'light', ['#F1F3F9', '#F0F4F8']],
+    ['newsprint', 'light', ['#F4F3EE', '#F4F3EE']],
+    ['amber', 'light', ['#F8F4EE', '#F9F5EE']],
+    ['tearsheet', 'dark', ['#0A0C18', '#090E16']],
+    ['midnight', 'dark', ['#0A0D1C', '#0A0E1C']]
+  ] as const)('%s %s: the window colour is the main area’s at its edges', (id, mode, seen) => {
+    const r = resolve({ ...DEFAULT_APPEARANCE, basedOn: id, mode, glow: 35 })
+    const channels = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16))
+    for (const px of seen) channels(px).forEach((v, i) => expect(Math.abs(v - channels(r.background)[i]), `${px} vs ${r.background}`).toBeLessThanOrEqual(2))
   })
 })
 
@@ -177,7 +193,7 @@ describe('the choices', () => {
     expect(r.tokens['--g1']).toBe('255 0 0')
     // The greys come from the new colours now, not the designed ones.
     expect(r.tokens['--text2']).not.toBe(EXACT['--text2'])
-    expect(r.background).toBe('#202020')
+    expect(r.background).toBe('#111215')
   })
 
   test('the chart’s three lines can be their own colours', () => {
@@ -228,7 +244,7 @@ describe('the Raised sidebar (Liam’s pick of five, 8 Nov 2026)', () => {
     expect(r.tokens['--side']).toBe('#1B1E25')
     expect(r.side).toBe('#1B1E25')
     expect(r.tokens['--bg']).toBe('#0A0D14')
-    expect(r.background).toBe('#0A0D14')
+    expect(r.background).toBe('#080D19')
     // About 18% apart from the page, where it was 1%.
     expect(contrast(r.side, r.colours.base)).toBeGreaterThan(1.15)
     expect(contrast(r.colours.bg, r.colours.base)).toBeLessThan(1.02)

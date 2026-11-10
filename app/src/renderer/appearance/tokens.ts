@@ -163,7 +163,8 @@ export interface Resolved {
   // The CSS names to set on <html>, with their values.
   tokens: Record<string, string>
   zoom: number
-  // The window's own colour, shown before the page draws and while it resizes.
+  // The window's own colour, shown before the page draws and in the strip macOS fills while the
+  // window grows: the main area's colour at its right and bottom edges (windowColour).
   background: string
 }
 
@@ -193,6 +194,17 @@ function sideOf(look: Appearance, c: Inputs, shade: Shade): string {
 export function num(n: number): string {
   const s = String(Math.round(n * 10000) / 10000)
   return s.startsWith('0.') ? s.slice(1) : s.startsWith('-0.') ? `-${s.slice(2)}` : s
+}
+
+// The main area's colour where a growing window uncovers it (its right and bottom edges): the page
+// colour under the glows as styles.css .mainarea draws them. At the right edge, halfway down, the
+// purple glow (92% 30%, 720 x 520) reaches about 54% of its strength; at the bottom, 70% across,
+// the bottom glow (55% 112%, 520 x 420) about 46%; the top-left glow reaches neither. The two
+// edges are averaged (they differ by a step or two), at a 1,280 x 840 window.
+export function windowColour(c: Pick<Core, 'base' | 'g2' | 'g3'>, glow: number): string {
+  const right = mix(c.base, c.g2, 0.18 * glow * 0.54)
+  const bottom = mix(c.base, c.g3, 0.16 * glow * 0.46)
+  return mix(right, bottom, 0.5)
 }
 
 export function shadeOf(look: Appearance, systemDark: boolean): Shade {
@@ -265,7 +277,7 @@ export function resolve(look: Appearance, systemDark = true): Resolved {
     chart: { company: company ?? c.accent, peers: peers ?? c.accent2, spy: tokens['--c-spy'] },
     tokens,
     zoom: look.size / 100,
-    background: c.bg
+    background: windowColour(c, look.glow / 100)
   }
 }
 

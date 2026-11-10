@@ -35,7 +35,7 @@ describe('at start-up', () => {
     expect(token('--glow')).toBe('.4')
     expect(html().style.getPropertyValue('color-scheme')).toBe('dark')
     expect(html().dataset.shade).toBe('dark')
-    expect(bridge.setLook).toHaveBeenCalledWith({ zoom: 1, background: '#0A0D14' })
+    expect(bridge.setLook).toHaveBeenCalledWith({ zoom: 1, background: '#080D19' })
   })
 
   test('a stored look comes back', async () => {
@@ -69,12 +69,16 @@ describe('changes', () => {
   test('a setting applies at once, is kept, and the window hears of a new zoom or colour only', async () => {
     const store = await fresh()
     bridge.setLook.mockClear()
-    store.setLook({ ...store.appearanceNow().look, glow: 70 })
-    expect(token('--glow')).toBe('.7')
-    expect(JSON.parse(localStorage.getItem('appearance.look')!).glow).toBe(70)
+    store.setLook({ ...store.appearanceNow().look, boldness: 100 })
+    expect(token('--wt')).toBe('100')
+    expect(JSON.parse(localStorage.getItem('appearance.look')!).text.boldness).toBe(100)
     expect(bridge.setLook).not.toHaveBeenCalled()
     store.setLook({ ...store.appearanceNow().look, size: 115, mode: 'light' })
-    expect(bridge.setLook).toHaveBeenCalledWith({ zoom: 1.15, background: '#E8EDF2' })
+    expect(bridge.setLook).toHaveBeenCalledWith({ zoom: 1.15, background: '#F0F3F9' })
+    // The glow tints the page's edges, so the window's colour follows it.
+    store.setLook({ ...store.appearanceNow().look, glow: 70 })
+    expect(token('--glow')).toBe('.7')
+    expect(bridge.setLook).toHaveBeenCalledTimes(2)
     expect(html().dataset.shade).toBe('light')
   })
 

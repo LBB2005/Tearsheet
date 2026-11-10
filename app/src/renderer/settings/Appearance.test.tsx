@@ -55,7 +55,7 @@ describe('the looks', () => {
     await user.click(mode.getByRole('button', { name: 'Light' }))
     expect(html().dataset.shade).toBe('light')
     expect(token('--text')).toBe('#0E1726')
-    expect(bridge.setLook).toHaveBeenLastCalledWith({ zoom: 1, background: '#E8EDF2' })
+    expect(bridge.setLook).toHaveBeenLastCalledWith({ zoom: 1, background: '#F0F3F9' })
     await user.click(mode.getByRole('button', { name: 'Match the Mac' }))
     expect(html().dataset.shade).toBe('dark')
     expect(mode.getByRole('button', { name: 'Match the Mac' })).toHaveAttribute('aria-pressed', 'true')
@@ -118,7 +118,7 @@ describe('the common choices', () => {
     expect(token('--glow')).toBe('.7')
     expect(screen.getByText('70%')).toBeInTheDocument()
     fireEvent.change(slider('Text size'), { target: { value: '120' } })
-    expect(bridge.setLook).toHaveBeenLastCalledWith({ zoom: 1.2, background: '#0A0D14' })
+    expect(bridge.setLook).toHaveBeenLastCalledWith({ zoom: 1.2, background: '#0A0F1C' })
   })
 
   test('Sidebar contrast lifts the sidebar in dark mode, Raised at 50% to begin with', async () => {
@@ -266,7 +266,7 @@ describe('Customize', () => {
     await user.click(within(screen.getByRole('group', { name: 'Boldness' })).getByRole('button', { name: 'Bold' }))
     expect(token('--wt')).toBe('200')
     fireEvent.change(slider('Text size'), { target: { value: '90' } })
-    expect(bridge.setLook).toHaveBeenLastCalledWith({ zoom: 0.9, background: '#0A0D14' })
+    expect(bridge.setLook).toHaveBeenLastCalledWith({ zoom: 0.9, background: '#080D19' })
   })
 
   test('Shape: corners and glass', async () => {
