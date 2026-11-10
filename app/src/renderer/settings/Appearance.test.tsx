@@ -197,10 +197,15 @@ describe('the common choices', () => {
     expect(token('--up')).toBe('#5AB4FF')
   })
 
-  test('Animations moved here, and a place is kept for the home background', async () => {
+  test('Animations moved here; the home background row stays hidden until it is built', async () => {
     await openAppearance()
     expect(screen.getByRole('combobox', { name: 'Animations' })).toBeInTheDocument()
-    expect(screen.getByRole('combobox', { name: 'Home background' })).toBeDisabled()
+    expect(screen.queryByRole('combobox', { name: 'Home background' })).toBeNull()
+  })
+
+  test('a slider fills up to its knob', async () => {
+    await openAppearance()
+    expect(slider('Sidebar contrast').style.getPropertyValue('--fill')).toBe('50%')
   })
 })
 

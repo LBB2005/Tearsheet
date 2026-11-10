@@ -247,8 +247,10 @@ html { accent-color: var(--accent); }
 .menu4 { position: fixed; z-index: 61; min-width: 210px; max-width: 280px; max-height: calc(100vh - 64px); overflow-y: auto; overscroll-behavior: contain; padding: 5px; display: flex; flex-direction: column; border-radius: var(--r-md); background: var(--float-bg); border: 1px solid var(--float-line);
   backdrop-filter: var(--float-blur); -webkit-backdrop-filter: var(--float-blur); box-shadow: var(--shadow-1); font-size: var(--fs-md); -webkit-app-region: no-drag; outline: none; animation: pop-in var(--dur-1) var(--ease-out) both; }
 .menu4 button { all: unset; flex: none; display: flex; align-items: center; gap: 8px; padding: 4px 10px; border-radius: var(--r-sm); color: var(--text3); cursor: pointer; white-space: nowrap; }
-/* One highlight, as a Mac menu: the pointer moves the focus (shell/Menu.tsx), so only focus lights. */
-.menu4 button:focus { background: rgb(var(--accent-rgb) / .16); color: var(--hi); outline: none; }
+/* One highlight, as a Mac menu: the keyboard's focus, or the item the pointer is on (Menu.tsx moves
+   the focus there and marks the menu .pointing), never both. */
+.menu4 button:focus-visible, .menu4.pointing button:focus { background: rgb(var(--accent-rgb) / .16); color: var(--hi); }
+.menu4 button:focus { outline: none; }
 .menu4 button.danger { color: var(--bad-text3); }
 .menu4 button kbd { margin-left: auto; padding-left: 18px; font: var(--fs-xs) var(--ui); font-weight: calc(400 + var(--wt)); color: var(--faint); }
 .menu4 .ck { width: 12px; color: var(--accent); }

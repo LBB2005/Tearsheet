@@ -14,7 +14,7 @@
 
 /* The readout line, where the price chart shows its price: what the item pointed at says. Two
    lines are kept for it, so the head never moves as the pointer does. */
-.vread { flex: 1 1 210px; min-width: 210px; max-width: 460px; min-height: 2.9em; font-size: 13px; line-height: 1.45; color: var(--text);
+.vread { flex: 1 1 210px; min-width: 210px; max-width: 460px; min-height: 2.9em; font-size: var(--fs-md); line-height: 1.45; color: var(--text);
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
 .narrowp .vread { min-width: 150px; }
 
