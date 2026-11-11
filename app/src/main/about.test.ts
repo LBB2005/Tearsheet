@@ -21,6 +21,8 @@ test('the feedback email carries the versions and nothing else of the person’s
   expect(feedbackMailto(INFO)).not.toContain('+')
 })
 
-test('until Liam picks the address, the To line is left for the person', () => {
-  expect(feedbackMailto(INFO).startsWith(`mailto:${FEEDBACK_EMAIL}?`)).toBe(true)
+test('feedback goes to Tearsheet’s public feedback address', () => {
+  expect(FEEDBACK_EMAIL).toBe('lbb.aifinance@gmail.com')
+  expect(feedbackMailto(INFO).startsWith('mailto:lbb.aifinance@gmail.com?')).toBe(true)
+  expect(new URL(feedbackMailto(INFO)).pathname).toBe(FEEDBACK_EMAIL)
 })

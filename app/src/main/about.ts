@@ -3,16 +3,16 @@
 // with those numbers filled in, and nothing is sent until they send it. Tearsheet itself sends
 // nothing to its author.
 
+import { FEEDBACK_EMAIL } from '../shared/feedback'
+
+export { FEEDBACK_EMAIL }
+
 export interface AboutInfo {
   app: string
   engine: string | null
   macos: string
   electron: string
 }
-
-// Where feedback goes. Liam picks the public address before the first public release; until then
-// the email opens with the To line empty, for the person to fill in.
-export const FEEDBACK_EMAIL = ''
 
 export const FEEDBACK_SUBJECT = 'Tearsheet feedback'
 

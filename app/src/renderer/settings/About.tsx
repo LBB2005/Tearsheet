@@ -6,6 +6,7 @@
 import { useEffect, useState } from 'react'
 
 import type { AboutInfo } from '../../main/about'
+import { FEEDBACK_EMAIL } from '../../shared/feedback'
 import { ADVICE_SHORT } from '../../shared/wording'
 import { Label } from './General'
 
@@ -48,7 +49,7 @@ export function AboutPage({ onPrivacy }: { onPrivacy: () => void }) {
       <p className="slead">{version}</p>
       <div className="sgrp">
         <div className="sline">
-          <Label title="Send feedback" help="Opens a new email in your Mail app, with these version numbers filled in. Nothing is sent until you send it." />
+          <Label title="Send feedback" help={`Opens a new email to ${FEEDBACK_EMAIL} in your Mail app, with these version numbers filled in. Nothing is sent until you send it.`} />
           <button className="pb" onClick={() => void window.tearsheet.sendFeedback()}>
             Send feedback
           </button>

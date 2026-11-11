@@ -471,6 +471,7 @@ describe('About and help', () => {
     await user.click(topic('About and help'))
     await user.click(await screen.findByRole('button', { name: 'Send feedback' }))
     expect(bridge.sendFeedback).toHaveBeenCalledTimes(1)
+    expect(screen.getByText(/Opens a new email to lbb\.aifinance@gmail\.com in your Mail app/)).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'FRED’s terms' }))
     expect(bridge.openExternal).toHaveBeenCalledWith('https://fred.stlouisfed.org/docs/api/terms_of_use.html')
     await user.click(screen.getByRole('button', { name: 'Open Privacy' }))

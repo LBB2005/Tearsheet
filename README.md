@@ -182,6 +182,9 @@ It isn't signed with an Apple Developer ID yet. See [Download](#download) for th
 **Does it work on Windows or on an Intel Mac?**
 No. Only on Macs with Apple silicon.
 
+**How do I send feedback or report a bug?**
+In the app, choose **Help → Send Feedback…** (or **Settings → About and help → Send feedback**). It opens an email to [lbb.aifinance@gmail.com](mailto:lbb.aifinance@gmail.com) in your own Mail app, with the version numbers filled in. For a bug, press **Copy diagnostics** on the same page first and paste it into the email. Nothing is sent until you send it.
+
 ## What leaves your Mac
 
 Nothing leaves your Mac except what this table lists (design, Technical Plan §12; Settings → Privacy shows the same list, from `SERVICES` in `engine/src/tearsheet/server.py`). Tearsheet sends nothing to its author: no accounts, no usage tracking, no crash reports. Reports, the prediction log, raw downloads and keys stay on your computer.
