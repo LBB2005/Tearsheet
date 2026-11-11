@@ -4,9 +4,11 @@
 
 Handled in other sessions, so not covered here: first-run setup, packaging (signing, notarization, auto-update), and the AI tools' terms (the Anthropic email, OpenAI's terms).
 
-Already fine: every key is in the Keychain; the app sends nothing to Liam (no usage stats, no crash reports, no update check; its one request of its own is the off-switch file from GitHub at each launch, with no personal data); SEC gets each person's own email; Claude Code and Codex run with session history off; the PDF and the deck carry the "not investment advice" line on every page.
+Already fine: every key is in the Keychain; the app sends nothing to Liam (no usage stats, no crash reports; its own requests are the off-switch file from GitHub at each launch and, since 11 Nov 2026, the update check, at most once a day and switchable off, both with no personal data); SEC gets each person's own email; Claude Code and Codex run with session history off; the PDF and the deck carry the "not investment advice" line on every page.
 
 ## Status
+
+**Public launch (11 Nov 2026):** what's done for the launch, what Liam must click or decide, and the launch-week plan are in [prelaunch-checklist.md](prelaunch-checklist.md). Signing and auto-update steps: [signing.md](signing.md).
 
 Built on 8 Nov 2026 (Liam picked "build your picks"): M2 (option A), M3, M4, M5, M6, M7, M8 (option A), M9 and M10.
 
