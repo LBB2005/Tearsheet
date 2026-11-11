@@ -4,6 +4,13 @@ data. Your own AI tool reads the filings and writes the cited text.
 General research, not personalised investment advice. Tearsheet is free, open-source
 software under the MIT licence, provided as is, with no warranty.
 
+## This is a beta
+
+It's for a few friends trying it first, so expect rough edges, and treat ratings and ranges as a
+work in progress. There are no automatic updates: download each new version from this page.
+To send feedback, choose Help → Send Feedback… in the app, or email lbb.aifinance@gmail.com. For
+a bug, paste in Settings → About and help → Copy diagnostics. Nothing is sent until you send it.
+
 ## What you need
 
 *   A Mac with Apple Silicon. The steps below say how to check.

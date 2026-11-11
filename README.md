@@ -205,6 +205,18 @@ This product uses the FRED® API but is not endorsed or certified by the Federal
 
 ## Status
 
+### Beta (0.1.0-beta)
+
+The first download is a beta for a few friends. What to expect:
+
+- **Rough edges.** It works on the builder's Mac; yours is the real test. Reports take a few minutes, and a step can fail and need a retry.
+- **The numbers aren't settled.** The rating rules use first-draft settings, so treat ratings and ranges as a work in progress.
+- **macOS will block it at first,** and again after each update, because it isn't signed with an Apple Developer ID yet. The steps are under [Download](#download).
+- **No automatic updates.** When a new version is out, download its `.dmg` from [Releases](https://github.com/LBB2005/Tearsheet/releases) and drag Tearsheet onto Applications again. Your reports, settings and keys stay.
+- **Nothing is sent to the builder.** Feedback only arrives if you send it.
+
+**To send feedback:** choose **Help → Send Feedback…** in the app, or email [lbb.aifinance@gmail.com](mailto:lbb.aifinance@gmail.com). For a bug, say what you did and what happened, and paste in **Settings → About and help → Copy diagnostics** (versions and the end of the log, with emails, keys and your home folder taken out).
+
 Tearsheet is young. It was built for personal use and is now being tried by a few friends. The rating rules use first-draft settings that are still being checked, and the Goal 1 test (10 real reports, checked by hand) is under way. Progress and open questions: [docs/phase1-progress.md](docs/phase1-progress.md). The design: [docs/designs/tearsheet.md](docs/designs/tearsheet.md).
 
 ## For developers

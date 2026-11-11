@@ -1,7 +1,7 @@
 """Tearsheet's engine: code makes every number, and the user's own AI tool writes the narrative."""
 
 # The release version. pyproject.toml reads it from here.
-ENGINE_VERSION = "0.0.1"
+ENGINE_VERSION = "0.1.0-beta"
 
 # Raised whenever code that makes numbers changes (design, Technical Plan §6).
 # Raising PARSER_VERSION (item 23) raises it too.
