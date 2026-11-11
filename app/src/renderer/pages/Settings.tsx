@@ -143,7 +143,7 @@ export function Settings({ tools, onTools, buttonOn, safety, onSafetyStarted, on
     page = (
       <>
         <Head title="Data keys" lead="Kept in your Mac’s Keychain. Tearsheet never shows a key." />
-        <KeysPanel keys={s.keys} rejected={s.rejected_keys} onSaved={load} />
+        <KeysPanel keys={s.keys} rejected={s.rejected_keys} authorTools={s.author_tools === true} onSaved={load} />
         <PriceRow p={s.price_download} />
       </>
     )
@@ -630,9 +630,12 @@ function AdvancedPage({ s, onSaved }: { s: SettingsResult; onSaved: () => Promis
   return (
     <>
       <Head title="Advanced" lead="Rarely needed." />
-      <div className="sgrp">
-        <FieldRow k="goal1_round" label="Goal 1 round" help="New full reports count toward this round. Raise it to restart the test after a fix." shown={String(s.goal1_round)} initial={String(s.goal1_round)} onSaved={onSaved} />
-      </div>
+      {/* Only for Tearsheet's author, with the author_tools setting on (launch-readiness S3). */}
+      {s.author_tools === true && (
+        <div className="sgrp">
+          <FieldRow k="goal1_round" label="Goal 1 round" help="New full reports count toward this round. Raise it to restart the test after a fix." shown={String(s.goal1_round)} initial={String(s.goal1_round)} onSaved={onSaved} />
+        </div>
+      )}
       <div className="sgrp">
         <div className="sline">
           <Label title="5Y and All chart ranges" help="The first time you open them, Tearsheet downloads the company’s full price history in one call, and shows whatever your price plan serves." />

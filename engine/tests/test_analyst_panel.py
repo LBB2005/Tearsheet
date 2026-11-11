@@ -10,10 +10,9 @@ import re
 from html import unescape
 
 import httpx
-import pytest
 
 from tearsheet import readouts
-from tearsheet.data.analyst import NOT_AVAILABLE
+from tearsheet.data.analyst import NOT_AVAILABLE, NOT_AVAILABLE_SHOWN
 from tearsheet.render import render_html
 from tests.test_analystdb import REPORT_DAY, Service
 from tests.test_render import hrefs, numbers, report
@@ -162,13 +161,15 @@ def test_a_day_rebuilt_from_history_says_so():
     assert "rebuilt from history" in words(panel_html(page(ok_panel(rebuilt=True))))
 
 
-@pytest.mark.parametrize("state", ["down", "missing"])
-def test_when_analystdb_cant_answer_the_panel_is_one_quiet_line(state):
-    analysts = (
-        quiet_panel()
-        if state == "down"
-        else asyncio.run(Service({}).client().panel("AMD", REPORT_DAY))
-    )
+def test_where_analystdb_doesnt_answer_there_is_no_panel_at_all():
+    # analystdb is Liam's own local service, so on anyone else's Mac it never answers, and a
+    # line about it would only confuse them (launch-readiness S3).
+    html = page(quiet_panel())
+    assert 'id="analysts"' not in html and "analystdb isn’t answering" not in html
+
+
+def test_when_analystdb_has_none_for_the_company_the_panel_is_one_quiet_line():
+    analysts = asyncio.run(Service({}).client().panel("AMD", REPORT_DAY))
     panel = panel_html(page(analysts))
     assert words(panel) == analysts["note"]
     assert "tearsheet://open/analysts" not in panel
@@ -176,11 +177,20 @@ def test_when_analystdb_cant_answer_the_panel_is_one_quiet_line(state):
 
 
 def test_the_not_available_line_is_hidden_only_while_the_panel_shows():
-    assert NOT_AVAILABLE not in unescape(page(ok_panel(), view="full"))
-    assert NOT_AVAILABLE in unescape(page(quiet_panel(), view="full"))
-    assert NOT_AVAILABLE in unescape(page(None, view="full"))
+    assert NOT_AVAILABLE_SHOWN not in unescape(page(ok_panel(), view="full"))
+    assert NOT_AVAILABLE_SHOWN in unescape(page(quiet_panel(), view="full"))
+    assert NOT_AVAILABLE_SHOWN in unescape(page(None, view="full"))
+
+
+def test_section_1s_consensus_line_shows_without_its_note_for_liam():
+    # with_rating_section stores the line as the pipeline does, note and all.
+    r = with_rating_section(report("Plain sentence."))
+    assert NOT_AVAILABLE in r["sections"][0]["paragraphs"]
+    for mode in ("app", "file"):
+        html = unescape(render_html(r, mode=mode, view="full", numbers=numbers()))
+        assert "Open Questions" not in html and NOT_AVAILABLE_SHOWN in html
 
 
 def test_a_file_never_shows_the_panel():
     html = page(ok_panel(), mode="file")
-    assert 'id="analysts"' not in html and NOT_AVAILABLE in unescape(html)
+    assert 'id="analysts"' not in html and NOT_AVAILABLE_SHOWN in unescape(html)

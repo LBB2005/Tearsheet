@@ -189,7 +189,9 @@ def range_svg(d: ExportData, w: int = 186) -> str | None:
 
 def _analysts(panel: dict | None) -> dict | None:
     """analystdb's figures for the PDF: ratings and targets only (never the S&P Global check)."""
-    if not panel:
+    # analystdb is Liam's own local service: where it doesn't answer, there is no panel at all
+    # (launch-readiness S3). Only "has none for this company" gets the quiet line.
+    if not panel or panel.get("state") == "down":
         return None
     if panel.get("state") != "ok":
         return {"state": "quiet", "note": str(panel.get("note") or "analystdb didn't answer.")}
@@ -236,11 +238,11 @@ def footer_text(d: ExportData) -> str:
 
 def render(d: ExportData, analysts: dict | None = None) -> str:
     """The print page's HTML."""
-    from tearsheet.data.analyst import NOT_AVAILABLE
+    from tearsheet.data.analyst import NOT_AVAILABLE_SHOWN, shown_line
     from tearsheet.render import RED_FLAG_LABELS
 
     a = _analysts(analysts)
-    hide = NOT_AVAILABLE if a and a["state"] == "ok" else None
+    hide = NOT_AVAILABLE_SHOWN if a and a["state"] == "ok" else None
     n, v = d.numbers, d.views
     weekly = [_num(p.get("close")) for p in n.get("weekly") or []]
     weekly = [c for c in weekly if c is not None]
@@ -265,7 +267,7 @@ def render(d: ExportData, analysts: dict | None = None) -> str:
         sections.append(
             {
                 "title": f"{s.number}. {s.title}" if s.number else s.title,
-                "lines": [p for p in s.paragraphs if p != hide],
+                "lines": [p for p in map(shown_line, s.paragraphs) if p != hide],
                 "table": table,
                 "claims": s.claims,
             }

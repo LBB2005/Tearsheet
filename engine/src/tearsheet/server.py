@@ -2035,6 +2035,7 @@ class Server:
             "primary_tool": settings.get("primary_tool"),
             "sec_contact_email": settings.get("sec_contact_email"),
             "goal1_round": int(float(round_)) if round_ else 1,
+            "author_tools": settings.get("author_tools") == "on",
             "setup_done": setup_done == "1",
             "fred_skipped": settings.get("fred_skipped") == "1",
             "services": services(settings),

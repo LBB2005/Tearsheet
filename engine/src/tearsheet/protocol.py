@@ -789,6 +789,9 @@ class SettingsResult(Strict):
     primary_tool: str | None
     sec_contact_email: str | None
     goal1_round: int
+    # The `author_tools` setting: on shows the Goal 1 round and the Alpha Vantage key row, parts
+    # of Settings meant only for Tearsheet's author (launch-readiness S3). Off for everyone else.
+    author_tools: bool = False
     setup_done: bool
     fred_skipped: bool
     services: list[Service]

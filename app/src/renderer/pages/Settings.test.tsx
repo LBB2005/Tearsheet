@@ -361,8 +361,15 @@ describe('Data keys', () => {
     expect(screen.getByLabelText('Your Massive key')).toBeInTheDocument()
   })
 
-  test('the Alpha Vantage key is saved as it is, with no check', async () => {
+  test('a fresh copy has no Alpha Vantage row: it is only for Tearsheet’s author', async () => {
     const { user } = await openSettings()
+    await user.click(topic('Data keys'))
+    expect(screen.getByRole('button', { name: 'Replace key: Massive' })).toBeInTheDocument()
+    expect(screen.queryByText('Alpha Vantage')).toBeNull()
+  })
+
+  test('with author tools on, the Alpha Vantage key is saved as it is, with no check', async () => {
+    const { user } = await openSettings({ author_tools: true })
     await user.click(topic('Data keys'))
     await user.click(screen.getByRole('button', { name: 'Add key: Alpha Vantage' }))
     await user.click(screen.getByRole('button', { name: 'Save' }))
@@ -439,8 +446,15 @@ describe('Storage, Privacy and Advanced', () => {
     expect(screen.getByText('Free plan')).toBeInTheDocument()
   })
 
-  test('advanced changes the Goal 1 round, as a whole number', async () => {
+  test('a fresh copy has no Goal 1 round: it is only for Tearsheet’s author', async () => {
     const { user } = await openSettings()
+    await user.click(topic('Advanced'))
+    expect(screen.getByText('5Y and All chart ranges')).toBeInTheDocument()
+    expect(screen.queryByText('Goal 1 round')).toBeNull()
+  })
+
+  test('with author tools on, advanced changes the Goal 1 round, as a whole number', async () => {
+    const { user } = await openSettings({ author_tools: true })
     await user.click(topic('Advanced'))
     await user.click(screen.getByRole('button', { name: 'Change Goal 1 round' }))
     await user.clear(screen.getByRole('textbox', { name: 'Goal 1 round' }))

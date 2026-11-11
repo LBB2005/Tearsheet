@@ -18,6 +18,7 @@ from typing import Any
 
 from jinja2 import Environment, PackageLoader, select_autoescape
 
+from tearsheet.data.analyst import shown_line
 from tearsheet.wording import ADVICE_LINE, ADVICE_SHORT
 
 PLACEHOLDER = re.compile(r"\{\{([a-z_]+:[A-Za-z0-9_.\-]+)\}\}")
@@ -79,6 +80,8 @@ _ENV = Environment(
 # The report's "not advice" line (wording.py). The short form sits under the rating; the long form
 # opens a report file and closes the report in the app (docs/launch/launch-readiness.md, M5).
 _ENV.globals.update(ADVICE_SHORT=ADVICE_SHORT, ADVICE_LINE=ADVICE_LINE)
+# Section 1's old consensus line, shortened for reports saved before 0.1.0-beta (data/analyst.py).
+_ENV.filters["shown_line"] = shown_line
 
 # The keys of report_numbers.numbers_for. A key that is missing, or numbers that are None, renders
 # as "not stored for this report".
@@ -245,12 +248,14 @@ def render_html(
     # readouts.py imports format_value from this module, so it is imported here, when a page is
     # drawn, rather than at the top, where the two modules would import each other in a loop.
     from tearsheet import readouts
-    from tearsheet.data.analyst import NOT_AVAILABLE
+    from tearsheet.data.analyst import NOT_AVAILABLE_SHOWN
 
     if mode == "file":
         view, column, side = "full", "both", "text"
     given = numbers or {}
-    if mode != "app":
+    # analystdb is Liam's own local service: where it doesn't answer, there is no panel at all
+    # (launch-readiness S3). Only "has none for this company" keeps the panel's quiet line.
+    if mode != "app" or (analysts and analysts.get("state") == "down"):
         analysts = None
     shows_analysts = bool(analysts) and analysts.get("state") == "ok"
     key_tiles = column == "auto" or (bool(narrow) and column == "text")
@@ -258,7 +263,7 @@ def render_html(
         r=readouts.shown_tables(report),
         n={key: given.get(key) for key in NUMBER_KEYS},
         analysts=analysts or None,
-        hide_line=NOT_AVAILABLE if shows_analysts else None,
+        hide_line=NOT_AVAILABLE_SHOWN if shows_analysts else None,
         mode=mode,
         view=view,
         column=column,

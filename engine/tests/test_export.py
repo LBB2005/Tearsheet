@@ -455,3 +455,15 @@ def test_a_report_file_has_no_download_links():
         {"company": "X", "ticker": "X", "sections": []}, mode="file", report_id="rep-1"
     )
     assert "tearsheet://download" not in page
+
+
+def test_the_pdf_leaves_out_analystdb_where_it_doesnt_answer():
+    """analystdb is Liam's own local service (launch-readiness S3): offline, the PDF has no
+    street's-view box; with nothing for the company it keeps the quiet line."""
+    assert (
+        pdf._analysts({"state": "down", "note": "Analyst ratings: analystdb isn’t answering."})
+        is None
+    )
+    assert pdf._analysts(None) is None
+    quiet = pdf._analysts({"state": "missing", "note": "Analyst ratings: analystdb has none."})
+    assert quiet == {"state": "quiet", "note": "Analyst ratings: analystdb has none."}

@@ -52,13 +52,16 @@ def test_the_report_shows_the_panel_as_of_its_price_date(tmp_path):
     h.server.close()
 
 
-def test_with_analystdb_off_the_report_opens_with_the_quiet_line(tmp_path):
-    # Tests are offline, so the engine's own client finds nothing listening.
+def test_with_analystdb_off_the_report_opens_with_no_analyst_panel(tmp_path):
+    # Tests are offline, so the engine's own client finds nothing listening: as on any Mac but
+    # Liam's, where analystdb doesn't exist (launch-readiness S3).
     h = Harness(tmp_path)
     _, got = open_report(h)
     result = got["result"]
     assert "error" not in got and "<html" in result["html"]
-    assert "Analyst ratings: analystdb isn’t answering." in result["html"]
+    assert (
+        'id="analysts"' not in result["html"] and "analystdb isn’t answering" not in result["html"]
+    )
     assert "tearsheet://open/analysts" not in result["html"]
     assert result["bar"] is not None
     h.server.close()
@@ -80,7 +83,7 @@ def test_a_slow_analystdb_never_holds_the_report_up(tmp_path):
 
     got, took = run(go())
     assert took < 2
-    assert "analystdb isn’t answering" in got["result"]["html"]
+    assert 'id="analysts"' not in got["result"]["html"]
     h.server.close()
 
 

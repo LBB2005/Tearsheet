@@ -1,5 +1,6 @@
 // Settings' Data keys page: Massive and FRED with setup's paste-and-check card
-// (setup/KeyCard.tsx), and Alpha Vantage, which isn't used yet, saved as it is. One row each: the
+// (setup/KeyCard.tsx), and Alpha Vantage, which isn't used yet, saved as it is and shown only with
+// the author_tools setting on (launch-readiness S3: only Tearsheet's author has one). One row each: the
 // key's name and what it gives, whether it is added, and Add key or Replace key. Keys are never
 // shown: the window lets go of a key once the engine has it.
 
@@ -23,12 +24,12 @@ type KeyState = 'set' | 'missing' | 'refused' | 'locked'
 
 const STATE_TEXT: Record<KeyState, string> = { set: 'Added', missing: 'Not added', refused: 'Not accepted', locked: 'Locked in Keychain' }
 
-export function KeysPanel({ keys, rejected, onSaved }: { keys: Keys; rejected: string[]; onSaved: () => Promise<void> }) {
+export function KeysPanel({ keys, rejected, authorTools = false, onSaved }: { keys: Keys; rejected: string[]; authorTools?: boolean; onSaved: () => Promise<void> }) {
   const state = (service: string): KeyState =>
     keys[service] === 'locked' ? 'locked' : keys[service] !== 'set' ? 'missing' : rejected.includes(service) ? 'refused' : 'set'
   return (
     <div className="sgrp keys">
-      {KEYS.map(({ service, name, what }) =>
+      {KEYS.filter(({ service }) => authorTools || service !== 'alphavantage').map(({ service, name, what }) =>
         service === 'alphavantage' ? (
           <PlainKeyRow key={service} name={name} what={what} state={state(service)} onSaved={onSaved} />
         ) : (

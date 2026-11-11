@@ -394,6 +394,25 @@ def test_settings_show_each_tools_lock_down_state(tmp_path):
     h.server.close()
 
 
+def test_author_tools_are_off_until_the_setting_is_on(tmp_path):
+    """The Goal 1 round and the Alpha Vantage row are only for Tearsheet's author
+    (launch-readiness S3): get_settings reports the author_tools setting, off by default."""
+    from tearsheet import config as cfg
+
+    h = Harness(tmp_path)
+
+    async def go():
+        await h.server.start()
+        before = (await h.call("get_settings", {}))["result"]["author_tools"]
+        cfg.Settings(h.server.db.conn).set("author_tools", "on")
+        return before, (await h.call("get_settings", {}, id_=2))["result"]["author_tools"]
+
+    assert run(go()) == (False, True)
+    with pytest.raises(ValueError):
+        cfg.Settings(h.server.db.conn).set("author_tools", "yes")
+    h.server.close()
+
+
 def test_a_report_from_the_app_logs_its_prediction_for_the_log_screen(tmp_path, monkeypatch):
     from tearsheet import config as cfg
     from tests.test_pipeline import WithFilingList

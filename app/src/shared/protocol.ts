@@ -351,6 +351,7 @@ export type BackupInIcloud = boolean;
 export type PrimaryTool = string | null;
 export type SecContactEmail = string | null;
 export type Goal1Round = number;
+export type AuthorTools = boolean;
 export type SetupDone = boolean;
 export type FredSkipped = boolean;
 export type Services = Service2[];
@@ -1297,6 +1298,7 @@ export interface SettingsResult {
   primary_tool: PrimaryTool;
   sec_contact_email: SecContactEmail;
   goal1_round: Goal1Round;
+  author_tools?: AuthorTools;
   setup_done: SetupDone;
   fred_skipped: FredSkipped;
   services: Services;

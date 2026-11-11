@@ -312,6 +312,11 @@ SETTINGS: dict[str, SettingSpec] = {
         "The Goal 1 round new full reports count toward (default 1). Raise it to restart the test after a fix.",
         _positive_number,
     ),
+    "author_tools": SettingSpec(
+        "off (the default) or on. On shows the parts of Settings meant only for Tearsheet's "
+        "author: the Goal 1 round and the Alpha Vantage key row.",
+        _choice("off", "on"),
+    ),
 }
 
 
