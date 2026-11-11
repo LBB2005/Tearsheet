@@ -101,7 +101,8 @@ describe('the listeners', () => {
     ['onFlagRequested', 'tearsheet:flag-requested', { claimId: 'c1' }],
     ['onOpenView', 'tearsheet:open-view', { view: 'factors', item: null }],
     ['onMenu', 'tearsheet:menu', 'chart'],
-    ['onDownload', 'tearsheet:download', { state: 'saving', kind: 'pdf', reportId: 'rep-1' }]
+    ['onDownload', 'tearsheet:download', { state: 'saving', kind: 'pdf', reportId: 'rep-1' }],
+    ['onUpdate', 'tearsheet:update', { check: true, update: null }]
   ])('%s hears %s until it is taken off', (name, channel, payload) => {
     const fn = vi.fn()
     const off = api[name](fn) as () => void
@@ -121,8 +122,21 @@ test('About and help asks main for the versions, and Send feedback asks it to op
   expect(invoke).toHaveBeenLastCalledWith('tearsheet:copyDiagnostics')
 })
 
+test('the update banner asks main for its status, the setting, Dismiss and its two links', async () => {
+  await api.updates()
+  expect(invoke).toHaveBeenLastCalledWith('tearsheet:updates')
+  await api.setUpdateCheck(false)
+  expect(invoke).toHaveBeenLastCalledWith('tearsheet:setUpdateCheck', false)
+  await api.setUpdateCheck('yes')
+  expect(invoke).toHaveBeenLastCalledWith('tearsheet:setUpdateCheck', false)
+  await api.dismissUpdate('0.2.0')
+  expect(invoke).toHaveBeenLastCalledWith('tearsheet:dismissUpdate', '0.2.0')
+  await api.openUpdate('download')
+  expect(invoke).toHaveBeenLastCalledWith('tearsheet:openUpdate', 'download')
+})
+
 test('the window gets nothing but these calls and listeners', () => {
   expect(Object.keys(api).sort()).toEqual(
-    ['addToLine', 'cancel', 'carryOnLine', 'checkKey', 'clearLine', 'getLine', 'lineGroups', 'planLine', 'removeFromLine', 'fetchHistory', 'find', 'flagClaim', 'getAnalysts', 'getChart', 'getReport', 'getReportNumbers', 'eraseReports', 'getSettings', 'getTools', 'gradeDue', 'hideReports', 'listCompanies', 'listPredictions', 'listReports', 'predictionPrices', 'saveCsv', 'onFlagRequested', 'onMenu', 'onNotification', 'onOpenView', 'openExternal', 'pinCompany', 'rereadFiling', 'resume', 'runReport', 'runSafetyCheck', 'searchCompanies', 'setKey', 'setSetting', 'showReports', 'stopFind', 'setLook', 'openTheme', 'saveTheme', 'onDownload', 'showDownload', 'about', 'sendFeedback', 'copyDiagnostics', 'cancelSafetyCheck', 'windowState', 'copyAndOpenTerminal', 'commandsFor', 'showSetupLog', 'install', 'cancelInstall', 'openSignInPage', 'getInstallButton'].sort()
+    ['addToLine', 'cancel', 'carryOnLine', 'checkKey', 'clearLine', 'getLine', 'lineGroups', 'planLine', 'removeFromLine', 'fetchHistory', 'find', 'flagClaim', 'getAnalysts', 'getChart', 'getReport', 'getReportNumbers', 'eraseReports', 'getSettings', 'getTools', 'gradeDue', 'hideReports', 'listCompanies', 'listPredictions', 'listReports', 'predictionPrices', 'saveCsv', 'onFlagRequested', 'onMenu', 'onNotification', 'onOpenView', 'openExternal', 'pinCompany', 'rereadFiling', 'resume', 'runReport', 'runSafetyCheck', 'searchCompanies', 'setKey', 'setSetting', 'showReports', 'stopFind', 'setLook', 'openTheme', 'saveTheme', 'onDownload', 'showDownload', 'about', 'sendFeedback', 'copyDiagnostics', 'cancelSafetyCheck', 'windowState', 'copyAndOpenTerminal', 'commandsFor', 'showSetupLog', 'install', 'cancelInstall', 'openSignInPage', 'getInstallButton', 'updates', 'setUpdateCheck', 'dismissUpdate', 'openUpdate', 'onUpdate'].sort()
   )
 })

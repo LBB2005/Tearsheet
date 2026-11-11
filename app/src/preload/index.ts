@@ -46,6 +46,13 @@ contextBridge.exposeInMainWorld('tearsheet', {
   about: () => ipcRenderer.invoke('tearsheet:about'),
   sendFeedback: () => ipcRenderer.invoke('tearsheet:sendFeedback'),
   copyDiagnostics: () => ipcRenderer.invoke('tearsheet:copyDiagnostics'),
+  // The update banner and "Check for updates" (main/updates.ts). Download and What's new name no
+  // URL: the main process opens the shown release's page or the changelog.
+  updates: () => ipcRenderer.invoke('tearsheet:updates'),
+  setUpdateCheck: (on: boolean) => ipcRenderer.invoke('tearsheet:setUpdateCheck', on === true),
+  dismissUpdate: (version: string) => ipcRenderer.invoke('tearsheet:dismissUpdate', version),
+  openUpdate: (kind: 'download' | 'notes') => ipcRenderer.invoke('tearsheet:openUpdate', kind),
+  onUpdate: listen('tearsheet:update'),
   find: (text: string, forward: boolean) => ipcRenderer.invoke('tearsheet:find', text, forward),
   stopFind: () => ipcRenderer.invoke('tearsheet:stopFind'),
   setLook: (look: { zoom: number; background: string }) => ipcRenderer.invoke('tearsheet:setLook', look),

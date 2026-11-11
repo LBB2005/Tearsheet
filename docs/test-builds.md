@@ -18,7 +18,7 @@ out at `app/dist/mac-arm64/Tearsheet.app`.
 
 `ELECTRON_RENDERER_URL`, `TEARSHEET_DATA_DIR`, `TEARSHEET_DOWNLOADS_DIR`, `TEARSHEET_HIDDEN_WINDOW`,
 `TEARSHEET_CLAUDE_BIN`, `TEARSHEET_CODEX_BIN`, `TEARSHEET_TEST_TOOLS`, `TEARSHEET_KEYCHAIN_SERVICE`,
-`TEARSHEET_SWITCH_URL` and `TEARSHEET_REPO`. The list lives in `app/src/main/devHooks.ts`
+`TEARSHEET_SWITCH_URL`, `TEARSHEET_RELEASES_URL` (the update banner's address) and `TEARSHEET_REPO`. The list lives in `app/src/main/devHooks.ts`
 (`DEV_VARIABLES`); a test there fails if the main process reads a `TEARSHEET_` variable that isn't
 on it.
 

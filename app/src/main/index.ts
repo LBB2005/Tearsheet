@@ -12,6 +12,7 @@ import { app, BrowserWindow, ipcMain, Menu, net, powerSaveBlocker, shell } from 
 
 import { INSTALL_BUTTON, SWITCH_URL } from '../shared/flags'
 
+import { appBundle, checkWithUpdater, developerIdSigned, loadUpdater, updateMode } from './autoUpdate'
 import { keepAwakeDuringLine } from './awake'
 import { dockUpdate, NO_RUN } from './dockProgress'
 import { Downloads, printHtmlToPdf, writeNew } from './downloads'
@@ -31,6 +32,7 @@ import { sweepStaleTemp } from './tempSweep'
 import { stepRules } from './toolSteps'
 import { testMode } from './tools'
 import { ToolWatch } from './toolWatch'
+import { isPrerelease, releasesAddress, UPDATES_FILE, UpdateCheck } from './updates'
 
 // A release build ignores every development and test hook (devHooks.ts): they are removed from
 // the environment before anything below reads it, so the engine never gets them either. Nor does
@@ -75,6 +77,29 @@ const installSwitch = new InstallSwitch({
   fetch: (url, init) => net.fetch(url, init),
   log: setupLog
 })
+
+// The update banner (updates.ts), or in a Developer ID-signed release build electron-updater
+// (autoUpdate.ts). Both ask at launch and then at most once a day, and only while "Check for
+// updates" is on. A test copy asks only TEARSHEET_RELEASES_URL, or nowhere.
+const HOUR_MS = 60 * 60 * 1000
+let updates: UpdateCheck | null = null
+async function startUpdates(window: BrowserWindow): Promise<void> {
+  const current = app.getVersion()
+  const developerId = app.isPackaged && !TEST_BUILD ? await developerIdSigned(appBundle(app.getPath('exe'))) : false
+  const auto = updateMode({ packaged: app.isPackaged, testBuild: TEST_BUILD, developerId }) === 'auto'
+  updates = new UpdateCheck({
+    file: join(app.getPath('userData'), UPDATES_FILE),
+    current,
+    url: auto ? null : releasesAddress(current, inTestMode, process.env),
+    fetch: (url, init) => net.fetch(url, init),
+    instead: auto ? () => checkWithUpdater(loadUpdater, isPrerelease(current)) : undefined,
+    onChange: (status) => {
+      if (!window.isDestroyed() && !window.webContents.isDestroyed()) window.webContents.send('tearsheet:update', status)
+    }
+  })
+  void updates.run()
+  setInterval(() => void updates?.run(), HOUR_MS).unref()
+}
 
 // The one owner of the tools' status reads. Its first read runs while the window loads.
 const probe = new Probe({
@@ -203,6 +228,12 @@ async function createWindow(): Promise<void> {
     installer: installer ?? undefined,
     installButton: () => installSwitch.getInstallButton(),
     engineLogFile: join(dataDir, 'logs', 'engine.log'),
+    updates: {
+      status: () => updates?.status() ?? { check: true, update: null },
+      setCheck: (on) => updates?.setCheck(on) ?? { check: on, update: null },
+      dismiss: (version) => updates?.dismiss(version) ?? { check: true, update: null },
+      shown: () => updates?.shown() ?? null
+    },
     about: () => ({
       app: app.getVersion(),
       engine: started.hello?.engine_version ?? null,
@@ -235,6 +266,7 @@ async function createWindow(): Promise<void> {
     return true
   })
   registerLookIpc(window, lookFile)
+  void startUpdates(window)
   Menu.setApplicationMenu(Menu.buildFromTemplate(menuTemplate((command) => {
         if (window.isDestroyed() || window.webContents.isDestroyed()) return
         // A shortcut used while the window is hidden (⌘N, say) brings it back first.

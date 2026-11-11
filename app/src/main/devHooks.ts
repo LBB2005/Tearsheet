@@ -2,7 +2,7 @@
 //
 // A development run (`npm run dev`) and a test build honour the variables below: another data or
 // downloads folder, a hidden window, stand-in AI programs, a test Keychain name, another off-switch
-// address, another checkout's engine, and the dev server's page. A release build — what
+// or releases address, another checkout's engine, and the dev server's page. A release build — what
 // `npm run package` and scripts/release.sh make, and what everyone else runs — ignores them all:
 // they are removed from the environment before anything reads it, so neither the window nor the
 // engine (which gets this environment) ever sees them. Nor does a release build start with
@@ -31,6 +31,7 @@ export const DEV_VARIABLES = [
   'TEARSHEET_TEST_TOOLS',
   'TEARSHEET_KEYCHAIN_SERVICE',
   'TEARSHEET_SWITCH_URL',
+  'TEARSHEET_RELEASES_URL',
   'TEARSHEET_REPO'
 ] as const
 

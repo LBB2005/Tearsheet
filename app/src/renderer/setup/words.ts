@@ -186,7 +186,7 @@ export interface DataInput {
 
 // The data sentence on the finish card: Anthropic or OpenAI for the AI text; SEC for the email and
 // filing downloads; Massive for the key and prices; iShares for the S&P 500 list; GitHub for the
-// off switch's file; claude.ai or chatgpt.com for the install scripts, when Install was pressed;
+// off switch's file and the update check; claude.ai or chatgpt.com for the install scripts, when Install was pressed;
 // and the news sites only when the news setting is on. The outside-services list
 // (tearsheet.md section 12).
 export function dataSentence({ writer, checker, installed, news }: DataInput): string {
@@ -197,7 +197,7 @@ export function dataSentence({ writer, checker, installed, news }: DataInput): s
     parts.push(`${C.name} checks each draft on your ${C.plan}, so ${C.maker} sees the drafts too.`)
   }
   if (writer === 'codex' || checker === 'codex') parts.push('Codex also sends your own ~/.codex/AGENTS.md file to OpenAI with each call.')
-  parts.push('SEC gets your email with each filing download. Massive and FRED get your keys and the price and economy requests. GitHub gives Tearsheet one small file at each launch, with nothing about you.')
+  parts.push('SEC gets your email with each filing download. Massive and FRED get your keys and the price and economy requests. GitHub gives Tearsheet one small file at each launch and, at most once a day, the newest version number, with nothing about you.')
   if (news) parts.push('The news sites on the allowlist get a request for each article a report reads.')
   const sites = (['claude', 'codex'] as const).filter((k) => installed.includes(k)).map((k) => TOOL_TEXT[k].site)
   if (sites.length) parts.push(`The install ${sites.length > 1 ? 'scripts' : 'script'} came from ${sites.join(' and ')}.`)

@@ -47,6 +47,7 @@ import type { Refreshing } from './shell/refresh'
 import { Sidebar, SidebarButton } from './shell/Sidebar'
 import { SidebarSizer } from './shell/SidebarSizer'
 import { Toolbar } from './shell/Toolbar'
+import { UpdateBanner } from './shell/UpdateBanner'
 import { useMarks } from './shell/useMarks'
 import { useWide } from './shell/useWide'
 
@@ -763,6 +764,7 @@ export function App() {
               </div>
             )}
             {fatalNotice}
+            <UpdateBanner />
             <main key={shownKey} className={frameClass} data-page={page}>
               {content}
             </main>

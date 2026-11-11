@@ -72,6 +72,11 @@ export interface TearsheetApi {
   // Copies the versions, the AI tools and the end of engine.log, with emails, keys and the home
   // folder removed, for a feedback email (main/diagnostics.ts). Nothing is sent anywhere.
   copyDiagnostics(): Promise<boolean>
+  updates(): Promise<import('../main/updates').UpdateStatus>
+  setUpdateCheck(on: boolean): Promise<import('../main/updates').UpdateStatus>
+  dismissUpdate(version: string): Promise<import('../main/updates').UpdateStatus>
+  openUpdate(kind: 'download' | 'notes'): Promise<boolean>
+  onUpdate(fn: (status: import('../main/updates').UpdateStatus) => void): () => void
   find(text: string, forward: boolean): Promise<void>
   stopFind(): Promise<void>
   // The look picked on Settings → Appearance, for the window itself: its zoom (text size, 0.85 to

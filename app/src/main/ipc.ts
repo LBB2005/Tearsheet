@@ -20,6 +20,7 @@ import { NO_LOG, type SetupLog } from './setupLog'
 import { copyAndOpen } from './terminal'
 import type { StepRules } from './toolSteps'
 import type { ToolWatch } from './toolWatch'
+import { CHANGELOG_URL, type UpdateCheck } from './updates'
 
 // Window call name → engine method.
 export const CALLS: Record<string, string> = {
@@ -126,6 +127,9 @@ export interface IpcDeps {
   home?: string
   // Puts Copy diagnostics' text on the clipboard; Electron's clipboard when not given.
   writeClipboard?: (text: string) => void
+  // The update banner and "Check for updates" (updates.ts). Without it the window is told the
+  // setting is on and there is no update.
+  updates?: Pick<UpdateCheck, 'status' | 'setCheck' | 'dismiss' | 'shown'>
 }
 
 // How long Copy diagnostics waits for the engine to say which AI tool reports use.
@@ -219,6 +223,17 @@ export function registerIpc(window: BrowserWindow, engine: Engine, deps: IpcDeps
       home: deps.home ?? homedir()
     })
     ;(deps.writeClipboard ?? ((t: string) => clipboard.writeText(t)))(text)
+    return true
+  })
+  // The update banner (updates.ts): its status, the setting, Dismiss, and its two links. Download
+  // opens the shown release's own page and What's new the changelog; the window names neither URL.
+  ipcMain.handle('tearsheet:updates', () => deps.updates?.status() ?? { check: true, update: null })
+  ipcMain.handle('tearsheet:setUpdateCheck', (_event, on: unknown) => deps.updates?.setCheck(on === true) ?? { check: true, update: null })
+  ipcMain.handle('tearsheet:dismissUpdate', (_event, version: unknown) => deps.updates?.dismiss(version) ?? { check: true, update: null })
+  ipcMain.handle('tearsheet:openUpdate', async (_event, kind: unknown) => {
+    const release = deps.updates?.shown()
+    if (!release || (kind !== 'download' && kind !== 'notes')) return false
+    await shell.openExternal(kind === 'download' ? release.url : CHANGELOG_URL)
     return true
   })
   ipcMain.handle('tearsheet:openExternal', async (_event, url: unknown) => {

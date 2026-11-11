@@ -435,6 +435,42 @@ describe('the rest of the bridge', () => {
     expect(await call({}, 'getReport', {})).toEqual({ ok: false, error: { message: 'The engine stopped.' } })
   })
 
+  test('the update banner: its status, the setting, Dismiss, and links only to the shown release and the changelog', async () => {
+    const release = { version: '0.2.0', url: 'https://github.com/LBB2005/Tearsheet/releases/tag/v0.2.0', prerelease: false }
+    let shown: typeof release | null = release
+    const updates = {
+      status: vi.fn(() => ({ check: true, update: shown })),
+      setCheck: vi.fn((on: boolean) => ({ check: on, update: on ? shown : null })),
+      dismiss: vi.fn(() => {
+        shown = null
+        return { check: true, update: null }
+      }),
+      shown: vi.fn(() => shown)
+    }
+    wired({ updates })
+    opened.length = 0
+    expect(await handlers.get('tearsheet:updates')!({})).toEqual({ check: true, update: release })
+    expect(await handlers.get('tearsheet:setUpdateCheck')!({}, 'yes')).toEqual({ check: false, update: null })
+    expect(updates.setCheck).toHaveBeenLastCalledWith(false)
+    await handlers.get('tearsheet:setUpdateCheck')!({}, true)
+    expect(updates.setCheck).toHaveBeenLastCalledWith(true)
+    const open = handlers.get('tearsheet:openUpdate')!
+    expect(await open({}, 'download')).toBe(true)
+    expect(await open({}, 'notes')).toBe(true)
+    expect(await open({}, 'https://evil.example/')).toBe(false)
+    expect(opened).toEqual([release.url, 'https://github.com/LBB2005/Tearsheet/blob/main/CHANGELOG.md'])
+    expect(await handlers.get('tearsheet:dismissUpdate')!({}, '0.2.0')).toEqual({ check: true, update: null })
+    expect(updates.dismiss).toHaveBeenCalledWith('0.2.0')
+    // Nothing shown: neither link opens.
+    expect(await open({}, 'download')).toBe(false)
+  })
+
+  test('without an update check, the window hears the setting is on and there is no update', async () => {
+    wired()
+    for (const channel of ['tearsheet:updates', 'tearsheet:setUpdateCheck', 'tearsheet:dismissUpdate']) expect(await handlers.get(channel)!({}, true)).toEqual({ check: true, update: null })
+    expect(await handlers.get('tearsheet:openUpdate')!({}, 'download')).toBe(false)
+  })
+
   test('openExternal opens only the allowed pages', async () => {
     wired()
     opened.length = 0

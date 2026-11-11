@@ -8,7 +8,8 @@ import { useEffect, useState } from 'react'
 import type { AboutInfo } from '../../main/about'
 import { FEEDBACK_EMAIL } from '../../shared/feedback'
 import { ADVICE_SHORT } from '../../shared/wording'
-import { Label } from './General'
+import { useUpdateStatus } from '../shell/UpdateBanner'
+import { Label, PopUp } from './General'
 
 // FRED's terms ask every application that uses its API to show this sentence, and a link to the
 // terms, to its users.
@@ -28,6 +29,37 @@ export const UNINSTALL: string[] = [
   'In Keychain Access, delete the items named Tearsheet (your data keys) and Tearsheet Safe Storage.',
   'Files you downloaded from reports stay in your Downloads folder until you delete them.'
 ]
+
+export const UPDATES_ON = 'At launch and at most once a day, Tearsheet asks GitHub for its newest version and shows one line when a newer one is out. The request carries no personal data.'
+export const UPDATES_OFF = 'Off: Tearsheet never asks. New versions are on the Releases page on GitHub.'
+
+// "Check for updates" (main/updates.ts), on unless turned off. Off also hides the banner.
+function UpdatesRow() {
+  const [status, setStatus] = useUpdateStatus()
+  const on = status?.check ?? true
+  const pick = (value: string) => {
+    const check = value === 'on'
+    if (status) setStatus({ check, update: check ? status.update : null })
+    window.tearsheet.setUpdateCheck(check).then(
+      (s) => setStatus(s),
+      () => undefined
+    )
+  }
+  return (
+    <div className="sline">
+      <Label id="set-updates" title="Check for updates" help={on ? UPDATES_ON : UPDATES_OFF} />
+      <PopUp
+        labelledBy="set-updates"
+        value={on ? 'on' : 'off'}
+        options={[
+          ['on', 'On'],
+          ['off', 'Off']
+        ]}
+        onChange={pick}
+      />
+    </div>
+  )
+}
 
 export function AboutPage({ onPrivacy }: { onPrivacy: () => void }) {
   const [info, setInfo] = useState<AboutInfo | null>(null)
@@ -77,6 +109,7 @@ export function AboutPage({ onPrivacy }: { onPrivacy: () => void }) {
             Copy diagnostics
           </button>
         </div>
+        <UpdatesRow />
         {info && (
           <div className="sline">
             <Label title="Versions" help={`Tearsheet ${info.app}, engine ${info.engine ?? 'not running'}, macOS ${info.macos}, Electron ${info.electron}.`} />

@@ -360,6 +360,15 @@ html { accent-color: var(--accent); }
 /* A page whose content is centred keeps the bar's room on both sides, so it stays centred. */
 .pagebody[data-page="home"], .pagebody[data-page="setup"] { scrollbar-gutter: stable both-edges; }
 .fatal { margin: 12px 20px 0; flex: none; }
+/* The update banner (shell/UpdateBanner.tsx): one quiet line under the toolbar, tinted with the
+   accent like the secondary button, with its three actions as text buttons. */
+.upbar { flex: none; display: flex; align-items: center; flex-wrap: wrap; gap: 2px 6px; margin: 10px 20px 0; padding: 6px 8px 6px 14px; border-radius: var(--r-md); border: 1px solid var(--chipline); background: rgb(var(--accent-rgb) / .07); color: var(--muted); font: var(--fs-md) var(--ui); }
+.upbar .uptext { color: var(--text); font-weight: calc(500 + var(--wt)); }
+.upbar .upsep { opacity: .55; }
+.upbar .uplink { all: unset; cursor: pointer; padding: 2px 4px; border-radius: var(--r-sm); color: var(--accent-fg); font-weight: calc(500 + var(--wt)); }
+.upbar .uplink:hover { text-decoration: underline; text-underline-offset: 3px; }
+.upbar .uplink:focus-visible { outline: var(--focus); outline-offset: 1px; }
+.upbar .uplink.quiet { color: var(--muted); }
 
 /* ---------- motion: A. Settle, calmed (motion.ts decides which plays) ----------
    Building up (`enter`): each part fades up from 10 px below, 70 ms apart and half a second each.

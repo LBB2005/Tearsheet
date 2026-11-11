@@ -100,6 +100,13 @@ SERVICES = [
         "sent": "One plain request at each launch, with no personal data",
     },
     {
+        "name": "GitHub (update check)",
+        "key": "None",
+        "cost": "Free",
+        "sent": "At most one plain request a day for the newest version number, with no "
+        "personal data. Turn it off with Check for updates in Settings, About and help",
+    },
+    {
         "name": "claude.ai and chatgpt.com install scripts",
         "key": "None",
         "cost": "Free",

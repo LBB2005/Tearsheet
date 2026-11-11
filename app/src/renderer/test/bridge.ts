@@ -11,6 +11,7 @@ import { vi, type Mock } from 'vitest'
 
 import type { MenuCommand } from '../../main/menu'
 import type { ViewId } from '../../main/navigation'
+import type { UpdateStatus } from '../../main/updates'
 import type { CallResult, EngineNotification, TearsheetApi, ToolStatus } from '../../preload/api'
 import type { InstallProgress, InstallStatus, RunResult } from '../../shared/install'
 import type { ChartSeries, CompanyRow, KeyNumbers, KeyRow, LineGroups, LineItem, LinePlan, LineState, PredictionPrices, PredictionSummary, ReportBar, ReportNumbers, ReportResult, ReportSummary, SearchHit, SettingsResult } from '../../shared/protocol'
@@ -305,7 +306,8 @@ const listeners = {
   menu: new Set<(c: MenuCommand) => void>(),
   flag: new Set<(p: { claimId: string }) => void>(),
   open: new Set<(p: { view: ViewId; item: string | null }) => void>(),
-  download: new Set<(n: DownloadNote) => void>()
+  download: new Set<(n: DownloadNote) => void>(),
+  update: new Set<(s: UpdateStatus) => void>()
 }
 
 const listen = <T>(set: Set<(x: T) => void>) => (fn: (x: T) => void) => {
@@ -337,6 +339,12 @@ function marks() {
 // The Install button's runs that haven't answered yet, oldest first: install() answers only when
 // a test ends it (endInstall), after sending its install_progress messages (progress).
 let installs: ((r: RunResult) => void)[] = []
+
+// What the main process's update check says (main/updates.ts): the setting, and a newer release.
+export let updateState: UpdateStatus = { check: true, update: null }
+export function setUpdateState(status: UpdateStatus): void {
+  updateState = status
+}
 
 function makeBridge(): FakeBridge {
   const m = marks()
@@ -371,6 +379,12 @@ function makeBridge(): FakeBridge {
     about: vi.fn<TearsheetApi['about']>(async () => ({ app: '0.1.0', engine: '0.1.0', macos: '26.1', electron: '33.2.0' })),
     sendFeedback: vi.fn<TearsheetApi['sendFeedback']>(async () => true),
     copyDiagnostics: vi.fn<TearsheetApi['copyDiagnostics']>(async () => true),
+    // No update by default; a test sets `updateState` or sends one with updateStatus().
+    updates: vi.fn<TearsheetApi['updates']>(async () => updateState),
+    setUpdateCheck: vi.fn<TearsheetApi['setUpdateCheck']>(async (on: boolean) => (updateState = { check: on, update: on ? updateState.update : null })),
+    dismissUpdate: vi.fn<TearsheetApi['dismissUpdate']>(async () => (updateState = { ...updateState, update: null })),
+    openUpdate: vi.fn<TearsheetApi['openUpdate']>(async () => true),
+    onUpdate: vi.fn<TearsheetApi['onUpdate']>(listen(listeners.update)),
     find: vi.fn<TearsheetApi['find']>(async () => undefined),
     stopFind: vi.fn<TearsheetApi['stopFind']>(async () => undefined),
     setLook: vi.fn<TearsheetApi['setLook']>(async () => true),
@@ -435,7 +449,9 @@ export function installBridge(): FakeBridge {
   listeners.flag.clear()
   listeners.open.clear()
   listeners.download.clear()
+  listeners.update.clear()
   installs = []
+  updateState = { check: true, update: null }
   bridge = makeBridge()
   Object.defineProperty(window, 'tearsheet', { configurable: true, value: bridge })
   return bridge
@@ -474,6 +490,14 @@ export function openView(view: ViewId, item: string | null = null): void {
 export function download(note: DownloadNote): void {
   act(() => {
     for (const fn of listeners.download) fn(note)
+  })
+}
+
+// The main process's update check found a release, or its status changed (main/updates.ts).
+export function updateStatus(status: UpdateStatus): void {
+  updateState = status
+  act(() => {
+    for (const fn of listeners.update) fn(status)
   })
 }
 

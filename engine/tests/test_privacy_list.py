@@ -25,6 +25,9 @@ def test_the_list_names_both_ai_tools_and_only_services_still_used(database):
     assert "~/.codex/AGENTS.md" in text
     # The off switch's file and the install scripts.
     assert "GitHub" in text and "claude.ai and chatgpt.com" in text
+    # The update banner's check (app/src/main/updates.ts), which can be turned off.
+    update = next(r for r in rows if r["name"] == "GitHub (update check)")
+    assert "a day" in update["sent"] and "Check for updates" in update["sent"]
     news = next(r for r in rows if r["name"] == "News sites")
     assert "doesn't download" in news["sent"]
 
