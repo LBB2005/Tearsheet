@@ -1,0 +1,11 @@
+#!/bin/sh
+# Optional secret scan before each commit (CONTRIBUTING.md). Turn it on with
+#   git config core.hooksPath .githooks
+# It scans only what is staged, with gitleaks, and stops the commit if it finds a secret.
+# Without gitleaks installed (brew install gitleaks) it says so and lets the commit through;
+# CI scans every push either way.
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "pre-commit: gitleaks isn't installed, so the secret scan was skipped (brew install gitleaks)." >&2
+  exit 0
+fi
+exec gitleaks git --staged --redact --no-banner .

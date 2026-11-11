@@ -1,0 +1,4 @@
+# gitleaks false positives, checked by hand on 2026-11-11 (docs/launch/prelaunch-checklist.md):
+# a made-up demo key typed by the setup mockup's animation, and a test fixture's article id.
+dd06c650afa2f8aa103b04bc0e574b375596b581:docs/designs/opening-and-setup.html:generic-api-key:824
+525665a66f7f9cf4b21200832a554bef1ed89ab0:engine/tests/test_pipeline.py:generic-api-key:633

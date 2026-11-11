@@ -1,6 +1,6 @@
 # Continuous integration (design item 52): the engine's lint, offline tests with the coverage
 # bar, and replay of the stored test runs; the app's typecheck, tests with their coverage floor,
-# and generated protocol types.
+# and generated protocol types; and a secret scan of the whole history.
 name: CI
 
 on:
@@ -54,3 +54,26 @@ jobs:
       - name: Build
         working-directory: app
         run: npm run build
+
+  # gitleaks over every commit (CONTRIBUTING.md has the optional pre-commit hook). Known false
+  # positives are listed by fingerprint in .gitleaksignore. The binary is pinned and its checksum
+  # checked, so no third-party action runs with the repository's token.
+  secrets:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      GITLEAKS_VERSION: "8.30.1"
+      GITLEAKS_SHA256: "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install gitleaks
+        run: |
+          curl -fsSL -o gitleaks.tgz "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  gitleaks.tgz" | sha256sum -c -
+          tar xzf gitleaks.tgz gitleaks
+          rm gitleaks.tgz
+      - name: Scan the history for secrets
+        run: ./gitleaks git . --redact --no-banner --verbose
