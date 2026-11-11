@@ -23,6 +23,7 @@ from tearsheet.export import style
 from tearsheet.export.data import LABEL, ExportData, Figure, day_text
 from tearsheet.export.data import METHOD_LABELS as LABELS
 from tearsheet.render import METRIC_KINDS
+from tearsheet.wording import PRICES_LINE
 
 BLUE = "#0000FF"
 NUM = '#,##0_);(#,##0);"–"_)'
@@ -132,7 +133,7 @@ class _Book:
         self, name: str, subtitle: str, widths: dict[str, float], last_col: int, label_col: int = 1
     ):
         """A tab with the shared header: the company, the subtitle, the brand and the checks
-        light, a rule, and the "not investment advice" label on the first row under the frozen
+        light, a rule, and the "not advice" and Massive "own use" lines on the first row under the frozen
         header (row 4), from column `label_col`, so every tab shows it on screen as well as in
         its printed footer."""
         d = self.d
@@ -153,12 +154,14 @@ class _Book:
         for col in range(1, last_col + 1):
             ws.write_blank(2, col, None, self.f["rule"])
         ws.set_row(2, 6)
-        ws.write(3, label_col, LABEL, self.f["small"])
+        ws.write(3, label_col, LABEL + " " + PRICES_LINE, self.f["small"])
         ws.set_landscape()
         ws.set_paper(1)
         ws.fit_to_pages(1, 0)
         ws.set_margins(left=0.4, right=0.4, top=0.5, bottom=0.6)
-        ws.set_footer("&L&8Tearsheet Research · " + LABEL + "&R&8&A · page &P of &N")
+        ws.set_footer(
+            "&L&8Tearsheet Research · " + LABEL + " " + PRICES_LINE + "&R&8&A · page &P of &N"
+        )
         return ws
 
     def section(

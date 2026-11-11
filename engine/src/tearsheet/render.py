@@ -18,6 +18,8 @@ from typing import Any
 
 from jinja2 import Environment, PackageLoader, select_autoescape
 
+from tearsheet.wording import ADVICE_LINE, ADVICE_SHORT
+
 PLACEHOLDER = re.compile(r"\{\{([a-z_]+:[A-Za-z0-9_.\-]+)\}\}")
 CSP = "default-src 'none'; style-src 'unsafe-inline'; img-src data:"
 # The app's layout that follows the frame (column "auto"): both columns from this frame width,
@@ -74,10 +76,8 @@ _ENV = Environment(
     loader=PackageLoader("tearsheet", "templates"),
     autoescape=select_autoescape(default=True, default_for_string=True),
 )
-# The report's "not advice" line. The short form sits under the rating; the long form opens a
-# report file and closes the report in the app (docs/launch/launch-readiness.md, M5).
-ADVICE_SHORT = "General research, not personalised investment advice."
-ADVICE_LINE = ADVICE_SHORT + " Check the sources and make your own decisions."
+# The report's "not advice" line (wording.py). The short form sits under the rating; the long form
+# opens a report file and closes the report in the app (docs/launch/launch-readiness.md, M5).
 _ENV.globals.update(ADVICE_SHORT=ADVICE_SHORT, ADVICE_LINE=ADVICE_LINE)
 
 # The keys of report_numbers.numbers_for. A key that is missing, or numbers that are None, renders

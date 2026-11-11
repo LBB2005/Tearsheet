@@ -15,9 +15,10 @@ from openpyxl import load_workbook
 from pptx import Presentation
 
 from tearsheet.export import data as export_data
-from tearsheet.export import deck, pdf, workbook
+from tearsheet.export import deck, pdf, style, workbook
 from tearsheet.export.data import LABEL
 from tearsheet.protocol import ExportResult
+from tearsheet.wording import PRICES_LINE
 from tests.test_pipeline import company_facts
 from tests.test_protocol import Harness, run
 from tests.test_server_lookups import _one_report
@@ -175,10 +176,12 @@ def test_the_workbook_holds_the_reports_numbers_and_every_check_passes(tmp_path)
         str(c.value) for row in wb["Summary"].iter_rows() for c in row if c.value is not None
     )
     assert LABEL in summary
+    assert PRICES_LINE in summary
     for ws in wb.worksheets:
-        assert LABEL in ws.oddFooter.left.text
-        # On screen too: every tab's first row under the frozen header (launch-readiness M5).
-        assert LABEL in [c.value for c in ws[4]], ws.title
+        # The "not advice" line and Massive's "own use" line (launch-readiness M5, S1, S6).
+        assert LABEL in ws.oddFooter.left.text and PRICES_LINE in ws.oddFooter.left.text
+        # On screen too: every tab's first row under the frozen header.
+        assert f"{LABEL} {PRICES_LINE}" in [c.value for c in ws[4]], ws.title
     h.server.close()
 
 
@@ -312,7 +315,7 @@ def test_the_deck_has_12_main_slides_and_an_appendix_each_with_the_label(tmp_pat
     assert got["file_name"].endswith(".pptx")
     slides = _slide_texts(base64.b64decode(got["data_base64"]))
     assert len(slides) >= 17
-    assert all(LABEL in s for s in slides)
+    assert all(LABEL in s and PRICES_LINE in s for s in slides)
     d = _load(h, ready["report_id"])
     n = d.numbers
     cover = slides[0]
@@ -357,6 +360,9 @@ def test_the_print_page_has_the_call_every_claim_and_every_source(tmp_path):
         if note.quote:
             assert note.quote in page
     assert LABEL in page and LABEL in got["footer"]
+    # Massive's "own use" line by each price exhibit and in the Important information (S1).
+    assert page.count(PRICES_LINE) >= 2
+    assert style.DISCLAIMER.startswith(LABEL) and PRICES_LINE in style.DISCLAIMER
     assert "<script" not in got["html"] and "tearsheet://" not in got["html"]
     assert "default-src 'none'" in got["html"]
     h.server.close()

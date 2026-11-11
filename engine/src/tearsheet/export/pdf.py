@@ -23,6 +23,7 @@ from jinja2 import Environment, PackageLoader, select_autoescape
 
 from tearsheet.export import style
 from tearsheet.export.data import LABEL, METHOD_LABELS, ExportData, day_text
+from tearsheet.wording import PRICES_LINE
 
 _ENV = Environment(
     loader=PackageLoader("tearsheet", "templates"),
@@ -290,6 +291,7 @@ def render(d: ExportData, analysts: dict | None = None) -> str:
         v=v,
         csp=CSP,
         label=LABEL,
+        prices_line=PRICES_LINE,
         disclaimer=style.DISCLAIMER,
         brand=style.BRAND,
         mark=_mark_data_uri(),

@@ -298,7 +298,7 @@ describe('the prediction log', () => {
     expect(await screen.findByText('No official predictions yet')).toBeInTheDocument()
     expect(toolbarTitle()).toBe('Prediction logNothing logged yet')
     // The log shows ratings and ranges, so it carries the line too (launch-readiness M5).
-    expect(screen.getByText(/Research data, not investment advice\./)).toBeInTheDocument()
+    expect(screen.getByText(/General research, not personalised investment advice\./)).toBeInTheDocument()
     // Nothing is logged, so there is nothing to grade.
     expect(screen.queryByRole('button', { name: 'Grade what is due' })).toBeNull()
   })

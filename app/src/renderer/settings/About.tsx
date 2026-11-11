@@ -6,6 +6,7 @@
 import { useEffect, useState } from 'react'
 
 import type { AboutInfo } from '../../main/about'
+import { ADVICE_SHORT } from '../../shared/wording'
 import { Label } from './General'
 
 // FRED's terms ask every application that uses its API to show this sentence, and a link to the
@@ -14,7 +15,7 @@ export const FRED_NOTICE = 'This product uses the FRED® API but is not endorsed
 export const FRED_TERMS = 'https://fred.stlouisfed.org/docs/api/terms_of_use.html'
 
 export const TERMS: string[] = [
-  'Reports are general research, not personalised investment advice. Tearsheet is not a broker or an investment adviser. Check the sources and make your own decisions.',
+  `${ADVICE_SHORT} Tearsheet is not a broker or an investment adviser. Check the sources and make your own decisions.`,
   'Reports can be wrong, late or incomplete. Tearsheet is free, open-source software under the MIT licence, provided as is, with no warranty.',
   'Your AI plan and the data services you sign up for (SEC, Massive and FRED) have their own terms, and they apply to your use. Massive’s prices are for your own use, so don’t share downloads that contain them.',
   'Each company’s first rated report in any 30 days is logged as an official prediction, and it can’t be changed afterwards.'

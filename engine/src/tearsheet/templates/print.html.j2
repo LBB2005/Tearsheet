@@ -114,7 +114,7 @@ svg text { font-family: var(--ui); }
 <div class="ext">Exhibit 1: {{ d.ticker }} share price, past 12 months</div>
 <div class="exu">US$ per share, weekly closes</div>
 {{ price_svg | safe }}
-<div class="src">Source: Tearsheet price store (Massive), prices to {{ n.price.date if n.price else "the report date" }}.</div>
+<div class="src">Source: Tearsheet price store, prices to {{ n.price.date if n.price else "the report date" }}. {{ prices_line }}</div>
 </div>
 {%- endif %}
 <div class="twin">
@@ -176,7 +176,7 @@ svg text { font-family: var(--ui); }
 {%- for r in g.rows %}<tr><td>{{ r.label }}</td>{% if r.text is none %}<td class="n kp2" colspan="2">– {{ r.note }}</td>{% else %}<td class="n">{{ r.text }}</td><td class="n kp2">{{ r.peer_text or "" }}</td>{% endif %}</tr>{% endfor %}
 {%- endfor %}
 </table>
-<div class="src">{{ keys.source }}</div>
+<div class="src">{{ keys.source }} {{ prices_line }}</div>
 </div>
 {%- endif %}
 <div class="h">As of</div>
@@ -201,7 +201,7 @@ svg text { font-family: var(--ui); }
 <tr>{% for cell in s.table.rows[0] %}<th{% if s.table.right[loop.index0] %} class="n"{% endif %}>{{ cell }}</th>{% endfor %}</tr>
 {%- for row in s.table.rows[1:] %}<tr>{% for cell in row %}<td{% if s.table.right[loop.index0] %} class="n"{% endif %}>{{ cell }}</td>{% endfor %}</tr>{% endfor %}
 </table>
-<div class="src">Source: SEC filings and prices, Tearsheet calculations.</div>
+<div class="src">Source: SEC filings and prices, Tearsheet calculations. {{ prices_line }}</div>
 </div>
 {%- endif %}
 {%- for c in s.claims %}
@@ -232,7 +232,7 @@ svg text { font-family: var(--ui); }
 <table class="t"><tr><th>Period</th><th class="n">{{ d.ticker }}</th><th class="n">Peers</th><th class="n">S&amp;P 500</th></tr>
 {%- for r in v.returns %}<tr><td>Past {{ r.years }} year{% if r.years != 1 %}s{% endif %}</td>{% for key in ("company", "peers", "spy") %}<td class="n">{% if r[key] and r[key].value is number %}{{ "%.1f%%"|format(r[key].value) }}{% else %}n/a{% endif %}</td>{% endfor %}</tr>{% endfor %}
 </table>
-<div class="src">Source: Tearsheet price store. Peers weighted equally.</div>
+<div class="src">Source: Tearsheet price store. Peers weighted equally. {{ prices_line }}</div>
 </div>
 {%- endif %}
 {%- if v.red_flags %}

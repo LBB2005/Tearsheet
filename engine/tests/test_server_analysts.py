@@ -44,7 +44,7 @@ def test_the_report_shows_the_panel_as_of_its_price_date(tmp_path):
     ready, got = open_report(h, service, column="numbers")
     html = got["result"]["html"]
     assert 'id="analysts"' in html and "Analyst ratings" in html
-    assert "Research data, not investment advice." in html
+    assert "General research, not personalised investment advice." in html
     (request,) = service.requests
     day = run_price_date(h.server.db.conn, ready["run_id"])
     assert request.url.path == "/consensus/T0"

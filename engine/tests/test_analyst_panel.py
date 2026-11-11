@@ -84,7 +84,7 @@ def test_the_panel_shows_the_firms_sides_and_targets():
         assert part in text, part
     assert "High $800.00" in text and "Low $265.00" in text
     assert text.endswith(
-        "Source: analystdb, 38 firms, as of 6 Nov 2026. Research data, not investment advice."
+        "Source: analystdb, 38 firms, as of 6 Nov 2026. General research, not personalised investment advice."
     )
 
 

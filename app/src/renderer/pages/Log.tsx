@@ -11,6 +11,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 
 import type { CallResult } from '../../preload/api'
 import type { GradeResult, PredictionPrices, PredictionSummary } from '../../shared/protocol'
+import { ADVICE_SHORT } from '../../shared/wording'
 import { CompareChart } from '../log/CompareChart'
 import { compareSeries, sinceFor, type CompareRange, type CompareSeries, type Pick } from '../log/compare'
 import { gradeCells, gradedLine, logSubtitle, nextGrade, ratingTone } from '../log/log'
@@ -246,7 +247,7 @@ export function Log({ grading, refresh, onGrade, onSubtitle, onOpenReport }: Log
 
   const notice = (
     <div className="notice mv" style={at(0)}>
-      <b>Descriptive, not conclusive.</b> This log grades the companies you chose to look up, not the method as a whole. Good picks are a filter on the method’s own numbers. Research data, not investment advice.
+      <b>Descriptive, not conclusive.</b> This log grades the companies you chose to look up, not the method as a whole. Good picks are a filter on the method’s own numbers. {ADVICE_SHORT}
     </div>
   )
 

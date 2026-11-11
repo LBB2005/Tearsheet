@@ -312,7 +312,7 @@
 <div class="aends"><span>{{ dollars(t.low) }}</span><span>{{ dollars(t.high) }}</span></div>
 <div class="akeys"><span><i class="k-band"></i>analysts, low to high</span>{% if t.mean is number %}<span><i class="k-avg"></i>average</span>{% endif %}{% if t.median is number %}<span><i class="k-med"></i>median</span>{% endif %}{% if base is not none %}<span><i class="k-base"></i>Tearsheet base {{ dollars(base) }}</span>{% endif %}{% if px is not none %}<span><i class="k-px"></i>price {{ dollars(px) }}</span>{% endif %}</div>{% endcall %}
 {%- endif %}
-<p class="afoot">Source: analystdb, {{ a.n_firms }} firms, as of {{ a.asof_text }}. Research data, not investment advice.</p>
+<p class="afoot">Source: analystdb, {{ a.n_firms }} firms, as of {{ a.asof_text }}. {{ ADVICE_SHORT }}</p>
 {%- else %}
 <p class="aquiet">{{ a.note }}</p>
 {%- endif %}

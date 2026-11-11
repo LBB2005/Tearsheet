@@ -22,6 +22,7 @@ from pptx.util import Inches, Pt
 
 from tearsheet.export import style
 from tearsheet.export.data import LABEL, Claim, ExportData, day_text
+from tearsheet.wording import PRICES_LINE
 
 FONT = "Arial"
 W, H = 13.333, 7.5
@@ -297,7 +298,7 @@ class _Deck:
             7.02,
             10.4,
             0.36,
-            [(source + " ", {"italic": True}), (LABEL, {})],
+            [(source + " ", {"italic": True}), (LABEL + " " + PRICES_LINE, {})],
             size=8,
             color=style.GREY,
         )

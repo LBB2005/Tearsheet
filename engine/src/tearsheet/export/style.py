@@ -5,6 +5,8 @@ from __future__ import annotations
 
 from importlib.resources import files
 
+from tearsheet.wording import ADVICE_SHORT, PRICES_LINE
+
 NAVY = "#0B2D5B"  # headings, rules, table headers, the base case
 INK = "#1A1A1A"  # body text and numbers
 GREY = "#595959"  # labels, source lines
@@ -21,10 +23,11 @@ SIGNATURE_TO = "#7FE3F7"
 
 BRAND = "TEARSHEET RESEARCH"
 DISCLAIMER = (
-    "Research data, not investment advice. Tearsheet makes this report with software from public "
+    ADVICE_SHORT + " Tearsheet makes this report with software from public "
     "filings, prices and news. It is not an offer or a recommendation to buy or sell any security, "
     "and it may contain errors: check the sources before relying on anything in it. The rating "
-    "compares the company with its peer group over the next 12 months; it is not a price target."
+    "compares the company with its peer group over the next 12 months; it is not a price target. "
+    + PRICES_LINE
 )
 
 

@@ -165,13 +165,13 @@ describe('the trust check', () => {
 })
 
 describe('what it always says', () => {
-  test('its source, its date and that it is research data, not investment advice', async () => {
+  test('its source, its date and that it is general research, not personalised investment advice', async () => {
     await reportOpen()
     openView('analysts', 'firms')
     const view = await pane()
     await view.findByText('UBS')
     expect(view.getByText('AMD · analystdb, as of Nov 6')).toBeInTheDocument()
-    expect(view.getByText(/Research data, not investment advice\./)).toBeInTheDocument()
+    expect(view.getByText(/General research, not personalised investment advice\./)).toBeInTheDocument()
     expect(view.getByText(/Track records as of Nov 7/)).toBeInTheDocument()
   })
 

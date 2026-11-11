@@ -1,13 +1,14 @@
 // Analyst ratings, opened bigger from the report's panel: analystdb's view of the company as of the
 // report's price date (engine: data/analystdb.py, get_analysts), in three tabs: every firm with
 // its track record, the recent changes, and the trust check against S&P Global. It is the
-// street's view, research data and not investment advice, and never part of Tearsheet's own
+// street's view, general research and not investment advice, and never part of Tearsheet's own
 // rating. Every figure and its readout comes written from the engine; pointing at a row reads it
 // out. When analystdb is off the view is its quiet note, with Try again.
 
 import { useEffect, useState, type ReactElement, type ReactNode } from 'react'
 
 import type { ReportAnalysts } from '../../shared/protocol'
+import { ADVICE_SHORT } from '../../shared/wording'
 import { ViewFrame, type ViewProps } from '../panel/ViewFrame'
 import { dayText } from '../nav'
 import { viewTitle } from '../panel/titles'
@@ -258,7 +259,7 @@ export function Analysts({ chrome, numbers, ticker, item, state, setState }: Vie
       {state.tab === 'firms' && <Firms view={view} state={state} setState={setState} point={point} />}
       {state.tab === 'changes' && <Changes view={view} point={point} />}
       {state.tab === 'check' && <Check view={view} point={point} />}
-      <p className="afoot">Source: analystdb{view.check ? ', with S&P Global’s figures for the trust check' : ''}. Research data, not investment advice.</p>
+      <p className="afoot">Source: analystdb{view.check ? ', with S&P Global’s figures for the trust check' : ''}. {ADVICE_SHORT}</p>
     </div>,
     controls
   )

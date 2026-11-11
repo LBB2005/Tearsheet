@@ -1,8 +1,8 @@
 Tearsheet writes research reports on S&P 500 companies. Code makes every number from public
 data. Your own AI tool reads the filings and writes the cited text.
 
-Reports are general research, not personalised investment advice. Tearsheet is free,
-open-source software under the MIT licence, provided as is, with no warranty.
+General research, not personalised investment advice. Tearsheet is free, open-source
+software under the MIT licence, provided as is, with no warranty.
 
 ## What you need
 

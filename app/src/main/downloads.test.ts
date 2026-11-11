@@ -10,7 +10,7 @@ function deps(over: Partial<DownloadDeps> = {}, files: Set<string> = new Set()) 
   const all: DownloadDeps = {
     request: vi.fn(async (_method: string, params: Record<string, unknown>) =>
       params.kind === 'pdf'
-        ? { file_name: 'JPM Tearsheet 7 Nov 2026.pdf', html: '<p>report</p>', data_base64: null, footer: 'Tearsheet Research · Research data, not investment advice.' }
+        ? { file_name: 'JPM Tearsheet 7 Nov 2026.pdf', html: '<p>report</p>', data_base64: null, footer: 'Tearsheet Research · General research, not personalised investment advice.' }
         : { file_name: `JPM Tearsheet 7 Nov 2026.${String(params.kind)}`, html: null, data_base64: Buffer.from('file bytes').toString('base64'), footer: '' }
     ),
     dir: DIR,
@@ -80,7 +80,7 @@ describe('making a download', () => {
   it('prints the PDF from the engine’s page, with its footer', async () => {
     const { all, written } = deps()
     await new Downloads(all).start('pdf', 'rep-1')
-    expect(all.printPdf).toHaveBeenCalledWith('<p>report</p>', 'Tearsheet Research · Research data, not investment advice.')
+    expect(all.printPdf).toHaveBeenCalledWith('<p>report</p>', 'Tearsheet Research · General research, not personalised investment advice.')
     expect(written.get(`${DIR}/JPM Tearsheet 7 Nov 2026.pdf`)?.toString()).toBe('%PDF-1.7')
   })
 

@@ -26,7 +26,7 @@ Your own Claude Code or Codex reads the filings and writes the text.
 </picture>
 
 > [!WARNING]
-> **Research data, not investment advice.** Tearsheet gives general research, not advice tailored to you. It doesn't claim to beat the market, and it doesn't trade. Check the sources and make your own decisions.
+> **General research, not personalised investment advice.** Tearsheet doesn't know your goals or your portfolio. It doesn't claim to beat the market, and it doesn't trade. Check the sources and make your own decisions.
 
 ## What it does
 

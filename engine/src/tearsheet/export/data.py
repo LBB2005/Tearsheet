@@ -17,7 +17,10 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
-LABEL = "Research data, not investment advice."
+from tearsheet.wording import ADVICE_SHORT
+
+# The "not advice" line every download carries (wording.py).
+LABEL = ADVICE_SHORT
 # How the stored valuation table names each method, in plain words.
 METHOD_LABELS = {
     "DCF": "Discounted cash flow (DCF)",
