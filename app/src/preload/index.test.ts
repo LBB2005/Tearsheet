@@ -117,10 +117,12 @@ test('About and help asks main for the versions, and Send feedback asks it to op
   expect(invoke).toHaveBeenLastCalledWith('tearsheet:about')
   await api.sendFeedback()
   expect(invoke).toHaveBeenLastCalledWith('tearsheet:sendFeedback')
+  await api.copyDiagnostics()
+  expect(invoke).toHaveBeenLastCalledWith('tearsheet:copyDiagnostics')
 })
 
 test('the window gets nothing but these calls and listeners', () => {
   expect(Object.keys(api).sort()).toEqual(
-    ['addToLine', 'cancel', 'carryOnLine', 'checkKey', 'clearLine', 'getLine', 'lineGroups', 'planLine', 'removeFromLine', 'fetchHistory', 'find', 'flagClaim', 'getAnalysts', 'getChart', 'getReport', 'getReportNumbers', 'eraseReports', 'getSettings', 'getTools', 'gradeDue', 'hideReports', 'listCompanies', 'listPredictions', 'listReports', 'predictionPrices', 'saveCsv', 'onFlagRequested', 'onMenu', 'onNotification', 'onOpenView', 'openExternal', 'pinCompany', 'rereadFiling', 'resume', 'runReport', 'runSafetyCheck', 'searchCompanies', 'setKey', 'setSetting', 'showReports', 'stopFind', 'setLook', 'openTheme', 'saveTheme', 'onDownload', 'showDownload', 'about', 'sendFeedback', 'cancelSafetyCheck', 'windowState', 'copyAndOpenTerminal', 'commandsFor', 'showSetupLog', 'install', 'cancelInstall', 'openSignInPage', 'getInstallButton'].sort()
+    ['addToLine', 'cancel', 'carryOnLine', 'checkKey', 'clearLine', 'getLine', 'lineGroups', 'planLine', 'removeFromLine', 'fetchHistory', 'find', 'flagClaim', 'getAnalysts', 'getChart', 'getReport', 'getReportNumbers', 'eraseReports', 'getSettings', 'getTools', 'gradeDue', 'hideReports', 'listCompanies', 'listPredictions', 'listReports', 'predictionPrices', 'saveCsv', 'onFlagRequested', 'onMenu', 'onNotification', 'onOpenView', 'openExternal', 'pinCompany', 'rereadFiling', 'resume', 'runReport', 'runSafetyCheck', 'searchCompanies', 'setKey', 'setSetting', 'showReports', 'stopFind', 'setLook', 'openTheme', 'saveTheme', 'onDownload', 'showDownload', 'about', 'sendFeedback', 'copyDiagnostics', 'cancelSafetyCheck', 'windowState', 'copyAndOpenTerminal', 'commandsFor', 'showSetupLog', 'install', 'cancelInstall', 'openSignInPage', 'getInstallButton'].sort()
   )
 })

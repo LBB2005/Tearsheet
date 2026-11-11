@@ -45,6 +45,7 @@ contextBridge.exposeInMainWorld('tearsheet', {
   openExternal: (url: string) => ipcRenderer.invoke('tearsheet:openExternal', url),
   about: () => ipcRenderer.invoke('tearsheet:about'),
   sendFeedback: () => ipcRenderer.invoke('tearsheet:sendFeedback'),
+  copyDiagnostics: () => ipcRenderer.invoke('tearsheet:copyDiagnostics'),
   find: (text: string, forward: boolean) => ipcRenderer.invoke('tearsheet:find', text, forward),
   stopFind: () => ipcRenderer.invoke('tearsheet:stopFind'),
   setLook: (look: { zoom: number; background: string }) => ipcRenderer.invoke('tearsheet:setLook', look),

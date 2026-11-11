@@ -31,6 +31,15 @@ export const UNINSTALL: string[] = [
 
 export function AboutPage({ onPrivacy }: { onPrivacy: () => void }) {
   const [info, setInfo] = useState<AboutInfo | null>(null)
+  // Copy diagnostics' answer, shown beside its button until the next press.
+  const [copied, setCopied] = useState<'copied' | 'failed' | null>(null)
+  const copyDiagnostics = () => {
+    setCopied(null)
+    window.tearsheet.copyDiagnostics().then(
+      (ok) => setCopied(ok ? 'copied' : 'failed'),
+      () => setCopied('failed')
+    )
+  }
   useEffect(() => {
     let live = true
     window.tearsheet.about().then(
@@ -52,6 +61,20 @@ export function AboutPage({ onPrivacy }: { onPrivacy: () => void }) {
           <Label title="Send feedback" help={`Opens a new email to ${FEEDBACK_EMAIL} in your Mail app, with these version numbers filled in. Nothing is sent until you send it.`} />
           <button className="pb" onClick={() => void window.tearsheet.sendFeedback()}>
             Send feedback
+          </button>
+        </div>
+        <div className="sline">
+          <Label
+            title="Copy diagnostics"
+            help="Copies the version numbers, your AI tool and the last 200 lines of Tearsheet’s log, with emails, keys and your home folder taken out, so you can paste them into a feedback email. Nothing is sent anywhere."
+          />
+          {copied && (
+            <span className="sval" role="status">
+              {copied === 'copied' ? 'Copied.' : 'Couldn’t copy. Try again.'}
+            </span>
+          )}
+          <button className="pb" onClick={copyDiagnostics}>
+            Copy diagnostics
           </button>
         </div>
         {info && (

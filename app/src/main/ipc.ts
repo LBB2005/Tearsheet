@@ -3,12 +3,14 @@
 // built here, from toolSteps.
 
 import { existsSync } from 'node:fs'
+import { homedir } from 'node:os'
 
 import { BrowserWindow, clipboard, ipcMain, shell } from 'electron'
 
 import type { RunResult } from '../shared/install'
 import type { TerminalResult, ToolCommands, ToolKind } from '../shared/tools'
 import { feedbackMailto, type AboutInfo } from './about'
+import { diagnosticsText, readLogTail } from './diagnostics'
 import type { Engine } from './engine'
 import { EngineError } from './engine'
 import { isAllowedExternal } from './external'
@@ -118,7 +120,16 @@ export interface IpcDeps {
   // "The button is on" (installSwitch.getInstallButton): INSTALL_BUTTON, and the online off
   // switch saved before this launch isn't off. False when not given.
   installButton?: () => boolean
+  // <data folder>/logs/engine.log, whose last lines Copy diagnostics copies (diagnostics.ts).
+  engineLogFile?: string
+  // The home folder Copy diagnostics takes out of the text; os.homedir() when not given.
+  home?: string
+  // Puts Copy diagnostics' text on the clipboard; Electron's clipboard when not given.
+  writeClipboard?: (text: string) => void
 }
+
+// How long Copy diagnostics waits for the engine to say which AI tool reports use.
+const DIAGNOSTICS_WAIT_MS = 2000
 
 const NO_COMMANDS: ToolCommands = { steps: [], blocked: [], paste: null }
 
@@ -192,6 +203,22 @@ export function registerIpc(window: BrowserWindow, engine: Engine, deps: IpcDeps
   // Opens the person's own Mail with a new email holding the versions; nothing is sent from here.
   ipcMain.handle('tearsheet:sendFeedback', async () => {
     await shell.openExternal(feedbackMailto(about()))
+    return true
+  })
+  // Copy diagnostics (diagnostics.ts): versions, the AI tools and the end of engine.log, scrubbed,
+  // onto the clipboard for the person to paste into a feedback email. Nothing is sent anywhere.
+  ipcMain.handle('tearsheet:copyDiagnostics', async () => {
+    const settings = engine.request<{ primary_tool?: string | null }>('get_settings', {}).catch(() => null)
+    const wait = new Promise<null>((resolve) => setTimeout(() => resolve(null), DIAGNOSTICS_WAIT_MS).unref?.())
+    const primary = (await Promise.race([settings, wait]))?.primary_tool ?? null
+    const text = diagnosticsText({
+      about: about(),
+      primaryTool: primary,
+      tools: deps.watch.current,
+      log: deps.engineLogFile ? readLogTail(deps.engineLogFile) : null,
+      home: deps.home ?? homedir()
+    })
+    ;(deps.writeClipboard ?? ((t: string) => clipboard.writeText(t)))(text)
     return true
   })
   ipcMain.handle('tearsheet:openExternal', async (_event, url: unknown) => {

@@ -177,6 +177,45 @@ test('About and help gets the versions, and Send feedback opens a filled-in emai
   expect(decodeURIComponent(opened[0])).toContain('Tearsheet 0.1.0')
 })
 
+test('Copy diagnostics puts the versions, the tools and the scrubbed end of engine.log on the clipboard', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'ipc-diag-'))
+  try {
+    const logFile = join(dir, 'engine.log')
+    writeFileSync(logFile, 'started in /Users/you/Library\nSEC contact you@example.com\n')
+    const pasted: string[] = []
+    const { watch } = wired({
+      about: () => ({ app: '0.1.0-beta', engine: '0.1.0', macos: '26.1', electron: '33.2.0' }),
+      request: async (method) => (method === 'get_settings' ? { primary_tool: 'codex' } : {}),
+      engineLogFile: logFile,
+      home: '/Users/you',
+      writeClipboard: (text) => void pasted.push(text)
+    })
+    await watch.read()
+    expect(await handlers.get('tearsheet:copyDiagnostics')!()).toBe(true)
+    expect(pasted).toHaveLength(1)
+    const text = pasted[0]
+    expect(text).toContain('Tearsheet 0.1.0-beta')
+    expect(text).toContain('Reports use: codex')
+    expect(text).toContain('started in ~/Library')
+    expect(text).toContain('SEC contact [email]')
+    expect(text).not.toContain('you@example.com')
+    expect(text).not.toContain('/Users/you')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('Copy diagnostics doesn’t wait long for an engine that doesn’t answer', async () => {
+  vi.useFakeTimers()
+  const pasted: string[] = []
+  wired({ request: () => new Promise(() => undefined), writeClipboard: (text) => void pasted.push(text) })
+  const done = handlers.get('tearsheet:copyDiagnostics')!() as Promise<boolean>
+  await vi.advanceTimersByTimeAsync(2000)
+  expect(await done).toBe(true)
+  expect(pasted[0]).not.toContain('Reports use')
+  expect(pasted[0]).toContain('No engine.log yet.')
+})
+
 describe('the tools', () => {
   test('getTools goes through the watcher, so reads are shared', async () => {
     const probe = vi.fn(async () => tools)

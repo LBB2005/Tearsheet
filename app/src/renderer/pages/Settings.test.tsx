@@ -492,6 +492,18 @@ describe('About and help', () => {
     expect(pageHeading()).toHaveTextContent('Privacy')
   })
 
+  test('Copy diagnostics copies through main and says so', async () => {
+    const { user } = await openSettings()
+    await user.click(topic('About and help'))
+    expect(screen.getByText(/Nothing is sent anywhere/)).toBeInTheDocument()
+    await user.click(await screen.findByRole('button', { name: 'Copy diagnostics' }))
+    expect(bridge.copyDiagnostics).toHaveBeenCalledTimes(1)
+    expect(await screen.findByText('Copied.')).toBeInTheDocument()
+    bridge.copyDiagnostics.mockRejectedValueOnce(new Error('no clipboard'))
+    await user.click(screen.getByRole('button', { name: 'Copy diagnostics' }))
+    expect(await screen.findByText('Couldn’t copy. Try again.')).toBeInTheDocument()
+  })
+
   test('opens even while the engine is down', async () => {
     const { user } = await renderApp()
     bridge.getSettings.mockResolvedValue(fail('Tearsheet’s engine didn’t answer.'))

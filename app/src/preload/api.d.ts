@@ -69,6 +69,9 @@ export interface TearsheetApi {
   about(): Promise<import('../main/about').AboutInfo>
   // Opens the person's own Mail with a feedback email holding those numbers; nothing is sent.
   sendFeedback(): Promise<boolean>
+  // Copies the versions, the AI tools and the end of engine.log, with emails, keys and the home
+  // folder removed, for a feedback email (main/diagnostics.ts). Nothing is sent anywhere.
+  copyDiagnostics(): Promise<boolean>
   find(text: string, forward: boolean): Promise<void>
   stopFind(): Promise<void>
   // The look picked on Settings → Appearance, for the window itself: its zoom (text size, 0.85 to

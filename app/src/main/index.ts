@@ -202,6 +202,7 @@ async function createWindow(): Promise<void> {
     setupLogFile,
     installer: installer ?? undefined,
     installButton: () => installSwitch.getInstallButton(),
+    engineLogFile: join(dataDir, 'logs', 'engine.log'),
     about: () => ({
       app: app.getVersion(),
       engine: started.hello?.engine_version ?? null,
