@@ -17,11 +17,16 @@ Built on 8 Nov 2026 (Liam picked "build your picks"): M2 (option A), M3, M4, M5,
 - **Licences (M6).** `THIRD-PARTY-NOTICES.md` exists. The build ships it, plus the Electron and Chromium licences and `PYTHON-PACKAGES.md`, and puts an MIT stand-in in place of Unidecode.
 - **Privacy list (M10).** Settings → Privacy and the README list Codex and the AI's web search, and no longer list iShares, Alpha Vantage or Benzinga.
 
-Still open:
+Built on 10-11 Nov 2026 for the friends beta (0.1.0-beta):
 
-- M1 (the lawyer) and M11 (the Massive email) are Liam's to do.
-- **The feedback address.** `FEEDBACK_EMAIL` in `app/src/main/about.ts` is empty, so the email opens with the To line blank.
-- **The online off switch needs a public home (security audit, 9 Nov 2026).** `SWITCH_URL` in `app/src/shared/flags.ts` points at `release/install-button.txt` on raw.githubusercontent.com, but the repository is private, so every launch gets a 404 and the switch can't turn the Install button off. The app treats that quietly (logged as `install_switch_read` with `http_status`; the last saved value, or the build's setting, stays). Before launch, either make the repository public or move the file to a public host (a secret gist was the design's first choice), and check one launch reads `on`.
+- **Feedback address.** `FEEDBACK_EMAIL` (now in `app/src/shared/feedback.ts`) is lbb.aifinance@gmail.com. About and help and the README's FAQ name it.
+- **S1.** "Prices from Massive, for your own use." is on every deck slide's footer, every Excel tab (row 4 and the printed footer), the PDF's price exhibits and the Important information text.
+- **S2.** Copy diagnostics in Settings → About and help (`app/src/main/diagnostics.ts`).
+- **S3.** The analyst panel is left out where analystdb doesn't answer. Section 1's consensus line shows without "(design, Open Questions)" (the stored words stay, for replays). The Goal 1 round and the Alpha Vantage row show only with `tearsheet-engine set-setting author_tools on`.
+- **S6.** One wording everywhere: "General research, not personalised investment advice." (`engine/src/tearsheet/wording.py`, `app/src/shared/wording.ts`; a test checks they match).
+- **The off switch** is reachable now that the repository is public (10 Nov 2026); the release dry run read `on`.
+
+Still open: M1 (the lawyer) and M11 (the Massive email) are Liam's to do.
 
 ## The checklist
 
