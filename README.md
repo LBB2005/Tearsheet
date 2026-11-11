@@ -9,7 +9,9 @@
 A free Mac app. Code works out the numbers and the Buy/Hold/Sell rating from public data.<br>
 Your own Claude Code or Codex reads the filings and writes the text.
 
-[![macOS on Apple silicon](https://img.shields.io/badge/macOS-Apple%20silicon-111111?logo=apple&logoColor=white)](#what-you-need)
+[![Latest release](https://img.shields.io/github/v/release/LBB2005/Tearsheet?include_prereleases&label=release)](https://github.com/LBB2005/Tearsheet/releases)
+[![CI](https://github.com/LBB2005/Tearsheet/actions/workflows/ci.yml/badge.svg)](https://github.com/LBB2005/Tearsheet/actions/workflows/ci.yml)
+[![macOS 15+ on Apple silicon](https://img.shields.io/badge/macOS-15%2B%20%C2%B7%20Apple%20silicon-111111?logo=apple&logoColor=white)](#what-you-need)
 [![Free](https://img.shields.io/badge/price-free-2ea44f)](#faq)
 [![AI: Claude Code or Codex](https://img.shields.io/badge/AI-Claude%20Code%20or%20Codex-6e56cf)](#what-you-need)
 [![MIT licence](https://img.shields.io/badge/licence-MIT-blue)](LICENSE)
@@ -20,10 +22,11 @@ Your own Claude Code or Codex reads the filings and writes the text.
 
 <br>
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/report-dark.webp">
-  <img src="docs/images/report-light.webp" alt="A Tearsheet report for Target (TGT): a Buy rating with a score of 95, the price, the estimated value, a chart of the past year and the 12-month bear, base and bull range, the six factor scores, and a summary in which each point links to the SEC filing it came from.">
-</picture>
+<!-- Hero GIF: recorded from a hidden test build on a copy of the data (docs/launch/prelaunch-checklist.md).
+     Replace docs/images/hero.gif to change it; keep it under about 5 MB. -->
+<p align="center">
+  <img src="docs/images/hero.gif" width="100%" alt="Tearsheet in use: on a report for Prudential, Look up opens, TGT is typed, Target's report appears with a Buy rating and a score of 95, and the numbers column scrolls down to Key metrics against the peer median.">
+</p>
 
 > [!WARNING]
 > **General research, not personalised investment advice.** Tearsheet doesn't know your goals or your portfolio. It doesn't claim to beat the market, and it doesn't trade. Check the sources and make your own decisions.
@@ -37,9 +40,23 @@ Your own Claude Code or Codex reads the filings and writes the text.
 - **A record you can't edit.** The first report on each company is logged as a prediction and graded at 3, 6 and 12 months.
 - **Runs on your Mac.** No account, no server, no tracking. It uses the Claude or ChatGPT plan you already pay for and free data (SEC, Massive, FRED).
 
+## Why Tearsheet?
+
+There are good free places to look up a stock. Tearsheet does a different job: it writes the report you would write yourself after reading the filings, and shows its working.
+
+- **Compared with Yahoo Finance and other quote sites:** they give you prices, ratios and headlines, and leave the reading and the conclusion to you. Tearsheet reads the 10-K, 10-Q and press releases for you and writes a report where each point links to the sentence it came from.
+- **Compared with Seeking Alpha:** its articles come from many authors with many views, and many of its ratings and tools need a paid subscription. Tearsheet's rating comes from one method that is written down in this repository, the same for every company, and any past report can be replayed to check its numbers.
+- **Compared with asking ChatGPT or Claude directly:** a chat can mix up figures or quote a number it can't source. In Tearsheet, code works out every number from SEC, Massive and FRED data, the AI is never asked for one, and checks remove any claim its sources don't support. It still uses the plan you already pay for.
+- **What it is not:** a trading tool, personal advice, or proven. It covers the S&P 500 only, a report takes a few minutes, and the prediction log has no graded results yet ([How accurate is it?](#how-accurate-is-it)).
+
 ## A closer look
 
 ### The report
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/report-dark.webp">
+  <img src="docs/images/report-light.webp" alt="A Tearsheet report for Target (TGT): a Buy rating with a score of 95, the price, the estimated value, a chart of the past year and the 12-month bear, base and bull range, the six factor scores, and a summary in which each point links to the SEC filing it came from.">
+</picture>
 
 A summary up top, then the full report: the business, risks, recent results, news and views, industry trends, and what to watch. Open the chart beside it to see the price, its peers, the S&P 500, the filings the report read and the price that would change the rating. **Key numbers** under the chart compare the company with the median of its peers.
 
@@ -95,7 +112,7 @@ The first time you open it, one screen finds your AI tool, offers to install it 
 
 ### What you need
 
-- **A Mac with Apple silicon** (M1 or later). Intel Macs aren't supported.
+- **A Mac with Apple silicon** (M1 or later) **running macOS 15 Sequoia or later.** Intel Macs aren't supported. The Python libraries Tearsheet ships with need macOS 15.
 - **Claude Code or Codex,** signed in with your Claude or ChatGPT plan. Setup can install either one for you. With both, each report's draft is also checked by the other tool.
 - **A free Massive key** for prices. Without it, reports can't be rated. Setup links you to the sign-up page; it takes about a minute.
 - **A free FRED key** for economic figures. Optional: reports leave those figures out without it.
@@ -179,8 +196,8 @@ Yes. Every point links to its source. If one looks wrong, click **Flag** next to
 **Why does macOS block it?**
 It isn't signed with an Apple Developer ID yet. See [Download](#download) for the steps.
 
-**Does it work on Windows or on an Intel Mac?**
-No. Only on Macs with Apple silicon.
+**Does it work on Windows, on an Intel Mac or on an older macOS?**
+No. Only on Macs with Apple silicon running macOS 15 or later.
 
 **How do I send feedback or report a bug?**
 In the app, choose **Help → Send Feedback…** (or **Settings → About and help → Send feedback**). It opens an email to [lbb.aifinance@gmail.com](mailto:lbb.aifinance@gmail.com) in your own Mail app, with the version numbers filled in. For a bug, press **Copy diagnostics** on the same page first and paste it into the email. Nothing is sent until you send it.
@@ -213,7 +230,7 @@ The first download is a beta for a few friends. What to expect:
 - **Rough edges.** It works on the builder's Mac; yours is the real test. Reports take a few minutes, and a step can fail and need a retry.
 - **The numbers aren't settled.** The rating rules use first-draft settings, so treat ratings and ranges as a work in progress.
 - **macOS will block it at first,** and again after each update, because it isn't signed with an Apple Developer ID yet. The steps are under [Download](#download).
-- **No automatic updates.** When a new version is out, download its `.dmg` from [Releases](https://github.com/LBB2005/Tearsheet/releases) and drag Tearsheet onto Applications again. Your reports, settings and keys stay.
+- **No automatic updates yet.** When a new version is out, a line under the toolbar says so (at most one check a day; turn it off with **Check for updates** in Settings → About and help). Download its `.dmg` from [Releases](https://github.com/LBB2005/Tearsheet/releases) and drag Tearsheet onto Applications again. Your reports, settings and keys stay.
 - **Nothing is sent to the builder.** Feedback only arrives if you send it.
 
 **To send feedback:** choose **Help → Send Feedback…** in the app, or email [lbb.aifinance@gmail.com](mailto:lbb.aifinance@gmail.com). For a bug, say what you did and what happened, and paste in **Settings → About and help → Copy diagnostics** (versions and the end of the log, with emails, keys and your home folder taken out).
@@ -263,7 +280,7 @@ cd app && npm install && npm run build && npm start
 
 It starts the engine with `uv run tearsheet-engine serve` from this repository, and uses the same data folder as terminal mode. `npm run dev` runs it with hot reload.
 
-`npm run package` makes `app/dist/mac-arm64/Tearsheet.app` with the engine and its own Python 3.12 inside (`scripts/build-engine.sh`), so it needs no `uv` or Python to run. It uses the same data folder and Keychain entries as `npm run dev`; run one or the other, not both. Signing with an Apple Developer ID, notarization and auto-update come later.
+`npm run package` makes `app/dist/mac-arm64/Tearsheet.app` with the engine and its own Python 3.12 inside (`scripts/build-engine.sh`), so it needs no `uv` or Python to run. It uses the same data folder and Keychain entries as `npm run dev`; run one or the other, not both. Signing with an Apple Developer ID, notarization and auto-update are wired in but switched off until the signing variables are set; [docs/launch/signing.md](docs/launch/signing.md) has the steps.
 
 A packaged build ignores the development and test switches (`TEARSHEET_DATA_DIR`, stand-in AI tools, hidden windows and the rest). For hidden checks on a copy of the data, make a test build instead with `npm run package:test`; [docs/test-builds.md](docs/test-builds.md) says how the two differ.
 
@@ -283,6 +300,10 @@ uv run ruff check . ../scripts
 The tests run offline. Tests marked `live` are skipped unless you run `uv run pytest -m live`. The app's tests run with `cd app && npm test`.
 
 </details>
+
+## Contributing
+
+Bug reports, ideas and pull requests are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) has the setup and the checks; the one rule is that tests never run a live report on a real company. Please follow the [Code of Conduct](CODE_OF_CONDUCT.md), and report security problems privately ([SECURITY.md](SECURITY.md)). Changes are listed in [CHANGELOG.md](CHANGELOG.md).
 
 ## Licence
 
