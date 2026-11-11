@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions and ideas
+    url: https://github.com/LBB2005/Tearsheet/discussions
+    about: Ask how something works, share a report, or talk through an idea before filing it.
+  - name: Report a security problem
+    url: https://github.com/LBB2005/Tearsheet/security/advisories/new
+    about: Please report security problems privately, not in a public issue.

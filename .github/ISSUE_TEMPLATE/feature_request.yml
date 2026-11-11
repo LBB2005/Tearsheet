@@ -1,0 +1,29 @@
+name: Feature request
+description: An idea that would make Tearsheet more useful.
+title: "[Idea] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: The problem or the job, not the solution yet. "When I research a company I also want to…"
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help?
+      description: How you picture it working in the app.
+    validations:
+      required: true
+  - type: textarea
+    id: else
+    attributes:
+      label: Other ways you've tried
+      description: Workarounds, other tools, or alternatives you considered.
+  - type: markdown
+    attributes:
+      value: |
+        Tearsheet's ratings and prices come from code, never from the AI. Ideas that ask the AI for a number,
+        or that trade or give personal advice, are out of scope.

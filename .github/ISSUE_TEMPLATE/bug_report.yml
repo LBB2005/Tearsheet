@@ -1,0 +1,52 @@
+name: Bug report
+description: Something in Tearsheet doesn't work as it should.
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Please don't paste API keys, your email or other personal data.
+        A security problem? Report it privately instead (see SECURITY.md).
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+      placeholder: |
+        1. Typed NVDA on the home page and pressed Return
+        2. The report stopped at step 6 with "…"
+        3. I expected the report to finish
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Copy diagnostics
+      description: |
+        In Tearsheet, open **Settings → About and help** and press **Copy diagnostics**, then paste it here.
+        It holds the versions, your AI tool and the end of the log, with emails, keys and your home folder taken out.
+        Please read it before you post.
+      render: text
+    validations:
+      required: true
+  - type: dropdown
+    id: tool
+    attributes:
+      label: Which AI tool writes your reports?
+      options:
+        - Claude Code
+        - Codex
+        - Not set up yet
+    validations:
+      required: true
+  - type: input
+    id: ticker
+    attributes:
+      label: Company (if it's about one report)
+      placeholder: e.g. AAPL
+  - type: textarea
+    id: more
+    attributes:
+      label: Anything else?
+      description: Screenshots help. Crop out anything private.
