@@ -12,7 +12,7 @@ TEMPLATE = (Path(render.__file__).parent / "templates" / "report.html.j2").read_
 STYLE = TEMPLATE[TEMPLATE.index("<style>") : TEMPLATE.index("</style>")]
 ROOT_START = STYLE.index(":root {")
 ROOT = STYLE[ROOT_START : STYLE.index("}", ROOT_START)]
-REST = STYLE[: ROOT_START] + STYLE[STYLE.index("}", ROOT_START) + 1 :]
+REST = STYLE[:ROOT_START] + STYLE[STYLE.index("}", ROOT_START) + 1 :]
 LITERAL = re.compile(r"#[0-9A-Fa-f]{3,8}\b|rgba?\(\s*\d")
 
 
