@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Builds the engine the packaged app runs (design item 50): a standalone Python 3.12 with the
 # engine and its locked dependencies installed into it, in app/engine-bundle/. electron-builder
-# copies that folder into Tearsheet.app as Contents/Resources/engine (app/electron-builder.yml),
+# copies that folder into Tearsheet.app as Contents/Resources/engine (app/electron-builder.cjs),
 # and the main process starts it there when the app is packaged. `npm run package` runs this
 # first; run it by hand only to look at the bundle.
 #

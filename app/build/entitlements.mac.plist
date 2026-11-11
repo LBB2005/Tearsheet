@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- The hardened runtime's exceptions for a Developer ID build (build/signing.cjs). Unused while the
+     build is signed ad hoc. The same list goes on the app and, as entitlementsInherit, on everything
+     inside it, including the bundled engine's interpreter (Contents/Resources/engine/bin/Tearsheet
+     Engine), which the app starts as a child process.
+
+     - allow-jit, allow-unsigned-executable-memory: V8 (Electron) writes machine code at run time.
+       CPython's ctypes/libffi closures need writable-then-executable memory too.
+     - disable-library-validation: the engine loads its Python extension modules (.so files in
+       site-packages) and libpython from Resources. They are re-signed with the same Team ID, but
+       some wheels ship their own dylibs; without this a single one of them stops the engine.
+     - allow-dyld-environment-variables is NOT set: nothing needs DYLD_*.
+
+     Network access, the Keychain and starting Terminal with /usr/bin/open need no entitlement
+     outside the App Sandbox, which Tearsheet doesn't use. Tighten this once a signed build has run
+     end to end (docs/launch/signing.md, "After the first signed build"). -->
+<plist version="1.0">
+  <dict>
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
+  </dict>
+</plist>

@@ -4,7 +4,7 @@
 #   1. checks that the working tree is clean, the repository is public, and LICENSE and
 #      THIRD-PARTY-NOTICES.md exist, plus a few things the later steps need (listed below);
 #   2. builds the engine and the app with `npm run package` from app/, which makes
-#      app/dist/mac-arm64/Tearsheet.app (app/electron-builder.yml);
+#      app/dist/mac-arm64/Tearsheet.app (app/electron-builder.cjs);
 #   3. makes Tearsheet-<version>-arm64.dmg (the app, a link to Applications, and
 #      "How to open Tearsheet.txt") and Tearsheet-<version>-arm64.zip, unzips a copy of the zip
 #      and checks its signature;
@@ -267,7 +267,7 @@ if ! $dry_run && [ ! -d "$app" ]; then
   exit 1
 fi
 # A release is never a test build (docs/test-builds.md): no marker file, and Electron's fuses off
-# (electron-builder.yml).
+# (electron-builder.cjs).
 if $dry_run; then
   echo "  would check: no Contents/Resources/test-build.txt, and the RunAsNode, NODE_OPTIONS and --inspect fuses off"
 else

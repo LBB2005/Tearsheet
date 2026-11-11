@@ -36,7 +36,7 @@ export const DEV_VARIABLES = [
 ] as const
 
 // Chromium's switches that let another program drive the window. Node's --inspect switches are
-// turned off in a release build by its fuses (electron-builder.yml).
+// turned off in a release build by its fuses (electron-builder.cjs).
 export const DEBUG_SWITCHES = ['remote-debugging-port', 'remote-debugging-pipe', 'remote-allow-origins'] as const
 
 export function hooksAllowed(packaged: boolean, testBuild: boolean = TEST_BUILD): boolean {

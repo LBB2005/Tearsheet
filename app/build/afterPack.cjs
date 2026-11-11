@@ -1,4 +1,4 @@
-// electron-builder's afterPack hook (electron-builder.yml). A test build — `npm run package:test`,
+// electron-builder's afterPack hook (electron-builder.cjs). A test build — `npm run package:test`,
 // which sets TEARSHEET_TEST_BUILD=1 for the whole build — gets Contents/Resources/test-build.txt,
 // so scripts/try-new-user.sh and the hidden checks can refuse to start a release build with test
 // switches. Every other build is checked to have none. It runs before the fuses are flipped and

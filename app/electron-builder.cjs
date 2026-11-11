@@ -1,0 +1,62 @@
+// Builds Tearsheet.app (design item 50, the local part): `npm run package` makes
+// app/dist/mac-arm64/Tearsheet.app. The engine and its own Python come from
+// scripts/build-engine.sh (app/engine-bundle) and go in Contents/Resources/engine.
+//
+// Downloads come from scripts/release.sh, not from this file. It runs `npm run package`, makes
+// the DMG with hdiutil and the zip with ditto, and uploads them to a GitHub release
+// (docs/designs/first-run/first-run-setup.md §8 and item 40). Unsigned, the target stays `dir`.
+//
+// This was electron-builder.yml until the signing wiring (prelaunch, 11 Nov 2026); it is a script
+// now so that signing can switch on from the environment alone (build/signing.cjs,
+// docs/launch/signing.md). With no certificate in the environment the settings are the same as
+// before: signed ad hoc, not with an Apple Developer ID, so macOS blocks it on first open until the
+// person clicks Open Anyway (the first-open steps in the release notes). With CSC_LINK or CSC_NAME
+// set, it is signed with the Developer ID and the hardened runtime, and notarized when the APPLE_*
+// variables are there too.
+const { macSigning } = require('./build/signing.cjs')
+
+const signing = macSigning(process.env)
+if (signing.signed) console.log(`  • Tearsheet signing: ${signing.why}`)
+
+module.exports = {
+  appId: 'com.liamblackshawbrown.tearsheet',
+  productName: 'Tearsheet',
+  copyright: 'Copyright © 2026 Liam Blackshaw-Brown',
+  directories: { output: 'dist', buildResources: 'build' },
+  // The app has no runtime packages (everything it needs is bundled into out/ by electron-vite,
+  // electron-updater included).
+  files: ['out/**/*', 'package.json'],
+  npmRebuild: false,
+  // Electron's fuses, flipped just before signing (security audit, 9 Nov 2026): the app can't be
+  // run as plain Node (ELECTRON_RUN_AS_NODE), and ignores NODE_OPTIONS and Node's --inspect
+  // switches. A test build (`npm run package:test`, docs/test-builds.md) keeps --inspect for the
+  // hidden checks.
+  electronFuses: {
+    runAsNode: false,
+    enableNodeOptionsEnvironmentVariable: false,
+    enableNodeCliInspectArguments: false
+  },
+  // Marks a test build (build/afterPack.cjs); a release build has no marker.
+  afterPack: 'build/afterPack.cjs',
+  // Electron as installed by npm, so the build needs no download.
+  electronDist: 'node_modules/electron/dist',
+  extraResources: [
+    { from: 'engine-bundle', to: 'engine', filter: ['**/*'] },
+    // The licences: Tearsheet's own, the notices for what it includes (THIRD-PARTY-NOTICES.md),
+    // and Electron's and Chromium's, which the Mac build doesn't copy by itself.
+    { from: '../LICENSE', to: 'LICENSE.txt' },
+    { from: '../THIRD-PARTY-NOTICES.md', to: 'THIRD-PARTY-NOTICES.md' },
+    { from: 'node_modules/electron/dist/LICENSE', to: 'LICENSE.electron.txt' },
+    { from: 'node_modules/electron/dist/LICENSES.chromium.html', to: 'LICENSES.chromium.html' }
+  ],
+  mac: {
+    icon: 'build/icon.icns',
+    category: 'public.app-category.finance',
+    // Unsigned: target dir, identity "-", no hardened runtime, no notarization.
+    // Signed: DMG and zip, the hardened runtime with build/entitlements.mac.plist, notarization.
+    ...signing.mac
+  },
+  // Only a signed build has a publish block (electron-updater's GitHub feed). An unsigned build
+  // has none, so it writes no app-update.yml and never tries to publish.
+  ...(signing.publish ? { publish: signing.publish } : {})
+}
