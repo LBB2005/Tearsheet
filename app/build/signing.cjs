@@ -71,6 +71,9 @@ function macSigning(env = process.env) {
         { target: 'dmg', arch: 'arm64' },
         { target: 'zip', arch: 'arm64' }
       ],
+      // The names scripts/release.sh uploads and latest-mac.yml lists: Tearsheet-<version>-arm64.dmg
+      // and .zip, the same as an unsigned release's (electron-builder's own zip name adds "-mac").
+      artifactName: 'Tearsheet-${version}-${arch}.${ext}',
       hardenedRuntime: true,
       gatekeeperAssess: false,
       entitlements: 'build/entitlements.mac.plist',

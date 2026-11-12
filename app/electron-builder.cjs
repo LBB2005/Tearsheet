@@ -52,6 +52,9 @@ module.exports = {
   mac: {
     icon: 'build/icon.icns',
     category: 'public.app-category.finance',
+    // The bundled Python's libraries need macOS 15 (orjson's wheel is built for 15.0, numpy's for
+    // 14.0), so an older Mac refuses to open the app instead of failing at the first report.
+    minimumSystemVersion: '15.0',
     // Unsigned: target dir, identity "-", no hardened runtime, no notarization.
     // Signed: DMG and zip, the hardened runtime with build/entitlements.mac.plist, notarization.
     ...signing.mac

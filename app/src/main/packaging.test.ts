@@ -43,6 +43,7 @@ describe('signing is off until a certificate is in the environment', () => {
       expect(s.signed).toBe(true)
       expect(s.mac).toMatchObject({ hardenedRuntime: true, entitlements: 'build/entitlements.mac.plist', entitlementsInherit: 'build/entitlements.mac.plist', notarize: false })
       expect(s.mac).not.toHaveProperty('identity')
+      expect(s.mac.artifactName).toBe('Tearsheet-${version}-${arch}.${ext}')
       expect(s.mac.target).toEqual([
         { target: 'dmg', arch: 'arm64' },
         { target: 'zip', arch: 'arm64' }
@@ -74,8 +75,18 @@ describe('electron-builder.cjs', () => {
     const config = require(path)
     expect(config).toMatchObject({ appId: 'com.liamblackshawbrown.tearsheet', productName: 'Tearsheet', directories: { output: 'dist', buildResources: 'build' }, files: ['out/**/*', 'package.json'], afterPack: 'build/afterPack.cjs' })
     expect(config.electronFuses).toEqual({ runAsNode: false, enableNodeOptionsEnvironmentVariable: false, enableNodeCliInspectArguments: false })
-    expect(config.mac).toEqual({ icon: 'build/icon.icns', category: 'public.app-category.finance', ...UNSIGNED_MAC })
+    expect(config.mac).toEqual({ icon: 'build/icon.icns', category: 'public.app-category.finance', minimumSystemVersion: '15.0', ...UNSIGNED_MAC })
     expect(config).not.toHaveProperty('publish')
+  })
+
+  test('it asks for macOS 15, which the bundled Python libraries need, signed or not', () => {
+    for (const env of [{ CSC_LINK: '', CSC_NAME: '' }, { CSC_LINK: '/certs/id.p12', CSC_NAME: '' }]) {
+      vi.stubEnv('TEARSHEET_TEST_BUILD', '')
+      for (const [name, value] of Object.entries(env)) vi.stubEnv(name, value)
+      const path = join(APP, 'electron-builder.cjs')
+      delete require.cache[path]
+      expect(require(path).mac.minimumSystemVersion).toBe('15.0')
+    }
   })
 
   test('the entitlements are the three an Electron app with a bundled Python needs, and no more', () => {

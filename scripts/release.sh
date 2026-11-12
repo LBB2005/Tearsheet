@@ -21,8 +21,16 @@
 #
 # A real run stops at the first failed check. A dry run reports every failed check, then exits 1.
 # The script never changes the repository's visibility or settings, never pushes, and never edits
-# the committed files in scripts/release/. The build is signed ad hoc, not with a Developer ID, so
-# macOS blocks it on other Macs until it is opened with the first-open steps.
+# the committed files in scripts/release/.
+#
+# Two kinds of release, picked by the environment the same way app/build/signing.cjs picks them:
+#   - unsigned (no CSC_LINK or CSC_NAME, today): signed ad hoc, so macOS blocks it on other Macs
+#     until it is opened with the first-open steps. This script makes the DMG and the zip itself.
+#   - signed (CSC_LINK or CSC_NAME, plus a full set of APPLE_* notarization variables;
+#     docs/launch/signing.md): electron-builder makes, signs and notarizes the DMG and the zip and
+#     writes latest-mac.yml, electron-updater's feed. This script uses those files as they are,
+#     since latest-mac.yml names them and holds their checksums, checks the app is notarized, and
+#     uploads latest-mac.yml and the blockmaps too. A signed build that isn't notarized stops.
 set -euo pipefail
 
 repo="LBB2005/Tearsheet"
@@ -140,7 +148,7 @@ online_switch() {
 
 # Fills the notes template into app/dist/notes.md. The template itself is never written.
 fill_notes() {
-  VERSION="$version" SUMS="$sums" HOWTO="$howto" awk '
+  VERSION="$version" SUMS="$sums" HOWTO="$howto" SIGNED="$signed" awk '
     function replace_all(s, from, to,   out, i) {
       out = ""
       while ((i = index(s, from)) > 0) {
@@ -152,6 +160,12 @@ fill_notes() {
     $0 == "{{CHECKSUMS}}" {
       while ((getline line < ENVIRON["SUMS"]) > 0) print line
       close(ENVIRON["SUMS"])
+      next
+    }
+    $0 == "{{HOW_TO_OPEN}}" && ENVIRON["SIGNED"] == "true" {
+      # A signed, notarized release opens like any other app: no first-open steps.
+      print "Open the .dmg, drag Tearsheet to Applications, and double-click it. It is signed and"
+      print "notarized by Apple, so macOS opens it without the Open Anyway steps."
       next
     }
     $0 == "{{HOW_TO_OPEN}}" {
@@ -241,6 +255,16 @@ else
   fail "THIRD-PARTY-NOTICES.md is missing. It holds the notice for the code adapted from Realm (§8), and the build copies it into the app."
 fi
 
+# Signed or not: build/signing.cjs decides for the build, so it decides here too.
+signing="$(cd "$root/app" && node -e 'const s = require("./build/signing.cjs").macSigning(process.env); console.log(`${s.signed ? "signed" : "unsigned"} ${s.notarize || "none"}`)' 2>/dev/null || echo "unknown none")"
+signed=false
+case "$signing" in
+  signed\ none) fail "CSC_LINK or CSC_NAME is set but no full set of APPLE_* notarization variables is, so the build would be signed but not notarized, and macOS would still block it. Set them (docs/launch/signing.md), or unset CSC_LINK and CSC_NAME for an unsigned release." ;;
+  signed\ *) signed=true; pass "A signed release: Developer ID from the environment, notarized with ${signing#signed }." ;;
+  unsigned\ *) pass "An unsigned release (no CSC_LINK or CSC_NAME): signed ad hoc, opened with the first-open steps." ;;
+  *) fail "app/build/signing.cjs couldn't be read to tell a signed release from an unsigned one." ;;
+esac
+
 if [ -s "$howto" ] && [ -s "$template" ]; then
   pass "scripts/release/How to open Tearsheet.txt and scripts/release/notes.md exist."
 else
@@ -253,6 +277,8 @@ dmg="$dist/Tearsheet-$version-arm64.dmg"
 zip="$dist/Tearsheet-$version-arm64.zip"
 sums="$dist/SHA256SUMS.txt"
 notes="$dist/notes.md"
+# electron-updater's feed and the blockmaps for its smaller downloads (signed releases only).
+feed="$dist/latest-mac.yml"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 stage="$work/dmg"
@@ -261,6 +287,10 @@ mkdir -p "$stage" "$unzipped"
 
 echo
 echo "Building Tearsheet $version from $short (the engine, then the app):"
+# A signed build makes the DMG, the zip and the feed itself, so old ones go first.
+if $signed; then
+  run rm -f "$dmg" "$zip" "$feed" "$dmg.blockmap" "$zip.blockmap" "$sums" "$notes"
+fi
 run_in "$root/app" npm run package
 if ! $dry_run && [ ! -d "$app" ]; then
   echo "  STOP  The build didn't make ${app#"$root"/}. Nothing was uploaded."
@@ -288,13 +318,39 @@ fi
 # --- 3. DMG and zip --------------------------------------------------------------------------
 
 echo
-echo "Making the DMG and the zip:"
-run rm -f "$dmg" "$zip" "$sums" "$notes"
-run ditto "$app" "$stage/Tearsheet.app"
-run ln -s /Applications "$stage/Applications"
-run cp "$howto" "$stage/How to open Tearsheet.txt"
-run hdiutil create -volname Tearsheet -srcfolder "$stage" -fs HFS+ -format UDZO "$dmg"
-run ditto -c -k --keepParent --sequesterRsrc "$app" "$zip"
+if $signed; then
+  echo "Checking electron-builder's signed DMG, zip and latest-mac.yml:"
+  for f in "$dmg" "$zip" "$feed"; do
+    if ! $dry_run && [ ! -s "$f" ]; then
+      echo "  STOP  The signed build didn't make ${f#"$root"/}. Nothing was uploaded."
+      exit 1
+    fi
+  done
+  if $dry_run; then
+    echo "  would check: latest-mac.yml names ${zip##*/} and ${dmg##*/}"
+  elif ! grep -qF "${zip##*/}" "$feed" || ! grep -qF "${dmg##*/}" "$feed"; then
+    echo "  STOP  latest-mac.yml doesn't name ${zip##*/} and ${dmg##*/}, so signed copies couldn't update. Nothing was uploaded."
+    exit 1
+  fi
+  stapled=(xcrun stapler validate "$app")
+  if $dry_run; then
+    echo "  would run: $(show "${stapled[@]}"), and stop if it fails"
+  else
+    echo "+ $(show "${stapled[@]}")"
+    if ! "${stapled[@]}"; then
+      echo "  STOP  The app has no notarization ticket stapled, so macOS would block it. Nothing was uploaded."
+      exit 1
+    fi
+  fi
+else
+  echo "Making the DMG and the zip:"
+  run rm -f "$dmg" "$zip" "$sums" "$notes"
+  run ditto "$app" "$stage/Tearsheet.app"
+  run ln -s /Applications "$stage/Applications"
+  run cp "$howto" "$stage/How to open Tearsheet.txt"
+  run hdiutil create -volname Tearsheet -srcfolder "$stage" -fs HFS+ -format UDZO "$dmg"
+  run ditto -c -k --keepParent --sequesterRsrc "$app" "$zip"
+fi
 run ditto -x -k "$zip" "$unzipped"
 verify=(codesign --verify --deep --strict --verbose=2 "$unzipped/Tearsheet.app")
 if $dry_run; then
@@ -329,7 +385,16 @@ fi
 
 echo
 echo "Release v$version on $repo, built from $short:"
-for f in "$dmg" "$zip" "$sums" "$notes"; do
+uploads=("$dmg" "$zip" "$sums")
+# A signed release also carries electron-updater's feed and, when made, the blockmaps.
+if $signed; then
+  uploads+=("$feed")
+  for f in "$dmg.blockmap" "$zip.blockmap"; do
+    if $dry_run || [ -s "$f" ]; then uploads+=("$f"); fi
+  done
+fi
+
+for f in "${uploads[@]}" "$notes"; do
   if $dry_run; then
     echo "  ${f#"$root"/}"
   else
@@ -351,7 +416,7 @@ if $dry_run; then
   echo "Uploading:"
   echo "  would ask: $question [y/N]"
   echo "  would run on y: $(show "${create[@]}")"
-  for f in "$dmg" "$zip" "$sums"; do
+  for f in "${uploads[@]}"; do
     echo "  would ask: Upload ${f##*/} to v$version? [y/N]"
     echo "  would run on y: $(show gh release upload "v$version" "$f" --repo "$repo")"
   done
@@ -371,7 +436,7 @@ if ! ask "$question"; then
 fi
 run "${create[@]}"
 
-for f in "$dmg" "$zip" "$sums"; do
+for f in "${uploads[@]}"; do
   if ask "Upload ${f##*/} ($(size "$f")) to v$version?"; then
     run gh release upload "v$version" "$f" --repo "$repo"
   else

@@ -38,6 +38,19 @@ describe('the update banner', () => {
     await waitFor(() => expect(document.querySelector('.upbar')).toBeNull())
   })
 
+  test('a first answer that arrives after a change main sent doesn’t undo it', async () => {
+    let answer: (s: { check: boolean; update: null }) => void = () => undefined
+    bridge.updates.mockImplementationOnce(() => new Promise((resolve) => (answer = resolve)))
+    await renderApp()
+    await waitFor(() => expect(bridge.onUpdate).toHaveBeenCalled())
+    updateStatus({ check: true, update: RELEASE })
+    expect(await screen.findByText('Tearsheet 0.2.0 is out')).toBeInTheDocument()
+    // The first answer, worked out before the check found 0.2.0, comes in late.
+    answer({ check: true, update: null })
+    await new Promise((r) => setTimeout(r, 0))
+    expect(screen.getByText('Tearsheet 0.2.0 is out')).toBeInTheDocument()
+  })
+
   test('a status that can’t be read, or a Dismiss that fails, shows nothing', async () => {
     bridge.updates.mockRejectedValueOnce(new Error('gone'))
     const { user } = await renderApp()

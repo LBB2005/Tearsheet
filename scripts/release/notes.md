@@ -7,13 +7,15 @@ software under the MIT licence, provided as is, with no warranty.
 ## This is a beta
 
 It's for a few friends trying it first, so expect rough edges, and treat ratings and ranges as a
-work in progress. There are no automatic updates: download each new version from this page.
+work in progress. When a newer version is out, a line under the app's toolbar says so (turn it off
+with Check for updates in Settings → About and help); download it from this page.
 To send feedback, choose Help → Send Feedback… in the app, or email lbb.aifinance@gmail.com. For
 a bug, paste in Settings → About and help → Copy diagnostics. Nothing is sent until you send it.
 
 ## What you need
 
-*   A Mac with Apple Silicon. The steps below say how to check.
+*   A Mac with Apple Silicon running macOS 15 Sequoia or later. The steps below say how to
+    check.
 *   A paid Claude plan (like Pro or Max) or a paid ChatGPT plan. Tearsheet's setup screen
     helps with the rest.
 *   No GitHub account.

@@ -157,10 +157,12 @@ GH_TOKEN=<token> CSC_NAME="…" APPLE_KEYCHAIN_PROFILE=tearsheet npx electron-bu
 Drop `--prerelease` once a version is a full release. A beta copy is offered the next beta and the
 next release; a release copy is offered releases only.
 
-`scripts/release.sh` still makes its own DMG with hdiutil and its own zip with ditto, which don't
-match `latest-mac.yml`. Before the first signed release it needs a signed mode that uploads
-electron-builder's files instead (and drops "How to open Tearsheet.txt", which a notarized build
-doesn't need). That is listed in `docs/launch/prelaunch-checklist.md`.
+`scripts/release.sh` has a signed mode (code review, 12 Nov 2026). With `CSC_LINK` or `CSC_NAME`
+and a full set of `APPLE_*` variables in the environment, it uses electron-builder's own DMG and zip
+(named `Tearsheet-<version>-arm64.*`, as `latest-mac.yml` lists them), checks the app has its
+notarization ticket stapled, writes release notes without the Open Anyway steps, and uploads
+`latest-mac.yml` and the blockmaps too. Signed but not notarized, it stops before building. Try it
+with `scripts/release.sh --dry-run` first.
 
 ## What people see
 

@@ -12,7 +12,7 @@ import { app, BrowserWindow, ipcMain, Menu, net, powerSaveBlocker, shell } from 
 
 import { INSTALL_BUTTON, SWITCH_URL } from '../shared/flags'
 
-import { appBundle, checkWithUpdater, developerIdSigned, loadUpdater, updateMode } from './autoUpdate'
+import { checkWithUpdater, hasUpdateFeed, loadUpdater, setAutoInstall, updateMode } from './autoUpdate'
 import { keepAwakeDuringLine } from './awake'
 import { dockUpdate, NO_RUN } from './dockProgress'
 import { Downloads, printHtmlToPdf, writeNew } from './downloads'
@@ -80,13 +80,15 @@ const installSwitch = new InstallSwitch({
 
 // The update banner (updates.ts), or in a Developer ID-signed release build electron-updater
 // (autoUpdate.ts). Both ask at launch and then at most once a day, and only while "Check for
-// updates" is on. A test copy asks only TEARSHEET_RELEASES_URL, or nowhere.
+// updates" is on. A test copy asks only TEARSHEET_RELEASES_URL, or nowhere. It is set up at once,
+// before the window loads, so the window's first question gets the real status (code review,
+// 12 Nov 2026).
 const HOUR_MS = 60 * 60 * 1000
 let updates: UpdateCheck | null = null
-async function startUpdates(window: BrowserWindow): Promise<void> {
+function startUpdates(window: BrowserWindow): void {
   const current = app.getVersion()
-  const developerId = app.isPackaged && !TEST_BUILD ? await developerIdSigned(appBundle(app.getPath('exe'))) : false
-  const auto = updateMode({ packaged: app.isPackaged, testBuild: TEST_BUILD, developerId }) === 'auto'
+  const feed = app.isPackaged && !TEST_BUILD && hasUpdateFeed(process.resourcesPath)
+  const auto = updateMode({ packaged: app.isPackaged, testBuild: TEST_BUILD, feed }) === 'auto'
   updates = new UpdateCheck({
     file: join(app.getPath('userData'), UPDATES_FILE),
     current,
@@ -230,7 +232,11 @@ async function createWindow(): Promise<void> {
     engineLogFile: join(dataDir, 'logs', 'engine.log'),
     updates: {
       status: () => updates?.status() ?? { check: true, update: null },
-      setCheck: (on) => updates?.setCheck(on) ?? { check: on, update: null },
+      setCheck: (on) => {
+        // A signed build's update already downloaded installs at quit only while this is on.
+        setAutoInstall(on)
+        return updates?.setCheck(on) ?? { check: on, update: null }
+      },
       dismiss: (version) => updates?.dismiss(version) ?? { check: true, update: null },
       shown: () => updates?.shown() ?? null
     },
@@ -266,7 +272,7 @@ async function createWindow(): Promise<void> {
     return true
   })
   registerLookIpc(window, lookFile)
-  void startUpdates(window)
+  startUpdates(window)
   Menu.setApplicationMenu(Menu.buildFromTemplate(menuTemplate((command) => {
         if (window.isDestroyed() || window.webContents.isDestroyed()) return
         // A shortcut used while the window is hidden (⌘N, say) brings it back first.

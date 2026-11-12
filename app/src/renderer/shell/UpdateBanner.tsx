@@ -13,11 +13,17 @@ export function useUpdateStatus(): [UpdateStatus | null, (status: UpdateStatus) 
   const [status, setStatus] = useState<UpdateStatus | null>(null)
   useEffect(() => {
     let live = true
+    // A change main sends is newer than the first answer, which may have been worked out before
+    // it: once one has come, the first answer is ignored (code review, 12 Nov 2026).
+    let heard = false
     window.tearsheet.updates().then(
-      (s) => live && setStatus(s),
+      (s) => live && !heard && setStatus(s),
       () => undefined
     )
-    const off = window.tearsheet.onUpdate((s) => setStatus(s))
+    const off = window.tearsheet.onUpdate((s) => {
+      heard = true
+      setStatus(s)
+    })
     return () => {
       live = false
       off()

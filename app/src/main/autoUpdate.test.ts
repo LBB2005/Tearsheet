@@ -1,57 +1,25 @@
-import { describe, expect, test, vi } from 'vitest'
+import { afterEach, describe, expect, test, vi } from 'vitest'
 
-import { appBundle, checkWithUpdater, developerIdSigned, signedByDeveloperId, updateMode, type Updater } from './autoUpdate'
-
-const DEVELOPER_ID = `Executable=/Applications/Tearsheet.app/Contents/MacOS/Tearsheet
-Identifier=com.liamblackshawbrown.tearsheet
-Format=app bundle with Mach-O thin (arm64)
-CodeDirectory v=20500 size=1234 flags=0x10000(runtime) hashes=27+7 location=embedded
-Authority=Developer ID Application: Example Person (ABCDE12345)
-Authority=Developer ID Certification Authority
-Authority=Apple Root CA
-TeamIdentifier=ABCDE12345
-`
-const AD_HOC = `Executable=/Applications/Tearsheet.app/Contents/MacOS/Tearsheet
-Identifier=com.liamblackshawbrown.tearsheet
-CodeDirectory v=20400 size=1234 flags=0x2(adhoc) hashes=27+7 location=embedded
-Signature=adhoc
-TeamIdentifier=not set
-`
+import { checkWithUpdater, forgetUpdater, hasUpdateFeed, setAutoInstall, updateMode, type Updater } from './autoUpdate'
 
 describe('which update path a copy uses', () => {
-  test('only a packaged release build signed with a Developer ID updates itself', () => {
-    expect(updateMode({ packaged: true, testBuild: false, developerId: true })).toBe('auto')
-    expect(updateMode({ packaged: true, testBuild: false, developerId: false })).toBe('banner')
-    expect(updateMode({ packaged: true, testBuild: true, developerId: true })).toBe('banner')
-    expect(updateMode({ packaged: false, testBuild: false, developerId: true })).toBe('banner')
+  test('only a packaged release build with an update feed (signed) updates itself', () => {
+    expect(updateMode({ packaged: true, testBuild: false, feed: true })).toBe('auto')
+    expect(updateMode({ packaged: true, testBuild: false, feed: false })).toBe('banner')
+    expect(updateMode({ packaged: true, testBuild: true, feed: true })).toBe('banner')
+    expect(updateMode({ packaged: false, testBuild: false, feed: true })).toBe('banner')
   })
 
-  test('the bundle is found around the executable', () => {
-    expect(appBundle('/Applications/Tearsheet.app/Contents/MacOS/Tearsheet')).toBe('/Applications/Tearsheet.app')
-    expect(appBundle('/usr/local/bin/electron')).toBeNull()
-  })
-
-  test('a Developer ID signature counts; ad hoc does not', () => {
-    expect(signedByDeveloperId(DEVELOPER_ID)).toBe(true)
-    expect(signedByDeveloperId(AD_HOC)).toBe(false)
-    expect(signedByDeveloperId('')).toBe(false)
-    expect(signedByDeveloperId(`${DEVELOPER_ID}Signature=adhoc\n`)).toBe(false)
-  })
-
-  test('codesign is asked about the bundle; any failure is a no', async () => {
-    const run = vi.fn(async () => DEVELOPER_ID)
-    expect(await developerIdSigned('/Applications/Tearsheet.app', run)).toBe(true)
-    expect(run).toHaveBeenCalledWith('/usr/bin/codesign', ['-dv', '--verbose=2', '/Applications/Tearsheet.app'])
-    expect(await developerIdSigned(null, run)).toBe(false)
+  test('the feed is app-update.yml in Resources; any failure is a no', () => {
+    const exists = vi.fn((path: string) => path === '/A.app/Contents/Resources/app-update.yml')
+    expect(hasUpdateFeed('/A.app/Contents/Resources', exists)).toBe(true)
+    expect(hasUpdateFeed('/B.app/Contents/Resources', exists)).toBe(false)
     expect(
-      await developerIdSigned('/x.app', async () => {
-        throw new Error('no codesign')
+      hasUpdateFeed('/A.app/Contents/Resources', () => {
+        throw new Error('no disk')
       })
     ).toBe(false)
-  })
-
-  test('the real codesign on something unsigned says no', async () => {
-    expect(await developerIdSigned('/definitely/not/here.app')).toBe(false)
+    expect(hasUpdateFeed('/definitely/not/here')).toBe(false)
   })
 })
 
@@ -65,6 +33,19 @@ describe('electron-updater', () => {
     expect(updater.checkForUpdates).toHaveBeenCalledTimes(1)
     await checkWithUpdater(async () => updater, false)
     expect(updater.allowPrerelease).toBe(false)
+  })
+
+  afterEach(() => forgetUpdater())
+
+  test('turning updates off stops a downloaded update from installing at quit, and on again restores it', async () => {
+    setAutoInstall(false) // nothing loaded yet: nothing to change, no throw
+    const updater = fake(async () => null)
+    await checkWithUpdater(async () => updater, false)
+    expect(updater.autoInstallOnAppQuit).toBe(true)
+    setAutoInstall(false)
+    expect(updater.autoInstallOnAppQuit).toBe(false)
+    setAutoInstall(true)
+    expect(updater.autoInstallOnAppQuit).toBe(true)
   })
 
   test('offline, or no updater, is silent', async () => {

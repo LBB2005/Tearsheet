@@ -17,15 +17,14 @@ write is here. Nothing on GitHub was changed, nothing was pushed, and no release
 
 ### Found on the way (needs a decision)
 
-- **Tearsheet really needs macOS 15.** The app's Info.plist says macOS 11, but the bundled numpy
-  needs macOS 14 and orjson (loaded by edgartools for every report) needs macOS 15. On macOS 13 or 14
-  the app would open and then the engine would fail. The README now says macOS 15+. Fix: add
-  `minimumSystemVersion: '15.0'` to `mac` in `app/electron-builder.cjs`, so older Macs get Apple's
-  own "needs a newer macOS" message (one line; left for you because it changes the release build).
+- **Tearsheet really needs macOS 15.** The bundled numpy needs macOS 14 and orjson (loaded by
+  edgartools for every report) needs macOS 15. Done (code review, 12 Nov): `mac.minimumSystemVersion`
+  is `'15.0'` in `app/electron-builder.cjs`, so an older Mac gets Apple's own "needs a newer macOS"
+  message instead of a failing first report, and the README says macOS 15+.
 - **Your personal Gmail is on every commit.** Every commit in the public history carries it as the
   author email (see the GitHub noreply item below).
-- **`scripts/release.sh` needs a signed mode** before the first signed release: today it makes its
-  own DMG and zip, which won't match `latest-mac.yml` ([signing.md](signing.md) §5).
+- **`scripts/release.sh` has a signed mode** (code review, 12 Nov): with the signing variables set it
+  uploads electron-builder's notarized DMG and zip plus `latest-mac.yml` ([signing.md](signing.md) §5).
 - **Launch-readiness M1 says "share only by private link until the lawyer check".** A public launch
   goes against that. Decide before posting anything.
 
