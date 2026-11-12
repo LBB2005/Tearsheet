@@ -325,6 +325,12 @@ class Server:
         self.backfill_job: asyncio.Task | None = None
         # None makes the price job one pass (tests); the app checks every half hour.
         self.keep_current_every_s: float | None = KEEP_CURRENT_EVERY_S
+        # The watchlist's alert check on the clock (watchlist.py): the 30-day window, and a Mac
+        # that slept. It runs with or without a Massive key; None makes it one pass (tests).
+        self.watch_job: asyncio.Task | None = None
+        self.watch_every_s: float | None = KEEP_CURRENT_EVERY_S
+        # The watchlist's counts as last sent or read, so a check that changes them says so.
+        self._watch_counts: dict[str, int] | None = None
         # How the last run ended (run id, how), for the line (batch.py).
         self.last_end: tuple[str, dict[str, Any]] | None = None
         from tearsheet.batch import SETTING, ReportLine
@@ -459,6 +465,7 @@ class Server:
                 method_code_version=METHOD_CODE_VERSION,
             ),
         )
+        self._watch_start()
         self._start_backfill()
 
     # --- the background price job ---------------------------------------------------------------
@@ -506,8 +513,11 @@ class Server:
         no call."""
         from tearsheet.data import market
         from tearsheet.data.prices import PriceStore, last_completed_session
+        from tearsheet.watchlist import extra_price_tickers
 
         store = PriceStore(self.db.conn)
+        # Watched companies that left the index come in the same summaries, at no extra call.
+        wanted = {**extra_price_tickers(self.db.conn, wanted), **wanted}
         have, days = market.catch_up(store, wanted, end=last_completed_session(self.now()))
         if not days:
             return
@@ -519,6 +529,7 @@ class Server:
                 await market.top_up(
                     http, self.rawstore, store, have, days, tally=market.Tally(self._backfill_gate)
                 )
+            self._watch_check()
         except asyncio.CancelledError:
             raise
         except market.SwitchedOff:
@@ -876,6 +887,8 @@ class Server:
             self.last_end = (run_id, ended)
             self.last_usage = (run_id, self._usage_of(run))
             self.active = None
+            # A new report means new levels to measure against (its run also stored new closes).
+            self._watch_after_report()
             resolved.set()
             from tearsheet.ai import close_connector
 
@@ -1805,9 +1818,211 @@ class Server:
         async with self.data_factory(
             f"grade-{self.now():%Y%m%dT%H%M%SZ}", self.db.conn, self.rawstore
         ) as data:
-            return await grading.grade_job(
+            result = await grading.grade_job(
                 self.db.conn, data, self.method.grading, now=self.now(), backup_dir=backup_dir
             )
+        # Grading stores prices too.
+        self._watch_check()
+        return result
+
+    # --- the watchlist (watchlist.py) -----------------------------------------------------------
+
+    def _watch_start(self) -> None:
+        """At start: older reports get their levels, lists whose undo was never answered are
+        erased, the alerts catch up on the closes stored while the app was closed (one
+        watch_changed for all of them), and the clock's check starts."""
+        from tearsheet import report_levels, watchlist
+
+        try:
+            report_levels.fill(self.db.conn)
+            watchlist.erase_old(self.db.conn, self.now())
+        except Exception:  # noqa: BLE001 - logged; the page shows what is there
+            log.exception("preparing the watchlist at start")
+        self._watch_check()
+        if self.watch_job is None or self.watch_job.done():
+            self.watch_job = asyncio.create_task(self._watch_clock())
+
+    async def _watch_clock(self) -> None:
+        """The alert check every `watch_every_s`, whether or not prices are being kept current:
+        the 30-day window opens by the clock, and a Mac that slept may have missed a check."""
+        while True:
+            if self.watch_every_s is not None:
+                await asyncio.sleep(self.watch_every_s)
+            self._watch_check()
+            if self.watch_every_s is None:
+                return
+
+    def _watch_after_report(self) -> None:
+        from tearsheet import report_levels
+
+        try:
+            report_levels.fill(self.db.conn)
+        except Exception:  # noqa: BLE001 - logged; the report itself is saved
+            log.exception("filling report levels after a report")
+        self._watch_check()
+
+    def _watch_check(self, *, evaluate: bool = True) -> None:
+        """Look for watchlist alerts (unless `evaluate` is False), and send `watch_changed` when
+        new ones fired or the counts changed. `notify` asks the app for a Mac notification: only
+        with new alerts, and only with the watch_notifications setting on. Never raises: a
+        failed check is logged and the next one tries again."""
+        from tearsheet import watchlist
+        from tearsheet.protocol import WatchChanged
+
+        conn = self.db.conn
+        try:
+            ids = watchlist.evaluate(conn, self.now()) if evaluate else []
+            counts = watchlist.counts(conn)
+            changed = self._watch_counts is not None and counts != self._watch_counts
+            self._watch_counts = counts
+            if not ids and not changed:
+                return
+            notify = bool(ids) and config.Settings(conn).get("watch_notifications") != "off"
+            events = watchlist.events(conn, ids=ids)
+            self.notify("watch_changed", WatchChanged(events=events, counts=counts, notify=notify))
+            if notify:
+                watchlist.mark_notified(conn, ids, self.now())
+        except Exception:  # noqa: BLE001 - logged; the next check tries again
+            log.exception("the watchlist's alert check failed")
+
+    def _watch_queued(self) -> dict[int, str]:
+        """The report line's companies: waiting, or being written."""
+        out = {e.cik: "waiting" for e in self.line.waiting}
+        if self.line.writing is not None:
+            out[self.line.writing.cik] = "writing"
+        return out
+
+    def _watch_prices_note(self) -> str | None:
+        """Why prices aren't being kept current, when they aren't: the background price download
+        switched off, or no Massive key."""
+        from tearsheet import watchlist
+        from tearsheet.data import market
+        from tearsheet.render import format_value
+
+        newest = watchlist.newest_close_date(self.db.conn)
+        start = (
+            f"Prices are from {format_value('date', newest)} and aren't being updated: "
+            if newest
+            else "No prices are stored, and none are being downloaded: "
+        )
+        if market.switched_off(config.Settings(self.db.conn)):
+            return start + "the background price download is switched off."
+        if not config.get_key("massive"):
+            if config.key_locked("massive"):
+                return start + f"macOS didn't let Tearsheet open your Massive key. {KEY_LOCKED_FIX}"
+            return start + "add a Massive key in Settings."
+        return None
+
+    async def m_get_watchlist(self, p) -> dict[str, Any]:
+        """The whole watchlist page in one call (protocol.WatchPage). Reads only."""
+        from tearsheet import watchlist
+
+        return watchlist.page(
+            self.db.conn,
+            self.now(),
+            queued=self._watch_queued(),
+            prices_note=self._watch_prices_note(),
+        )
+
+    async def m_watch_counts(self, p) -> dict[str, int]:
+        from tearsheet import watchlist
+
+        return watchlist.counts(self.db.conn)
+
+    async def m_watch_events(self, p) -> list[dict[str, Any]]:
+        from tearsheet import watchlist
+
+        return watchlist.events(self.db.conn, p.cik, p.limit)
+
+    async def m_watch_prices(self, p) -> dict[str, Any]:
+        from tearsheet import watchlist
+
+        return watchlist.prices(self.db.conn, p.cik, p.since)
+
+    async def m_create_watchlist(self, p) -> dict[str, Any]:
+        from tearsheet import watchlist
+
+        return watchlist.create(self.db.conn, p.name, self.now())
+
+    async def m_rename_watchlist(self, p) -> dict[str, Any]:
+        from tearsheet import watchlist
+
+        return watchlist.rename(self.db.conn, p.list_id, p.name)
+
+    async def m_order_watchlists(self, p) -> list[dict[str, Any]]:
+        from tearsheet import watchlist
+
+        return watchlist.order_lists(self.db.conn, p.list_ids)
+
+    async def m_delete_watchlist(self, p) -> dict[str, Any]:
+        from tearsheet import watchlist
+
+        result = watchlist.delete(self.db.conn, p.list_id, self.now())
+        self._watch_check(evaluate=False)
+        return result
+
+    async def m_restore_watchlist(self, p) -> dict[str, Any]:
+        from tearsheet import watchlist
+
+        watchlist.restore(self.db.conn, p.list_id)
+        self._watch_check(evaluate=False)
+        return {"ok": True}
+
+    async def m_erase_watchlist(self, p) -> dict[str, Any]:
+        from tearsheet import watchlist
+
+        watchlist.erase(self.db.conn, p.list_id)
+        return {"ok": True}
+
+    async def m_add_to_watchlist(self, p) -> dict[str, Any]:
+        """Add companies; their alerts start silently from the newest close."""
+        from tearsheet import watchlist
+
+        result = watchlist.add(self.db.conn, p.list_id, p.queries, self.now())
+        self._watch_check()
+        return result
+
+    async def m_remove_from_watchlist(self, p) -> dict[str, Any]:
+        from tearsheet import watchlist
+
+        result = watchlist.remove(self.db.conn, p.list_id, p.ciks)
+        self._watch_check(evaluate=False)
+        return result
+
+    async def m_restore_watch_items(self, p) -> dict[str, Any]:
+        from tearsheet import watchlist
+
+        watchlist.restore_items(self.db.conn, p.list_id, [i.model_dump() for i in p.items])
+        self._watch_check(evaluate=False)
+        return {"ok": True}
+
+    async def m_order_watchlist(self, p) -> dict[str, Any]:
+        from tearsheet import watchlist
+
+        watchlist.order_items(self.db.conn, p.list_id, p.ciks)
+        return {"ok": True}
+
+    async def m_set_watch_note(self, p) -> dict[str, Any]:
+        from tearsheet import watchlist
+
+        return watchlist.set_note(self.db.conn, p.cik, p.note, self.now())
+
+    async def m_set_watch_alerts(self, p) -> dict[str, Any]:
+        """Change alert settings; an alert turned on starts silently from the newest close."""
+        from tearsheet import watchlist
+
+        watchlist.set_alerts(
+            self.db.conn, p.ciks, range_=p.range, trigger=p.trigger, move=p.move, age=p.age
+        )
+        self._watch_check()
+        return {"ok": True}
+
+    async def m_mark_watch_seen(self, p) -> dict[str, int]:
+        from tearsheet import watchlist
+
+        watchlist.mark_seen(self.db.conn, p.ciks, self.now())
+        self._watch_check(evaluate=False)
+        return watchlist.counts(self.db.conn)
 
     # --- keys and settings -----------------------------------------------------------------------
 
@@ -2045,6 +2260,7 @@ class Server:
             "author_tools": settings.get("author_tools") == "on",
             "setup_done": setup_done == "1",
             "fred_skipped": settings.get("fred_skipped") == "1",
+            "watch_notifications": settings.get("watch_notifications") != "off",
             "services": services(settings),
             "price_download": self._price_download(settings, have_key=keys["massive"] == "set"),
             # The check under way, so a window that reloads mid-check shows the real count.
@@ -2134,14 +2350,16 @@ async def serve(paths: config.Paths) -> int:
                 await server.job
             except Exception:  # noqa: BLE001
                 pass
-        # Grading, history downloads and the price backfill stop with the engine; grading and
-        # the backfill run again next time the app opens (the backfill reuses what it stored),
-        # and a cut-short download is asked for again.
+        # Grading, history downloads, the price backfill and the watchlist's clock stop with the
+        # engine; grading and the backfill run again next time the app opens (the backfill
+        # reuses what it stored), a cut-short download is asked for again, and the watchlist
+        # catches up on the closes it missed at the next start.
         jobs = [
             *server.background,
             *([server.grading_job] if server.grading_job else []),
             *server.history_jobs.values(),
             *([server.backfill_job] if server.backfill_job else []),
+            *([server.watch_job] if server.watch_job else []),
         ]
         for task in jobs:
             task.cancel()

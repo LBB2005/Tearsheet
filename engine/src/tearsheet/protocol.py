@@ -907,6 +907,8 @@ class WatchList(Strict):
     position: int
     # Companies in it.
     count: int
+    # Its companies, by CIK, in their saved order.
+    ciks: list[int]
 
 
 class WatchAlertSettings(Strict):
@@ -947,7 +949,16 @@ class WatchLevels(Strict):
 class WatchReason(Strict):
     """Why a row is worth a look now, in a sentence the engine writes."""
 
-    kind: Literal["outside", "trigger", "near_trigger", "moved", "slot_open", "no_report", "stale", "left_index"]
+    kind: Literal[
+        "outside",
+        "trigger",
+        "near_trigger",
+        "moved",
+        "slot_open",
+        "no_report",
+        "stale",
+        "left_index",
+    ]
     text: str
 
 

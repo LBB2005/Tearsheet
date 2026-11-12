@@ -312,6 +312,10 @@ SETTINGS: dict[str, SettingSpec] = {
         "The Goal 1 round new full reports count toward (default 1). Raise it to restart the test after a fix.",
         _positive_number,
     ),
+    "watch_notifications": SettingSpec(
+        "on (the default) or off: a Mac notification when a watchlist alert fires.",
+        _choice("on", "off"),
+    ),
     "author_tools": SettingSpec(
         "off (the default) or on. On shows the parts of Settings meant only for Tearsheet's "
         "author: the Goal 1 round and the Alpha Vantage key row.",

@@ -288,6 +288,37 @@ def test_every_method_and_error_code_is_declared():
     assert "Hello" in s["$defs"] and "RunReportParams" in s["$defs"]
 
 
+WATCH_METHODS = {
+    "get_watchlist",
+    "watch_counts",
+    "watch_events",
+    "watch_prices",
+    "create_watchlist",
+    "rename_watchlist",
+    "order_watchlists",
+    "delete_watchlist",
+    "restore_watchlist",
+    "erase_watchlist",
+    "add_to_watchlist",
+    "remove_from_watchlist",
+    "restore_watch_items",
+    "order_watchlist",
+    "set_watch_note",
+    "set_watch_alerts",
+    "mark_watch_seen",
+}
+
+
+def test_the_watchlist_methods_are_declared_and_handled_with_no_new_error_codes():
+    assert WATCH_METHODS <= set(METHODS)
+    assert all(callable(getattr(Server, f"m_{name}", None)) for name in WATCH_METHODS)
+    assert PROTOCOL_VERSION == 7
+    # Refusals are INVALID_PARAMS with a sentence; the codes stay as they were.
+    assert "WATCH" not in " ".join(ERROR_CODES)
+    s = schema()
+    assert {"WatchPage", "WatchRow", "WatchChanged", "WatchReason"} <= set(s["$defs"])
+
+
 def test_serve_writes_only_protocol_messages_to_standard_output(tmp_path):
     lines = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "list_reports", "params": {}}) + "\n"
     # Its own temp folder, so the start-up sweep never looks at the Mac's.

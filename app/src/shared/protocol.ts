@@ -510,6 +510,7 @@ export type ListId5 = number;
 export type WatchName2 = string;
 export type Position1 = number;
 export type Count2 = number;
+export type Ciks4 = number[];
 export type Range1 = boolean;
 export type Trigger2 = boolean;
 export type Move1 = number | null;
@@ -1786,6 +1787,7 @@ export interface WatchList {
   name: WatchName2;
   position: Position1;
   count: Count2;
+  ciks: Ciks4;
 }
 /**
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
