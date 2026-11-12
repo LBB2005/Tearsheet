@@ -9,10 +9,10 @@ erased, only hidden, because the records that point at them can never be removed
   hidden official report still counts and no new run can take its slot.
 * **reviewed**: a report with flags or spot-check labels in `claim_reviews`, which is add-only.
 
-Erasing removes the report's text, claims and the run's own results (step outputs, metrics, peer
-list and the run row). It never touches `predictions`, `grades` or `claim_reviews`, and it keeps
-the shared caches: `fetch_log` (later runs reuse its downloads), `raw_objects`, `evidence_cache`
-and `article_skips`.
+Erasing removes the report's text, claims and levels (report_levels) and the run's own results
+(step outputs, metrics, peer list and the run row). It never touches `predictions`, `grades` or
+`claim_reviews`, and it keeps the shared caches: `fetch_log` (later runs reuse its downloads),
+`raw_objects`, `evidence_cache` and `article_skips`.
 """
 
 from __future__ import annotations
@@ -96,6 +96,9 @@ def erase(conn: sqlite3.Connection, report_ids: Iterable[str]) -> dict[str, list
         with conn:
             conn.execute("DELETE FROM claims WHERE report_id = ?", (report_id,))
             conn.execute("DELETE FROM sections WHERE report_id = ?", (report_id,))
+            # Its levels (report_levels.py) cascade with the report; said here too, for a
+            # connection without foreign keys on.
+            conn.execute("DELETE FROM report_levels WHERE report_id = ?", (report_id,))
             conn.execute("DELETE FROM reports WHERE report_id = ?", (report_id,))
             conn.execute("DELETE FROM hidden_reports WHERE report_id = ?", (report_id,))
             others = conn.execute("SELECT 1 FROM reports WHERE run_id = ?", (run_id,)).fetchone()

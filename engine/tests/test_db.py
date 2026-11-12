@@ -208,6 +208,126 @@ def test_the_report_tables_exist(tmp_path):
     db.close()
 
 
+WATCH_TABLES = {
+    "watch_companies",
+    "watch_lists",
+    "watch_items",
+    "watch_alert_state",
+    "watch_events",
+    "report_levels",
+}
+WATCH_INDEXES = {
+    "watch_lists_by_name",
+    "watch_items_by_cik",
+    "watch_events_unseen",
+    "watch_events_by_cik",
+    "report_levels_by_cik",
+    "predictions_by_run",
+}
+
+
+def indexes(conn) -> set[str]:
+    return {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'index'")}
+
+
+def test_the_watchlist_tables_exist(tmp_path):
+    db = open_database(tmp_path / "t.sqlite")
+    assert WATCH_TABLES <= tables(db.conn)
+    assert WATCH_INDEXES <= indexes(db.conn)
+    db.close()
+
+
+def test_a_version_5_database_upgrades_with_its_data(tmp_path, monkeypatch):
+    from tearsheet import db as db_module
+
+    real = db_module.migrations()
+    path = tmp_path / "t.sqlite"
+    monkeypatch.setattr(db_module, "migrations", lambda: [m for m in real if m[0] <= 5])
+    old = db_module.open_database(path)
+    assert old.version == 5
+    with old.conn:
+        old.conn.execute("INSERT INTO settings VALUES ('k', 'v')")
+        old.conn.execute("INSERT INTO pinned_companies VALUES (320193, '2026-11-01')")
+    old.close()
+    monkeypatch.setattr(db_module, "migrations", lambda: real)
+    db = db_module.open_database(path)
+    assert db.version == 6
+    assert WATCH_TABLES <= tables(db.conn)
+    assert db.conn.execute("SELECT value FROM settings WHERE key = 'k'").fetchone()[0] == "v"
+    assert db.conn.execute("SELECT cik FROM pinned_companies").fetchone()[0] == 320193
+    # Nothing is made in SQL: no default list, no levels.
+    assert db.conn.execute("SELECT COUNT(*) FROM watch_lists").fetchone()[0] == 0
+    assert len(list(tmp_path.glob("t.sqlite.v5-*.bak"))) == 1
+    db.close()
+
+
+def test_live_watchlist_names_are_unique_whatever_their_case(tmp_path):
+    db = open_database(tmp_path / "t.sqlite")
+    add = "INSERT INTO watch_lists (name, position, created_at, deleted_at) VALUES (?, 0, 'x', ?)"
+    with db.conn:
+        db.conn.execute(add, ("Tech", None))
+    with pytest.raises(sqlite3.IntegrityError):
+        with db.conn:
+            db.conn.execute(add, ("tech", None))
+    with db.conn:  # a deleted list's name may be used again during its undo
+        db.conn.execute("UPDATE watch_lists SET deleted_at = 'y'")
+        db.conn.execute(add, ("TECH", None))
+        db.conn.execute(add, ("tech", "z"))
+    with pytest.raises(sqlite3.IntegrityError):  # an empty name
+        with db.conn:
+            db.conn.execute(add, ("  ", None))
+    db.close()
+
+
+def test_erasing_a_list_takes_its_items_and_erasing_a_report_its_levels(tmp_path):
+    db = open_database(tmp_path / "t.sqlite")
+    conn = db.conn
+    with conn:
+        conn.execute("INSERT INTO watch_companies (cik, first_added_at) VALUES (1, 'x')")
+        conn.execute(
+            "INSERT INTO watch_lists (list_id, name, position, created_at) VALUES (1, 'A', 0, 'x')"
+        )
+        conn.execute(
+            "INSERT INTO watch_items (list_id, cik, position, added_at, added_as)"
+            " VALUES (1, 1, 0, 'x', 'T')"
+        )
+        conn.execute(
+            "INSERT INTO runs (run_id, cik, mode, started_at, status, engine_version,"
+            " method_code_version, methodology_hash, reference_version)"
+            " VALUES ('run-1', 1, 'full', 'x', 'done', '1', 1, 'h', 'r')"
+        )
+        conn.execute(
+            "INSERT INTO reports (report_id, run_id, created_at, narrative_complete)"
+            " VALUES ('rep-1', 'run-1', 'x', 1)"
+        )
+        conn.execute(
+            "INSERT INTO report_levels (report_id, run_id, cik, price_date, source)"
+            " VALUES ('rep-1', 'run-1', 1, '2026-11-03', 'run')"
+        )
+    with conn:
+        conn.execute("DELETE FROM watch_lists WHERE list_id = 1")
+        conn.execute("DELETE FROM reports WHERE report_id = 'rep-1'")
+    assert conn.execute("SELECT COUNT(*) FROM watch_items").fetchone()[0] == 0
+    assert conn.execute("SELECT COUNT(*) FROM report_levels").fetchone()[0] == 0
+    # The company's note and settings stay.
+    assert conn.execute("SELECT COUNT(*) FROM watch_companies").fetchone()[0] == 1
+    db.close()
+
+
+def test_an_alert_fires_once_per_company_kind_reference_side_and_close(tmp_path):
+    db = open_database(tmp_path / "t.sqlite")
+    conn = db.conn
+    event = (
+        "INSERT OR IGNORE INTO watch_events (cik, kind, ref, side, close_date, text, created_at)"
+        " VALUES (1, 'range', 'rep-1', 'below', '2026-11-04', 't', 'x')"
+    )
+    with conn:
+        conn.execute("INSERT INTO watch_companies (cik, first_added_at) VALUES (1, 'x')")
+        assert conn.execute(event).rowcount == 1
+        assert conn.execute(event).rowcount == 0
+    db.close()
+
+
 def test_predictions_are_write_once(tmp_path):
     db = open_database(tmp_path / "t.sqlite")
     with db.conn:

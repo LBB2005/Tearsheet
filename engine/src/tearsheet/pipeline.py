@@ -26,7 +26,7 @@ from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from tearsheet import ENGINE_VERSION, METHOD_CODE_VERSION, config
+from tearsheet import ENGINE_VERSION, METHOD_CODE_VERSION, config, report_levels
 from tearsheet.ai.client import (
     AIAuthError,
     AIBudgetExhausted,
@@ -2678,6 +2678,26 @@ class Run:
                 for c in removed
             ]
             self.conn.executemany("INSERT INTO claims VALUES (?, ?, ?, ?, ?, ?, ?, ?)", rows)
+            # The report's levels as numbers, for the watchlist (report_levels.py): the
+            # rating's own floats, showing what sections 1-3 and the watch lines show.
+            report_levels.insert(
+                self.conn,
+                report_levels.from_run(
+                    report_id=report_id,
+                    run_id=self.run_id,
+                    cik=self.cik,
+                    price_date=self.price_date,
+                    price=company.price[1] if company.price else None,
+                    rating=rating,
+                    rng=rng,
+                    uncertainty=level,
+                    score=score.composite.get(self.cik, 0),
+                    estimate=company.valuation.value
+                    if company.valuation and company.valuation.valid
+                    else None,
+                    withheld=bool(self.withheld),
+                ),
+            )
         html_path = None
         if self.out_dir is not None:
             self.out_dir.mkdir(parents=True, exist_ok=True)
