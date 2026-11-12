@@ -183,6 +183,8 @@ html { accent-color: var(--accent); }
 .row4 svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.6; opacity: .85; flex: none; }
 .row4 kbd { margin-left: auto; font: var(--fs-xs) var(--ui); font-weight: calc(400 + var(--wt)); color: var(--faint2); }
 .row4 b { font-weight: calc(600 + var(--wt)); letter-spacing: .4px; }
+/* The Watchlist row's count of companies that need a look (pages/Watch.tsx). */
+.row4 .cnt4 { margin-left: auto; padding: 0 7px; border-radius: var(--r-pill); background: rgb(var(--accent-rgb) / .14); color: var(--accent-fg); font-size: var(--fs-xs); font-weight: calc(600 + var(--wt)); line-height: 1.6; }
 .row4 .px { margin-left: auto; font-size: var(--fs-sm); color: var(--faint2); font-variant-numeric: tabular-nums; }
 .row4.on .px { color: var(--soft3); }
 .list4 { flex: 1; min-height: 0; overflow-y: auto; scrollbar-gutter: stable; display: flex; flex-direction: column; gap: 1px; padding-bottom: 14px; margin-bottom: 6px;

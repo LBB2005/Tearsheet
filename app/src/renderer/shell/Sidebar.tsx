@@ -19,7 +19,13 @@ import { Menu, type MenuEntry } from './Menu'
 import { filtersOn, groupRows, loadPrefs, matches, moveText, RATINGS, savePrefs, sectorsOf, selectRange, SORT_NAMES, type ListPrefs, type SortKey } from './reportList'
 
 // Line icons from the prototype (report-look-c-chart-split.html, ICON4).
-export const ICONS: Record<'side' | 'plus' | 'search' | 'log' | 'gear' | 'sliders' | 'more' | 'official', ReactElement> = {
+export const ICONS: Record<'side' | 'plus' | 'search' | 'log' | 'watch' | 'gear' | 'sliders' | 'more' | 'official', ReactElement> = {
+  watch: (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M2.5 12s3.5-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.5 6.5-9.5 6.5S2.5 12 2.5 12z" />
+      <circle cx="12" cy="12" r="2.8" />
+    </svg>
+  ),
   side: (
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <rect x="3" y="4" width="18" height="16" rx="3" />
@@ -103,7 +109,12 @@ export interface SidebarProps {
   onWriting: () => void
   onLookUp: () => void
   onCompany: (row: CompanyRow) => void
-  onPage: (page: 'log' | 'settings') => void
+  onPage: (page: 'log' | 'watch' | 'settings') => void
+  // Companies on the watchlist that need a look (engine watch_counts), for the Watchlist row's
+  // badge; 0 or undefined shows none.
+  watchCount?: number
+  // "Add to watchlist" in a company's menu.
+  onWatch?: (row: CompanyRow) => void
   onDelete: (rows: CompanyRow[]) => void
   // Refresh: write these companies' reports again, after a confirm (refresh.ts).
   onRefresh: (rows: CompanyRow[]) => void
@@ -122,7 +133,7 @@ const cikKey = (cik: number) => `c:${cik}`
 const hiddenKey = (id: string) => `h:${id}`
 
 export function Sidebar(props: SidebarProps) {
-  const { page, companies, openReport, writing, status, hidden, onNew, onWriting, onLookUp, onCompany, onPage, onDelete, onRefresh, onPin, onOpenHidden, onBringBack, onDeleteHidden } = props
+  const { page, companies, openReport, writing, status, hidden, onNew, onWriting, onLookUp, onCompany, onPage, onDelete, onRefresh, onPin, onOpenHidden, onBringBack, onDeleteHidden, watchCount, onWatch } = props
   const row = (on: boolean) => (on ? 'row4 on' : 'row4')
   const newOn = page === 'home' && !writing?.on
 
@@ -261,6 +272,7 @@ export function Sidebar(props: SidebarProps) {
     }
     return [
       { kind: 'item', label: c.pinned ? 'Unpin' : 'Pin to top', onSelect: () => onPin(c, !c.pinned) },
+      ...(onWatch ? [{ kind: 'item', label: 'Add to watchlist', onSelect: () => onWatch(c) } as MenuEntry] : []),
       ...(c.official ? [{ kind: 'item', label: 'Show in Prediction log', onSelect: () => onPage('log') } as MenuEntry] : []),
       { kind: 'item', label: 'Refresh report…', onSelect: () => onRefresh([c]) },
       {
@@ -560,6 +572,16 @@ export function Sidebar(props: SidebarProps) {
             <button onClick={clearSelection}>Cancel</button>
           </div>
         )}
+        <button className={row(page === 'watch')} aria-current={page === 'watch' ? 'page' : undefined} onClick={() => onPage('watch')}>
+          {ICONS.watch}Watchlist
+          {watchCount ? (
+            <span className="cnt4" aria-label={`${watchCount} need a look`}>
+              {watchCount}
+            </span>
+          ) : (
+            <kbd>⌘J</kbd>
+          )}
+        </button>
         <button className={row(page === 'log')} aria-current={page === 'log' ? 'page' : undefined} onClick={() => onPage('log')}>
           {ICONS.log}Prediction log<kbd>⌘L</kbd>
         </button>

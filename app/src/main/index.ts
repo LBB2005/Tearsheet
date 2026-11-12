@@ -8,7 +8,7 @@ import { existsSync as fileExists } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
-import { app, BrowserWindow, ipcMain, Menu, net, powerSaveBlocker, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, Menu, net, Notification as ElectronNotification, powerSaveBlocker, shell } from 'electron'
 
 import { INSTALL_BUTTON, SWITCH_URL } from '../shared/flags'
 
@@ -22,7 +22,8 @@ import { InstallSwitch } from './installSwitch'
 import { notify, registerIpc } from './ipc'
 import { readWindowLook, registerLookIpc } from './look'
 import { debugSwitches, dropDevHooks, hooksAllowed, TEST_BUILD } from './devHooks'
-import { claimOnlyCopy, closeHides, hiddenForChecks } from './lifecycle'
+import { bringBack, claimOnlyCopy, closeHides, hiddenForChecks } from './lifecycle'
+import { showWatchAlerts } from './watchAlerts'
 import { loginShellPath } from './loginShellPath'
 import { menuTemplate } from './menu'
 import { navigationAction } from './navigation'
@@ -282,6 +283,27 @@ async function createWindow(): Promise<void> {
   showProgressInDock(window, engine)
   // The Mac stays awake while the line has reports to write (awake.ts).
   keepAwakeDuringLine(engine, powerSaveBlocker)
+  // Watchlist alerts as Mac notifications (watchAlerts.ts); never from a check's hidden window or
+  // a test copy. A click brings the window back on the Watchlist, at the company.
+  showWatchAlerts(
+    engine,
+    {
+      show: (notice, onClick) => {
+        if (!ElectronNotification.isSupported()) return
+        const n = new ElectronNotification({ title: notice.title, body: notice.body })
+        n.on('click', onClick)
+        n.show()
+      }
+    },
+    {
+      enabled: !hidden && !inTestMode,
+      open: (cik) => {
+        if (window.isDestroyed() || window.webContents.isDestroyed()) return
+        bringBack(window)
+        window.webContents.send('tearsheet:open-watch', { cik })
+      }
+    }
+  )
   engine.start()
 
   // ⌘W and the red button hide the window while Tearsheet keeps running (lifecycle.ts). A

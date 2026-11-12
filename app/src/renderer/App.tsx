@@ -32,6 +32,7 @@ import { Toast, type Notice } from './overlays/Toast'
 import { downloadToast } from './report/downloads'
 import { Home } from './pages/Home'
 import { Log } from './pages/Log'
+import { Watch } from './pages/Watch'
 import { Report, ReportSubtitle, ReportTools } from './pages/Report'
 import { Settings } from './pages/Settings'
 import { Setup } from './pages/Setup'
@@ -94,6 +95,13 @@ export function App() {
   const [notice, setNotice] = useState<Notice | null>(null)
   // The prediction log's line in the toolbar ("2 logged, 0 graded"), once it has loaded.
   const [logLine, setLogLine] = useState<string | undefined>(undefined)
+  // The watchlist (pages/Watch.tsx): its toolbar line, a counter that makes it load again (an
+  // alert check, a finished report, the line), the company a Mac notification opened, and the
+  // sidebar's count of companies with alerts not yet seen.
+  const [watchLine, setWatchLine] = useState<string | undefined>(undefined)
+  const [watchRefresh, setWatchRefresh] = useState(0)
+  const [watchFocus, setWatchFocus] = useState<{ cik: number; n: number } | null>(null)
+  const [watchCount, setWatchCount] = useState(0)
   // The Settings topic shown. It stays put between visits, and the toolbar names it.
   const [settingsTopic, setSettingsTopic] = useState<Topic>('general')
   // The safety chip's popover in the toolbar, after setup.
@@ -300,12 +308,48 @@ export function App() {
     marks.removeOne(reportId, ticker)
   }
 
+  // The sidebar's watchlist count, once the engine is up, and again whenever the watchlist changes
+  // (seeing a company's alerts there marks them seen).
+  useEffect(() => {
+    if (!booted) return
+    let live = true
+    window.tearsheet.watchCounts().then(
+      (r) => live && r.ok && r.result && setWatchCount(r.result.needs_look),
+      () => undefined
+    )
+    return () => {
+      live = false
+    }
+  }, [booted, watchRefresh])
+  // A watchlist alert's Mac notification was clicked (main/watchAlerts.ts).
+  const goRef = useRef(go)
+  goRef.current = go
+  useEffect(
+    () =>
+      window.tearsheet.onOpenWatch(({ cik }) => {
+        if (target.current === 'setup') return
+        setWatchFocus((f) => ({ cik, n: (f?.n ?? 0) + 1 }))
+        goRef.current('watch')
+      }),
+    []
+  )
+
   // The one listener for the engine's notes. The run's notes go to useRun.
   useEffect(() => {
     return window.tearsheet.onNotification((note: EngineNotification) => {
-      if (note.method === 'progress' || note.method === 'run_tally' || note.method === 'line_changed') onNote(note)
-      else if (note.method === 'report_ready' || note.method === 'run_failed') {
+      if (note.method === 'progress' || note.method === 'run_tally') onNote(note)
+      else if (note.method === 'line_changed') {
         onNote(note)
+        // The watchlist shows which companies are queued or being written.
+        setWatchRefresh((n) => n + 1)
+      } else if (note.method === 'watch_changed') {
+        // An alert check found something (engine watchlist.py); Mac notifications are main's.
+        const counts = note.params.counts as { needs_look?: unknown } | undefined
+        if (typeof counts?.needs_look === 'number') setWatchCount(counts.needs_look)
+        setWatchRefresh((n) => n + 1)
+      } else if (note.method === 'report_ready' || note.method === 'run_failed') {
+        onNote(note)
+        setWatchRefresh((n) => n + 1)
         // A run may have found a key that stopped working, or one that works again.
         void window.tearsheet.getSettings().then((r) => r.ok && r.result && setBootSettings(r.result))
       } else if (note.method === 'safety_progress' || note.method === 'safety_done') {
@@ -440,6 +484,7 @@ export function App() {
     else if (command === 'find') openFind()
     else if (command === 'settings') go('settings')
     else if (command === 'log') go('log')
+    else if (command === 'watch') go('watch')
     else if (command === 'help') {
       setSettingsTopic('about')
       go('settings')
@@ -528,6 +573,8 @@ export function App() {
         }
       : page === 'log'
         ? { title: 'Prediction log', subtitle: logLine }
+        : page === 'watch'
+          ? { title: 'Watchlist', subtitle: watchLine }
         : page === 'settings'
           ? { title: 'Settings', subtitle: topicName(settingsTopic) }
           : runView
@@ -611,6 +658,19 @@ export function App() {
         refresh={graded}
         onGrade={gradeDue}
         onSubtitle={setLogLine}
+        onOpenReport={(reportId) => {
+          setOpenReport(reportId)
+          go('report')
+        }}
+      />
+    )
+  else if (page === 'watch')
+    content = (
+      <Watch
+        refresh={watchRefresh}
+        focus={watchFocus}
+        onNotify={notify}
+        onSubtitle={setWatchLine}
         onOpenReport={(reportId) => {
           setOpenReport(reportId)
           go('report')
@@ -715,6 +775,15 @@ export function App() {
           setRefreshing(rows.map((r) => ({ ticker: r.ticker, created_at: r.created_at })))
         }}
         onPin={(row, pinned) => void marks.pin(row, pinned)}
+        watchCount={watchCount}
+        onWatch={(row) =>
+          void window.tearsheet.addToWatchlist(null, [row.ticker]).then((r) => {
+            if (!r.ok || !r.result) return notify('Couldn’t add it to the watchlist', r.error?.message, 'stop')
+            setWatchRefresh((n) => n + 1)
+            if (r.result.added.length) notify(`Added ${row.ticker} to ${r.result.list.name}`, undefined, undefined, { action: { label: 'Show', run: () => go('watch') } })
+            else notify(`${row.ticker} is already in ${r.result.list.name}`)
+          })
+        }
         onShowHidden={marks.setWantHidden}
         onOpenHidden={(r) => {
           setOpenReport(r.report_id)

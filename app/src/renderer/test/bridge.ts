@@ -17,6 +17,7 @@ import type { InstallProgress, InstallStatus, RunResult } from '../../shared/ins
 import type { ChartSeries, CompanyRow, KeyNumbers, KeyRow, LineGroups, LineItem, LinePlan, LineState, PredictionPrices, PredictionSummary, ReportBar, ReportNumbers, ReportResult, ReportSummary, SearchHit, SettingsResult } from '../../shared/protocol'
 import { toolFlags, type ToolCommands, type ToolKind, type ToolState } from '../../shared/tools'
 import { analysts } from './analysts'
+import { WATCH_EVENTS, watchStore } from './watch'
 
 export type FakeBridge = { [K in keyof TearsheetApi]: Mock<TearsheetApi[K]> }
 
@@ -307,7 +308,8 @@ const listeners = {
   flag: new Set<(p: { claimId: string }) => void>(),
   open: new Set<(p: { view: ViewId; item: string | null }) => void>(),
   download: new Set<(n: DownloadNote) => void>(),
-  update: new Set<(s: UpdateStatus) => void>()
+  update: new Set<(s: UpdateStatus) => void>(),
+  watch: new Set<(p: { cik: number }) => void>()
 }
 
 const listen = <T>(set: Set<(x: T) => void>) => (fn: (x: T) => void) => {
@@ -346,8 +348,18 @@ export function setUpdateState(status: UpdateStatus): void {
   updateState = status
 }
 
+// A watchlist call's answer: the store's result, or its error as the engine would send it.
+function answer<T>(fn: () => T): CallResult<T> {
+  try {
+    return ok(fn())
+  } catch (e) {
+    return fail(e instanceof Error ? e.message : String(e), 'INVALID_PARAMS')
+  }
+}
+
 function makeBridge(): FakeBridge {
   const m = marks()
+  const w = watchStore()
   return {
     runReport: vi.fn<TearsheetApi['runReport']>(async (query: string) => ok({ run_id: 'run-new', ticker: query.toUpperCase(), name: search(query)[0]?.name ?? null })),
     cancel: vi.fn<TearsheetApi['cancel']>(async () => ok({ ok: true })),
@@ -432,6 +444,24 @@ function makeBridge(): FakeBridge {
     clearLine: vi.fn<TearsheetApi['clearLine']>(async () => ok(EMPTY_LINE)),
     carryOnLine: vi.fn<TearsheetApi['carryOnLine']>(async () => ok(EMPTY_LINE)),
     lineGroups: vi.fn<TearsheetApi['lineGroups']>(async () => ok(LINE_GROUPS)),
+    getWatchlist: vi.fn<TearsheetApi['getWatchlist']>(async () => ok(w.page())),
+    watchCounts: vi.fn<TearsheetApi['watchCounts']>(async () => ok(w.counts())),
+    watchEvents: vi.fn<TearsheetApi['watchEvents']>(async (cik?: number) => ok(WATCH_EVENTS.filter((e) => cik === undefined || e.cik === cik))),
+    watchPrices: vi.fn<TearsheetApi['watchPrices']>(async () => ok({ dates: chart().dates, close: chart().close })),
+    createWatchlist: vi.fn<TearsheetApi['createWatchlist']>(async (name: string) => answer(() => w.create(name))),
+    renameWatchlist: vi.fn<TearsheetApi['renameWatchlist']>(async (id: number, name: string) => answer(() => w.rename(id, name))),
+    orderWatchlists: vi.fn<TearsheetApi['orderWatchlists']>(async () => ok(w.page().lists)),
+    deleteWatchlist: vi.fn<TearsheetApi['deleteWatchlist']>(async (id: number) => answer(() => w.remove(id))),
+    restoreWatchlist: vi.fn<TearsheetApi['restoreWatchlist']>(async (id: number) => answer(() => (w.restore(id), { ok: true }))),
+    eraseWatchlist: vi.fn<TearsheetApi['eraseWatchlist']>(async (id: number) => answer(() => (w.erase(id), { ok: true }))),
+    addToWatchlist: vi.fn<TearsheetApi['addToWatchlist']>(async (id: number | null, queries: string[]) => answer(() => w.add(id, queries))),
+    removeFromWatchlist: vi.fn<TearsheetApi['removeFromWatchlist']>(async (id: number, ciks: number[]) => answer(() => w.take(id, ciks))),
+    restoreWatchItems: vi.fn<TearsheetApi['restoreWatchItems']>(async (id, items) => answer(() => (w.putBack(id, items), { ok: true }))),
+    orderWatchlist: vi.fn<TearsheetApi['orderWatchlist']>(async (id: number, ciks: number[]) => answer(() => (w.order(id, ciks), { ok: true }))),
+    setWatchNote: vi.fn<TearsheetApi['setWatchNote']>(async (cik: number, note: string) => ok(w.note(cik, note))),
+    setWatchAlerts: vi.fn<TearsheetApi['setWatchAlerts']>(async (ciks, change) => (w.alerts(ciks, change), ok({ ok: true }))),
+    markWatchSeen: vi.fn<TearsheetApi['markWatchSeen']>(async (ciks?: number[]) => ok(w.seen(ciks))),
+    onOpenWatch: vi.fn<TearsheetApi['onOpenWatch']>(listen(listeners.watch)),
     onNotification: vi.fn<TearsheetApi['onNotification']>(listen(listeners.note)),
     onFlagRequested: vi.fn<TearsheetApi['onFlagRequested']>(listen(listeners.flag)),
     onOpenView: vi.fn<TearsheetApi['onOpenView']>(listen(listeners.open)),
@@ -450,6 +480,7 @@ export function installBridge(): FakeBridge {
   listeners.open.clear()
   listeners.download.clear()
   listeners.update.clear()
+  listeners.watch.clear()
   installs = []
   updateState = { check: true, update: null }
   bridge = makeBridge()
@@ -490,6 +521,13 @@ export function openView(view: ViewId, item: string | null = null): void {
 export function download(note: DownloadNote): void {
   act(() => {
     for (const fn of listeners.download) fn(note)
+  })
+}
+
+// A watchlist alert's Mac notification was clicked (main/watchAlerts.ts).
+export function openWatch(cik: number): void {
+  act(() => {
+    for (const fn of listeners.watch) fn({ cik })
   })
 }
 

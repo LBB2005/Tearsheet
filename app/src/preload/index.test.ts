@@ -80,6 +80,26 @@ describe('the calls', () => {
     ['carryOnLine', [], ['tearsheet:call', 'carryOnLine', {}]],
     ['listPredictions', [], ['tearsheet:call', 'listPredictions', {}]],
     ['predictionPrices', [[1, 2], '2026-01-01'], ['tearsheet:call', 'predictionPrices', { ciks: [1, 2], since: '2026-01-01' }]],
+    ['getWatchlist', [], ['tearsheet:call', 'getWatchlist', {}]],
+    ['watchCounts', [], ['tearsheet:call', 'watchCounts', {}]],
+    ['watchEvents', [], ['tearsheet:call', 'watchEvents', {}]],
+    ['watchEvents', [2488, 20], ['tearsheet:call', 'watchEvents', { cik: 2488, limit: 20 }]],
+    ['watchPrices', [2488, '2026-01-01'], ['tearsheet:call', 'watchPrices', { cik: 2488, since: '2026-01-01' }]],
+    ['createWatchlist', ['Chips'], ['tearsheet:call', 'createWatchlist', { name: 'Chips' }]],
+    ['renameWatchlist', [3, 'Semis'], ['tearsheet:call', 'renameWatchlist', { list_id: 3, name: 'Semis' }]],
+    ['orderWatchlists', [[2, 1]], ['tearsheet:call', 'orderWatchlists', { list_ids: [2, 1] }]],
+    ['deleteWatchlist', [3], ['tearsheet:call', 'deleteWatchlist', { list_id: 3 }]],
+    ['restoreWatchlist', [3], ['tearsheet:call', 'restoreWatchlist', { list_id: 3 }]],
+    ['eraseWatchlist', [3], ['tearsheet:call', 'eraseWatchlist', { list_id: 3 }]],
+    ['addToWatchlist', [null, ['MU']], ['tearsheet:call', 'addToWatchlist', { queries: ['MU'] }]],
+    ['addToWatchlist', [3, ['MU', 'AMD']], ['tearsheet:call', 'addToWatchlist', { list_id: 3, queries: ['MU', 'AMD'] }]],
+    ['removeFromWatchlist', [3, [2488]], ['tearsheet:call', 'removeFromWatchlist', { list_id: 3, ciks: [2488] }]],
+    ['restoreWatchItems', [3, [{ cik: 2488, position: 0, added_at: 't', added_as: 'AMD' }]], ['tearsheet:call', 'restoreWatchItems', { list_id: 3, items: [{ cik: 2488, position: 0, added_at: 't', added_as: 'AMD' }] }]],
+    ['orderWatchlist', [3, [2488, 1]], ['tearsheet:call', 'orderWatchlist', { list_id: 3, ciks: [2488, 1] }]],
+    ['setWatchNote', [2488, 'Wait'], ['tearsheet:call', 'setWatchNote', { cik: 2488, note: 'Wait' }]],
+    ['setWatchAlerts', [[2488], { move: 0 }], ['tearsheet:call', 'setWatchAlerts', { ciks: [2488], move: 0 }]],
+    ['markWatchSeen', [], ['tearsheet:call', 'markWatchSeen', {}]],
+    ['markWatchSeen', [[2488]], ['tearsheet:call', 'markWatchSeen', { ciks: [2488] }]],
     ['flagClaim', ['r-1:c1', 'wrong'], ['tearsheet:call', 'flagClaim', { claim_id: 'r-1:c1', note: 'wrong' }]],
     ['rereadFiling', ['0001'], ['tearsheet:call', 'rereadFiling', { accession: '0001' }]],
     ['getTools', [], ['tearsheet:getTools', false]],
@@ -100,6 +120,7 @@ describe('the listeners', () => {
     ['onNotification', 'tearsheet:notification', { method: 'progress', params: {} }],
     ['onFlagRequested', 'tearsheet:flag-requested', { claimId: 'c1' }],
     ['onOpenView', 'tearsheet:open-view', { view: 'factors', item: null }],
+    ['onOpenWatch', 'tearsheet:open-watch', { cik: 2488 }],
     ['onMenu', 'tearsheet:menu', 'chart'],
     ['onDownload', 'tearsheet:download', { state: 'saving', kind: 'pdf', reportId: 'rep-1' }],
     ['onUpdate', 'tearsheet:update', { check: true, update: null }]
@@ -137,6 +158,6 @@ test('the update banner asks main for its status, the setting, Dismiss and its t
 
 test('the window gets nothing but these calls and listeners', () => {
   expect(Object.keys(api).sort()).toEqual(
-    ['addToLine', 'cancel', 'carryOnLine', 'checkKey', 'clearLine', 'getLine', 'lineGroups', 'planLine', 'removeFromLine', 'fetchHistory', 'find', 'flagClaim', 'getAnalysts', 'getChart', 'getReport', 'getReportNumbers', 'eraseReports', 'getSettings', 'getTools', 'gradeDue', 'hideReports', 'listCompanies', 'listPredictions', 'listReports', 'predictionPrices', 'saveCsv', 'onFlagRequested', 'onMenu', 'onNotification', 'onOpenView', 'openExternal', 'pinCompany', 'rereadFiling', 'resume', 'runReport', 'runSafetyCheck', 'searchCompanies', 'setKey', 'setSetting', 'showReports', 'stopFind', 'setLook', 'openTheme', 'saveTheme', 'onDownload', 'showDownload', 'about', 'sendFeedback', 'copyDiagnostics', 'cancelSafetyCheck', 'windowState', 'copyAndOpenTerminal', 'commandsFor', 'showSetupLog', 'install', 'cancelInstall', 'openSignInPage', 'getInstallButton', 'updates', 'setUpdateCheck', 'dismissUpdate', 'openUpdate', 'onUpdate'].sort()
+    ['addToLine', 'cancel', 'carryOnLine', 'checkKey', 'clearLine', 'getLine', 'lineGroups', 'planLine', 'removeFromLine', 'fetchHistory', 'find', 'flagClaim', 'getAnalysts', 'getChart', 'getReport', 'getReportNumbers', 'eraseReports', 'getSettings', 'getTools', 'gradeDue', 'hideReports', 'listCompanies', 'listPredictions', 'listReports', 'predictionPrices', 'saveCsv', 'onFlagRequested', 'onMenu', 'onNotification', 'onOpenView', 'openExternal', 'pinCompany', 'rereadFiling', 'resume', 'runReport', 'runSafetyCheck', 'searchCompanies', 'setKey', 'setSetting', 'showReports', 'stopFind', 'setLook', 'openTheme', 'saveTheme', 'onDownload', 'showDownload', 'about', 'sendFeedback', 'copyDiagnostics', 'cancelSafetyCheck', 'windowState', 'copyAndOpenTerminal', 'commandsFor', 'showSetupLog', 'install', 'cancelInstall', 'openSignInPage', 'getInstallButton', 'updates', 'setUpdateCheck', 'dismissUpdate', 'openUpdate', 'onUpdate', 'getWatchlist', 'watchCounts', 'watchEvents', 'watchPrices', 'createWatchlist', 'renameWatchlist', 'orderWatchlists', 'deleteWatchlist', 'restoreWatchlist', 'eraseWatchlist', 'addToWatchlist', 'removeFromWatchlist', 'restoreWatchItems', 'orderWatchlist', 'setWatchNote', 'setWatchAlerts', 'markWatchSeen', 'onOpenWatch'].sort()
   )
 })

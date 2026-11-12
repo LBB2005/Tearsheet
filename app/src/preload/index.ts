@@ -73,6 +73,24 @@ contextBridge.exposeInMainWorld('tearsheet', {
   lineGroups: () => call('lineGroups', {}),
   listPredictions: () => call('listPredictions', {}),
   predictionPrices: (ciks: number[], since: string) => call('predictionPrices', { ciks, since }),
+  // The watchlist (engine watchlist.py).
+  getWatchlist: () => call('getWatchlist', {}),
+  watchCounts: () => call('watchCounts', {}),
+  watchEvents: (cik?: number, limit?: number) => call('watchEvents', { ...(cik === undefined ? {} : { cik }), ...(limit === undefined ? {} : { limit }) }),
+  watchPrices: (cik: number, since: string) => call('watchPrices', { cik, since }),
+  createWatchlist: (name: string) => call('createWatchlist', { name }),
+  renameWatchlist: (listId: number, name: string) => call('renameWatchlist', { list_id: listId, name }),
+  orderWatchlists: (listIds: number[]) => call('orderWatchlists', { list_ids: listIds }),
+  deleteWatchlist: (listId: number) => call('deleteWatchlist', { list_id: listId }),
+  restoreWatchlist: (listId: number) => call('restoreWatchlist', { list_id: listId }),
+  eraseWatchlist: (listId: number) => call('eraseWatchlist', { list_id: listId }),
+  addToWatchlist: (listId: number | null, queries: string[]) => call('addToWatchlist', { ...(listId === null ? {} : { list_id: listId }), queries }),
+  removeFromWatchlist: (listId: number, ciks: number[]) => call('removeFromWatchlist', { list_id: listId, ciks }),
+  restoreWatchItems: (listId: number, items: { cik: number; position: number; added_at: string; added_as: string }[]) => call('restoreWatchItems', { list_id: listId, items }),
+  orderWatchlist: (listId: number, ciks: number[]) => call('orderWatchlist', { list_id: listId, ciks }),
+  setWatchNote: (cik: number, note: string) => call('setWatchNote', { cik, note }),
+  setWatchAlerts: (ciks: number[], alerts: { range?: boolean; trigger?: boolean; move?: number; age?: boolean }) => call('setWatchAlerts', { ciks, ...alerts }),
+  markWatchSeen: (ciks?: number[]) => call('markWatchSeen', ciks === undefined ? {} : { ciks }),
   // The prediction log's Export: a CSV the window made, saved to ~/Downloads (main/downloads.ts).
   saveCsv: (name: string, text: string) => ipcRenderer.invoke('tearsheet:saveCsv', name, text),
   flagClaim: (claimId: string, note: string) => call('flagClaim', { claim_id: claimId, note }),
@@ -85,6 +103,8 @@ contextBridge.exposeInMainWorld('tearsheet', {
   onNotification: listen('tearsheet:notification'),
   onFlagRequested: listen('tearsheet:flag-requested'),
   onOpenView: listen('tearsheet:open-view'),
+  // A watchlist alert's Mac notification was clicked (main/watchAlerts.ts).
+  onOpenWatch: listen('tearsheet:open-watch'),
   // How a download from the end of the report went (main/downloads.ts), and Show in Finder.
   onDownload: listen('tearsheet:download'),
   showDownload: (path: string) => ipcRenderer.invoke('tearsheet:showDownload', path),

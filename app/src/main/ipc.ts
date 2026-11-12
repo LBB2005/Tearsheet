@@ -57,7 +57,25 @@ export const CALLS: Record<string, string> = {
   removeFromLine: 'remove_from_line',
   clearLine: 'clear_line',
   carryOnLine: 'carry_on_line',
-  lineGroups: 'line_groups'
+  lineGroups: 'line_groups',
+  // The watchlist (engine watchlist.py).
+  getWatchlist: 'get_watchlist',
+  watchCounts: 'watch_counts',
+  watchEvents: 'watch_events',
+  watchPrices: 'watch_prices',
+  createWatchlist: 'create_watchlist',
+  renameWatchlist: 'rename_watchlist',
+  orderWatchlists: 'order_watchlists',
+  deleteWatchlist: 'delete_watchlist',
+  restoreWatchlist: 'restore_watchlist',
+  eraseWatchlist: 'erase_watchlist',
+  addToWatchlist: 'add_to_watchlist',
+  removeFromWatchlist: 'remove_from_watchlist',
+  restoreWatchItems: 'restore_watch_items',
+  orderWatchlist: 'order_watchlist',
+  setWatchNote: 'set_watch_note',
+  setWatchAlerts: 'set_watch_alerts',
+  markWatchSeen: 'mark_watch_seen'
 }
 
 // The closed allowlist: only the names above, never inherited object properties.

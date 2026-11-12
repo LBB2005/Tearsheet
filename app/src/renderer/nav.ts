@@ -5,7 +5,7 @@ import type { CompanyRow, LockdownState, SearchHit } from '../shared/protocol'
 import type { ToolKind } from '../shared/tools'
 import type { SafetyState } from './setup/state/safety'
 
-export type Page = 'setup' | 'home' | 'report' | 'log' | 'settings'
+export type Page = 'setup' | 'home' | 'report' | 'log' | 'watch' | 'settings'
 
 // The company before or after `current` (a ticker) in the sidebar's list, wrapping around at
 // both ends. With no current company, or one not in the list, going forward starts at the first

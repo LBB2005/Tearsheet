@@ -120,6 +120,29 @@ export interface TearsheetApi {
   listPredictions(): Promise<CallResult<import('../shared/protocol').PredictionSummary[]>>
   // The prediction log's compare chart: total-return lines on SPY's days from `since` (read only).
   predictionPrices(ciks: number[], since: string): Promise<CallResult<import('../shared/protocol').PredictionPrices>>
+  // The watchlist (engine watchlist.py). getWatchlist loads the whole page in one call; the
+  // writes answer with what an Undo needs. Alerts arrive as watch_changed notifications.
+  getWatchlist(): Promise<CallResult<import('../shared/protocol').WatchPage>>
+  watchCounts(): Promise<CallResult<import('../shared/protocol').WatchCounts>>
+  watchEvents(cik?: number, limit?: number): Promise<CallResult<import('../shared/protocol').WatchEvent[]>>
+  // Stored closes for a watched company with no report on show (with one, use getChart).
+  watchPrices(cik: number, since: string): Promise<CallResult<import('../shared/protocol').WatchPrices>>
+  createWatchlist(name: string): Promise<CallResult<import('../shared/protocol').WatchList>>
+  renameWatchlist(listId: number, name: string): Promise<CallResult<import('../shared/protocol').WatchList>>
+  orderWatchlists(listIds: number[]): Promise<CallResult<import('../shared/protocol').WatchList[]>>
+  // Delete keeps the list until the undo has passed; then eraseWatchlist.
+  deleteWatchlist(listId: number): Promise<CallResult<import('../shared/protocol').WatchDeleted>>
+  restoreWatchlist(listId: number): Promise<CallResult<{ ok: boolean }>>
+  eraseWatchlist(listId: number): Promise<CallResult<{ ok: boolean }>>
+  // `listId` null: the first list, made if there is none.
+  addToWatchlist(listId: number | null, queries: string[]): Promise<CallResult<import('../shared/protocol').WatchAdd>>
+  removeFromWatchlist(listId: number, ciks: number[]): Promise<CallResult<import('../shared/protocol').WatchRemoved>>
+  restoreWatchItems(listId: number, items: import('../shared/protocol').WatchItemBack[]): Promise<CallResult<{ ok: boolean }>>
+  orderWatchlist(listId: number, ciks: number[]): Promise<CallResult<{ ok: boolean }>>
+  setWatchNote(cik: number, note: string): Promise<CallResult<import('../shared/protocol').WatchNoteSaved>>
+  // A field left out is unchanged; `move` is a fraction, 0 turns it off.
+  setWatchAlerts(ciks: number[], alerts: { range?: boolean; trigger?: boolean; move?: number; age?: boolean }): Promise<CallResult<{ ok: boolean }>>
+  markWatchSeen(ciks?: number[]): Promise<CallResult<import('../shared/protocol').WatchCounts>>
   // Saves the log's CSV to ~/Downloads under a free name; then showDownload(path) works on it.
   saveCsv(name: string, text: string): Promise<{ ok: true; name: string; path: string } | { ok: false; message: string }>
   flagClaim(claimId: string, note: string): Promise<CallResult<{ review_id: string }>>
@@ -132,6 +155,8 @@ export interface TearsheetApi {
   onNotification(fn: (note: EngineNotification) => void): () => void
   onFlagRequested(fn: (payload: { claimId: string }) => void): () => void
   onOpenView(fn: (payload: { view: import('../main/navigation').ViewId; item: string | null }) => void): () => void
+  // A watchlist alert's Mac notification was clicked: open the Watchlist on that company.
+  onOpenWatch(fn: (payload: { cik: number }) => void): () => void
 }
 
 declare global {

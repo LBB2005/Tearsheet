@@ -2,7 +2,7 @@
 
 import type { MenuItemConstructorOptions } from 'electron'
 
-export type MenuCommand = 'new' | 'lookup' | 'summary' | 'full' | 'chart' | 'prev' | 'next' | 'log' | 'sidebar' | 'find' | 'settings' | 'help' | 'feedback'
+export type MenuCommand = 'new' | 'lookup' | 'summary' | 'full' | 'chart' | 'prev' | 'next' | 'log' | 'watch' | 'sidebar' | 'find' | 'settings' | 'help' | 'feedback'
 
 export function menuTemplate(send: (c: MenuCommand) => void, isDev: boolean): MenuItemConstructorOptions[] {
   const item = (label: string, accelerator: string, command: MenuCommand): MenuItemConstructorOptions => ({
@@ -56,7 +56,7 @@ export function menuTemplate(send: (c: MenuCommand) => void, isDev: boolean): Me
     },
     {
       label: 'Go',
-      submenu: [item('Previous company', 'CmdOrCtrl+[', 'prev'), item('Next company', 'CmdOrCtrl+]', 'next'), { type: 'separator' }, item('Prediction log', 'CmdOrCtrl+L', 'log')]
+      submenu: [item('Previous company', 'CmdOrCtrl+[', 'prev'), item('Next company', 'CmdOrCtrl+]', 'next'), { type: 'separator' }, item('Watchlist', 'CmdOrCtrl+J', 'watch'), item('Prediction log', 'CmdOrCtrl+L', 'log')]
     },
     { role: 'windowMenu' },
     // Help: Settings → About and help, and a feedback email in the person's own Mail
