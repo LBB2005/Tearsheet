@@ -18,7 +18,14 @@ export type Accession = string;
 export type Service = "massive" | "fred" | "alphavantage";
 export type Key = string;
 export type Key1 =
-  "raw_cap" | "backup_dir" | "primary_tool" | "sec_contact_email" | "goal1_round" | "setup_done" | "fred_skipped";
+  | "raw_cap"
+  | "backup_dir"
+  | "primary_tool"
+  | "sec_contact_email"
+  | "goal1_round"
+  | "setup_done"
+  | "fred_skipped"
+  | "watch_notifications";
 export type Value = string;
 export type Service1 = "massive" | "fred";
 export type Key2 = string;
@@ -61,7 +68,54 @@ export type Group = ("all" | "sector" | "rest") | null;
 export type LineSector = string | null;
 export type SkipRecent = boolean;
 export type LineTicker = string;
-export type Cik1 = number;
+export type Cik1 = number | null;
+export type Limit2 = number;
+export type Cik2 = number;
+export type Since1 = string;
+export type WatchName = string;
+export type ListId = number;
+export type WatchName1 = string;
+/**
+ * @minItems 1
+ * @maxItems 200
+ */
+export type ListIds = [number, ...number[]];
+export type ListId1 = number;
+export type ListId2 = number | null;
+/**
+ * @minItems 1
+ * @maxItems 1000
+ */
+export type Queries1 = [string, ...string[]];
+export type ListId3 = number;
+/**
+ * @minItems 1
+ * @maxItems 1000
+ */
+export type Ciks1 = [number, ...number[]];
+export type Cik3 = number;
+export type Position = number;
+export type AddedAt = string;
+export type AddedAs = string;
+export type ListId4 = number;
+/**
+ * @minItems 1
+ * @maxItems 1000
+ */
+export type Items = [WatchItemBack, ...WatchItemBack[]];
+export type Cik4 = number;
+export type Note1 = string;
+/**
+ * @minItems 1
+ * @maxItems 1000
+ */
+export type Ciks2 = [number, ...number[]];
+export type Range = boolean | null;
+export type Trigger = boolean | null;
+export type Move = number | null;
+export type Age = boolean | null;
+export type Ciks3 = number[] | null;
+export type Cik5 = number;
 export type Name = string;
 export type Ticker = string;
 export type RunId1 = string;
@@ -83,7 +137,7 @@ export type Key3 = string;
 export type Label = string;
 export type Text = string | null;
 export type PeerText = string | null;
-export type Note1 = string | null;
+export type Note2 = string | null;
 export type Tone = ("up" | "down") | null;
 export type Working = string;
 export type Key4 = "trading" | "value" | "profit" | "debt";
@@ -98,13 +152,13 @@ export type Source = string;
 export type ReportId6 = string;
 export type RunId2 = string;
 export type Ticker2 = string;
-export type Cik2 = number | null;
+export type Cik6 = number | null;
 export type Name3 = string | null;
 export type CreatedAt = string;
 export type NarrativeComplete = boolean;
 export type Kept = number | null;
 export type Html = string;
-export type Cik3 = number;
+export type Cik7 = number;
 export type Ticker3 = string;
 export type Name4 = string;
 export type ReportId7 = string;
@@ -122,7 +176,7 @@ export type Pinned1 = boolean;
 export type Ticker4 = string;
 export type Name5 = string;
 export type Sector1 = string | null;
-export type Cik4 = number;
+export type Cik8 = number;
 export type ReportId8 = string | null;
 export type ReportDate2 = string | null;
 export type PeerRule = string | null;
@@ -135,7 +189,7 @@ export type Total = (number | null)[];
 export type Peers2 = (number | null)[];
 export type Spy = (number | null)[];
 export type Filings = FilingMark[];
-export type Trigger = number | null;
+export type Trigger1 = number | null;
 export type FirstDate = string;
 export type FirstDate1 = string;
 export type Days = number;
@@ -184,7 +238,7 @@ export type Key5 = "buy" | "hold" | "sell" | "kept" | "removed";
 export type Label5 = string;
 export type Count = number;
 export type Readout9 = string;
-export type Items = string[] | null;
+export type Items1 = string[] | null;
 export type Total1 = number;
 export type Slices = Slice[];
 export type Key6 = string;
@@ -253,7 +307,7 @@ export type Rows2 = AnalystCheckRow[];
 export type ReportId10 = string;
 export type Ticker7 = string;
 export type State = "ok" | "down" | "missing";
-export type Note2 = string | null;
+export type Note3 = string | null;
 export type Asof = string;
 export type AsofText = string;
 export type Rebuilt = boolean;
@@ -274,7 +328,7 @@ export type DataBase64 = string | null;
 export type Footer = string;
 export type ReportId12 = string;
 export type RunId3 = string;
-export type Cik5 = number | null;
+export type Cik9 = number | null;
 export type Ticker8 = string | null;
 export type Name9 = string | null;
 export type CreatedAt2 = string;
@@ -296,7 +350,7 @@ export type CompanyReturn = number | null;
 export type EndDate = string | null;
 export type InsideRange = boolean | null;
 export type PredictionId = string;
-export type Cik6 = number;
+export type Cik10 = number;
 export type Ticker9 = string;
 export type RunAt = string;
 export type Rating3 = string;
@@ -313,7 +367,7 @@ export type Uncertainty = string | null;
 export type ReportId13 = string | null;
 export type Price1 = number | null;
 export type PriceDate1 = string | null;
-export type Cik7 = number;
+export type Cik11 = number;
 export type Total2 = (number | null)[];
 export type Dates1 = string[];
 export type Spy1 = (number | null)[];
@@ -321,7 +375,7 @@ export type Series1 = PriceLine[];
 export type ReviewId = string;
 export type Deleted = number;
 export type Graded = number;
-export type Note3 = string | null;
+export type Note4 = string | null;
 export type Name11 = string;
 export type Key7 = string;
 export type Cost = string;
@@ -355,6 +409,7 @@ export type AuthorTools = boolean;
 export type SetupDone = boolean;
 export type FredSkipped = boolean;
 export type Services = Service2[];
+export type WatchNotifications = boolean;
 export type Proof = string;
 export type Started = boolean;
 export type Tool2 = "claude" | "codex";
@@ -444,16 +499,104 @@ export type AiCalls = number;
 export type Runs = number;
 export type Waiting = LineItem[];
 export type Finished1 = LineItem[];
-export type Items1 = LineItem[];
+export type Items2 = LineItem[];
 export type Skipped = LineSkip[];
 export type Name14 = string;
 export type Count1 = number;
 export type All = number;
 export type Rest = number;
 export type Sectors = LineGroup[];
+export type ListId5 = number;
+export type WatchName2 = string;
+export type Position1 = number;
+export type Count2 = number;
+export type Range1 = boolean;
+export type Trigger2 = boolean;
+export type Move1 = number | null;
+export type Age1 = boolean;
+export type ReportId16 = string | null;
+export type ReportDate3 = string;
+export type PriceDate2 = string;
+export type Official2 = boolean;
+export type Rating5 = ("Buy" | "Hold" | "Sell") | null;
+export type Capped1 = boolean;
+export type ReportPrice = number | null;
+export type Bear3 = number | null;
+export type Base3 = number | null;
+export type Bull3 = number | null;
+export type BuyTrigger = number | null;
+export type SellTrigger = number | null;
+export type BuyReachable = boolean | null;
+export type SellReachable = boolean | null;
+export type ScorePercentile = number | null;
+export type Uncertainty1 = string | null;
+export type Source1 = "run" | "parsed" | "prediction";
+export type Kind3 =
+  "outside" | "trigger" | "near_trigger" | "moved" | "slot_open" | "no_report" | "stale" | "left_index";
+export type Text3 = string;
+export type Cik12 = number;
+export type WatchTicker = string;
+export type WatchCompany = string;
+export type WatchSector = string | null;
+export type Lists = number[];
+export type AddedAt1 = string;
+export type InIndex = boolean;
+export type Price2 = number | null;
+export type PriceDate3 = string | null;
+export type PreviousClose1 = number | null;
+export type Stale1 = boolean;
+export type SinceReport1 = number | null;
+export type ToBase = number | null;
+export type RangePosition = number | null;
+export type Outside = ("below" | "above") | null;
+export type TriggerSide = ("buy" | "sell") | null;
+export type OfficialFrom = string | null;
+export type SlotOpen = boolean;
+export type ReportAgeDays = number | null;
+export type Queued = ("waiting" | "writing") | null;
+export type Note5 = string;
+export type Unseen = number;
+export type Reasons = WatchReason[];
+export type Watched = number;
+export type NeedsLook = number;
+export type NoReport = number;
+export type Lists1 = WatchList[];
+export type Rows3 = WatchRow[];
+export type AsOf = string | null;
+export type PricesNote = string | null;
+export type Query3 = string;
+export type Reason2 = string;
+export type Kind4 = "unknown" | "twice" | "in_list";
+export type Cik13 = number;
+export type WatchTicker1 = string;
+export type WatchCompany1 = string;
+export type Note6 = string | null;
+export type Added = WatchAdded[];
+export type Skipped1 = WatchSkip[];
+export type Removed = WatchItemBack[];
+export type ListId6 = number;
+export type Leaving = number[];
+export type WithNotes = number[];
+export type Cik14 = number;
+export type NoteAt = string;
+export type EventId = number;
+export type Cik15 = number;
+export type WatchTicker2 = string;
+export type Kind5 = "range" | "trigger_buy" | "trigger_sell" | "move" | "age";
+export type Side2 = string;
+export type CloseDate2 = string;
+export type Price3 = number | null;
+export type Level = number | null;
+export type Text4 = string;
+export type CreatedAt3 = string;
+export type Seen = boolean;
+export type Dates2 = string[];
+export type Close2 = number[];
+export type Events = WatchEvent[];
+export type Notify = boolean;
 
 /**
- * App-engine protocol, version 6.
+ * App-engine protocol, version 7.
  */
 export interface TearsheetProtocol {
   [k: string]: unknown;
@@ -633,10 +776,117 @@ export interface TickerParams {
 }
 /**
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "WatchEventsParams".
+ */
+export interface WatchEventsParams {
+  cik?: Cik1;
+  limit?: Limit2;
+}
+/**
+ * Stored closes of one watched company, for a company with no report on show.
+ *
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "WatchPricesParams".
+ */
+export interface WatchPricesParams {
+  cik: Cik2;
+  since: Since1;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "WatchNameParams".
+ */
+export interface WatchNameParams {
+  name: WatchName;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "WatchRenameParams".
+ */
+export interface WatchRenameParams {
+  list_id: ListId;
+  name: WatchName1;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "WatchOrderParams".
+ */
+export interface WatchOrderParams {
+  list_ids: ListIds;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "WatchListIdParams".
+ */
+export interface WatchListIdParams {
+  list_id: ListId1;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "WatchAddParams".
+ */
+export interface WatchAddParams {
+  list_id?: ListId2;
+  queries: Queries1;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "WatchCiksParams".
+ */
+export interface WatchCiksParams {
+  list_id: ListId3;
+  ciks: Ciks1;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "WatchItemBack".
+ */
+export interface WatchItemBack {
+  cik: Cik3;
+  position: Position;
+  added_at: AddedAt;
+  added_as: AddedAs;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "WatchRestoreParams".
+ */
+export interface WatchRestoreParams {
+  list_id: ListId4;
+  items: Items;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "WatchNoteParams".
+ */
+export interface WatchNoteParams {
+  cik: Cik4;
+  note: Note1;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "WatchAlertsParams".
+ */
+export interface WatchAlertsParams {
+  ciks: Ciks2;
+  range?: Range;
+  trigger?: Trigger;
+  move?: Move;
+  age?: Age;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "WatchSeenParams".
+ */
+export interface WatchSeenParams {
+  ciks?: Ciks3;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
  * via the `definition` "Candidate".
  */
 export interface Candidate {
-  cik: Cik1;
+  cik: Cik5;
   name: Name;
   ticker: Ticker;
 }
@@ -695,7 +945,7 @@ export interface KeyRow {
   label: Label;
   text: Text;
   peer_text: PeerText;
-  note: Note1;
+  note: Note2;
   tone: Tone;
   working: Working;
 }
@@ -731,7 +981,7 @@ export interface ReportResult {
   report_id: ReportId6;
   run_id: RunId2;
   ticker: Ticker2;
-  cik: Cik2;
+  cik: Cik6;
   name: Name3;
   created_at: CreatedAt;
   narrative_complete: NarrativeComplete;
@@ -745,7 +995,7 @@ export interface ReportResult {
  * via the `definition` "CompanyRow".
  */
 export interface CompanyRow {
-  cik: Cik3;
+  cik: Cik7;
   ticker: Ticker3;
   name: Name4;
   report_id: ReportId7;
@@ -769,7 +1019,7 @@ export interface SearchHit {
   ticker: Ticker4;
   name: Name5;
   sector: Sector1;
-  cik: Cik4;
+  cik: Cik8;
   report_id: ReportId8;
   report_date: ReportDate2;
   peer_rule?: PeerRule;
@@ -794,7 +1044,7 @@ export interface ChartSeries {
   peers: Peers2;
   spy: Spy;
   filings: Filings;
-  trigger: Trigger;
+  trigger: Trigger1;
   range: PriceRange | null;
   first_date: FirstDate;
 }
@@ -919,7 +1169,7 @@ export interface Slice {
   label: Label5;
   count: Count;
   readout: Readout9;
-  items: Items;
+  items: Items1;
 }
 /**
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
@@ -1062,7 +1312,7 @@ export interface ReportAnalysts {
   report_id: ReportId10;
   ticker: Ticker7;
   state: State;
-  note: Note2;
+  note: Note3;
   asof: Asof;
   asof_text: AsofText;
   rebuilt: Rebuilt;
@@ -1101,7 +1351,7 @@ export interface ExportResult {
 export interface ReportSummary {
   report_id: ReportId12;
   run_id: RunId3;
-  cik: Cik5;
+  cik: Cik9;
   ticker: Ticker8;
   name: Name9;
   created_at: CreatedAt2;
@@ -1155,7 +1405,7 @@ export interface Grade {
  */
 export interface PredictionSummary {
   prediction_id: PredictionId;
-  cik: Cik6;
+  cik: Cik10;
   ticker: Ticker9;
   run_at: RunAt;
   rating: Rating3;
@@ -1178,7 +1428,7 @@ export interface PredictionSummary {
  * via the `definition` "PriceLine".
  */
 export interface PriceLine {
-  cik: Cik7;
+  cik: Cik11;
   total: Total2;
 }
 /**
@@ -1210,7 +1460,7 @@ export interface RereadResult {
  */
 export interface GradeResult {
   graded: Graded;
-  note?: Note3;
+  note?: Note4;
 }
 /**
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
@@ -1305,6 +1555,7 @@ export interface SettingsResult {
   price_download: PriceDownload;
   lockdown?: Lockdown;
   safety_running?: SafetyRunning | null;
+  watch_notifications?: WatchNotifications;
 }
 export interface Keys {
   [k: string]: "set" | "missing" | "locked";
@@ -1503,7 +1754,7 @@ export interface LineState {
  * via the `definition` "LinePlan".
  */
 export interface LinePlan {
-  items: Items1;
+  items: Items2;
   skipped: Skipped;
   line: LineState;
 }
@@ -1526,5 +1777,200 @@ export interface LineGroups {
   rest: Rest;
   sectors: Sectors;
 }
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "WatchList".
+ */
+export interface WatchList {
+  list_id: ListId5;
+  name: WatchName2;
+  position: Position1;
+  count: Count2;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "WatchAlertSettings".
+ */
+export interface WatchAlertSettings {
+  range: Range1;
+  trigger: Trigger2;
+  move: Move1;
+  age: Age1;
+}
+/**
+ * The company's newest report on show (hidden reports left out, as in the sidebar), every
+ * price in the last close's shares: a split since the report divides them.
+ *
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "WatchLevels".
+ */
+export interface WatchLevels {
+  report_id: ReportId16;
+  report_date: ReportDate3;
+  price_date: PriceDate2;
+  official: Official2;
+  rating: Rating5;
+  capped: Capped1;
+  report_price: ReportPrice;
+  bear: Bear3;
+  base: Base3;
+  bull: Bull3;
+  buy_trigger: BuyTrigger;
+  sell_trigger: SellTrigger;
+  buy_reachable: BuyReachable;
+  sell_reachable: SellReachable;
+  score_percentile: ScorePercentile;
+  uncertainty: Uncertainty1;
+  source: Source1;
+}
+/**
+ * Why a row is worth a look now, in a sentence the engine writes.
+ *
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "WatchReason".
+ */
+export interface WatchReason {
+  kind: Kind3;
+  text: Text3;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "WatchRow".
+ */
+export interface WatchRow {
+  cik: Cik12;
+  ticker: WatchTicker;
+  name: WatchCompany;
+  sector?: WatchSector;
+  lists: Lists;
+  added_at: AddedAt1;
+  in_index: InIndex;
+  price: Price2;
+  price_date: PriceDate3;
+  previous_close: PreviousClose1;
+  stale: Stale1;
+  levels: WatchLevels | null;
+  since_report: SinceReport1;
+  to_base: ToBase;
+  range_position: RangePosition;
+  outside: Outside;
+  trigger_side: TriggerSide;
+  official_from: OfficialFrom;
+  slot_open: SlotOpen;
+  report_age_days: ReportAgeDays;
+  queued: Queued;
+  note: Note5;
+  alerts: WatchAlertSettings;
+  unseen: Unseen;
+  reasons: Reasons;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "WatchCounts".
+ */
+export interface WatchCounts {
+  watched: Watched;
+  needs_look: NeedsLook;
+  no_report: NoReport;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "WatchPage".
+ */
+export interface WatchPage {
+  lists: Lists1;
+  rows: Rows3;
+  counts: WatchCounts;
+  as_of: AsOf;
+  prices_note: PricesNote;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "WatchSkip".
+ */
+export interface WatchSkip {
+  query: Query3;
+  reason: Reason2;
+  kind: Kind4;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "WatchAdded".
+ */
+export interface WatchAdded {
+  cik: Cik13;
+  ticker: WatchTicker1;
+  name: WatchCompany1;
+  note?: Note6;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "WatchAdd".
+ */
+export interface WatchAdd {
+  list: WatchList;
+  added: Added;
+  skipped: Skipped1;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "WatchRemoved".
+ */
+export interface WatchRemoved {
+  removed: Removed;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "WatchDeleted".
+ */
+export interface WatchDeleted {
+  list_id: ListId6;
+  leaving: Leaving;
+  with_notes: WithNotes;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "WatchNoteSaved".
+ */
+export interface WatchNoteSaved {
+  cik: Cik14;
+  note_at: NoteAt;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "WatchEvent".
+ */
+export interface WatchEvent {
+  event_id: EventId;
+  cik: Cik15;
+  ticker: WatchTicker2;
+  kind: Kind5;
+  side: Side2;
+  close_date: CloseDate2;
+  price: Price3;
+  level: Level;
+  text: Text4;
+  created_at: CreatedAt3;
+  seen: Seen;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "WatchPrices".
+ */
+export interface WatchPrices {
+  dates: Dates2;
+  close: Close2;
+}
+/**
+ * After an alert check that changed something: the new alerts and the counts.
+ *
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "WatchChanged".
+ */
+export interface WatchChanged {
+  events: Events;
+  counts: WatchCounts;
+  notify: Notify;
+}
 
-export const PROTOCOL_VERSION = 6
+export const PROTOCOL_VERSION = 7

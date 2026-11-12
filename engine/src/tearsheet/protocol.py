@@ -128,6 +128,7 @@ class SetSettingParams(Strict):
         "goal1_round",
         "setup_done",
         "fred_skipped",
+        "watch_notifications",
     ]
     value: str
 
@@ -168,6 +169,82 @@ class TickerParams(Strict):
     ticker: str = Field(title="LineTicker")
 
 
+# --- the watchlist (watchlist.py) ---------------------------------------------------------------
+
+
+class WatchEventsParams(Strict):
+    cik: int | None = None
+    limit: int = Field(default=50, ge=1, le=500)
+
+
+class WatchPricesParams(Strict):
+    """Stored closes of one watched company, for a company with no report on show."""
+
+    cik: int
+    since: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+
+
+class WatchNameParams(Strict):
+    name: str = Field(min_length=1, max_length=60, title="WatchName")
+
+
+class WatchRenameParams(Strict):
+    list_id: int
+    name: str = Field(min_length=1, max_length=60, title="WatchName")
+
+
+class WatchListIdParams(Strict):
+    list_id: int
+
+
+class WatchOrderParams(Strict):
+    list_ids: list[int] = Field(min_length=1, max_length=200)
+
+
+class WatchAddParams(Strict):
+    # None: the first live list, made ("Watchlist") if there is none.
+    list_id: int | None = None
+    # Tickers or names, as the line takes them; spaces may separate tickers.
+    queries: list[str] = Field(min_length=1, max_length=1000)
+
+
+class WatchCiksParams(Strict):
+    list_id: int
+    ciks: list[int] = Field(min_length=1, max_length=1000)
+
+
+class WatchItemBack(Strict):
+    cik: int
+    position: int
+    added_at: str
+    added_as: str
+
+
+class WatchRestoreParams(Strict):
+    list_id: int
+    items: list[WatchItemBack] = Field(min_length=1, max_length=1000)
+
+
+class WatchNoteParams(Strict):
+    cik: int
+    note: str = Field(max_length=10000)
+
+
+class WatchAlertsParams(Strict):
+    ciks: list[int] = Field(min_length=1, max_length=1000)
+    # A field left out is unchanged.
+    range: bool | None = None
+    trigger: bool | None = None
+    # The move from the report's price that alerts, as a fraction (0.1 is 10%); 0 turns it off.
+    move: float | None = Field(default=None, ge=0, lt=10)
+    age: bool | None = None
+
+
+class WatchSeenParams(Strict):
+    # None marks every company's alerts seen.
+    ciks: list[int] | None = Field(default=None, max_length=1000)
+
+
 METHODS: dict[str, type[Strict]] = {
     "run_report": RunReportParams,
     "cancel": RunIdParams,
@@ -204,6 +281,24 @@ METHODS: dict[str, type[Strict]] = {
     "clear_line": NoParams,
     "carry_on_line": NoParams,
     "line_groups": NoParams,
+    # The watchlist (watchlist.py).
+    "get_watchlist": NoParams,
+    "watch_counts": NoParams,
+    "watch_events": WatchEventsParams,
+    "watch_prices": WatchPricesParams,
+    "create_watchlist": WatchNameParams,
+    "rename_watchlist": WatchRenameParams,
+    "order_watchlists": WatchOrderParams,
+    "delete_watchlist": WatchListIdParams,
+    "restore_watchlist": WatchListIdParams,
+    "erase_watchlist": WatchListIdParams,
+    "add_to_watchlist": WatchAddParams,
+    "remove_from_watchlist": WatchCiksParams,
+    "restore_watch_items": WatchRestoreParams,
+    "order_watchlist": WatchCiksParams,
+    "set_watch_note": WatchNoteParams,
+    "set_watch_alerts": WatchAlertsParams,
+    "mark_watch_seen": WatchSeenParams,
 }
 
 
@@ -799,6 +894,174 @@ class SettingsResult(Strict):
     lockdown: dict[str, LockdownState] = {}
     # Set while a safety check runs, None otherwise.
     safety_running: SafetyRunning | None = None
+    # Mac notifications for watchlist alerts.
+    watch_notifications: bool = True
+
+
+# --- the watchlist's results (watchlist.py) -----------------------------------------------------
+
+
+class WatchList(Strict):
+    list_id: int
+    name: str = Field(title="WatchName")
+    position: int
+    # Companies in it.
+    count: int
+
+
+class WatchAlertSettings(Strict):
+    range: bool
+    trigger: bool
+    # A fraction (0.1 is 10%); None is off.
+    move: float | None
+    age: bool
+
+
+class WatchLevels(Strict):
+    """The company's newest report on show (hidden reports left out, as in the sidebar), every
+    price in the last close's shares: a split since the report divides them."""
+
+    # None when the levels come from an official prediction with no report on show.
+    report_id: str | None
+    report_date: str
+    # The close the report was priced at.
+    price_date: str
+    official: bool
+    rating: Literal["Buy", "Hold", "Sell"] | None
+    # A red flag holds the rating at Hold.
+    capped: bool
+    report_price: float | None
+    bear: float | None
+    base: float | None
+    bull: float | None
+    buy_trigger: float | None
+    sell_trigger: float | None
+    # False: "not reachable by price alone"; None: no trigger (rating withheld, no valuation).
+    buy_reachable: bool | None
+    sell_reachable: bool | None
+    score_percentile: int | None
+    uncertainty: str | None
+    source: Literal["run", "parsed", "prediction"]
+
+
+class WatchReason(Strict):
+    """Why a row is worth a look now, in a sentence the engine writes."""
+
+    kind: Literal["outside", "trigger", "near_trigger", "moved", "slot_open", "no_report", "stale", "left_index"]
+    text: str
+
+
+class WatchRow(Strict):
+    cik: int
+    ticker: str = Field(title="WatchTicker")
+    name: str = Field(title="WatchCompany")
+    sector: str | None = Field(default=None, title="WatchSector")
+    # The live lists it is in, by list_id.
+    lists: list[int]
+    added_at: str
+    # In the bundled S&P 500 list.
+    in_index: bool
+    price: float | None
+    price_date: str | None
+    # Only when it is the session just before `price_date`.
+    previous_close: float | None
+    # The price is older than the session before the last completed one.
+    stale: bool
+    levels: WatchLevels | None
+    # 0.05 is 5% up from the close the report was priced at, splits taken out.
+    since_report: float | None
+    # base / price - 1.
+    to_base: float | None
+    # (price - bear) / (bull - bear): below 0 or above 1 is outside the range.
+    range_position: float | None
+    outside: Literal["below", "above"] | None
+    # The rating-change price the price is past now, if any.
+    trigger_side: Literal["buy", "sell"] | None
+    # When a new report would be an official prediction (ISO, UTC); None with no prediction.
+    official_from: str | None
+    slot_open: bool
+    report_age_days: int | None
+    # In the report line now.
+    queued: Literal["waiting", "writing"] | None
+    note: str
+    alerts: WatchAlertSettings
+    # Alerts that fired and haven't been seen.
+    unseen: int
+    reasons: list[WatchReason]
+
+
+class WatchCounts(Strict):
+    watched: int
+    # Companies with alerts not yet seen.
+    needs_look: int
+    no_report: int
+
+
+class WatchPage(Strict):
+    lists: list[WatchList]
+    rows: list[WatchRow]
+    counts: WatchCounts
+    # The newest stored close (SPY's).
+    as_of: str | None
+    # A sentence when prices aren't being kept current (no Massive key, the download off).
+    prices_note: str | None
+
+
+class WatchSkip(Strict):
+    query: str
+    reason: str
+    kind: Literal["unknown", "twice", "in_list"]
+
+
+class WatchAdded(Strict):
+    cik: int
+    ticker: str = Field(title="WatchTicker")
+    name: str = Field(title="WatchCompany")
+    # Set when the class typed isn't the rated one: "GOOG is followed as Alphabet, priced as GOOGL."
+    note: str | None = None
+
+
+class WatchAdd(Strict):
+    list: WatchList
+    added: list[WatchAdded]
+    skipped: list[WatchSkip]
+
+
+class WatchRemoved(Strict):
+    removed: list[WatchItemBack]
+
+
+class WatchDeleted(Strict):
+    list_id: int
+    # Companies in no other live list, and those of them with a note.
+    leaving: list[int]
+    with_notes: list[int]
+
+
+class WatchNoteSaved(Strict):
+    cik: int
+    note_at: str
+
+
+class WatchEvent(Strict):
+    event_id: int
+    cik: int
+    ticker: str = Field(title="WatchTicker")
+    kind: Literal["range", "trigger_buy", "trigger_sell", "move", "age"]
+    side: str
+    close_date: str
+    price: float | None
+    level: float | None
+    # Written by the engine, so the page, the history and the Mac notification say the same.
+    text: str
+    created_at: str
+    seen: bool
+
+
+class WatchPrices(Strict):
+    dates: list[str]
+    # In today's shares.
+    close: list[float]
 
 
 # --- notifications ----------------------------------------------------------------------------
@@ -1004,6 +1267,15 @@ class LinePlan(Strict):
     line: LineState
 
 
+class WatchChanged(Strict):
+    """After an alert check that changed something: the new alerts and the counts."""
+
+    events: list[WatchEvent]
+    counts: WatchCounts
+    # Whether the app shows a Mac notification (the watch_notifications setting).
+    notify: bool
+
+
 ALL_MODELS: tuple[type[BaseModel], ...] = (
     *METHODS.values(),
     Candidate,
@@ -1076,6 +1348,22 @@ ALL_MODELS: tuple[type[BaseModel], ...] = (
     LinePlan,
     LineTypical,
     LineGroups,
+    WatchList,
+    WatchAlertSettings,
+    WatchLevels,
+    WatchReason,
+    WatchRow,
+    WatchCounts,
+    WatchPage,
+    WatchSkip,
+    WatchAdded,
+    WatchAdd,
+    WatchRemoved,
+    WatchDeleted,
+    WatchNoteSaved,
+    WatchEvent,
+    WatchPrices,
+    WatchChanged,
 )
 
 
