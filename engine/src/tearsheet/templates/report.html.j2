@@ -7,7 +7,8 @@
 <title>{{ r.company }} ({{ r.ticker }}): Tearsheet report</title>
 {#- Look C: dark glass over a faint coloured light, Avenir Next, tabular figures. Everything is in
     this one style block; the page loads nothing. Interactivity is CSS only: :target and :has()
-    switch the views, and <details> folds out each quoted source. #}
+    switch the views, and <details> folds out each quoted source. In the app, one fixed script
+    (render.FRAME_SCRIPT, allowed by its hash alone) takes the numbers column's width. #}
 <style>
 :root {
   color-scheme: dark;
@@ -59,8 +60,13 @@ a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outli
 .glass { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); backdrop-filter: blur(calc(18px * var(--frost))); -webkit-backdrop-filter: blur(calc(18px * var(--frost))); box-shadow: inset 0 1px 0 rgb(var(--ink) / .05); }
 
 /* Layout. In the app both columns fill the frame and scroll on their own; a file is a page. */
+/* The numbers column's width in two columns: the one the app sets by dragging the line between
+   them (--nums-w, render.FRAME_SCRIPT), the text column keeping at least {{ nums_text_min }} px and the
+   numbers at least {{ nums_min }} px. A window resize keeps it by this rule alone, with no script.
+   The usual width is set on html, so the app's own :root block, or the script, wins. */
+html { --nums-w: {{ nums_width }}px; }
 .layout { display: flex; height: 100vh; }
-.nums { width: 548px; flex: none; overflow: auto; padding: 12px; display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; align-content: start; border-right: 1px solid var(--line); }
+.nums { width: clamp({{ nums_min }}px, var(--nums-w), calc(100vw - {{ nums_text_min }}px)); flex: none; overflow: auto; padding: 12px; display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; align-content: start; border-right: 1px solid var(--line); }
 .col-numbers .nums { width: auto; flex: 1; min-width: 0; max-width: 640px; grid-template-columns: 1fr 1fr; border-right: 0; }
 .textcol { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 /* The app's layout that follows the frame (column "auto"): both columns from {{ two_min }} px, and
@@ -371,6 +377,9 @@ table.t .hot:hover { background: none; }
 }
 {%- endif %}
 </style>
+{%- if frame_script %}
+<script>{{ frame_script | safe }}</script>
+{%- endif %}
 </head>
 {%- from "report/_numbers.html.j2" import numbers_column, key_strip with context %}
 {%- from "report/_summary.html.j2" import summary_view with context %}

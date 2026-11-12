@@ -25,6 +25,8 @@ import { useReportNumbers } from '../panel/useReportNumbers'
 import type { PanelChrome } from '../panel/ViewFrame'
 import { ViewPane } from '../panel/ViewPane'
 import { useTextFrames } from '../report/frames'
+import { NumbersSizer, postWidth } from '../report/NumbersSizer'
+import { numbersWidth, widthCss } from '../report/numbersWidth'
 import type { ReportPage } from '../report/useReport'
 import { oneColumn, reportChoice, shownSide } from '../report/view'
 
@@ -158,6 +160,26 @@ export function Report({ page, wide }: { page: ReportPage; wide: boolean }) {
   // look loads the frames again; it only changes on the Appearance page, never with a report open.
   const { resolved } = useAppearance()
   const look = useMemo(() => reportCss(resolved), [resolved])
+  // Each frame starts at the numbers column's width kept when it was first put in the page, so
+  // its page never changes (which would load it again) as the width is dragged later; the line
+  // gives it the width by message as it loads and after (report/NumbersSizer.tsx).
+  const startWidth = useRef(new Map<string, number>())
+  const startCss = (key: string) => {
+    let px = startWidth.current.get(key)
+    if (px === undefined) {
+      px = numbersWidth()
+      startWidth.current.set(key, px)
+    }
+    return look + widthCss(px)
+  }
+  const onFrameLoad = (frame: HTMLIFrameElement) => postWidth(frame, numbersWidth())
+  // A frame gone from the page needs no width kept for it.
+  useEffect(() => {
+    const keys = new Set(texts.frames.map((f) => f.key))
+    for (const key of startWidth.current.keys()) if (!keys.has(key)) startWidth.current.delete(key)
+  })
+  // The report shows both its columns: the line between them can be dragged.
+  const columns = !one && showing === 'text' && !full && !alone && !chartClosing
 
   // The panel's views. The price chart mounts the first time it shows in an opening and stays
   // mounted, hidden, while another view shows, so switching back keeps it as it was. A view's
@@ -194,11 +216,14 @@ export function Report({ page, wide }: { page: ReportPage; wide: boolean }) {
         )}
         {texts.frames.length > 0 && (
           <div className="rframe">
-            {/* An empty sandbox: no scripts, forms, pop-ups or top-level navigation (Technical Plan §12).
-                The text and numbers frames are the same report, with Text or Numbers as its one
-                column beside the chart; the one not on show stays loaded, at the same size, so it
-                keeps its place. While another text frame loads, the one on show stays under it
-                (report/frames.ts). */}
+            {/* A sandbox: no forms, pop-ups or top-level navigation (Technical Plan §12), and no
+                scripts but the one the engine's page allows by its hash, which takes the numbers
+                column's width from this window (report/numbersWidth.ts). The numbers frame, one
+                column only, runs none. The text and numbers frames are the same report, with Text
+                or Numbers as its one column beside the chart; the one not on show stays loaded, at
+                the same size, so it keeps its place. While another text frame loads, the one on
+                show stays under it (report/frames.ts). Over them, in two columns, the line between
+                the columns (report/NumbersSizer.tsx). */}
             {texts.frames.map((f) => {
               const asked = f.key === text?.key
               const on = showing === 'text' ? ' on' : ''
@@ -209,12 +234,16 @@ export function Report({ page, wide }: { page: ReportPage; wide: boolean }) {
                   className={`report-frame${on}${phase}`}
                   aria-hidden={showing !== 'text' || !asked}
                   title="Report"
-                  sandbox=""
-                  srcDoc={withLook(f.html, look)}
-                  onLoad={asked ? () => texts.loaded(f.key) : undefined}
+                  sandbox="allow-scripts"
+                  srcDoc={withLook(f.html, startCss(f.key))}
+                  onLoad={(e) => {
+                    onFrameLoad(e.currentTarget)
+                    if (asked) texts.loaded(f.key)
+                  }}
                 />
               )
             })}
+            {columns && <NumbersSizer frame={reportW} />}
             {page.numbers && (
               <iframe
                 key={`numbers:${page.textKey}`}

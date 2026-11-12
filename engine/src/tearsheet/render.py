@@ -9,6 +9,8 @@ text, and the page carries its own content-security policy.
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import math
 import re
 from collections.abc import Callable
@@ -23,6 +25,29 @@ from tearsheet.wording import ADVICE_LINE, ADVICE_SHORT
 
 PLACEHOLDER = re.compile(r"\{\{([a-z_]+:[A-Za-z0-9_.\-]+)\}\}")
 CSP = "default-src 'none'; style-src 'unsafe-inline'; img-src data:"
+# The one script a page in the app runs (never a file): it takes the numbers column's width from
+# the app, which Liam sets by dragging the line between the two columns (app report/numbersWidth.ts),
+# so the column moves with the drag and the page never loads again. Only a message from the app
+# window itself, and only a number, is taken. The page's policy allows this script by its hash
+# and nothing else (no other inline script, no file, no event handler); the app window's policy
+# names the same hash (app index.html, checked in app report/numbersWidth.test.ts).
+FRAME_SCRIPT = (
+    'addEventListener("message",function(e){var w=e.data&&e.data.tearsheetNumbersWidth;'
+    'if(e.source===parent&&typeof w==="number"&&w>=0&&10000>=w)'
+    'document.documentElement.style.setProperty("--nums-w",Math.round(w)+"px")})'
+)
+FRAME_SCRIPT_HASH = (
+    "sha256-" + base64.b64encode(hashlib.sha256(FRAME_SCRIPT.encode()).digest()).decode()
+)
+APP_CSP = f"{CSP}; script-src '{FRAME_SCRIPT_HASH}'"
+# The numbers column beside the text, in the app's two-column layout: the usual width, and the
+# least either column keeps as the line between them is dragged or the window narrows. The text
+# column gives way first, down to NUMBERS_TEXT_MIN, then the numbers column, down to NUMBERS_MIN.
+# At TWO_COLUMNS_MIN the usual width leaves the text exactly its least. The app keeps the same
+# numbers (report/numbersWidth.ts, checked there).
+NUMBERS_WIDTH = 548
+NUMBERS_MIN = 320
+NUMBERS_TEXT_MIN = 312
 # The app's layout that follows the frame (column "auto"): both columns from this frame width,
 # and below it the one column `side` names. The app reads the same number (report/view.ts).
 TWO_COLUMNS_MIN = 860
@@ -272,7 +297,11 @@ def render_html(
         two_min=TWO_COLUMNS_MIN,
         keys_min=KEY_TILES_MIN,
         key_tiles=key_tiles,
-        csp=CSP,
+        csp=APP_CSP if mode == "app" else CSP,
+        frame_script=FRAME_SCRIPT if mode == "app" else None,
+        nums_width=NUMBERS_WIDTH,
+        nums_min=NUMBERS_MIN,
+        nums_text_min=NUMBERS_TEXT_MIN,
         safe_url=_safe_url,
         anchor=lambda frag: _anchor(mode, frag),
         fmt=format_value,

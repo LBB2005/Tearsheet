@@ -268,7 +268,7 @@ def test_numbers_are_drawn_not_injected():
     n["economy"][0]["value"] = evil
     n["metrics"][0]["label"] = evil
     n["red_flags"] = [evil]
-    html = render_html(report("Plain sentence."), mode="app", numbers=n)
+    html = without_frame_script(render_html(report("Plain sentence."), mode="app", numbers=n))
     assert "<script" not in html
     assert "&lt;script&gt;" in html
     assert html.count("<svg") >= 5  # the charts are still drawn
@@ -282,7 +282,15 @@ def test_numbers_are_drawn_not_injected():
     assert "<script" not in tiles and "&lt;script&gt;" in tiles  # the price tile's date
 
 
+def without_frame_script(html: str) -> str:
+    """The page with its one allowed script (render.FRAME_SCRIPT) taken out, once."""
+    from tearsheet.render import FRAME_SCRIPT
+
+    return html.replace(f"<script>{FRAME_SCRIPT}</script>", "", 1)
+
+
 def test_no_script_tags_anywhere():
+    """No script but the app's one fixed script, and none at all in a file."""
     for mode in ("app", "file"):
         for view in ("summary", "full"):
             for n in (numbers(), None):
@@ -295,7 +303,8 @@ def test_no_script_tags_anywhere():
                         narrow=narrow,
                         numbers=n,
                     )
-                    assert "<script" not in html.lower()
+                    assert "<script" not in without_frame_script(html).lower()
+                    assert ("<script" in html) == (mode == "app")
 
 
 def test_auto_layout_holds_both_columns_and_names_its_side():
@@ -910,3 +919,35 @@ def test_the_not_advice_line_sits_with_the_rating_and_at_the_end():
     # The numbers column alone (a narrow window's other side) still carries it.
     assert ADVICE_SHORT in render_html(r, mode="app", column="numbers", numbers=numbers())
     assert ADVICE_LINE in render_html(r, mode="file", numbers=numbers())
+
+
+def test_the_app_page_runs_only_its_one_script_by_hash():
+    """The app's page allows the numbers-width script by its hash, and a file allows none."""
+    import base64
+    import hashlib
+
+    from tearsheet.render import FRAME_SCRIPT, FRAME_SCRIPT_HASH
+
+    digest = base64.b64encode(hashlib.sha256(FRAME_SCRIPT.encode()).digest()).decode()
+    assert FRAME_SCRIPT_HASH == f"sha256-{digest}"
+    app = render_html(report("Plain sentence."), mode="app", column="auto", numbers=numbers())
+    csp = re.search(r'http-equiv="Content-Security-Policy" content="([^"]+)"', app)
+    assert csp and csp.group(1).endswith(f"; script-src '{FRAME_SCRIPT_HASH}'")
+    assert "'unsafe-inline'" not in csp.group(1).split("script-src")[1]
+    assert app.count("<script") == 1 and f"<script>{FRAME_SCRIPT}</script>" in app
+    page = render_html(report("Plain sentence."), mode="file", numbers=numbers())
+    assert "script-src" not in page and "<script" not in page
+
+
+def test_the_numbers_column_width_follows_the_app_within_limits():
+    """Two columns: the width the app sets, the text keeping its least, then the numbers theirs."""
+    from tearsheet.render import NUMBERS_MIN, NUMBERS_TEXT_MIN, NUMBERS_WIDTH, TWO_COLUMNS_MIN
+
+    assert NUMBERS_WIDTH + NUMBERS_TEXT_MIN == TWO_COLUMNS_MIN
+    assert NUMBERS_MIN + NUMBERS_TEXT_MIN <= TWO_COLUMNS_MIN
+    html = render_html(report("Plain sentence."), mode="app", column="auto", numbers=numbers())
+    rule = (
+        f".nums {{ width: clamp({NUMBERS_MIN}px, var(--nums-w), "
+        f"calc(100vw - {NUMBERS_TEXT_MIN}px));"
+    )
+    assert rule in html and f"--nums-w: {NUMBERS_WIDTH}px;" in html

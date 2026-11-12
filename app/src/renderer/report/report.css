@@ -110,3 +110,25 @@ iframe.report-frame.fadein { animation: fade var(--dur-1) var(--ease-out) both; 
 .rmenu button small { color: var(--muted); font-size: var(--fs-sm); }
 .rmenu button.danger { color: var(--bad-text3); }
 .rmenu-sep { display: block; height: 1px; margin: 4px 6px; background: rgb(var(--ink) / .09); }
+
+/* ---------- the line between the report's two columns (report/NumbersSizer.tsx) ----------
+   It lies over the frame at the numbers column's edge, worked out as the page's CSS does it
+   (engine report.html.j2 .nums: clamp(320px, --nums-w, frame - 312px)), so a window resize moves
+   the column and the line together, with no script. 8 px wide, over the page's own 1 px line;
+   pointed at, a little later it shows; dragged or focused, at once. It lies only over the
+   report, below the toolbar, so it never covers an area that drags the window. */
+.nsizer { position: absolute; z-index: 2; top: 0; bottom: 0; left: calc(clamp(320px, var(--nums-w, 548px), 100% - 312px) - 4px); width: 8px; cursor: col-resize; touch-action: none; outline: none; -webkit-app-region: no-drag; }
+.nsizer::after { content: ""; position: absolute; top: 0; bottom: 0; left: 3px; width: 2px; border-radius: var(--r-xs); background: transparent; transition: background var(--dur-1); }
+.nsizer:hover::after { background: rgb(var(--accent-rgb) / .45); transition-delay: .15s; }
+.nsizer.on::after { background: rgb(var(--accent-rgb) / .7); transition-delay: 0s; }
+.nsizer:focus-visible::after { background: var(--accent); }
+.nsizer.min { cursor: e-resize; }
+.nsizer.max { cursor: w-resize; }
+.nsizer.min.max { cursor: col-resize; }
+/* While it is dragged: the cursor stays whatever it passes over, nothing is selected, and no
+   frame takes the pointer (the report's page would otherwise keep it as it passes over). */
+.win:has(.nsizer.on), .win:has(.nsizer.on) * { cursor: col-resize !important; user-select: none; -webkit-user-select: none; }
+.win:has(.nsizer.on.min), .win:has(.nsizer.on.min) * { cursor: e-resize !important; }
+.win:has(.nsizer.on.max), .win:has(.nsizer.on.max) * { cursor: w-resize !important; }
+.win:has(.nsizer.on.min.max), .win:has(.nsizer.on.min.max) * { cursor: col-resize !important; }
+.win:has(.nsizer.on) iframe { pointer-events: none; }
