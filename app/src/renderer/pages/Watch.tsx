@@ -486,7 +486,7 @@ export function Watch({ refresh, focus, onOpenReport, onNotify, onSubtitle }: Wa
         )}
       </nav>
 
-      {page.prices_note && <p className="notice">{page.prices_note}</p>}
+      {page.prices_note && <p className="notice">{readable(page.prices_note)}</p>}
 
       {looks.length > 0 ? (
         <div className="attn" role="region" aria-label="Needs a look">
@@ -579,7 +579,7 @@ export function Watch({ refresh, focus, onOpenReport, onNotify, onSubtitle }: Wa
         <div className="wsplit">
           {listColumn}
           {compareOn ? (
-            <Compare rows={page.rows.filter((r) => ticked.includes(r.cik))} order={ticked} onClear={() => setTicked([])} />
+            <Compare rows={page.rows.filter((r) => ticked.includes(r.cik))} order={ticked} onClear={() => setTicked([])} onRemove={(cik) => setTicked((t) => t.filter((c) => c !== cik))} />
           ) : row ? (
             <Detail
               key={row.cik}
@@ -943,7 +943,7 @@ function Detail({ row, lists, listsOpen, onListsOpen, newFor, onNewFor, newField
 
 // ---------- 2 to 6 ticked: the Prediction log's compare chart ----------
 
-function Compare({ rows, order, onClear }: { rows: WatchRow[]; order: number[]; onClear: () => void }) {
+function Compare({ rows, order, onClear, onRemove }: { rows: WatchRow[]; order: number[]; onClear: () => void; onRemove: (cik: number) => void }) {
   const [range, setRange] = useState<CompareRange>('3M')
   const [prices, setPrices] = useState<{ key: string; data: PredictionPrices | null } | null>(null)
   const drawnLast = useRef<CompareSeries | null>(null)
@@ -983,7 +983,7 @@ function Compare({ rows, order, onClear }: { rows: WatchRow[]; order: number[]; 
       </div>
       <div className="logv">
         {series ? (
-          <CompareChart series={series} range={range} loading={!fresh} stale={!fresh} picked={picks.length} onRange={setRange} onRemove={() => undefined} />
+          <CompareChart series={series} range={range} loading={!fresh} stale={!fresh} picked={picks.length} onRange={setRange} onRemove={(key) => onRemove(Number(key))} />
         ) : (
           <p className="loading fine">
             <Spinner />

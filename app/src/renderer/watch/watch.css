@@ -117,7 +117,7 @@
 /* the price chart (watch/PriceChart.tsx) */
 .watchv .wchart svg { display: block; width: 100%; height: auto; }
 .watchv .wchart text { font-family: var(--ui); }
-.watchv .wchart .gl { fill: var(--muted); font-size: var(--fs-xs); }
+.watchv .wchart .gl { fill: var(--muted); stroke: none; font-size: var(--fs-xs); }
 .watchv .wchart .gy { stroke: rgb(var(--ink) / .07); }
 .watchv .wchart .gz, .watchv .wchart .when { stroke: rgb(var(--ink) / .25); }
 .watchv .wchart .when { stroke-dasharray: 2 3; }
@@ -126,13 +126,13 @@
 .watchv .wchart .price { stroke: var(--c-co); stroke-width: 1.8; }
 .watchv .wchart .dot { fill: var(--c-co); stroke: var(--base); stroke-width: 1.5; }
 .watchv .wchart .band { fill: rgb(var(--accent-rgb) / .09); }
-.watchv .wchart .hi { stroke: var(--up); stroke-dasharray: 3 3; }
-.watchv .wchart .lo { stroke: var(--down); stroke-dasharray: 3 3; }
-.watchv .wchart .mid { stroke: var(--text); stroke-width: 1.4; stroke-dasharray: 5 3; }
+.watchv .wchart path.hi { stroke: var(--up); stroke-dasharray: 3 3; }
+.watchv .wchart path.lo { stroke: var(--down); stroke-dasharray: 3 3; }
+.watchv .wchart path.mid { stroke: var(--text); stroke-width: 1.4; stroke-dasharray: 5 3; }
 .watchv .wchart text.hi { fill: var(--up); }
 .watchv .wchart text.lo { fill: var(--down); }
 .watchv .wchart text.mid { fill: var(--text); }
-.watchv .wchart .flip { stroke: var(--hold); stroke-dasharray: 2 4; }
+.watchv .wchart line.flip { stroke: var(--hold); stroke-dasharray: 2 4; }
 .watchv .wchart text.flip { fill: var(--hold); stroke: none; }
 .watchv .wchart .guide { stroke: rgb(var(--ink) / .35); }
 .watchv .wread { margin: 4px 0 0; min-height: 1.5em; font-size: var(--fs-sm); color: var(--muted); }

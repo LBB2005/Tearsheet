@@ -66,6 +66,9 @@ export function PriceChart({ row, dates, close, span }: PriceChartProps) {
     const fanStart = ri >= 0 ? ri : n - 1
     const fanX = (k: number) => x(fanStart + ((slots - 1 - fanStart) * k) / 24)
     const fanPath = (vals: number[]) => vals.map((v, k) => `${k ? 'L' : 'M'}${fanX(k).toFixed(1)} ${y(v).toFixed(1)}`).join('')
+    // The shaded range: along the high, then back along the low, each point at its own x.
+    const bandPath = (hi: number[], lo: number[]) =>
+      [...hi.map((v, k) => [fanX(k), y(v)]), ...lo.map((v, k) => [fanX(k), y(v)]).reverse()].map(([px, py], k) => `${k ? 'L' : 'M'}${px.toFixed(1)} ${py.toFixed(1)}`).join('') + 'Z'
     const months: { i: number; label: string }[] = []
     let last = ''
     ds.forEach((d, i) => {
@@ -74,11 +77,11 @@ export function PriceChart({ row, dates, close, span }: PriceChartProps) {
       last = m
     })
     const every = Math.ceil(months.length / 7)
-    return { ds, cs, n, slots, ri, f, flip, lo, hi, x, y, line, fanPath, fanStart, months: months.filter((_, k) => k % every === 0), ticks: niceTicks(lo, hi, 4) }
+    return { ds, cs, n, slots, ri, f, flip, lo, hi, x, y, line, fanPath, bandPath, fanStart, months: months.filter((_, k) => k % every === 0), ticks: niceTicks(lo, hi, 4) }
   }, [dates, close, span, lv, row])
 
   if (drawn.n < 2) return <p className="wempty">Not enough closes stored to draw a chart yet.</p>
-  const { ds, cs, n, slots, ri, f, flip, x, y, line, fanPath, months, ticks } = drawn
+  const { ds, cs, n, slots, ri, f, flip, x, y, line, fanPath, bandPath, months, ticks } = drawn
   const futureX = x(n - 1)
 
   const onMove = (e: React.MouseEvent<SVGSVGElement>) => {
@@ -111,7 +114,7 @@ export function PriceChart({ row, dates, close, span }: PriceChartProps) {
             <text className="gl" x={futureX + 6} y={T + 12}>
               Next 12 months
             </text>
-            <path className="band" d={`${fanPath(f.bull)}${fanPath([...f.bear].reverse()).replace(/^M/, 'L')}Z`} />
+            <path className="band" d={bandPath(f.bull, f.bear)} />
             <path className="hi" d={fanPath(f.bull)} />
             <path className="lo" d={fanPath(f.bear)} />
             <path className="mid" d={fanPath(f.base)} />
