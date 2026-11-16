@@ -170,7 +170,7 @@ export function useRun({ page, target, go, notify, loadCompanies, loadTools, ope
         setReadyHold(true)
       } else if (note.method === 'run_failed') {
         if (!mine) return
-        track({ ...r, failure: { message: p.message, code: p.code, resetAt: p.reset_at, fix: p.fix_command, step: p.step } })
+        track({ ...r, failure: { message: p.message, code: p.code, resetAt: p.reset_at, fix: p.fix_command, step: p.step, resumable: p.resumable === true } })
         setReadyHold(false)
         if (p.code === 'AUTH_EXPIRED') loadTools(true)
         if (p.code === 'LOCKDOWN_FAILED') onLockdownFailed(p.message)
@@ -181,8 +181,9 @@ export function useRun({ page, target, go, notify, loadCompanies, loadTools, ope
         }
         go('home')
       } else if (note.method === 'engine_restarted') {
-        // A restart ends the run with it, if it was still going.
-        if (r && !r.reportId && !r.failure) track({ ...r, failure: { message: 'The engine stopped and was restarted. You can resume the run.', code: 'ENGINE_ERROR' } })
+        // A restart ends the run with it, if it was still going: the engine marks it interrupted,
+        // which Resume takes.
+        if (r && !r.reportId && !r.failure) track({ ...r, failure: { message: 'The engine stopped and was restarted. You can resume the run.', code: 'ENGINE_ERROR', resumable: true } })
       }
 
       // A report in the line is ready. It doesn't open by itself unless it is the last one and

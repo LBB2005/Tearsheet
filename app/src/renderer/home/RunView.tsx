@@ -4,7 +4,9 @@
 // took, the time so far and about how long is left (paced by time, shared/pace.ts). When the
 // report is ready it waits on a Done card until Open the report. If the run stops (the plan's
 // usage limit, a sign-out, the engine restarting), a red box shows the engine's message and the
-// reset time, with Resume (or, when the safety check stopped it, the check). Cancel run sits in
+// reset time, with Resume (or, when the safety check stopped it, the check). A run that failed
+// (no network, SEC blocking, any engine error) can't resume, so it offers Start again: a new
+// report on the company, after the same confirm as Refresh (UI sweep, 15 Nov 2026). Cancel run sits in
 // the toolbar (App.tsx). Under the receipt, the line's strip says what is up next. Its only motion is the working stage's small spinner and the bars
 // sliding, none of it under Reduce motion (styles.css). The logic is in run.ts.
 
@@ -52,6 +54,9 @@ export interface RunViewProps {
   // "The button is on": Sign in again runs inside Tearsheet; off, it copies the paste command.
   buttonOn: boolean
   onResume: () => void
+  // A new report on the company, for a run that can't resume. Without it (the company isn't
+  // known, as in a test copy), the box has no button: the engine's message says why.
+  onStartAgain?: () => void
   onRecheck: () => void
   onOpen: () => void
   // The line's strip (home/LineParts.tsx): what is up next, or how each of its reports went.
@@ -61,7 +66,7 @@ export interface RunViewProps {
   waiting?: string
 }
 
-export function RunView({ run, ready, resuming, safety, tool, buttonOn, onResume, onRecheck, onOpen, strip, waiting }: RunViewProps) {
+export function RunView({ run, ready, resuming, safety, tool, buttonOn, onResume, onStartAgain, onRecheck, onOpen, strip, waiting }: RunViewProps) {
   const done = runStep(run, ready) === TOTAL
   const failure = run.failure
   const now = useNow(!done && !failure)
@@ -72,11 +77,16 @@ export function RunView({ run, ready, resuming, safety, tool, buttonOn, onResume
   }, [done])
 
   const lockedOut = failure?.code === 'LOCKDOWN_FAILED'
-  let fix = (
+  const resumable = failure?.resumable !== false
+  let fix: ReactNode = resumable ? (
     <button className="btn2" disabled={resuming} onClick={onResume}>
       {resuming ? 'Resuming…' : 'Resume'}
     </button>
-  )
+  ) : onStartAgain ? (
+    <button className="btn2" onClick={onStartAgain}>
+      Start again
+    </button>
+  ) : null
   if (lockedOut && safety === 'failed')
     fix = (
       <button className="btn2" onClick={onRecheck}>
@@ -107,8 +117,9 @@ export function RunView({ run, ready, resuming, safety, tool, buttonOn, onResume
             <span>{failure.message}</span>
             {failure.resetAt && !waiting && <span>Your usage resets at {resetTime(failure.resetAt)}.</span>}
             {waiting && <span>{waiting} Or resume it now.</span>}
+            {!resumable && onStartAgain && <span>It can’t carry on from where it stopped. Start again writes a new report on the company.</span>}
             {failure.fix && <SignInAgain kind={tool} buttonOn={buttonOn} />}
-            {lockedOut && safety !== 'ok' && <span>Resume comes back once the safety check passes.</span>}
+            {lockedOut && safety !== 'ok' && <span>{resumable ? 'Resume' : 'Start again'} comes back once the safety check passes.</span>}
             {run.reportId && <span>The report so far is saved, and opens from the sidebar.</span>}
           </div>
           {fix}

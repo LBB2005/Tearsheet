@@ -139,6 +139,34 @@ def test_a_stopped_run_says_so_before_its_report_so_far(tmp_path):
     order = [m["method"] for m in h.messages if m.get("method") in ("run_failed", "report_ready")]
     assert order == ["run_failed", "report_ready"]
     assert h.notes("run_failed")[0]["step"] == "narrate"
+    assert h.notes("run_failed")[0]["resumable"] is True  # the app offers Resume
+    h.server.close()
+
+
+def test_a_failed_run_says_it_cant_resume_and_resume_refuses_it(tmp_path):
+    """SEC blocking part-way (or no network, or any error) fails the run: run_failed says it
+    can't resume, so the app offers Start again, and Resume would refuse it (UI sweep #2)."""
+    from tearsheet.http import SECBlocked
+    from tests.test_pipeline import FakeData
+
+    class Blocked(FakeData):
+        async def form4_trades(self, cik, *, today):
+            raise SECBlocked("sec", "https://www.sec.gov/x/form4.xml", "HTTP 403", 403)
+
+    h = Harness(tmp_path, data_cls=Blocked)
+
+    async def go():
+        await h.server.start()
+        started = await h.call("run_report", {"query": "T0"})
+        await h.finish()
+        refused = await h.call("resume", {"run_id": started["result"]["run_id"]}, id_=2)
+        return refused
+
+    refused = run(go())
+    failed = h.notes("run_failed")
+    assert len(failed) == 1 and failed[0]["code"] == "SEC_BLOCKED"
+    assert failed[0]["resumable"] is False
+    assert refused["error"]["data"]["code"] == "NOT_RESUMABLE"
     h.server.close()
 
 
