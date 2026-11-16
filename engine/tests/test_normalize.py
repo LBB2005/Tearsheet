@@ -388,3 +388,87 @@ def test_the_newest_period_leaves_out_proxy_statements():
     assert newest_period(facts({"Revenues": ("USD", rows)}), as_of=date(2026, 8, 1)) == date(
         2026, 3, 28
     )
+
+
+# --- a REIT's revenue: lease income -------------------------------------------------------
+# Camden (CPT, 2026): its "Property revenues" are tagged only OperatingLeaseLeaseIncome, and
+# its small fee income as revenue from contracts with customers, so contract revenue alone read
+# $14.9M for $1.55B and its operating margin 8627.9%.
+CAMDEN_LIKE = {
+    "OperatingLeaseLeaseIncome": REVENUE,
+    "RevenueFromContractWithCustomerExcludingAssessedTax": _scaled(REVENUE, 0.01),
+}
+
+
+def test_a_reits_rent_is_its_revenue_when_it_tags_no_total():
+    f = Financials(facts(CAMDEN_LIKE), as_of=date(2026, 6, 1), reit=True)
+    assert f.ttm("revenue").tag == "OperatingLeaseLeaseIncome"
+    assert f.ttm("revenue").value == pytest.approx(430.0)
+    assert [v.tag for v in f.annual("revenue")] == ["OperatingLeaseLeaseIncome"]
+    assert f.annual("revenue")[-1].value == 400.0
+
+
+def test_a_reit_with_only_lease_income_has_revenue():
+    # Equity Residential (now Vivmark) tags its rent only as lease income: no revenue at all
+    # before.
+    f = Financials(facts({"OperatingLeaseLeaseIncome": REVENUE}), as_of=date(2026, 6, 1), reit=True)
+    assert f.ttm("revenue").value == pytest.approx(430.0)
+
+
+def test_a_reits_contract_revenue_is_kept_when_it_is_the_larger():
+    # Alexandria tags its whole revenue, rent included, as contract revenue: the larger, not
+    # the sum, so the rent isn't counted twice.
+    f = Financials(
+        facts(
+            {
+                "RevenueFromContractWithCustomerIncludingAssessedTax": REVENUE,
+                "LeaseIncome": _scaled(REVENUE, 0.95),
+                "OperatingLeaseLeaseIncome": _scaled(REVENUE, 0.94),
+            }
+        ),
+        as_of=date(2026, 6, 1),
+        reit=True,
+    )
+    assert f.ttm("revenue").tag == "RevenueFromContractWithCustomerIncludingAssessedTax"
+    assert f.ttm("revenue").value == pytest.approx(430.0)
+    assert f.annual("revenue")[-1].tag == "RevenueFromContractWithCustomerIncludingAssessedTax"
+
+
+def test_a_reits_total_revenue_still_comes_first():
+    f = Financials(
+        facts({"Revenues": REVENUE, "OperatingLeaseLeaseIncome": _scaled(REVENUE, 0.97)}),
+        as_of=date(2026, 6, 1),
+        reit=True,
+    )
+    assert f.ttm("revenue").tag == "Revenues"
+    assert f.annual("revenue")[-1].tag == "Revenues"
+
+
+def test_a_reits_lease_income_for_an_older_period_does_not_win():
+    old = ("USD", [fact("2024-09-29", "2025-09-27", 900.0, "2025-10-31", form="10-K", fp="FY")])
+    f = Financials(
+        facts(
+            {
+                "OperatingLeaseLeaseIncome": old,
+                "RevenueFromContractWithCustomerExcludingAssessedTax": REVENUE,
+            }
+        ),
+        as_of=date(2026, 6, 1),
+        reit=True,
+    )
+    assert f.ttm("revenue").tag == "RevenueFromContractWithCustomerExcludingAssessedTax"
+    assert f.ttm("revenue").end == date(2026, 3, 28)
+
+
+def test_lease_income_is_not_revenue_for_other_companies():
+    # A bank or a utility (Fifth Third, DTE) with no revenue tag but a small lease income, and a
+    # company whose contract revenue already includes its rent (Intuitive Surgical).
+    bank = Financials(
+        facts({"OperatingLeaseLeaseIncome": _scaled(REVENUE, 0.02)}), as_of=date(2026, 6, 1)
+    )
+    assert bank.ttm("revenue") is None
+    assert bank.annual("revenue") == []
+    camden_not_reit = Financials(facts(CAMDEN_LIKE), as_of=date(2026, 6, 1))
+    assert camden_not_reit.ttm("revenue").tag == (
+        "RevenueFromContractWithCustomerExcludingAssessedTax"
+    )

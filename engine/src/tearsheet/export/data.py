@@ -311,10 +311,12 @@ def _history(
     if started.tzinfo is None:
         started = started.replace(tzinfo=UTC)
     store = PriceStore(conn)
+    kind = conn.execute("SELECT financial_class FROM companies WHERE cik = ?", (cik,)).fetchone()
     fin = Financials(
         facts,
         as_of=started.astimezone(UTC).date(),
         split_factor=lambda after, up_to: store.split_factor(cik, after=after, up_to=up_to),
+        reit=bool(kind) and kind[0] == "reit",
     )
     years = [v.end for v in (fin.annual("revenue") or fin.annual("net_income"))][-3:]
     annual: dict[str, list[Figure | None]] = {}

@@ -885,21 +885,23 @@ class Run:
                 continue
             facts = await self._with_predecessors(cik, facts)
             facts = await self._with_newer_report(cik, facts)
-            member.fin = Financials(
-                facts,
-                as_of=self.today,
-                split_factor=lambda after, up_to, c=cik: self.store.split_factor(
-                    c, after=after, up_to=up_to
-                ),
-            )
-            member.price = self.store.latest_close(cik, up_to=self.price_date)
-            await self._cover_shares(member)
+            # The class first: a REIT's revenue is read the REIT way (normalize.REIT_REVENUE).
             if cik == self.cik:
                 member.financial_class = self.company_class
             elif financial_sector:
                 subs = await self.data.submissions(cik)
                 sic = int(subs["sic"]) if str(subs.get("sic") or "").isdigit() else None
                 member.financial_class = financial_class(sic, cik, self.method.peers)
+            member.fin = Financials(
+                facts,
+                as_of=self.today,
+                split_factor=lambda after, up_to, c=cik: self.store.split_factor(
+                    c, after=after, up_to=up_to
+                ),
+                reit=member.financial_class == "reit",
+            )
+            member.price = self.store.latest_close(cik, up_to=self.price_date)
+            await self._cover_shares(member)
             self.members[cik] = member
         self.group = group
         self._tally(facts=len(members))

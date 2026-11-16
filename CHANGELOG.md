@@ -19,6 +19,10 @@ All notable changes to Tearsheet are listed here. The format follows
 
 ### Fixed
 
+- A REIT that tags its rent only as lease income now has the right revenue. Camden's read $15M
+  for $1.55B (an operating margin of 8,627.9%), and Equity Residential's was blank. A REIT with no
+  total revenue tag now takes the larger of its lease income and its contract revenue. Other
+  companies are unchanged. METHOD_CODE_VERSION is 4.
 - CI's engine lint step (a formatting slip in a test file).
 
 ## [0.1.0-beta] - 2026-11-11

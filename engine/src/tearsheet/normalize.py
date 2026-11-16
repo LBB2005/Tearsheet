@@ -81,6 +81,22 @@ FLOW: dict[str, tuple[str, ...]] = {
     # Per-share; trailing 12 months the same way (the four quarters' figures add up closely).
     "diluted_eps": ("EarningsPerShareDiluted",),
 }
+# A REIT's rent is lease income, which is not revenue from contracts with customers. Most REITs
+# tag a total; one that tags none files its rent only as lease income (Camden's "Property
+# revenues" is OperatingLeaseLeaseIncome, its $15M of contract revenue is fee income), and
+# contract revenue alone read $15M for $1.55B. So for a REIT with no total, revenue is the
+# largest of its lease income and contract revenue for the newest period: the main line. The
+# larger, not the sum: a REIT may tag its whole revenue as contract revenue, rent included
+# (Alexandria). Lease income is left out for other companies: a bank's or a utility's small
+# lease income is no stand-in for revenue, and other companies' totals already include it.
+TOTAL_REVENUE_TAGS = ("RevenuesNetOfInterestExpense", "Revenues")
+REIT_REVENUE: tuple[str, ...] = (
+    *TOTAL_REVENUE_TAGS,
+    "LeaseIncome",
+    "OperatingLeaseLeaseIncome",
+    "OperatingLeasesIncomeStatementLeaseRevenue",
+    *(t for t in FLOW["revenue"] if t not in TOTAL_REVENUE_TAGS),
+)
 AVERAGE: dict[str, tuple[str, ...]] = {
     "diluted_shares": (
         "WeightedAverageNumberOfDilutedSharesOutstanding",
@@ -237,7 +253,8 @@ def newest_period(company_facts: dict[str, Any], *, as_of: date) -> date | None:
 
 
 class Financials:
-    """One company's normalized facts as of a run date."""
+    """One company's normalized facts as of a run date. `reit` reads a REIT's revenue the
+    REIT way (REIT_REVENUE)."""
 
     def __init__(
         self,
@@ -245,8 +262,10 @@ class Financials:
         *,
         as_of: date,
         split_factor: Callable[[date, date], float] | None = None,
+        reit: bool = False,
     ):
         self.as_of = as_of
+        self.reit = reit
         self.name = company_facts.get("entityName", "")
         # Plain-language notes on any filed value the code put right (a share count's scale).
         self.corrections: list[str] = []
@@ -288,6 +307,19 @@ class Financials:
         if company is not None:
             newest = max(newest, company)
         return [t for t, end in present if newest - end <= STALE_TAG]
+
+    def _flow_tags(self, item: str) -> tuple[str, ...]:
+        if item == "revenue" and self.reit:
+            return REIT_REVENUE
+        return FLOW.get(item, ())
+
+    def _pick(self, item: str, at_newest: list[Value]) -> Value:
+        """Of the values for the newest period (in order of preference), the one to use: the
+        first, except a REIT's revenue with no total, which is the largest (REIT_REVENUE)."""
+        best = at_newest[0]
+        if item == "revenue" and self.reit and best.tag not in TOTAL_REVENUE_TAGS:
+            best = max(at_newest, key=lambda v: v.value)
+        return best
 
     # --- flow items -------------------------------------------------------------------------
 
@@ -336,13 +368,12 @@ class Financials:
         )
 
     def _ttm_item(self, item: str, ending_by: date | None) -> Value | None:
-        results = [
-            v for v in (self._ttm_from(t, ending_by) for t in self._candidates(FLOW[item])) if v
-        ]
+        tags = self._candidates(self._flow_tags(item))
+        results = [v for v in (self._ttm_from(t, ending_by) for t in tags) if v]
         if not results:
             return None
         newest = max(v.end for v in results)
-        best = next(v for v in results if v.end == newest)
+        best = self._pick(item, [v for v in results if v.end == newest])
         return Value(item, best.value, best.tag, best.end, best.filed, best.start, best.accn)
 
     def ttm(self, item: str, *, ending_by: date | None = None) -> Value | None:
@@ -412,17 +443,21 @@ class Financials:
 
     def annual(self, item: str) -> list[Value]:
         """Fiscal-year values, oldest first, from the preferred tag that has the latest year."""
-        tags = FLOW.get(item, ())
-        best: list[Value] = []
-        for tag in self._candidates(tags):
+        series: list[list[Value]] = []
+        for tag in self._candidates(self._flow_tags(item)):
             years = [
                 Value(item, f.value, tag, f.end, f.filed, f.start, f.accn)
                 for f in self._facts(tag)
                 if f.start and _is_annual(f.start, f.end)
             ]
-            if years and (not best or years[-1].end > best[-1].end):
-                best = years
-        return best
+            if years:
+                series.append(years)
+        if not series:
+            return []
+        newest = max(years[-1].end for years in series)
+        at_newest = {years[-1].tag: years for years in series if years[-1].end == newest}
+        best = self._pick(item, [years[-1] for years in at_newest.values()])
+        return at_newest[best.tag]
 
     def growth(self, item: str, *, years: int) -> float | None:
         """Compound annual growth over `years` fiscal years."""

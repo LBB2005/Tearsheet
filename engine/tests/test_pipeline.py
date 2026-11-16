@@ -943,6 +943,32 @@ def test_reits_use_residual_income_and_price_to_ffo(database, tmp_path):
     assert "approximation" in methods["price_to_ffo"].details["note"]
 
 
+class ReitsWithRentOnly(Reits):
+    """REITs that tag their rent only as lease income, and fee income as contract revenue
+    (Camden, 2026)."""
+
+    async def company_facts(self, cik):
+        facts = await super().company_facts(cik)
+        us = facts["facts"]["us-gaap"]
+        us["OperatingLeaseLeaseIncome"] = us.pop("Revenues")
+        fees = json.loads(json.dumps(us["OperatingLeaseLeaseIncome"]))
+        for row in fees["units"]["USD"]:
+            row["val"] *= 0.01
+        us["RevenueFromContractWithCustomerExcludingAssessedTax"] = fees
+        return facts
+
+
+def test_a_reits_rent_is_its_revenue_for_the_company_and_its_peers(database, tmp_path):
+    run, _ = run_full(database, tmp_path, data=ReitsWithRentOnly())
+    assert all(m.fin.reit for m in run.members.values())
+    company = run.members[COMPANY]
+    revenue = company.fin.ttm("revenue")
+    assert revenue.tag == "OperatingLeaseLeaseIncome"
+    # The 2025 year + this year to date − last year's (company 0: 3% growth), not 1% of it.
+    assert revenue.value == pytest.approx(1000.0 + 740.0 * 1.03 - 740.0)
+    assert company.metrics["operating_margin"].value < 1.0
+
+
 class WithInsiders(FakeData):
     async def form4_trades(self, cik, *, today):
         return [("Jane Director", date(2026, 9, 10), "P"), ("Sam Officer", date(2026, 9, 1), "S")]

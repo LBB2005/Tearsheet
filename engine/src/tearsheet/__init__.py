@@ -5,7 +5,7 @@ ENGINE_VERSION = "0.1.0-beta"
 
 # Raised whenever code that makes numbers changes (design, Technical Plan §6).
 # Raising PARSER_VERSION (item 23) raises it too.
-METHOD_CODE_VERSION = 3
+METHOD_CODE_VERSION = 4
 
 # Raised whenever an app-engine message changes (item 37).
 PROTOCOL_VERSION = 7
