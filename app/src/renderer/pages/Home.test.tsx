@@ -193,7 +193,7 @@ describe('problems at the top', () => {
     await user.type(field(), 'nv')
     await user.click(await hits().findByRole('option', { name: /NVDA/ }))
     await screen.findByRole('region', { name: 'Report progress' })
-    emit('run_failed', { run_id: 'run-new', message: 'Claude Code is signed out.', code: 'AUTH_EXPIRED', step: 'narrate', fix_command: 'claude auth login' })
+    emit('run_failed', { run_id: 'run-new', message: 'Claude Code is signed out.', code: 'AUTH_EXPIRED', step: 'narrate', fix_command: 'claude auth login', resumable: true })
     const box = within(await screen.findByRole('alert'))
     expect(box.queryByText(/claude auth login/)).toBeNull()
     await user.click(box.getByRole('button', { name: 'Sign in again' }))
@@ -287,7 +287,7 @@ describe('a report and the safety check', () => {
     const { user } = await renderApp()
     await pick(user)
     await screen.findByRole('region', { name: 'Report progress' })
-    emit('run_failed', { run_id: 'run-new', message: 'Network down.', code: 'ENGINE_ERROR', step: 'fetch' })
+    emit('run_failed', { run_id: 'run-new', message: 'You hit your usage limit.', code: 'USAGE_LIMIT', step: 'fetch', resumable: true })
     bridge.resume.mockResolvedValue(fail('The safety check is running.', 'SAFETY_CHECK_RUNNING'))
     await user.click(screen.getByRole('button', { name: 'Resume' }))
     expect(await screen.findByText('The safety check is running. Resume the report once it finishes.')).toBeInTheDocument()
@@ -404,7 +404,7 @@ describe('a report being written', () => {
     const { user } = await startNvda()
     emit('progress', { run_id: 'run-new', step_name: 'resolve', state: 'done' })
     menu('settings')
-    emit('run_failed', { run_id: 'run-new', message: 'You hit your usage limit.', code: 'USAGE_LIMIT', reset_at: '2026-11-07T18:00:00Z', step: 'fetch' })
+    emit('run_failed', { run_id: 'run-new', message: 'You hit your usage limit.', code: 'USAGE_LIMIT', reset_at: '2026-11-07T18:00:00Z', step: 'fetch', resumable: true })
     // A run that stops brings the home page back with the reason.
     expect(win()).toHaveClass('on-home')
     expect(screen.getByRole('alert')).toHaveTextContent('Your plan’s usage limit stopped the report')
@@ -423,7 +423,7 @@ describe('a report being written', () => {
 
   test('a resumed run takes the notes that came in while Resume was answered', async () => {
     const { user } = await startNvda()
-    emit('run_failed', { run_id: 'run-new', message: 'Network down.', code: 'ENGINE_ERROR', step: 'fetch' })
+    emit('run_failed', { run_id: 'run-new', message: 'You hit your usage limit.', code: 'USAGE_LIMIT', step: 'fetch', resumable: true })
     let answer: (v: unknown) => void = () => undefined
     bridge.resume.mockReturnValue(new Promise((r) => (answer = r)) as never)
     await user.click(screen.getByRole('button', { name: 'Resume' }))
@@ -450,6 +450,30 @@ describe('a report being written', () => {
     bridge.resume.mockResolvedValue(fail('That run is gone.'))
     await user.click(screen.getByRole('button', { name: 'Resume' }))
     expect(await screen.findByText('The report didn’t resume')).toBeInTheDocument()
+  })
+
+  test('a run that failed can’t resume: Start again asks first, then writes the company again', async () => {
+    // No network, SEC blocking, any engine error: the engine says the run can’t resume, so the
+    // red box offers Start again instead of a Resume it would refuse (UI sweep, 15 Nov 2026, #2).
+    const { user } = await startNvda()
+    emit('run_failed', { run_id: 'run-new', message: 'SEC refused the request.', code: 'SEC_BLOCKED', step: 'fetch', resumable: false })
+    const box = within(screen.getByRole('alert'))
+    expect(box.getByText('It can’t carry on from where it stopped. Start again writes a new report on the company.')).toBeInTheDocument()
+    expect(box.queryByRole('button', { name: 'Resume' })).toBeNull()
+    await user.click(box.getByRole('button', { name: 'Start again' }))
+    expect(bridge.resume).not.toHaveBeenCalled()
+    const sheet = within(await screen.findByRole('dialog'))
+    expect(bridge.planLine).toHaveBeenCalledWith(['NVDA'])
+    expect(bridge.addToLine).not.toHaveBeenCalled()
+    await user.click(await sheet.findByRole('button', { name: /^Write/ }))
+    expect(bridge.addToLine).toHaveBeenCalledWith(['NVDA'])
+  })
+
+  test('a stopped run still offers Resume', async () => {
+    await startNvda()
+    emit('run_failed', { run_id: 'run-new', message: 'You hit your usage limit.', code: 'USAGE_LIMIT', step: 'narrate', resumable: true })
+    expect(within(screen.getByRole('alert')).getByRole('button', { name: 'Resume' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Start again' })).toBeNull()
   })
 
   test('New report from a stopped run puts it away', async () => {
@@ -637,7 +661,7 @@ describe('Sign in again with the Install button on', () => {
     await user.type(field(), 'nv')
     await user.click(await hits().findByRole('option', { name: /NVDA/ }))
     await screen.findByRole('region', { name: 'Report progress' })
-    emit('run_failed', { run_id: 'run-new', message: 'Claude Code is signed out.', code: 'AUTH_EXPIRED', step: 'narrate', fix_command: 'claude auth login' })
+    emit('run_failed', { run_id: 'run-new', message: 'Claude Code is signed out.', code: 'AUTH_EXPIRED', step: 'narrate', fix_command: 'claude auth login', resumable: true })
     const box = within(await screen.findByRole('alert'))
     await user.click(box.getByRole('button', { name: 'Sign in again' }))
     expect(bridge.install).toHaveBeenCalledWith(['claude'])

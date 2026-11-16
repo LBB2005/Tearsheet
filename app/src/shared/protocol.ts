@@ -476,6 +476,7 @@ export type Code1 =
   | "TEST_COPY";
 export type ResetAt = string | null;
 export type FixCommand = string | null;
+export type Resumable = boolean;
 export type Ticker10 = string;
 export type Name13 = string;
 export type Official1 = boolean;
@@ -484,6 +485,7 @@ export type Outcome = ("ready" | "stopped" | "failed" | "cancelled") | null;
 export type ReportId15 = string | null;
 export type Code2 = string | null;
 export type Message1 = string | null;
+export type Resumable1 = boolean | null;
 export type Query2 = string;
 export type Reason1 = string;
 export type Kind2 = "unknown" | "twice" | "in_line" | "recent";
@@ -1679,6 +1681,7 @@ export interface RunFailedNote {
   code: Code1;
   reset_at?: ResetAt;
   fix_command?: FixCommand;
+  resumable?: Resumable;
 }
 /**
  * One company in the line.
@@ -1695,6 +1698,7 @@ export interface LineItem {
   report_id?: ReportId15;
   code?: Code2;
   message?: Message1;
+  resumable?: Resumable1;
 }
 /**
  * A company left out of the line, and why. `kind` groups them: not found, listed twice,

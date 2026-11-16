@@ -14,6 +14,10 @@ export interface RunFailure {
   fix?: string | null
   // The step the engine says the run stopped at (run_failed's `step`), if it named one.
   step?: string | null
+  // Whether Resume can carry the run on (run_failed's `resumable`). A stopped run can; one that
+  // failed (no network, SEC blocking, any engine error) can't, and starts again instead.
+  // Left out: it can (Resume, as before the engine said).
+  resumable?: boolean
 }
 
 // What the engine's notes have said about a run so far.

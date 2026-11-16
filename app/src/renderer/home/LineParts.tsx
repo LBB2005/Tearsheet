@@ -42,6 +42,7 @@ import {
   someNames,
   USAGE_WEEK,
   waitsByItself,
+  writesAgain,
   waitText,
   type PlanAsk
 } from './line'
@@ -356,7 +357,7 @@ export function LineStrip({ line, runId, perReport, onRemove, onAdd, onCancelAll
         )}
         {pause && !byItself && pause.code !== USAGE_WEEK && (
           <p className="why">
-            {checkPause && pause ? safetyPauseText(pause.code, pause.message) : `The line is paused. Resume carries on with this report, then the ${n === 1 ? 'one' : n.toLocaleString('en-US')} waiting.`}
+            {checkPause && pause ? safetyPauseText(pause.code, pause.message) : pausedWhy(line, n)}
           </p>
         )}
         {n > 0 ? (
@@ -396,7 +397,7 @@ export function LineStrip({ line, runId, perReport, onRemove, onAdd, onCancelAll
           )}
           {pause && !safe && pause.code !== USAGE_WEEK && n > 0 && (
             <button className="btn2" onClick={onCarryOn}>
-              {byItself && !pause.run_id ? 'Carry on now' : 'Skip it and carry on'}
+              {pause.run_id ? 'Skip it and carry on' : byItself ? 'Carry on now' : 'Carry on'}
             </button>
           )}
           <ConfirmButton
@@ -427,6 +428,16 @@ export function LineStrip({ line, runId, perReport, onRemove, onAdd, onCancelAll
       {line.finished.length > FOLD_DONE && <Fold open={allDone} total={line.finished.length} onToggle={() => setAllDone((on) => !on)} />}
     </section>
   )
+}
+
+// Why the line waits, and what going on does: Resume carries on with the stopped report; a
+// report that can't resume (it failed, or never started) is written again by Carry on.
+function pausedWhy(line: LineState, n: number): string {
+  const rest = `the ${n === 1 ? 'one' : n.toLocaleString('en-US')} waiting`
+  if (line.paused?.run_id) return `The line is paused. Resume carries on with this report, then ${rest}.`
+  const again = writesAgain(line)
+  if (again) return `The line is paused. Carry on starts ${again.ticker} again, then ${rest}.`
+  return `The line is paused. Carry on goes on with ${rest}.`
 }
 
 function DoneRow({ item, onOpen }: { item: LineItem; onOpen: (reportId: string) => void }) {

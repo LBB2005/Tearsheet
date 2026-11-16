@@ -16,7 +16,7 @@ import type { ToolKind } from '../shared/tools'
 import type { CompanyRow, GradeResult, SearchHit, SettingsResult } from '../shared/protocol'
 import { bootView, GIVE_UP_AFTER_MS, STARTING_AFTER_MS } from './boot'
 import { forgetOldChartPrefs, setSidebarHidden, sidebarHidden } from './chart/prefs'
-import { perReportOf, usualReport, waitsForCheck, waitText } from './home/line'
+import { perReportOf, usualReport, waitsForCheck, waitText, writesAgain } from './home/line'
 import { ConfirmButton } from './home/Confirm'
 import { LineAdder, LinePaused, LineStrip, LineWaiting } from './home/LineParts'
 import { runTitle } from './home/run'
@@ -582,6 +582,13 @@ export function App() {
             ? runTitle(runView, report.readyHold, leftText(paced?.left ?? 0))
             : {}
 
+  // Start again, for a run that failed and can't resume: a new report on the company, after the
+  // Refresh confirm. When the line is paused on it, Carry on writes it again first, then the rest.
+  const startAgain = (runId: string, ticker: string) => {
+    if (writesAgain(report.line, runId)) return void report.carryOn()
+    setRefreshing([{ ticker, created_at: companies.find((c) => c.ticker === ticker)?.created_at ?? null }])
+  }
+
   let content = null
   if (page === 'home')
     content = runView ? (
@@ -593,6 +600,7 @@ export function App() {
         tool={toolKind}
         buttonOn={buttonOn === true}
         onResume={() => void report.resume()}
+        onStartAgain={runView.ticker ? () => startAgain(runView.runId, runView.ticker as string) : undefined}
         onRecheck={recheckOrSay}
         onOpen={report.openReady}
         waiting={report.line?.paused?.wait_until && report.line.paused.run_id === runView.runId ? waitText(report.line.paused) : undefined}

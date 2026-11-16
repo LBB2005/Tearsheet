@@ -231,6 +231,9 @@ def test_a_usage_limit_then_resume(database, tmp_path, monkeypatch):
     )
     stopped = asyncio.run(run.run("T0"))
     assert stopped.status == "stopped"
+    from tearsheet.pipeline import resumable
+
+    assert resumable(database.conn, "run-y")  # what run_failed tells the app
     extracted = [r.task for r in first.requests].count("extract")
     assert extracted > 0
 
@@ -256,6 +259,7 @@ def test_a_usage_limit_then_resume(database, tmp_path, monkeypatch):
     ]
     assert complete == [0, 1]
     assert database.conn.execute("SELECT COUNT(*) FROM runs").fetchone()[0] == 1
+    assert not resumable(database.conn, "run-y")  # done: nothing left to carry on
 
     with database.conn:
         database.conn.execute("UPDATE runs SET status = 'running' WHERE run_id = 'run-y'")
@@ -266,12 +270,21 @@ def test_a_usage_limit_then_resume(database, tmp_path, monkeypatch):
 def test_only_stopped_or_interrupted_runs_resume(database, tmp_path, monkeypatch):
     import pytest
 
-    from tearsheet.pipeline import resume_run
+    from tearsheet.pipeline import resumable, resume_run, why_not_resumable
     from tearsheet.replay import ReplayError
 
     logged_run(database, tmp_path, monkeypatch)
     with pytest.raises(ReplayError, match="can't be resumed"):
         resume_run(database.conn, "run-x", raw_dir=tmp_path / "data" / "raw", ai=None, out_dir=None)
+    # The same check says so up front, for run_failed's `resumable` (UI sweep, 15 Nov 2026, #2).
+    assert not resumable(database.conn, "run-x")
+    with database.conn:
+        database.conn.execute("UPDATE runs SET status = 'failed' WHERE run_id = 'run-x'")
+    assert "is failed, so it can't be resumed" in why_not_resumable(database.conn, "run-x")
+    with database.conn:
+        database.conn.execute("UPDATE runs SET status = 'stopped' WHERE run_id = 'run-x'")
+    assert resumable(database.conn, "run-x")
+    assert "No run" in why_not_resumable(database.conn, "no-such-run")
 
 
 def test_the_resume_command_with_an_unknown_run(tmp_path):

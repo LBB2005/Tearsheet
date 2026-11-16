@@ -2723,6 +2723,42 @@ def mark_interrupted(conn: sqlite3.Connection) -> int:
         ).rowcount
 
 
+def _stored_copies(conn: sqlite3.Connection, run_id: str) -> dict[str, str]:
+    """The run's own copies of the methodology and reference files, by name."""
+    return {
+        r[0].split("/", 1)[0].removeprefix("tearsheet:"): r[1]
+        for r in conn.execute(
+            "SELECT request_key, raw_hash FROM fetch_log WHERE run_id = ? AND request_key LIKE 'tearsheet:%'",
+            (run_id,),
+        )
+    }
+
+
+def why_not_resumable(conn: sqlite3.Connection, run_id: str) -> str | None:
+    """Why Resume would refuse the run, or None if it can carry on. Only a stopped or interrupted
+    run that got past step 1 with its methodology stored can: a failed one (network loss, SEC
+    blocking, any error) starts again instead (UI sweep, 15 Nov 2026, #2)."""
+    run = conn.execute("SELECT status FROM runs WHERE run_id = ?", (run_id,)).fetchone()
+    if run is None:
+        return f"No run {run_id} in this data folder."
+    if run[0] not in ("stopped", "interrupted"):
+        return f"Run {run_id} is {run[0]}, so it can't be resumed; start a new run instead."
+    copies = _stored_copies(conn, run_id)
+    if "methodology" not in copies or "reference" not in copies:
+        return f"Run {run_id} has no stored methodology copy, so it can't be resumed."
+    resolved = conn.execute(
+        "SELECT 1 FROM step_outputs WHERE run_id = ? AND step = 'resolve'", (run_id,)
+    ).fetchone()
+    if resolved is None:
+        return f"Run {run_id} stopped before step 1 finished; start a new run instead."
+    return None
+
+
+def resumable(conn: sqlite3.Connection, run_id: str) -> bool:
+    """Whether Resume would take the run (`why_not_resumable`)."""
+    return why_not_resumable(conn, run_id) is None
+
+
 def prepare_resume(
     conn: sqlite3.Connection,
     run_id: str,
@@ -2741,30 +2777,17 @@ def prepare_resume(
     from tearsheet.rawstore import RawStore
     from tearsheet.replay import ReplayData, ReplayError
 
+    why = why_not_resumable(conn, run_id)
+    if why is not None:
+        raise ReplayError(why)
     run = conn.execute("SELECT * FROM runs WHERE run_id = ?", (run_id,)).fetchone()
-    if run is None:
-        raise ReplayError(f"No run {run_id} in this data folder.")
-    if run["status"] not in ("stopped", "interrupted"):
-        raise ReplayError(
-            f"Run {run_id} is {run['status']}, so it can't be resumed; start a new run instead."
-        )
-    copies = {
-        r[0].split("/", 1)[0].removeprefix("tearsheet:"): r[1]
-        for r in conn.execute(
-            "SELECT request_key, raw_hash FROM fetch_log WHERE run_id = ? AND request_key LIKE 'tearsheet:%'",
-            (run_id,),
-        )
-    }
-    if "methodology" not in copies or "reference" not in copies:
-        raise ReplayError(f"Run {run_id} has no stored methodology copy, so it can't be resumed.")
+    copies = _stored_copies(conn, run_id)
     method = from_stored(
         RawStore.read(raw_dir, copies["methodology"]), RawStore.read(raw_dir, copies["reference"])
     )
     resolved = conn.execute(
         "SELECT json FROM step_outputs WHERE run_id = ? AND step = 'resolve'", (run_id,)
     ).fetchone()
-    if resolved is None:
-        raise ReplayError(f"Run {run_id} stopped before step 1 finished; start a new run instead.")
     resolved = json.loads(resolved[0])
     data = ReplayData(conn, raw_dir, run_id, resolved)
     again = Run(

@@ -146,16 +146,32 @@ describe('the line being written', () => {
 
   test('a usage limit pauses the line; Resume carries on, or skip past the stopped report', async () => {
     const { user } = await startLine()
-    emit('run_failed', { run_id: 'run-l1', step: 'narrate', code: 'USAGE_LIMIT', message: 'Your plan’s usage limit is reached.', reset_at: '2026-11-08T03:00:00Z' })
+    emit('run_failed', { run_id: 'run-l1', step: 'narrate', code: 'USAGE_LIMIT', message: 'Your plan’s usage limit is reached.', reset_at: '2026-11-08T03:00:00Z', resumable: true })
     emit('line_changed', line({ finished: [NVDA({ outcome: 'stopped', code: 'USAGE_LIMIT' })], waiting: [MSFT()], paused: { code: 'USAGE_LIMIT', message: 'Your plan’s usage limit is reached.', reset_at: null, fix_command: null, run_id: 'run-l1' } }))
     expect(await screen.findByText('Your plan’s usage limit stopped the report')).toBeInTheDocument()
     expect(strip().getByText('The line is paused. Resume carries on with this report, then the one waiting.')).toBeInTheDocument()
     expect(strip().queryByRole('button', { name: 'Add a company' })).toBeNull()
     await user.click(screen.getByRole('button', { name: 'Resume' }))
     expect(bridge.resume).toHaveBeenCalledWith('run-l1')
-    emit('run_failed', { run_id: 'run-new', step: 'narrate', code: 'USAGE_LIMIT', message: 'Still limited.' })
+    emit('run_failed', { run_id: 'run-new', step: 'narrate', code: 'USAGE_LIMIT', message: 'Still limited.', resumable: true })
     await user.click(await strip().findByRole('button', { name: 'Skip it and carry on' }))
     expect(bridge.carryOnLine).toHaveBeenCalled()
+  })
+
+  test('a report that failed part-way pauses the line without Resume; Start again carries on with it first', async () => {
+    // SEC blocked part-way: the run can’t resume, so the engine names no run in the pause, and
+    // Carry on writes the company again before the rest (UI sweep, 15 Nov 2026, #2).
+    const { user } = await startLine()
+    emit('run_failed', { run_id: 'run-l1', step: 'fetch', code: 'SEC_BLOCKED', message: 'SEC refused the request.', resumable: false })
+    emit('line_changed', line({ finished: [NVDA({ outcome: 'failed', code: 'SEC_BLOCKED', resumable: false })], waiting: [MSFT()], paused: { code: 'SEC_BLOCKED', message: 'SEC refused the request.', reset_at: null, fix_command: null, run_id: null } }))
+    expect(await strip().findByText('The line is paused. Carry on starts NVDA again, then the one waiting.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Resume' })).toBeNull()
+    expect(strip().queryByRole('button', { name: 'Skip it and carry on' })).toBeNull()
+    await user.click(within(screen.getByRole('alert')).getByRole('button', { name: 'Start again' }))
+    expect(bridge.carryOnLine).toHaveBeenCalled()
+    expect(screen.queryByRole('dialog')).toBeNull() // already in the line: no Refresh confirm
+    expect(bridge.addToLine).toHaveBeenCalledTimes(1) // the line's own start, not again
+    expect(bridge.resume).not.toHaveBeenCalled()
   })
 
   test('a problem with one company moves on to the next, without leaving the page you’re on', async () => {

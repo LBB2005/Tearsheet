@@ -93,6 +93,8 @@ class Entry:
     report_id: str | None = None
     code: str | None = None
     message: str | None = None
+    # Once finished: whether Resume can carry its run on (a stopped run can, a failed one can't).
+    resumable: bool | None = None
 
     def item(self) -> dict[str, Any]:
         return {k: v for k, v in asdict(self).items() if k != "cik"}
@@ -485,6 +487,8 @@ class ReportLine:
         entry.report_id = how.get("report_id")
         entry.code = how.get("code")
         entry.message = how.get("message")
+        # Said by the engine (server._job); a stopped report so far resumes, a failed one doesn't.
+        entry.resumable = how.get("resumable", entry.outcome == "stopped")
         if self.writing is entry:
             self.writing = None
         self.finished.append(entry)
@@ -509,7 +513,8 @@ class ReportLine:
                 entry.message or "The report stopped.",
                 reset_at=how.get("reset_at"),
                 fix_command=how.get("fix_command"),
-                run_id=entry.run_id,
+                # Only a report Resume can carry on: one that failed is written again instead.
+                run_id=entry.run_id if entry.resumable else None,
                 wait_until=wait,
             )
 
@@ -550,7 +555,7 @@ class ReportLine:
         if entry is None:
             return None
         self.finished.remove(entry)
-        entry.outcome = entry.report_id = entry.code = entry.message = None
+        entry.outcome = entry.report_id = entry.code = entry.message = entry.resumable = None
         self.writing = entry
         self.paused = None
         return entry
@@ -577,27 +582,34 @@ class ReportLine:
         self.paused = None
 
     def _put_back_unstarted(self, pause: Pause) -> None:
-        """The company whose report couldn't start (no AI tool, SEC blocked, sign-in expired)
-        goes back first in the line: it never ran, so going on must write it too."""
+        """The company whose report couldn't start (no AI tool, SEC blocked, sign-in expired),
+        or failed part-way and can't resume, goes back first in the line: going on must write it
+        too, from the start."""
         if pause.code == OFFLINE:
             # Every report that couldn't connect is written again, in its place in the line.
             again = [e for e in self.finished if e.code == OFFLINE]
             self.finished = [e for e in self.finished if e.code != OFFLINE]
             for e in again:
-                e.run_id = e.outcome = e.report_id = e.code = e.message = None
+                e.run_id = e.outcome = e.report_id = e.code = e.message = e.resumable = None
             self.waiting[:0] = again
             self.offline_in_a_row = 0
             return
         if pause.run_id is not None or pause.code not in PAUSE_CODES:
             return
         unstarted = next(
-            (e for e in reversed(self.finished) if e.run_id is None and e.code == pause.code),
+            (
+                e
+                for e in reversed(self.finished)
+                if (e.run_id is None or e.resumable is False) and e.code == pause.code
+            ),
             None,
         )
         if unstarted is not None:
             self.finished.remove(unstarted)
-            unstarted.outcome = unstarted.report_id = unstarted.code = None
-            unstarted.message = None
+            if unstarted.cik in self._taken():
+                return  # already added again (Start again, or Write a report…)
+            unstarted.run_id = unstarted.outcome = unstarted.report_id = unstarted.code = None
+            unstarted.message = unstarted.resumable = None
             self.waiting.insert(0, unstarted)
 
     def wake(self) -> str | None:

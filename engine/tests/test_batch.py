@@ -1027,6 +1027,40 @@ def test_carry_on_after_a_report_that_couldnt_start_writes_that_company_too():
         assert [e.ticker for e in line.waiting] == ["T1", "T2"] and line.finished == []
 
 
+def test_a_report_that_failed_part_way_offers_no_resume_and_carry_on_writes_it_again():
+    # SEC blocked part-way: the run failed, and Resume would refuse it (UI sweep, 15 Nov
+    # 2026, #2). The pause names no run to resume; Carry on writes the company again, first.
+    line = ReportLine()
+    line.add([Entry("T1", "Company 1", 1001, True), Entry("T2", "Company 2", 1002, True)])
+    first = line.take_next()
+    first.run_id = "run-1"
+    line.end(first, {"how": "failed", "code": "SEC_BLOCKED", "resumable": False}, now=NOW)
+    assert line.paused is not None and line.paused.run_id is None
+    assert line.state()["finished"][0]["resumable"] is False
+    assert line.resume("run-1") is None
+    back = ReportLine.loads(line.dumps())  # kept as it was across a quit
+    for kept in (line, back):
+        kept.carry_on(NOW)
+        assert [(e.ticker, e.run_id, e.resumable) for e in kept.waiting] == [
+            ("T1", None, None),
+            ("T2", None, None),
+        ]
+        assert kept.finished == []
+
+
+def test_a_stopped_report_is_resumable_unless_the_engine_says_not():
+    line = ReportLine()
+    line.add([Entry("T1", "Company 1", 1001, True), Entry("T2", "Company 2", 1002, True)])
+    first = line.take_next()
+    first.run_id = "run-1"
+    line.end(first, {"how": "stopped", "code": "AUTH_EXPIRED", "resumable": True}, now=NOW)
+    assert line.paused.run_id == "run-1" and first.resumable is True
+    line.resume("run-1")
+    assert first.resumable is None  # being written again
+    line.end(first, {"how": "stopped", "code": "AUTH_EXPIRED", "resumable": False}, now=NOW)
+    assert line.paused.run_id is None
+
+
 def test_carry_on_past_a_stopped_report_still_leaves_it_behind():
     line = ReportLine()
     line.add([Entry("T1", "Company 1", 1001, True), Entry("T2", "Company 2", 1002, True)])

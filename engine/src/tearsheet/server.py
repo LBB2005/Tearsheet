@@ -826,7 +826,7 @@ class Server:
         *,
         data_factory=None,
     ) -> None:
-        from tearsheet.pipeline import RunCancelled
+        from tearsheet.pipeline import RunCancelled, resumable
 
         run = None
         # How the run ended, for the line (batch.py): ready, stopped, failed or cancelled.
@@ -843,7 +843,8 @@ class Server:
             # partial report for a finished one.
             if result.status == "stopped" and run.stop_error is not None:
                 code, data_ = error_code(run.stop_error)
-                ended.update(code=code, message=str(run.stop_error), **data_)
+                can = resumable(self.db.conn, run_id)
+                ended.update(code=code, message=str(run.stop_error), resumable=can, **data_)
                 self.notify(
                     "run_failed",
                     RunFailedNote(
@@ -853,6 +854,7 @@ class Server:
                         step=steps["stopped_at"] or steps["started"],
                         message=str(run.stop_error),
                         code=code,
+                        resumable=can,
                         **data_,
                     ),
                 )
@@ -863,7 +865,10 @@ class Server:
         except Exception as exc:  # noqa: BLE001 - reported to the app, logged to standard error
             log.exception("run %s failed", run_id)
             code, data_ = error_code(exc)
-            ended = {"how": "failed", "code": code, "message": str(exc), **data_}
+            # A failed run can't resume (prepare_resume takes only stopped or interrupted ones);
+            # asked of the runs table all the same, so the app and Resume never disagree.
+            can = resumable(self.db.conn, run_id)
+            ended = {"how": "failed", "code": code, "message": str(exc), "resumable": can, **data_}
             if no_connection(exc):
                 ended["connection"] = True
             if not resolved.is_set():
@@ -877,6 +882,7 @@ class Server:
                         step=steps["started"],
                         message=str(exc),
                         code=code,
+                        resumable=can,
                         **fields,
                     ),
                 )

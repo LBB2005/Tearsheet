@@ -955,6 +955,7 @@ def test_a_test_copys_reports_end_before_any_data_or_ai_call(
         "code": "TEST_COPY",
         "reset_at": None,
         "fix_command": None,
+        "resumable": False,  # nothing to carry on: the app offers no Resume
     }
     RunFailedNote.model_validate(failed[0])
     # The reply came first, then the note.

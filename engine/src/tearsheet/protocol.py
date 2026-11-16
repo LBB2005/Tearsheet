@@ -1191,6 +1191,9 @@ class RunFailedNote(Strict):
     ]
     reset_at: str | None = None
     fix_command: str | None = None
+    # Whether Resume can carry the run on: a stopped run can, a failed one (network loss, SEC
+    # blocking, any engine error) or a test copy's can't, and starts again instead.
+    resumable: bool = False
 
 
 class LineItem(Strict):
@@ -1206,6 +1209,8 @@ class LineItem(Strict):
     report_id: str | None = None
     code: str | None = None
     message: str | None = None
+    # Once finished: whether Resume can carry its run on (RunFailedNote.resumable).
+    resumable: bool | None = None
 
 
 class LineSkip(Strict):
@@ -1225,7 +1230,8 @@ class LinePause(Strict):
     message: str
     reset_at: str | None = None
     fix_command: str | None = None
-    # The stopped report that Resume carries on with, if there is one.
+    # The stopped report that Resume carries on with, if there is one. A report that failed
+    # and can't resume has none: Carry on writes it again first, then the rest.
     run_id: str | None = None
     # When the line carries on by itself (ISO, UTC): a usage limit's reset (USAGE_LIMIT), or
     # the plan's 5-hour window past 80% (USAGE_HIGH). None: it waits for Liam, as after the

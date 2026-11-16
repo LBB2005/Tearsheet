@@ -239,6 +239,17 @@ export function joinNames(names: string[]): string {
   return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
 }
 
+// The company Carry on writes again first: the line is paused by a report that couldn't start,
+// or failed part-way and can't resume, so the engine names no run to resume (batch.py,
+// `_put_back_unstarted`). With `runId`, only if it is that run's company.
+export function writesAgain(line: LineState | null, runId?: string): LineItem | null {
+  const pause = line?.paused
+  if (!line || !pause || pause.run_id || !PAUSES.has(pause.code)) return null
+  const last = [...line.finished].reverse().find((item) => item.code === pause.code && (item.run_id === null || item.resumable === false))
+  if (!last || (runId !== undefined && last.run_id !== runId)) return null
+  return last
+}
+
 // How a finished report in the line went, in a word or two.
 export function outcomeText(item: LineItem): string {
   if (item.outcome === 'ready') return 'Ready'

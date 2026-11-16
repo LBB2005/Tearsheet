@@ -29,7 +29,8 @@ import {
   usualReport,
   waitsByItself,
   waitsForCheck,
-  waitText
+  waitText,
+  writesAgain
 } from './line'
 
 const item = (ticker: string, over: Partial<LineItem> = {}): LineItem => ({ ticker, name: ticker, official: true, run_id: null, outcome: null, report_id: null, code: null, message: null, ...over })
@@ -154,6 +155,22 @@ describe('the line', () => {
     expect(inLine(line, 'r3')).toBe(false)
     expect(inLine(null, 'r1')).toBe(false)
     expect(inLine(line, null)).toBe(false)
+  })
+
+  it('knows which company Carry on writes again: one that failed and can’t resume, or never started', () => {
+    const pause = (run_id: string | null, code = 'SEC_BLOCKED') => ({ code, message: 'x', run_id })
+    const failed = item('NVDA', { run_id: 'r1', outcome: 'failed', code: 'SEC_BLOCKED', resumable: false })
+    expect(writesAgain(state({ finished: [failed], paused: pause(null) }))).toBe(failed)
+    expect(writesAgain(state({ finished: [failed], paused: pause(null) }), 'r1')).toBe(failed)
+    expect(writesAgain(state({ finished: [failed], paused: pause(null) }), 'r9')).toBeNull()
+    const unstarted = item('O', { outcome: 'failed', code: 'NO_TOOL' })
+    expect(writesAgain(state({ finished: [unstarted], paused: pause(null, 'NO_TOOL') }))).toBe(unstarted)
+    // A stopped report Resume carries on, a pause of the line's own, or no pause: none.
+    const stopped = item('NVDA', { run_id: 'r1', outcome: 'stopped', code: 'USAGE_LIMIT', resumable: true })
+    expect(writesAgain(state({ finished: [stopped], paused: pause('r1', 'USAGE_LIMIT') }))).toBeNull()
+    expect(writesAgain(state({ finished: [failed], paused: pause(null, 'LINE_ERROR') }))).toBeNull()
+    expect(writesAgain(state({ finished: [failed] }))).toBeNull()
+    expect(writesAgain(null)).toBeNull()
   })
 
   it('counts the report being written with those done and waiting', () => {
