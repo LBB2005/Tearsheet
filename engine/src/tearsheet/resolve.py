@@ -117,7 +117,8 @@ def resolve(
         return _found(good[0][1], holdings, "name")
     if good:
         raise NotCovered(
-            f"More than one company matches {text!r}.",
+            f"More than one company matches “{text}”.",
             [holdings.name_of(cik) for _, cik in good[:CANDIDATES]],
         )
-    raise NotCovered(f"No S&P 500 company matches {text!r}.")
+    # Curly quotes, as the app writes them; repr gave 'ZZZZ' (UI sweep, 15 Nov 2026).
+    raise NotCovered(f"No S&P 500 company matches “{text}”.")

@@ -117,7 +117,7 @@ def test_adding_resolves_as_the_line_does(database):
     assert skipped == [
         ("google", "twice", "GOOGL is listed twice."),
         ("AAPL", "twice", "AAPL is listed twice."),
-        ("ZZZZ", "unknown", "No S&P 500 company matches 'ZZZZ'."),
+        ("ZZZZ", "unknown", "No S&P 500 company matches “ZZZZ”."),
         ("MSFT", "twice", "MSFT is listed twice."),
     ]
     typed = dict(conn.execute("SELECT cik, added_as FROM watch_items").fetchall())

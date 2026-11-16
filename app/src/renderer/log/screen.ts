@@ -156,6 +156,14 @@ export function facetCounts(rows: LogRow[], f: Filters, facet: Facet): Map<strin
   return out
 }
 
+// The Show choices' counts, given the facets: all rows, and the good picks among them. Like a
+// facet's own options, the Show choice doesn't narrow its own counts (UI sweep, 15 Nov 2026:
+// they ignored every filter, so "All predictions 498" sat beside "40 of 498 predictions").
+export function showCounts(rows: LogRow[], f: Filters): { all: number; good: number } {
+  const shown = rows.filter((r) => passes(r, { ...f, goodOnly: false }))
+  return { all: shown.length, good: shown.filter((r) => r.good).length }
+}
+
 // The sectors present, A to Z.
 export function sectorsOf(rows: LogRow[]): string[] {
   return [...new Set(rows.map((r) => valueOf.sectors(r)))].sort()

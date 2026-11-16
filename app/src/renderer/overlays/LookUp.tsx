@@ -62,7 +62,19 @@ export function LookUp({ onPick, onClose }: { onPick: (hit: SearchHit) => void; 
   return (
     <>
       <div className={leaving ? 'scrim leave' : 'scrim'} onMouseDown={close} />
-      <div className={leaving ? 'palette leave' : 'palette'} role="dialog" aria-label="Look up a company">
+      <div
+        className={leaving ? 'palette leave' : 'palette'}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Look up a company"
+        onBlur={(e) => {
+          // The scrim covers the page, not the sidebar: a click on a sidebar row moves the focus
+          // there, and the box closes rather than staying open over the next page (UI sweep,
+          // 15 Nov 2026). Leaving the app (no new focus) keeps it open.
+          const to = e.relatedTarget
+          if (to instanceof Node && !e.currentTarget.contains(to)) close()
+        }}
+      >
         <div className="pin">
           {ICONS.search}
           <input
@@ -91,6 +103,10 @@ export function LookUp({ onPick, onClose }: { onPick: (hit: SearchHit) => void; 
               } else if (e.key === 'Escape') {
                 e.preventDefault()
                 close()
+              } else if (e.key === 'Tab') {
+                // The field is the box's only stop (the hits are reached with the arrows), so Tab
+                // stays here rather than walking the sidebar behind the box (UI sweep, 15 Nov 2026).
+                e.preventDefault()
               }
             }}
           />

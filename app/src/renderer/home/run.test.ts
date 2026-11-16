@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { Tally } from '../../shared/protocol'
 import { REPORT_STEPS } from '../../shared/steps'
-import { CHECK_FIRST, doneFacts, freshNotes, GRADING_FIRST, HISTORY_FIRST, liveRows, refusal, runStep, runTitle, stageLine, stageMark, stageOf, stageTime, STAGES, withNote, type RunState } from './run'
+import { CHECK_FIRST, doneFacts, freshNotes, GRADING_FIRST, HISTORY_FIRST, liveRows, NOT_RESUMABLE, refusal, runStep, runTitle, stageLine, stageMark, stageOf, stageTime, STAGES, withNote, type RunState } from './run'
 
 // The first `n` steps done, and the next one started.
 function stepsDone(n: number): Record<string, string> {
@@ -250,6 +250,11 @@ describe('refusal', () => {
   it('tells a cancelled run still stopping apart from another run', () => {
     expect(refusal('RUN_IN_PROGRESS', 'x', true)).toBe('The cancelled report is still stopping. Try again in a minute.')
     expect(refusal('RUN_IN_PROGRESS', 'x', false)).toBe('A report is already running. You can start another when it finishes.')
+  })
+
+  it('says in plain words that a run which ended with an error can’t be resumed', () => {
+    expect(refusal('NOT_RESUMABLE', 'Run run-20261116T062404Z-adb22d is failed, so it can\'t be resumed; start a new run instead.', false)).toBe(NOT_RESUMABLE)
+    expect(NOT_RESUMABLE).not.toMatch(/run-|failed/)
   })
 
   it('gives the engine’s own sentence otherwise, or a fixed one', () => {

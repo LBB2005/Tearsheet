@@ -12,6 +12,7 @@ import {
   csvText,
   DEFAULT_RULE,
   facetCounts,
+  showCounts,
   loadRule,
   logRows,
   NO_FILTERS,
@@ -111,6 +112,12 @@ describe('filters and counts', () => {
     expect(facetCounts(rows, f, 'ratings')).toEqual(new Map([['Buy', 1], ['Hold', 1]]))
     // A facet's own choice doesn't hide its other options.
     expect(facetCounts(rows, f, 'sectors')).toEqual(new Map([['Energy', 2], ['Consumer Discretionary', 1], ['Financials', 1]]))
+  })
+
+  it('counts the Show choices against the facets, not against the Show choice itself', () => {
+    expect(showCounts(rows, NO_FILTERS)).toEqual({ all: 4, good: 2 })
+    expect(showCounts(rows, { ...NO_FILTERS, ratings: ['Sell'] })).toEqual({ all: 1, good: 0 })
+    expect(showCounts(rows, { ...NO_FILTERS, goodOnly: true, sectors: ['Energy'] })).toEqual({ all: 2, good: 2 })
   })
 })
 

@@ -29,6 +29,8 @@ METHOD_LABELS = {
     "PE": "P/E vs peers",
     "FFO": "Price / FFO vs REITs",
     "P_FFO": "Price / FFO vs REITs",
+    # The name the valuation table stores (pipeline.py); the PDF showed it as stored.
+    "PRICE_TO_FFO": "Price / FFO vs REITs",
 }
 _MONEY = re.compile(r"^-?\$[\d,]+(\.\d+)?$")
 

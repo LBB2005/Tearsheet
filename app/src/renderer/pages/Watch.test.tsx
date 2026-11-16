@@ -115,6 +115,17 @@ describe('lists', () => {
     expect(bridge.restoreWatchlist).toHaveBeenCalledWith(2)
   })
 
+  test('deleting an empty list says it was empty, not that its companies are elsewhere', async () => {
+    const { user } = await openWatch_()
+    await user.click(tabs().getByRole('button', { name: '+ New list' }))
+    await user.type(screen.getByRole('textbox', { name: 'New list name' }), 'Empty{Enter}')
+    await screen.findByRole('heading', { name: 'Empty' })
+    await user.click(screen.getByRole('button', { name: 'Delete list' }))
+    expect(await screen.findByText('Deleted “Empty”')).toBeInTheDocument()
+    expect(screen.getByText('It was empty.')).toBeInTheDocument()
+    expect(screen.queryByText('Its companies are still in your other lists.')).toBeNull()
+  })
+
   test('take a company out of a list from its chip, then Undo puts it back where it was', async () => {
     const { user } = await openWatch_()
     await user.click(tabs().getByRole('button', { name: /Core/ }))

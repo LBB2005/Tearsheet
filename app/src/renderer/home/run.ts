@@ -255,5 +255,10 @@ export function refusal(code: string | undefined, message: string | undefined, s
   if (code === 'RUN_IN_PROGRESS') {
     return stopping ? 'The cancelled report is still stopping. Try again in a minute.' : 'A report is already running. You can start another when it finishes.'
   }
+  // The engine's words name the run id and its status ("Run run-2026… is failed, so it can't be
+  // resumed"); a run that ended with an error starts again from scratch (UI sweep, 15 Nov 2026).
+  if (code === 'NOT_RESUMABLE') return NOT_RESUMABLE
   return message || 'The report didn’t start.'
 }
+
+export const NOT_RESUMABLE = 'This report can’t carry on from where it stopped. Start a new report on the company instead.'

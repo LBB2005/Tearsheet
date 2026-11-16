@@ -467,3 +467,10 @@ def test_the_pdf_leaves_out_analystdb_where_it_doesnt_answer():
     assert pdf._analysts(None) is None
     quiet = pdf._analysts({"state": "missing", "note": "Analyst ratings: analystdb has none."})
     assert quiet == {"state": "quiet", "note": "Analyst ratings: analystdb has none."}
+
+
+def test_every_stored_valuation_method_has_a_plain_name():
+    # The valuation table stores these codes (pipeline.py); the PDF showed PRICE_TO_FFO as
+    # stored (UI sweep, 15 Nov 2026).
+    for code in ("DCF", "RESIDUAL_INCOME", "MULTIPLES", "PE", "PRICE_TO_FFO"):
+        assert code in export_data.METHOD_LABELS

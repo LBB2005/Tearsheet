@@ -138,6 +138,9 @@ def method_label(code: str) -> str:
         "DCF": "Discounted cash flow",
         "RESIDUAL_INCOME": "Residual income",
         "MULTIPLES": "Multiples",
+        # Without these two the fallback below showed "Pe" and "Price to ffo" (UI sweep, 15 Nov 2026).
+        "PE": "Price to earnings",
+        "PRICE_TO_FFO": "Price to FFO",
     }
     return known.get(code) or code.replace("_", " ").capitalize()
 
