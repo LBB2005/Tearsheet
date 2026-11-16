@@ -110,6 +110,8 @@ CASES = [
     (r.method("RESIDUAL_INCOME", 546.10, None), "Residual income: $546.10 a share."),
     (r.method_label("EARNINGS_POWER"), "Earnings power"),
     (r.method_label("MULTIPLES"), "Multiples"),
+    (r.method_label("PE"), "Price to earnings"),
+    (r.method_label("PRICE_TO_FFO"), "Price to FFO"),
     (r.price(200.13, "4 Nov 2026"), "Price: $200.13 on 4 Nov 2026."),
     (r.price(200.13, None), "Price: $200.13."),
     (

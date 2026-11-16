@@ -178,3 +178,25 @@ def test_reads_started_in_step_2_are_tallied_there(database, tmp_path):
     during_downloads = [n for n in notes if n.get("fetching") in ("prices", "facts")]
     assert any(n.get("reads_total") for n in during_downloads)
     assert any(n.get("now") for n in during_downloads)  # named while they run
+
+
+def test_a_section_that_raised_isnt_counted_as_written(database, tmp_path):
+    # The run view showed "4 of 4 sections written" beside Writing: Stopped when every narrate
+    # call had raised (UI sweep, 15 Nov 2026). Only a call that returned counts as done.
+    def broken_writer(request):
+        if request.task == "narrate":
+            raise RuntimeError("made-up failure")
+        return news_ai(request)
+
+    connector = FakeConnector(default=broken_writer, delay_s=0.005)
+    notes: list[dict] = []
+    r = make_run(database, tmp_path, connector, data=Everything(), name="broken")
+    r.on_tally = notes.append
+    try:
+        asyncio.run(r.run("T0"))
+    except Exception:  # noqa: BLE001 - the run stops; only its tally matters here
+        pass
+    totals = [n["sections_total"] for n in notes if n.get("sections_total")]
+    assert totals, "the writing step started"
+    assert max(n.get("sections_done") or 0 for n in notes) == 0
+    assert notes[-1]["now"] == []

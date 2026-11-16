@@ -225,7 +225,11 @@ export function Watch({ refresh, focus, onOpenReport, onNotify, onSubtitle }: Wa
     const leaving = d.leaving.length
     onNotify(
       `Deleted “${l.name}”`,
-      leaving ? `${leaving} ${leaving === 1 ? 'company was' : 'companies were'} only in it and leave the watchlist; notes are kept for when they come back.` : 'Its companies are still in your other lists.',
+      leaving
+        ? `${leaving} ${leaving === 1 ? 'company was' : 'companies were'} only in it and leave the watchlist; notes are kept for when they come back.`
+        : l.count === 0
+          ? 'It was empty.'
+          : 'Its companies are still in your other lists.',
       undefined,
       {
         action: {

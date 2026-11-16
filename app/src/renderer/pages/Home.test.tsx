@@ -479,6 +479,39 @@ describe('the look-up box (⌘K)', () => {
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Look up a company' })).toBeNull())
   })
 
+  test('Tab and Shift-Tab stay in the look-up box instead of reaching the sidebar behind it', async () => {
+    const { user } = await renderApp()
+    menu('settings')
+    menu('lookup')
+    const box = within(screen.getByRole('dialog', { name: 'Look up a company' }))
+    expect(box.getByRole('combobox')).toHaveFocus()
+    await user.keyboard('{Tab}')
+    expect(box.getByRole('combobox')).toHaveFocus()
+    await user.keyboard('{Shift>}{Tab}{/Shift}')
+    expect(box.getByRole('combobox')).toHaveFocus()
+  })
+
+  test('a click in the sidebar closes the look-up box instead of leaving it over the next page', async () => {
+    const { user } = await renderApp()
+    menu('settings')
+    menu('lookup')
+    expect(screen.getByRole('dialog', { name: 'Look up a company' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /Prediction log/ }))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Look up a company' })).toBeNull())
+  })
+
+  test('a right-click on a company keeps the look-up box open under its stock menu', async () => {
+    const { user } = await renderApp()
+    menu('settings')
+    menu('lookup')
+    await user.keyboard('a')
+    const box = within(screen.getByRole('dialog', { name: 'Look up a company' }))
+    const row = await box.findByRole('button', { name: /AAPL/ })
+    await user.pointer({ keys: '[MouseRight]', target: row })
+    expect(await screen.findByRole('menu')).toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'Look up a company' })).toBeInTheDocument()
+  })
+
   test('picking a company with a report opens it; one without starts a report', async () => {
     const { user } = await renderApp()
     menu('settings')

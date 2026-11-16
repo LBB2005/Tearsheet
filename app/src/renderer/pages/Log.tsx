@@ -24,6 +24,7 @@ import {
   csvFileName,
   csvText,
   facetCounts,
+  showCounts,
   loadRule,
   logRows,
   NO_FILTERS,
@@ -288,7 +289,7 @@ export function Log({ grading, refresh, onGrade, onSubtitle, onOpenReport }: Log
   const stale = loadingPrices && drawnLast.current !== null
   const series = stale ? (drawnLast.current as CompareSeries) : fresh
   const count = (facet: Facet) => facetCounts(rows, filters, facet)
-  const goodCount = rows.filter((r) => r.good).length
+  const showing = showCounts(rows, filters)
   const setNum = (key: 'minUpside' | 'minScore' | 'minChance') => (e: { target: { value: string } }) => setRule({ ...rule, [key]: Number(e.target.value) })
   const filtered = filters !== NO_FILTERS && JSON.stringify(filters) !== JSON.stringify(NO_FILTERS)
 
@@ -329,12 +330,12 @@ export function Log({ grading, refresh, onGrade, onSubtitle, onOpenReport }: Log
             <label className="ck">
               <input type="radio" name="logshow" checked={!filters.goodOnly} onChange={() => setFilters((f) => ({ ...f, goodOnly: false }))} />
               <span>All predictions</span>
-              <em>{rows.length}</em>
+              <em>{showing.all}</em>
             </label>
             <label className="ck">
               <input type="radio" name="logshow" checked={filters.goodOnly} onChange={() => setFilters((f) => ({ ...f, goodOnly: true }))} />
               <span>★ Good picks only</span>
-              <em>{goodCount}</em>
+              <em>{showing.good}</em>
             </label>
           </fieldset>
           <Options title="Rating" facet="ratings" options={[['Buy', 'Buy'], ['Hold', 'Hold'], ['Sell', 'Sell']]} filters={filters} counts={count('ratings')} onFlip={flip} />

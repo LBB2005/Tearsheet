@@ -1676,13 +1676,20 @@ class Run:
                     return await make()
                 name = names[index]
                 self._tally(now=[*self.tally.get("now", []), name])
+                ok = False
                 try:
-                    return await make()
+                    result = await make()
+                    ok = True
+                    return result
                 finally:
                     now = list(self.tally.get("now", []))
                     if name in now:
                         now.remove(name)
-                    self._tally(now=now, **{f"{count}_done": self._bump(f"{count}_done")})
+                    # Only a job that returned counts as done: one that raised (the run then
+                    # stops) showed as "4 of 4 sections written" beside Stopped (UI sweep,
+                    # 15 Nov 2026).
+                    done = {f"{count}_done": self._bump(f"{count}_done")} if ok else {}
+                    self._tally(now=now, **done)
 
         results = await asyncio.gather(
             *(one(i, make) for i, make in enumerate(jobs)), return_exceptions=True

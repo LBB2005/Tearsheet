@@ -142,4 +142,10 @@
 .logv .x { all: unset; cursor: pointer; color: var(--faint2); padding: 0 3px; border-radius: var(--r-xs); }
 .logv .x:hover { color: var(--text); }
 
-@container (max-width: 700px) { .logv .side { max-width: none; } }
+/* Below 794px (220 + 14 + 560) the filter column wraps above the table. It then takes the whole
+   width and flows into columns; at 270px wide it left the right side blank and pushed the
+   predictions 1,100px down (UI sweep, 15 Nov 2026). */
+@container (max-width: 793px) {
+  .logv .side { max-width: none; display: block; columns: 3 200px; column-gap: 24px; }
+  .logv .side > * { break-inside: avoid; }
+}
