@@ -43,6 +43,7 @@ contextBridge.exposeInMainWorld('tearsheet', {
   openSignInPage: () => ipcRenderer.invoke('tearsheet:openSignInPage'),
   getInstallButton: () => ipcRenderer.invoke('tearsheet:getInstallButton'),
   openExternal: (url: string) => ipcRenderer.invoke('tearsheet:openExternal', url),
+  copyTicker: (ticker: string) => ipcRenderer.invoke('tearsheet:copyTicker', ticker),
   about: () => ipcRenderer.invoke('tearsheet:about'),
   sendFeedback: () => ipcRenderer.invoke('tearsheet:sendFeedback'),
   copyDiagnostics: () => ipcRenderer.invoke('tearsheet:copyDiagnostics'),

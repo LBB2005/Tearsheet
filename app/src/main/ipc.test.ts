@@ -480,6 +480,15 @@ describe('the rest of the bridge', () => {
     expect(opened).toEqual(['https://massive.com/dashboard'])
   })
 
+  test('copyTicker puts a ticker on the clipboard, and nothing else', async () => {
+    const copied: string[] = []
+    wired({ writeClipboard: (t: string) => void copied.push(t) })
+    const copy = handlers.get('tearsheet:copyTicker')!
+    expect(await copy({}, 'BRK.B')).toBe(true)
+    for (const bad of ['rm -rf ~', 'aapl', 42, undefined]) expect(await copy({}, bad)).toBe(false)
+    expect(copied).toEqual(['BRK.B'])
+  })
+
   test('a find answers once its last result arrives, and stopping or a new page ends the session', async () => {
     const { contents } = wired()
     const find = handlers.get('tearsheet:find')!

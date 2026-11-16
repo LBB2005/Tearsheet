@@ -2,7 +2,8 @@
 // and, separately, the tool makers' sign-in pages, which only the installer opens (first-run
 // design item 14).
 
-const HOSTS = new Set(['massive.com', 'www.massive.com', 'fred.stlouisfed.org', 'fredaccount.stlouisfed.org', 'claude.ai'])
+// www.sec.gov: a company's filings on EDGAR, from a stock's right-click menu (renderer/stock).
+const HOSTS = new Set(['massive.com', 'www.massive.com', 'fred.stlouisfed.org', 'fredaccount.stlouisfed.org', 'claude.ai', 'www.sec.gov'])
 
 // The hosts a sign-in link may open on, used only by the installer's openSignInPage. Checked
 // against the tools on 2026-11-08: Claude Code 2.1.317 signs in to a plan at
@@ -28,4 +29,10 @@ export function isAllowedExternal(url: string): boolean {
 // A sign-in page the installer may open. The window never sends these links.
 export function isSignInLink(url: string, hosts: readonly string[] = SIGN_IN_HOSTS): boolean {
   return onHost(url, new Set(hosts))
+}
+
+// A ticker as the S&P 500 list writes them (BRK.B, BF.B): what Copy ticker may put on the clipboard.
+const TICKER = /^[A-Z][A-Z0-9.-]{0,9}$/
+export function isTicker(text: unknown): text is string {
+  return typeof text === 'string' && TICKER.test(text)
 }

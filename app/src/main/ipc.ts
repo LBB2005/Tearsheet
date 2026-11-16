@@ -13,7 +13,7 @@ import { feedbackMailto, type AboutInfo } from './about'
 import { diagnosticsText, readLogTail } from './diagnostics'
 import type { Engine } from './engine'
 import { EngineError } from './engine'
-import { isAllowedExternal } from './external'
+import { isAllowedExternal, isTicker } from './external'
 import type { Installer } from './installer'
 import { commandFor, toolCommands } from './pasteCommand'
 import { NO_LOG, type SetupLog } from './setupLog'
@@ -143,7 +143,7 @@ export interface IpcDeps {
   engineLogFile?: string
   // The home folder Copy diagnostics takes out of the text; os.homedir() when not given.
   home?: string
-  // Puts Copy diagnostics' text on the clipboard; Electron's clipboard when not given.
+  // Puts Copy diagnostics' text (and Copy ticker's ticker) on the clipboard; Electron's clipboard when not given.
   writeClipboard?: (text: string) => void
   // The update banner and "Check for updates" (updates.ts). Without it the window is told the
   // setting is on and there is no update.
@@ -257,6 +257,12 @@ export function registerIpc(window: BrowserWindow, engine: Engine, deps: IpcDeps
   ipcMain.handle('tearsheet:openExternal', async (_event, url: unknown) => {
     if (typeof url !== 'string' || !isAllowedExternal(url)) return false
     await shell.openExternal(url)
+    return true
+  })
+  // Copy ticker, from a stock's right-click menu: a ticker and nothing else onto the clipboard.
+  ipcMain.handle('tearsheet:copyTicker', (_event, ticker: unknown) => {
+    if (!isTicker(ticker)) return false
+    ;(deps.writeClipboard ?? ((t: string) => clipboard.writeText(t)))(ticker)
     return true
   })
   // The query of the find session under way, if any. Stopping, or a new page or report in the

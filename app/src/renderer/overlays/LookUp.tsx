@@ -1,7 +1,8 @@
 // The look-up box (⌘K). It searches the bundled S&P 500 list as you type, shows up to five
 // companies, says which already have a report, and gives the highlighted one's peer-group rule.
 // Return (on a hit for the text typed now) or a click opens the company's report, or starts a
-// new one; the arrows move; Esc closes it.
+// new one; the arrows move; Esc closes it. A right-click on a company opens the stock menu
+// (stock/menu.ts), and picking one of its options closes the box.
 
 import { useEffect, useRef, useState } from 'react'
 
@@ -9,6 +10,7 @@ import type { SearchHit } from '../../shared/protocol'
 import { leaveMs } from '../motion'
 import { freshHits, peerRule, shortDate } from '../nav'
 import { ICONS } from '../shell/Sidebar'
+import { menuKey, useStockMenu } from '../stock/StockMenu'
 
 const LIMIT = 5
 
@@ -21,6 +23,7 @@ export function LookUp({ onPick, onClose }: { onPick: (hit: SearchHit) => void; 
   const [leaving, setLeaving] = useState(false)
   const latest = useRef(0)
   const input = useRef<HTMLInputElement>(null)
+  const stockMenu = useStockMenu()
 
   useEffect(() => input.current?.focus(), [])
 
@@ -91,6 +94,12 @@ export function LookUp({ onPick, onClose }: { onPick: (hit: SearchHit) => void; 
               } else if (e.key === 'Escape') {
                 e.preventDefault()
                 close()
+              } else if (menuKey(e) && hits[at]) {
+                // The highlighted company's stock menu, below its row.
+                e.preventDefault()
+                const h = hits[at]
+                const el = document.getElementById(`lookup-${at}`)
+                if (el) stockMenu.openBelow({ ticker: h.ticker, cik: h.cik, name: h.name, reportId: h.report_id, reportDate: h.report_date }, el, { onPick: close })
               }
             }}
           />
@@ -99,7 +108,13 @@ export function LookUp({ onPick, onClose }: { onPick: (hit: SearchHit) => void; 
           <ul id="lookup-list" role="listbox" aria-label="Companies">
             {hits.map((h, i) => (
               <li key={h.cik} id={`lookup-${i}`} role="option" aria-selected={i === at}>
-                <button className={i === at ? 'on' : ''} tabIndex={-1} onMouseEnter={() => setAt(i)} onClick={() => pick(h)}>
+                <button
+                  className={i === at ? 'on' : ''}
+                  tabIndex={-1}
+                  onMouseEnter={() => setAt(i)}
+                  onClick={() => pick(h)}
+                  {...stockMenu.bind({ ticker: h.ticker, cik: h.cik, name: h.name, reportId: h.report_id, reportDate: h.report_date }, { onPick: close })}
+                >
                   <b>{h.ticker}</b>
                   <span>{h.name}</span>
                   <small>{note(h)}</small>

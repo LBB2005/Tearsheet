@@ -255,15 +255,16 @@ export function useRun({ page, target, go, notify, loadCompanies, loadTools, ope
   }
 
   // Refresh (shell/refresh.ts): companies written again through the line, after the confirm.
-  // You stay on the page you're on; a note says they started, or are waiting their turn.
-  const refresh = async (tickers: string[]): Promise<string | null> => {
+  // You stay on the page you're on; a note says they started, or are waiting their turn. `fresh`:
+  // none had a report yet (a stock's right-click menu, Write a report…).
+  const refresh = async (tickers: string[], fresh = false): Promise<string | null> => {
     const busy = isBusy()
     const reply = await window.tearsheet.addToLine(tickers)
     if (!reply.ok || !reply.result) return reply.error?.message || 'The reports didn’t start.'
     const added = reply.result.items
     if (added.length === 0) return reply.result.skipped[0]?.reason ?? 'None of these could be added.'
     const paused = reply.result.line.paused
-    const note = refreshNote(added, { busy, paused: paused !== null && paused.code !== REOPENED })
+    const note = refreshNote(added, { busy, paused: paused !== null && paused.code !== REOPENED, fresh })
     notify(note.title, note.text)
     return null
   }

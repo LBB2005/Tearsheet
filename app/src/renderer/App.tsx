@@ -51,6 +51,7 @@ import { Toolbar } from './shell/Toolbar'
 import { UpdateBanner } from './shell/UpdateBanner'
 import { useMarks } from './shell/useMarks'
 import { useWide } from './shell/useWide'
+import { StockMenuProvider } from './stock/StockMenu'
 
 export function App() {
   const wide = useWide()
@@ -749,116 +750,129 @@ export function App() {
     </p>
   )
 
+  // Any company's right-click menu (stock/StockMenu.tsx), on every page.
+  const openReportPage = (reportId: string) => {
+    setOpenReport(reportId)
+    setSideOver(false)
+    go('report')
+  }
+
   return (
-    <div className={cls}>
-      <Sidebar
-        page={page}
-        companies={companies}
-        openReport={openRow?.report_id ?? openReport}
-        writing={report.running ? { ticker: runLabel, on: runView !== null, waiting: report.line?.waiting.length ?? 0 } : null}
-        status={status}
-        onNew={newReport}
-        onWriting={() => {
-          setSideOver(false)
-          go('home')
-        }}
-        onLookUp={openLookUp}
-        onCompany={openCompany}
-        onPage={(p) => {
-          setSideOver(false)
-          go(p)
-        }}
-        hidden={marks.hidden}
-        onDelete={marks.remove}
-        onRefresh={(rows) => {
-          setSideOver(false)
-          setRefreshing(rows.map((r) => ({ ticker: r.ticker, created_at: r.created_at })))
-        }}
-        onPin={(row, pinned) => void marks.pin(row, pinned)}
-        watchCount={watchCount}
-        onWatch={(row) =>
-          void window.tearsheet.addToWatchlist(null, [row.ticker]).then((r) => {
-            if (!r.ok || !r.result) return notify('Couldn’t add it to the watchlist', r.error?.message, 'stop')
-            setWatchRefresh((n) => n + 1)
-            if (r.result.added.length) notify(`Added ${row.ticker} to ${r.result.list.name}`, undefined, undefined, { action: { label: 'Show', run: () => go('watch') } })
-            else notify(`${row.ticker} is already in ${r.result.list.name}`)
-          })
-        }
-        onShowHidden={marks.setWantHidden}
-        onOpenHidden={(r) => {
-          setOpenReport(r.report_id)
-          setSideOver(false)
-          go('report')
-        }}
-        onBringBack={(r) => void marks.bringBack(r)}
-        onDeleteHidden={marks.removeHidden}
-        onOrder={(rows) => {
-          shownOrder.current = rows
-        }}
-      />
-      {/* The sidebar's right edge, which sets its width, while the sidebar shows. */}
-      {sideShown && <SidebarSizer onClosing={setSideClosing} onClose={closeSidebar} />}
-      {!wide && sideOver && !sideClosing && <div className="sidescrim" onMouseDown={() => setSideOver(false)} />}
-      <div className="mainarea">
-        {page === 'setup' ? (
-          buttonOn !== null && (
-            <Setup settings={bootSettings} leaving={leaving} safety={safety} onSafetyStarted={safetyBegan} onStopSafety={() => void stopSafety()} buttonOn={buttonOn} onFinish={setupFinished}>
-              {fatalNotice}
-            </Setup>
-          )
-        ) : (
-          <>
-            <Toolbar
-              title={bar.title}
-              subtitle={bar.subtitle}
-              lead={lead}
-              bare={page === 'home' && !runView}
-              finding={finding}
-              findFocus={findFocus}
-              onFindClose={() => setFinding(false)}
-            >
-              {chipView && (
+    <StockMenuProvider
+      companies={companies}
+      line={report.line}
+      onOpen={openReportPage}
+      onWrite={(asked) => {
+        setSideOver(false)
+        setRefreshing([asked])
+      }}
+      onLog={() => go('log')}
+      onShowWatch={() => go('watch')}
+      onWatchChanged={() => setWatchRefresh((n) => n + 1)}
+      notify={notify}
+    >
+      <div className={cls}>
+        <Sidebar
+          page={page}
+          companies={companies}
+          openReport={openRow?.report_id ?? openReport}
+          writing={report.running ? { ticker: runLabel, on: runView !== null, waiting: report.line?.waiting.length ?? 0 } : null}
+          status={status}
+          onNew={newReport}
+          onWriting={() => {
+            setSideOver(false)
+            go('home')
+          }}
+          onLookUp={openLookUp}
+          onCompany={openCompany}
+          onPage={(p) => {
+            setSideOver(false)
+            go(p)
+          }}
+          hidden={marks.hidden}
+          onDelete={marks.remove}
+          onRefresh={(rows) => {
+            setSideOver(false)
+            setRefreshing(rows.map((r) => ({ ticker: r.ticker, created_at: r.created_at })))
+          }}
+          onPin={(row, pinned) => void marks.pin(row, pinned)}
+          watchCount={watchCount}
+          onShowHidden={marks.setWantHidden}
+          onOpenHidden={(r) => {
+            setOpenReport(r.report_id)
+            setSideOver(false)
+            go('report')
+          }}
+          onBringBack={(r) => void marks.bringBack(r)}
+          onDeleteHidden={marks.removeHidden}
+          onOrder={(rows) => {
+            shownOrder.current = rows
+          }}
+        />
+        {/* The sidebar's right edge, which sets its width, while the sidebar shows. */}
+        {sideShown && <SidebarSizer onClosing={setSideClosing} onClose={closeSidebar} />}
+        {!wide && sideOver && !sideClosing && <div className="sidescrim" onMouseDown={() => setSideOver(false)} />}
+        <div className="mainarea">
+          {page === 'setup' ? (
+            buttonOn !== null && (
+              <Setup settings={bootSettings} leaving={leaving} safety={safety} onSafetyStarted={safetyBegan} onStopSafety={() => void stopSafety()} buttonOn={buttonOn} onFinish={setupFinished}>
+                {fatalNotice}
+              </Setup>
+            )
+          ) : (
+            <>
+              <Toolbar
+                title={bar.title}
+                subtitle={bar.subtitle}
+                lead={lead}
+                bare={page === 'home' && !runView}
+                finding={finding}
+                findFocus={findFocus}
+                onFindClose={() => setFinding(false)}
+              >
+                {chipView && (
+                  <div className="tsafe">
+                    <SafetyChip view={chipView} open={chipOpen} onToggle={() => setChipOpen((o) => !o)} />
+                  </div>
+                )}
+                {runView && report.running && (
+                  <ConfirmButton label="Cancel run" question="Stop this report?" yes="Cancel run" no="Keep going" onConfirm={() => void report.cancel()} />
+                )}
+                {page === 'report' && <ReportTools page={reportPage} wide={wide} onRefresh={refreshShown ? () => setRefreshing([refreshShown]) : undefined} />}
+              </Toolbar>
+              {chipView && safety && chipOpen && (
                 <div className="tsafe">
-                  <SafetyChip view={chipView} open={chipOpen} onToggle={() => setChipOpen((o) => !o)} />
+                  <SafetyPopover view={chipView} tool={TOOL_TEXT[safety.tool]} onRetry={recheckOrSay} onStop={() => void stopSafety()} onClose={() => setChipOpen(false)} />
                 </div>
               )}
-              {runView && report.running && (
-                <ConfirmButton label="Cancel run" question="Stop this report?" yes="Cancel run" no="Keep going" onConfirm={() => void report.cancel()} />
-              )}
-              {page === 'report' && <ReportTools page={reportPage} wide={wide} onRefresh={refreshShown ? () => setRefreshing([refreshShown]) : undefined} />}
-            </Toolbar>
-            {chipView && safety && chipOpen && (
-              <div className="tsafe">
-                <SafetyPopover view={chipView} tool={TOOL_TEXT[safety.tool]} onRetry={recheckOrSay} onStop={() => void stopSafety()} onClose={() => setChipOpen(false)} />
-              </div>
-            )}
-            {fatalNotice}
-            <UpdateBanner />
-            <main key={shownKey} className={frameClass} data-page={page}>
-              {content}
-            </main>
-          </>
-        )}
-        {refreshing && <RefreshSheet asked={refreshing} busy={report.busy} onStart={report.refresh} onClose={() => setRefreshing(null)} />}
-        {page === 'report' && reportPage.flag && (
-          <FlagSheet key={`${reportPage.flag.reportId}:${reportPage.flag.claimId}`} claim={reportPage.flag.text} onSave={reportPage.saveFlag} onClose={reportPage.closeFlag} />
-        )}
-        {lookUp && (
-          <LookUp
-            onPick={(hit) => void pick(hit)}
-            onClose={() => {
-              lookUpAdds.current = false
-              setLookUp(false)
-            }}
-          />
-        )}
+              {fatalNotice}
+              <UpdateBanner />
+              <main key={shownKey} className={frameClass} data-page={page}>
+                {content}
+              </main>
+            </>
+          )}
+          {refreshing && <RefreshSheet asked={refreshing} busy={report.busy} onStart={(tickers) => report.refresh(tickers, refreshing.every((r) => !r.created_at))} onClose={() => setRefreshing(null)} />}
+          {page === 'report' && reportPage.flag && (
+            <FlagSheet key={`${reportPage.flag.reportId}:${reportPage.flag.claimId}`} claim={reportPage.flag.text} onSave={reportPage.saveFlag} onClose={reportPage.closeFlag} />
+          )}
+          {lookUp && (
+            <LookUp
+              onPick={(hit) => void pick(hit)}
+              onClose={() => {
+                lookUpAdds.current = false
+                setLookUp(false)
+              }}
+            />
+          )}
+        </div>
+        {/* After the sidebar and the toolbar, whose top strips drag the window under it: where drag
+            areas overlap, the later one in the page wins (shell/sidebar.test.ts). */}
+        {page !== 'setup' && <SidebarButton shown={sideOpen} onClick={toggleSidebar} />}
+        <div className="toasts" aria-live="polite">
+          {notice && <Toast key={notice.id} notice={notice} onDone={() => setNotice((n) => (n && n.id === notice.id ? null : n))} />}
+        </div>
       </div>
-      {/* After the sidebar and the toolbar, whose top strips drag the window under it: where drag
-          areas overlap, the later one in the page wins (shell/sidebar.test.ts). */}
-      {page !== 'setup' && <SidebarButton shown={sideOpen} onClick={toggleSidebar} />}
-      <div className="toasts" aria-live="polite">
-        {notice && <Toast key={notice.id} notice={notice} onDone={() => setNotice((n) => (n && n.id === notice.id ? null : n))} />}
-      </div>
-    </div>
+    </StockMenuProvider>
   )
 }

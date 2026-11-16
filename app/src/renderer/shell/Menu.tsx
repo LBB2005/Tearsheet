@@ -4,13 +4,15 @@
 // was. As in a Mac menu there is one highlight: the pointer moves the focus as it passes over an
 // item, so hover and keys never light two items (styles.css .menu4.pointing), and leaving the
 // menu puts the highlight out. Ticks (checkbox and radio items) keep
-// it open, so several filters can be set at once; any other item closes it.
+// it open, so several filters can be set at once; any other item closes it. An item that doesn't
+// apply is greyed (aria-disabled) with its reason beside it, and can still take the focus, so the
+// reason is read out; picking it does nothing.
 
 import { useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
 
 export type MenuEntry =
-  | { kind: 'item'; label: string; onSelect: () => void; danger?: boolean; shortcut?: string }
+  | { kind: 'item'; label: string; onSelect: () => void; danger?: boolean; shortcut?: string; disabled?: boolean; note?: string }
   | { kind: 'check'; label: string; checked: boolean; onSelect: () => void; radio?: boolean }
   | { kind: 'heading'; label: string }
   | { kind: 'separator' }
@@ -97,16 +99,19 @@ export function Menu({ label, at, entries, onClose }: { label: string; at: { lef
         onMouseLeave={() => pointing(false)}
       >
         {entries.map((entry, i) => {
-          if (entry.kind === 'separator') return <div key={i} className="sep" role="separator" />
+          // Keyed by their words, so an item keeps its place (and the focus) when the entries
+          // change while the menu is open (the stock menu's watchlists, once they load).
+          const key = entry.kind === 'separator' ? `sep:${i}` : `${entry.kind}:${entry.label}`
+          if (entry.kind === 'separator') return <div key={key} className="sep" role="separator" />
           if (entry.kind === 'heading')
             return (
-              <div key={i} className="mh" role="presentation">
+              <div key={key} className="mh" role="presentation">
                 {entry.label}
               </div>
             )
           if (entry.kind === 'check')
             return (
-              <button key={i} role={entry.radio ? 'menuitemradio' : 'menuitemcheckbox'} aria-checked={entry.checked} onClick={entry.onSelect}>
+              <button key={key} role={entry.radio ? 'menuitemradio' : 'menuitemcheckbox'} aria-checked={entry.checked} onClick={entry.onSelect}>
                 <span className="ck" aria-hidden="true">
                   {entry.checked ? '✓' : ''}
                 </span>
@@ -115,15 +120,18 @@ export function Menu({ label, at, entries, onClose }: { label: string; at: { lef
             )
           return (
             <button
-              key={i}
+              key={key}
               role="menuitem"
               className={entry.danger ? 'danger' : undefined}
+              aria-disabled={entry.disabled || undefined}
               onClick={() => {
+                if (entry.disabled) return
                 close()
                 entry.onSelect()
               }}
             >
               {entry.label}
+              {entry.note && <small>{entry.note}</small>}
               {entry.shortcut && <kbd>{entry.shortcut}</kbd>}
             </button>
           )

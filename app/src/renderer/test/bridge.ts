@@ -388,6 +388,7 @@ function makeBridge(): FakeBridge {
     commandsFor: vi.fn<TearsheetApi['commandsFor']>(async (kinds: ToolKind[]) => commands(kinds)),
     showSetupLog: vi.fn<TearsheetApi['showSetupLog']>(async () => true),
     openExternal: vi.fn<TearsheetApi['openExternal']>(async () => true),
+    copyTicker: vi.fn<TearsheetApi['copyTicker']>(async () => true),
     about: vi.fn<TearsheetApi['about']>(async () => ({ app: '0.1.0', engine: '0.1.0', macos: '26.1', electron: '33.2.0' })),
     sendFeedback: vi.fn<TearsheetApi['sendFeedback']>(async () => true),
     copyDiagnostics: vi.fn<TearsheetApi['copyDiagnostics']>(async () => true),

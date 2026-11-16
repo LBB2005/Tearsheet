@@ -112,6 +112,31 @@ describe('refreshText for several companies', () => {
   })
 })
 
+describe('refreshText for a company with no report yet (a stock menu’s Write a report…)', () => {
+  const asked = [{ ticker: 'LULU', created_at: null }]
+
+  it('says there is none yet, what it costs and whether it will be official', () => {
+    const t = refreshText(asked, plan([item('LULU')]), { busy: false, now: NOW, perReport: 300 })
+    expect(t.title).toBe('Write a LULU report?')
+    expect(t.lines).toEqual(['There’s no LULU report yet.', `A full report takes about 5 min and about ${CALLS_PER_REPORT} AI calls.`, 'It will be an official prediction in your log.'])
+    expect(t.start).toBe('Write the report')
+  })
+
+  it('inside 30 days it won’t be official, and while busy it waits its turn', () => {
+    const t = refreshText(asked, plan([item('LULU', false)]), { busy: true, now: NOW, perReport: 300 })
+    expect(t.lines.slice(2)).toEqual(['It won’t be an official prediction: LULU was rated in the last 30 days.', 'It starts once the reports before it are done.'])
+  })
+
+  it('left out by the check, says why with nothing to start', () => {
+    const t = refreshText(asked, plan([], [{ query: 'LULU', reason: 'LULU is already in the line.', kind: 'in_line' }]), { busy: false, now: NOW })
+    expect(t).toMatchObject({ title: 'LULU can’t be written now', lines: ['LULU is already in the line.'], start: null })
+  })
+
+  it('once in the line, has no old report to keep', () => {
+    expect(refreshNote([item('LULU')], { busy: false, paused: false, fresh: true })).toEqual({ title: 'Writing LULU', text: 'It’s under “writing…” in the sidebar.' })
+  })
+})
+
 describe('refreshNote, once they are in the line', () => {
   it('says it has started, or that it is waiting its turn', () => {
     expect(refreshNote([item('AAPL')], { busy: false, paused: false })).toEqual({ title: 'Refreshing AAPL', text: 'It’s under “writing…” in the sidebar. Your old report stays.' })

@@ -64,7 +64,7 @@ export function RefreshSheet({ asked, busy, onStart, onClose }: RefreshSheetProp
 
   const one = asked.length === 1
   const text = plan ? refreshText(asked, plan, { busy }) : null
-  const title = text?.title ?? (one ? `Refresh ${asked[0].ticker}?` : `Refresh ${asked.length} reports?`)
+  const title = text?.title ?? (one ? (asked[0].created_at ? `Refresh ${asked[0].ticker}?` : `Write a ${asked[0].ticker} report?`) : `Refresh ${asked.length} reports?`)
 
   return (
     <>

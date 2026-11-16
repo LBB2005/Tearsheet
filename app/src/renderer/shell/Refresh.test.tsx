@@ -15,7 +15,7 @@ const confirm = () => within(screen.getByRole('dialog', { name: /refresh/i }))
 
 async function refreshFromMenu(user: Awaited<ReturnType<typeof renderApp>>['user'], ticker: string) {
   fireEvent.contextMenu(rowOf(ticker), { clientX: 40, clientY: 300 })
-  await user.click(within(screen.getByRole('menu', { name: `${ticker} report` })).getByRole('menuitem', { name: 'Refresh report…' }))
+  await user.click(within(screen.getByRole('menu', { name: `${ticker} options` })).getByRole('menuitem', { name: 'Refresh report…' }))
   await screen.findByRole('dialog', { name: /refresh/i })
 }
 

@@ -3,7 +3,8 @@
 // date menu switches between them. Before anything starts, a small confirm says how old the
 // latest report is, what a new one costs, and whether it will be a new official prediction: the
 // engine's check (plan_line) says, by the same 30-day rule as any report. Several companies
-// selected in the sidebar go into the line together.
+// selected in the sidebar go into the line together. A stock's right-click menu asks the same
+// confirm for a company with no report yet ("Write a report…"): then there is no latest report.
 
 import type { LineItem, LinePlan, LineSkip } from '../../shared/protocol'
 import { joinNames, lineTime, officialNote, usualReport } from '../home/line'
@@ -12,10 +13,10 @@ import { shortDate } from '../nav'
 // About how many AI calls a full report makes, a little over the 34 of Liam’s runs (the line says his own: home/line.ts).
 export const CALLS_PER_REPORT = 40
 
-// A company to refresh, with the date of its latest report.
+// A company to refresh, with the date of its latest report (null: it has none yet).
 export interface Refreshing {
   ticker: string
-  created_at: string
+  created_at: string | null
 }
 
 const DAY_MS = 86_400_000
@@ -75,12 +76,26 @@ export function refreshText(asked: Refreshing[], plan: LinePlan, opts: { busy: b
   if (asked.length === 1) {
     const ticker = asked[0].ticker
     const it = items[0]
-    if (!it) return { title: `${ticker} can’t be refreshed now`, ages: [], lines: plan.skipped.map((s) => s.reason), skipped: [], start: null }
+    const latest = asked[0].created_at
+    if (!it) return { title: latest ? `${ticker} can’t be refreshed now` : `${ticker} can’t be written now`, ages: [], lines: plan.skipped.map((s) => s.reason), skipped: [], start: null }
+    if (!latest)
+      return {
+        title: `Write a ${it.ticker} report?`,
+        ages: [],
+        lines: [
+          `There’s no ${it.ticker} report yet.`,
+          `A full report takes ${lineTime(1, perReport)} and about ${CALLS_PER_REPORT} AI calls.`,
+          it.official ? 'It will be an official prediction in your log.' : `It won’t be an official prediction: ${it.ticker} was rated in the last 30 days.`,
+          ...(opts.busy ? ['It starts once the reports before it are done.'] : [])
+        ],
+        skipped: [],
+        start: 'Write the report'
+      }
     return {
       title: `Refresh ${it.ticker}?`,
       ages: [],
       lines: [
-        `Your latest ${it.ticker} report is ${fromText(asked[0].created_at, now)}.`,
+        `Your latest ${it.ticker} report is ${fromText(latest, now)}.`,
         `A new full report takes ${lineTime(1, perReport)} and about ${CALLS_PER_REPORT} AI calls.`,
         it.official ? 'It will be a new official prediction in your log.' : `It won’t be an official prediction: ${it.ticker} was rated in the last 30 days.`,
         ...(opts.busy ? ['It starts once the reports before it are done.'] : []),
@@ -110,13 +125,15 @@ export function refreshText(asked: Refreshing[], plan: LinePlan, opts: { busy: b
 }
 
 // The note once they are in the line. `busy`: something was being written already; `paused`:
-// the line is paused (by a usage limit, say), so they wait until it carries on.
-export function refreshNote(items: LineItem[], opts: { busy: boolean; paused: boolean }): { title: string; text: string } {
+// the line is paused (by a usage limit, say), so they wait until it carries on; `fresh`: none of
+// them had a report, so there is no old one to keep.
+export function refreshNote(items: LineItem[], opts: { busy: boolean; paused: boolean; fresh?: boolean }): { title: string; text: string } {
   const one = items.length === 1
   const names = joinNames(items.map((it) => it.ticker))
   const inLine = `${names} ${one ? 'is' : 'are'} in the line`
   if (opts.paused) return { title: inLine, text: 'The line is paused. Carry on from the home page.' }
   if (opts.busy) return { title: inLine, text: one ? 'It starts once the reports before it are done.' : 'They start once the reports before them are done.' }
+  if (one && opts.fresh) return { title: `Writing ${names}`, text: 'It’s under “writing…” in the sidebar.' }
   if (one) return { title: `Refreshing ${names}`, text: 'It’s under “writing…” in the sidebar. Your old report stays.' }
   const [first, ...rest] = items.map((it) => it.ticker)
   return { title: `Refreshing ${items.length} reports`, text: `${first} first, then ${joinNames(rest)}. They’re under “writing…” in the sidebar.` }

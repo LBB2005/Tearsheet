@@ -200,8 +200,9 @@ describe('the sidebar', () => {
     const { user } = await renderApp()
     const row = [...screen.getByRole('complementary', { name: 'Sidebar' }).querySelectorAll('.ri4')][0] as HTMLElement
     await user.pointer({ keys: '[MouseRight]', target: row.querySelector('.row4') as Element })
-    await user.click(await screen.findByRole('menuitem', { name: 'Add to watchlist' }))
-    await waitFor(() => expect(bridge.addToWatchlist).toHaveBeenCalledWith(null, [expect.any(String)]))
+    // Two lists: a tick for each.
+    await user.click(await screen.findByRole('menuitemcheckbox', { name: 'Core' }))
+    await waitFor(() => expect(bridge.addToWatchlist).toHaveBeenCalledWith(1, [expect.any(String)]))
   })
 })
 

@@ -18,6 +18,7 @@ import { LinePlanCard, QuickAdd, useLinePlan } from '../home/LineParts'
 import { useFix } from '../home/fix'
 import { greeting, sinceLines, type SinceLine } from '../home/since'
 import { Mark } from '../mark/Mark'
+import { menuKey, useStockMenu } from '../stock/StockMenu'
 import { freshHits, peerRule, shortDate } from '../nav'
 import { FRED_NOTICE, FRED_TERMS } from '../settings/About'
 import { at } from '../setup/parts'
@@ -73,6 +74,7 @@ export function Home({ companies, tool, fieldRef, buttonOn, refresh, onStart, on
   const { plan, checking } = linePlan
   const [predictions, setPredictions] = useState<PredictionSummary[] | null>(null)
   const [settings, setSettings] = useState<SettingsResult | null>(null)
+  const stockMenu = useStockMenu()
   const latest = useRef(0)
   // Return pressed before the look-up answered: the text it was pressed on, so the answer for that
   // text starts its first company.
@@ -206,6 +208,12 @@ export function Home({ companies, tool, fieldRef, buttonOn, refresh, onStart, on
       setQuery('')
       setWhy(null)
       linePlan.clear()
+    } else if (menuKey(e) && listOpen && shown[sel]) {
+      // The highlighted company's stock menu, below its row.
+      e.preventDefault()
+      const h = shown[sel]
+      const el = document.getElementById(`home-hit-${sel}`)
+      if (el) stockMenu.openBelow({ ticker: h.ticker, cik: h.cik, name: h.name, reportId: h.report_id, reportDate: h.report_date }, el)
     }
   }
 
@@ -266,6 +274,7 @@ export function Home({ companies, tool, fieldRef, buttonOn, refresh, onStart, on
                 disabled={starting !== null}
                 onMouseEnter={() => setSel(i)}
                 onClick={() => void begin(h.ticker)}
+                {...stockMenu.bind({ ticker: h.ticker, cik: h.cik, name: h.name, reportId: h.report_id, reportDate: h.report_date })}
               >
                 <b>{h.ticker}</b>
                 <span>
@@ -322,7 +331,7 @@ export function Home({ companies, tool, fieldRef, buttonOn, refresh, onStart, on
             <div className="sugg mv" style={at(3)}>
               <span>Try</span>
               {TRY.map(([ticker, name]) => (
-                <button key={ticker} className="sg" disabled={starting !== null} onClick={() => void begin(ticker)}>
+                <button key={ticker} className="sg" disabled={starting !== null} onClick={() => void begin(ticker)} {...stockMenu.bind({ ticker, name })}>
                   {starting === ticker ? 'Starting…' : name}
                 </button>
               ))}
@@ -335,7 +344,7 @@ export function Home({ companies, tool, fieldRef, buttonOn, refresh, onStart, on
           <div className="sugg mv" style={at(3)}>
             <span>Recent</span>
             {companies.slice(0, 4).map((c) => (
-              <button key={c.cik} className="sg" title={c.name} onClick={() => onOpen(c)}>
+              <button key={c.cik} className="sg" title={c.name} onClick={() => onOpen(c)} {...stockMenu.bind({ ticker: c.ticker, cik: c.cik, name: c.name })}>
                 <b>{c.ticker}</b>
                 {c.price !== null && <em>{money.format(c.price)}</em>}
               </button>

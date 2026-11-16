@@ -3,7 +3,9 @@
 // bar; and the picked company on the right (price with the report's range ahead, key numbers,
 // factors, alerts and a note), or, with 2 to 6 ticked, a chart comparing them with the S&P 500.
 // Every number comes from the engine (get_watchlist, engine watchlist.py); alerts arrive as
-// watch_changed notes, which App turns into a fresh `refresh`.
+// watch_changed notes, which App turns into a fresh `refresh`. A right-click on a company (its
+// row, the needs-a-look strip, the detail's heading, the compare table) opens the stock menu
+// (stock/menu.ts), whose Compare ticks it.
 
 import '../watch/watch.css'
 
@@ -19,6 +21,7 @@ import { shortDate } from '../nav'
 import type { Notice } from '../overlays/Toast'
 import { Spinner } from '../setup/parts'
 import { money } from '../shell/Sidebar'
+import { useStockMenu, type StockMenu } from '../stock/StockMenu'
 import { PriceChart } from '../watch/PriceChart'
 import {
   attention,
@@ -64,6 +67,7 @@ const SPANS: [days: number, label: string][] = [
 const UNCERTAINTY: Record<string, string> = { low: 'Low', medium: 'Medium', high: 'High', very_high: 'Very high', extreme: 'Extreme' }
 const UNDO_MS = 8000
 const answerOf = <T,>(r: CallResult<T>) => (r.ok ? (r.result as T) : null)
+const stockOf = (r: WatchRow) => ({ ticker: r.ticker, cik: r.cik, name: r.name, reportId: r.levels?.report_id ?? null, reportDate: r.levels?.report_date ?? null })
 const why = (r: CallResult<unknown>) => r.error?.message || 'Tearsheet’s engine didn’t answer.'
 
 function Tag({ rating }: { rating: string | null | undefined }) {
@@ -105,6 +109,7 @@ export function Watch({ refresh, focus, onOpenReport, onNotify, onSubtitle }: Wa
   const subtitle = useRef(onSubtitle)
   subtitle.current = onSubtitle
   const reload = useCallback(() => setAgain((n) => n + 1), [])
+  const stockMenu = useStockMenu()
 
   useEffect(() => {
     let live = true
@@ -315,6 +320,11 @@ export function Watch({ refresh, focus, onOpenReport, onNotify, onSubtitle }: Wa
     else onNotify('Couldn’t save the CSV', r.message, 'stop')
   }
 
+  // A company's stock menu, with Compare for the chart (2 to 6 ticked).
+  const tickOne = (cik: number) => setTicked((t) => (t.includes(cik) ? t.filter((c) => c !== cik) : [...t, cik]))
+  const menuOf = (r: WatchRow) =>
+    stockMenu.bind(stockOf(r), { compare: { on: ticked.includes(r.cik), toggle: () => tickOne(r.cik), why: ticked.length >= 6 ? 'Six at most' : undefined } })
+
   const onListKey = (e: KeyboardEvent) => {
     if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
     e.preventDefault()
@@ -385,14 +395,8 @@ export function Watch({ refresh, focus, onOpenReport, onNotify, onSubtitle }: Wa
   )
 
   const rowButton = (r: WatchRow, group: string) => (
-    <div className={`wrow${r.cik === row?.cik && !compareOn ? ' on' : ''}`} key={`${group}:${r.cik}`}>
-      <input
-        type="checkbox"
-        aria-label={`Compare ${r.ticker}`}
-        checked={ticked.includes(r.cik)}
-        disabled={!ticked.includes(r.cik) && ticked.length >= 6}
-        onChange={() => setTicked((t) => (t.includes(r.cik) ? t.filter((c) => c !== r.cik) : [...t, r.cik]))}
-      />
+    <div className={`wrow${r.cik === row?.cik && !compareOn ? ' on' : ''}`} key={`${group}:${r.cik}`} {...menuOf(r)}>
+      <input type="checkbox" aria-label={`Compare ${r.ticker}`} checked={ticked.includes(r.cik)} disabled={!ticked.includes(r.cik) && ticked.length >= 6} onChange={() => tickOne(r.cik)} />
       <button data-cik={r.cik} onClick={() => setPick(r.cik)} title={readable(topReason(r)?.text ?? '') || undefined}>
         <b>
           {r.ticker}
@@ -494,7 +498,7 @@ export function Watch({ refresh, focus, onOpenReport, onNotify, onSubtitle }: Wa
             {looks.length} {looks.length === 1 ? 'needs' : 'need'} a look
           </b>
           {looks.slice(0, 6).map(({ row: r, reason }) => (
-            <button key={r.cik} onClick={() => setPick(r.cik)} className={r.unseen ? 'new' : ''}>
+            <button key={r.cik} onClick={() => setPick(r.cik)} className={r.unseen ? 'new' : ''} {...menuOf(r)}>
               <b>{r.ticker}</b> {readable(reason?.text ?? '')}
             </button>
           ))}
@@ -579,7 +583,7 @@ export function Watch({ refresh, focus, onOpenReport, onNotify, onSubtitle }: Wa
         <div className="wsplit">
           {listColumn}
           {compareOn ? (
-            <Compare rows={page.rows.filter((r) => ticked.includes(r.cik))} order={ticked} onClear={() => setTicked([])} onRemove={(cik) => setTicked((t) => t.filter((c) => c !== cik))} />
+            <Compare rows={page.rows.filter((r) => ticked.includes(r.cik))} order={ticked} onClear={() => setTicked([])} onRemove={(cik) => setTicked((t) => t.filter((c) => c !== cik))} menuOf={menuOf} />
           ) : row ? (
             <Detail
               key={row.cik}
@@ -608,6 +612,7 @@ export function Watch({ refresh, focus, onOpenReport, onNotify, onSubtitle }: Wa
                 })
               }}
               onSaved={reload}
+              menu={menuOf(row)}
             />
           ) : null}
         </div>
@@ -630,12 +635,14 @@ interface DetailProps {
   onTakeOut: (l: WatchList) => void
   onStop: () => void
   onAlert: (change: { range?: boolean; trigger?: boolean; move?: number; age?: boolean }) => void
+  // The stock menu's handlers, for the heading.
+  menu?: ReturnType<StockMenu['bind']>
   onOpenReport: (reportId: string) => void
   onQueue: () => void
   onSaved: () => void
 }
 
-function Detail({ row, lists, listsOpen, onListsOpen, newFor, onNewFor, newField, onToggleIn, onTakeOut, onStop, onAlert, onOpenReport, onQueue, onSaved }: DetailProps) {
+function Detail({ row, lists, listsOpen, onListsOpen, newFor, onNewFor, newField, onToggleIn, onTakeOut, onStop, onAlert, onOpenReport, onQueue, onSaved, menu }: DetailProps) {
   const lv = row.levels
   const [span, setSpan] = useState(252)
   const [series, setSeries] = useState<{ dates: string[]; close: number[] } | null>(null)
@@ -688,7 +695,7 @@ function Detail({ row, lists, listsOpen, onListsOpen, newFor, onNewFor, newField
 
   return (
     <section className="wdet" aria-label={`${row.ticker}, ${row.name}`}>
-      <div className="dhead">
+      <div className="dhead" onContextMenu={menu?.onContextMenu}>
         <h3>{row.ticker}</h3>
         <span className="nm">{row.name}</span>
         <Tag rating={lv?.rating} />
@@ -943,7 +950,7 @@ function Detail({ row, lists, listsOpen, onListsOpen, newFor, onNewFor, newField
 
 // ---------- 2 to 6 ticked: the Prediction log's compare chart ----------
 
-function Compare({ rows, order, onClear, onRemove }: { rows: WatchRow[]; order: number[]; onClear: () => void; onRemove: (cik: number) => void }) {
+function Compare({ rows, order, onClear, onRemove, menuOf }: { rows: WatchRow[]; order: number[]; onClear: () => void; onRemove: (cik: number) => void; menuOf?: (r: WatchRow) => ReturnType<StockMenu['bind']> }) {
   const [range, setRange] = useState<CompareRange>('3M')
   const [prices, setPrices] = useState<{ key: string; data: PredictionPrices | null } | null>(null)
   const drawnLast = useRef<CompareSeries | null>(null)
@@ -1008,7 +1015,7 @@ function Compare({ rows, order, onClear, onRemove }: { rows: WatchRow[]; order: 
               const r = byCik.get(p.cik)!
               const flip = flipOf(r)
               return (
-                <tr key={p.cik}>
+                <tr key={p.cik} {...menuOf?.(r)}>
                   <td className="tk">{r.ticker}</td>
                   <td>
                     <Tag rating={r.levels?.rating} />

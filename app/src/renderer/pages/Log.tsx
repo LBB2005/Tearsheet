@@ -3,7 +3,8 @@
 // with the good-pick consensus; on the right the good-pick cards, every prediction in a table with
 // its bear-to-bull bar, and a chart comparing the ticked ones with the S&P 500. It only reads:
 // predictions are write-once, and nothing here writes them. Only real predictions and real grades
-// show.
+// show. A right-click on a card or a row (or ⇧F10 in it) opens the stock menu (stock/menu.ts),
+// whose Compare ticks it for the chart.
 
 import '../log/log.css'
 
@@ -46,6 +47,7 @@ import { shortDate } from '../nav'
 import { PopUp, rangeFill } from '../settings/General'
 import { at, Changes, Spinner } from '../setup/parts'
 import { money } from '../shell/Sidebar'
+import { useStockMenu } from '../stock/StockMenu'
 
 export interface LogProps {
   // Past predictions being graded, from the app's launch or from Grade what is due here. The
@@ -130,6 +132,7 @@ export function Log({ grading, refresh, onGrade, onSubtitle, onOpenReport }: Log
   const drawnLast = useRef<CompareSeries | null>(null)
   const subtitle = useRef(onSubtitle)
   subtitle.current = onSubtitle
+  const stockMenu = useStockMenu()
 
   useEffect(() => {
     let live = true
@@ -178,6 +181,12 @@ export function Log({ grading, refresh, onGrade, onSubtitle, onOpenReport }: Log
   }
   const flip = (facet: Facet, value: string) => setFilters((f) => ({ ...f, [facet]: toggled(f[facet] as string[], value) }))
   const tick = (cik: number) => setPicks(togglePick(chosen, cik))
+  // A prediction's stock menu: its own report, and Compare for the chart (the newest only).
+  const menuOf = (r: LogRow) =>
+    stockMenu.bind(
+      { ticker: r.p.ticker, cik: r.p.cik, name: r.p.name, reportId: r.p.report_id ?? null, reportDate: r.p.report_id ? r.p.run_at : null },
+      { here: 'log', compare: { on: r.newest && chosen.includes(r.p.cik), toggle: () => tick(r.p.cik), why: r.newest ? undefined : 'An older prediction' } }
+    )
 
   const grade = async () => {
     if (grading) return
@@ -355,7 +364,16 @@ export function Log({ grading, refresh, onGrade, onSubtitle, onOpenReport }: Log
                 {(moreCards ? cards : cards.slice(0, CARDS_SHOWN)).map((r) => {
                   const on = chosen.includes(r.p.cik) && r.newest
                   return (
-                    <button key={r.p.prediction_id} type="button" className={`pcard${on ? ' on' : ''}${r.good ? ' good' : ''}`} aria-pressed={on} disabled={!r.newest} onClick={() => tick(r.p.cik)} title={r.newest ? `Add ${r.p.ticker} to the chart` : 'An older prediction for this company'}>
+                    <button
+                      key={r.p.prediction_id}
+                      type="button"
+                      className={`pcard${on ? ' on' : ''}${r.good ? ' good' : ''}`}
+                      aria-pressed={on}
+                      disabled={!r.newest}
+                      onClick={() => tick(r.p.cik)}
+                      title={r.newest ? `Add ${r.p.ticker} to the chart` : 'An older prediction for this company'}
+                      {...menuOf(r)}
+                    >
                       <span className="pchead">
                         <span className="tk">{r.p.ticker}</span>
                         <span className={`pill ${ratingTone(r.p.rating)}`}>{r.p.rating}</span>
@@ -461,7 +479,7 @@ export function Log({ grading, refresh, onGrade, onSubtitle, onOpenReport }: Log
                     const next = nextGrade(r.p, now)
                     const on = r.newest && chosen.includes(r.p.cik)
                     return (
-                      <div key={r.p.prediction_id} role="row" className={`lrow${r.good ? ' good' : ''}${on ? ' on' : ''}`}>
+                      <div key={r.p.prediction_id} role="row" className={`lrow${r.good ? ' good' : ''}${on ? ' on' : ''}`} {...menuOf(r)}>
                         <span role="cell" className="c-ck">
                           <input type="checkbox" checked={on} disabled={!r.newest} onChange={() => tick(r.p.cik)} aria-label={`Compare ${r.p.ticker}`} />
                         </span>

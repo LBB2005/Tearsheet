@@ -5,16 +5,18 @@
 //
 // A row is its ticker, a tick for an official prediction, the last close and a rating tag (look 3
 // of the sidebar mockups, 2026-11-07). Pinned companies come first, then the date groups
-// (reportList.ts). Each row has a "…" menu, also on right-click: Pin, Show in Prediction log,
-// Refresh, Select and Delete. ⌘-click or ⇧-click selects several, and the menu then refreshes or
-// deletes them all. In the list, ↑ ↓ Home End move, Return opens, ⌘⌫ deletes and Esc ends a
-// selection or the search. Deleting is App's (useMarks.ts): it hides at once and offers Undo.
-// Refresh is App's too: a confirm (overlays/RefreshSheet.tsx), then the line.
+// (reportList.ts). Each row has a "…" menu, also on right-click: the stock menu every company has
+// (stock/menu.ts: open, refresh, watchlist, the log, copy, EDGAR), then Pin, Select and Delete.
+// ⌘-click or ⇧-click selects several, and the menu then refreshes or deletes them all. In the
+// list, ↑ ↓ Home End move, Return opens, ⌘⌫ deletes and Esc ends a selection or the search.
+// Deleting is App's (useMarks.ts): it hides at once and offers Undo. Refresh is App's too: a
+// confirm (overlays/RefreshSheet.tsx), then the line.
 
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactElement } from 'react'
 
 import type { CompanyRow, ReportSummary } from '../../shared/protocol'
 import { shortDate, type Page, type StatusLine } from '../nav'
+import { useStockMenu } from '../stock/StockMenu'
 import { Menu, type MenuEntry } from './Menu'
 import { filtersOn, groupRows, loadPrefs, matches, moveText, RATINGS, savePrefs, sectorsOf, selectRange, SORT_NAMES, type ListPrefs, type SortKey } from './reportList'
 
@@ -113,8 +115,6 @@ export interface SidebarProps {
   // Companies on the watchlist that need a look (engine watch_counts), for the Watchlist row's
   // badge; 0 or undefined shows none.
   watchCount?: number
-  // "Add to watchlist" in a company's menu.
-  onWatch?: (row: CompanyRow) => void
   onDelete: (rows: CompanyRow[]) => void
   // Refresh: write these companies' reports again, after a confirm (refresh.ts).
   onRefresh: (rows: CompanyRow[]) => void
@@ -127,13 +127,16 @@ export interface SidebarProps {
   onOrder?: (rows: CompanyRow[]) => void
 }
 
-type Opened = { key: string; at: { left: number; top: number } }
+// `shared`: the stock menu (StockMenu.tsx) draws it; the sidebar only marks the row.
+type Opened = { key: string; at: { left: number; top: number }; shared?: boolean }
 
 const cikKey = (cik: number) => `c:${cik}`
+// The row being written names its company by ticker once the engine has found it.
+const isTicker = (text: string) => /^[A-Z][A-Z0-9.-]{0,9}$/.test(text)
 const hiddenKey = (id: string) => `h:${id}`
 
 export function Sidebar(props: SidebarProps) {
-  const { page, companies, openReport, writing, status, hidden, onNew, onWriting, onLookUp, onCompany, onPage, onDelete, onRefresh, onPin, onOpenHidden, onBringBack, onDeleteHidden, watchCount, onWatch } = props
+  const { page, companies, openReport, writing, status, hidden, onNew, onWriting, onLookUp, onCompany, onPage, onDelete, onRefresh, onPin, onOpenHidden, onBringBack, onDeleteHidden, watchCount } = props
   const row = (on: boolean) => (on ? 'row4 on' : 'row4')
   const newOn = page === 'home' && !writing?.on
 
@@ -143,6 +146,7 @@ export function Sidebar(props: SidebarProps) {
   const [selected, setSelected] = useState<number[]>([])
   const [anchor, setAnchor] = useState<number | null>(null)
   const [menu, setMenu] = useState<Opened | null>(null)
+  const stockMenu = useStockMenu()
   const [focusKey, setFocusKey] = useState<string | null>(null)
   const rows = useRef(new Map<string, HTMLButtonElement>())
   const searchField = useRef<HTMLInputElement>(null)
@@ -247,52 +251,60 @@ export function Sidebar(props: SidebarProps) {
 
   const openMenu = (key: string, at: { left: number; top: number }) => {
     setFocusKey(key)
-    setMenu({ key, at })
+    const company = visible.find((c) => cikKey(c.cik) === key)
+    const report = hiddenRows.find((r) => hiddenKey(r.report_id) === key)
+    const several = company && selectedRows.length > 1 && selected.includes(company.cik)
+    const onClose = () => setMenu((m) => (m?.key === key ? null : m))
+    if (company && !several) {
+      setMenu({ key, at, shared: true })
+      stockMenu.open({ ticker: company.ticker, cik: company.cik, name: company.name }, at, { more: companyMore(company), onClose })
+    } else if (report?.ticker) {
+      setMenu({ key, at, shared: true })
+      stockMenu.open({ ticker: report.ticker, cik: report.cik, name: report.name, reportId: report.report_id }, at, { more: hiddenMore(report), onClose })
+    } else setMenu({ key, at })
   }
   const menuBelow = (key: string, el: Element) => {
     const r = el.getBoundingClientRect()
     openMenu(key, { left: r.left, top: r.bottom + 4 })
   }
 
-  const companyEntries = (c: CompanyRow): MenuEntry[] => {
-    if (selectedRows.length > 1 && selected.includes(c.cik)) {
-      return [
-        {
-          kind: 'item',
-          label: `Refresh ${selectedRows.length} selected…`,
-          onSelect: () => {
-            onRefresh(selectedRows)
-            clearSelection()
-          }
-        },
-        { kind: 'separator' },
-        { kind: 'item', label: `Delete ${selectedRows.length} selected`, shortcut: '⌘⌫', danger: true, onSelect: () => remove(selectedRows) },
-        { kind: 'item', label: 'Cancel selection', onSelect: clearSelection }
-      ]
-    }
-    return [
-      { kind: 'item', label: c.pinned ? 'Unpin' : 'Pin to top', onSelect: () => onPin(c, !c.pinned) },
-      ...(onWatch ? [{ kind: 'item', label: 'Add to watchlist', onSelect: () => onWatch(c) } as MenuEntry] : []),
-      ...(c.official ? [{ kind: 'item', label: 'Show in Prediction log', onSelect: () => onPage('log') } as MenuEntry] : []),
-      { kind: 'item', label: 'Refresh report…', onSelect: () => onRefresh([c]) },
-      {
-        kind: 'item',
-        label: 'Select',
-        onSelect: () => {
-          setSelected([c.cik])
-          setAnchor(c.cik)
-        }
-      },
-      { kind: 'separator' },
-      { kind: 'item', label: c.reports > 1 ? `Delete all ${c.reports} reports` : 'Delete report', shortcut: '⌘⌫', danger: true, onSelect: () => remove([c]) }
-    ]
-  }
+  // Several selected: the menu is for them all.
+  const selectedEntries = (): MenuEntry[] => [
+    {
+      kind: 'item',
+      label: `Refresh ${selectedRows.length} selected…`,
+      onSelect: () => {
+        onRefresh(selectedRows)
+        clearSelection()
+      }
+    },
+    { kind: 'separator' },
+    { kind: 'item', label: `Delete ${selectedRows.length} selected`, shortcut: '⌘⌫', danger: true, onSelect: () => remove(selectedRows) },
+    { kind: 'item', label: 'Cancel selection', onSelect: clearSelection }
+  ]
 
-  const hiddenEntries = (r: ReportSummary): MenuEntry[] => [
-    { kind: 'item', label: 'Open', onSelect: () => onOpenHidden(r) },
+  // The sidebar's own options, after the stock menu's.
+  const companyMore = (c: CompanyRow): MenuEntry[] => [
+    { kind: 'item', label: c.pinned ? 'Unpin' : 'Pin to top', onSelect: () => onPin(c, !c.pinned) },
+    {
+      kind: 'item',
+      label: 'Select',
+      onSelect: () => {
+        setSelected([c.cik])
+        setAnchor(c.cik)
+      }
+    },
+    { kind: 'separator' },
+    { kind: 'item', label: c.reports > 1 ? `Delete all ${c.reports} reports` : 'Delete report', shortcut: '⌘⌫', danger: true, onSelect: () => remove([c]) }
+  ]
+
+  const hiddenMore = (r: ReportSummary): MenuEntry[] => [
     { kind: 'item', label: 'Bring back', onSelect: () => onBringBack(r) },
     ...(r.kept_because === null ? ([{ kind: 'separator' }, { kind: 'item', label: 'Delete report', danger: true, onSelect: () => onDeleteHidden(r) }] as MenuEntry[]) : [])
   ]
+
+  // A hidden report with no ticker has only the sidebar's options.
+  const hiddenEntries = (r: ReportSummary): MenuEntry[] => [{ kind: 'item', label: 'Open', onSelect: () => onOpenHidden(r) }, ...hiddenMore(r)]
 
   const sectors = sectorsOf(listed)
   const sortEntries = (): MenuEntry[] => [
@@ -517,7 +529,16 @@ export function Sidebar(props: SidebarProps) {
           {writing && (
             <div role="list" aria-labelledby="side-reports">
               <div role="listitem">
-                <button ref={keep('w')} data-key="w" tabIndex={tabKey === 'w' ? 0 : -1} className={row(writing.on)} aria-current={writing.on ? 'page' : undefined} onClick={onWriting} onFocus={() => setFocusKey('w')}>
+                <button
+                  ref={keep('w')}
+                  data-key="w"
+                  tabIndex={tabKey === 'w' ? 0 : -1}
+                  className={row(writing.on)}
+                  aria-current={writing.on ? 'page' : undefined}
+                  onClick={onWriting}
+                  onFocus={() => setFocusKey('w')}
+                  {...(isTicker(writing.ticker) ? stockMenu.bind({ ticker: writing.ticker }) : {})}
+                >
                   <b>{writing.ticker}</b>
                   <span className="px">{writing.waiting ? `writing… · ${writing.waiting} waiting` : 'writing…'}</span>
                 </button>
@@ -598,8 +619,8 @@ export function Sidebar(props: SidebarProps) {
           )}
         </div>
       </div>
-      {menu && menuCompany && <Menu label={`${menuCompany.ticker} report`} at={menu.at} entries={companyEntries(menuCompany)} onClose={() => setMenu(null)} />}
-      {menu && menuHidden && <Menu label={`Hidden ${menuHidden.ticker ?? ''} report`} at={menu.at} entries={hiddenEntries(menuHidden)} onClose={() => setMenu(null)} />}
+      {menu && !menu.shared && menuCompany && <Menu label={`${selectedRows.length} selected reports`} at={menu.at} entries={selectedEntries()} onClose={() => setMenu(null)} />}
+      {menu && !menu.shared && menuHidden && <Menu label="Hidden report" at={menu.at} entries={hiddenEntries(menuHidden)} onClose={() => setMenu(null)} />}
       {sortShown && <Menu label="Sort and filter" at={menu.at} entries={sortEntries()} onClose={() => setMenu(null)} />}
     </aside>
   )

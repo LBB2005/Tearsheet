@@ -7,7 +7,8 @@
 // - LineStrip, under the run view's receipt: "Up next" while the line goes, with "37 of 212 done,
 //   about 12 hours left", each company with a × to take it out (folded past a dozen), Add a
 //   company and Cancel all; when the line is paused, what it waits for and how to go on; and once
-//   the line is done, how each report went, each one opening from the list.
+//   the line is done, how each report went, each one opening from the list. Each company there
+//   has the stock menu on a right-click (stock/menu.ts); a waiting one's adds Take out of the line.
 // - LinePaused, at the top of the home page: reports waiting in a paused line (left from when
 //   Tearsheet closed, behind a problem such as a sign-out, or waiting for the plan's usage to
 //   reset), to carry on or clear. Behind a safety check that didn't pass, only the check again
@@ -19,6 +20,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 
 import type { LineGroups, LineItem, LinePlan, LineState } from '../../shared/protocol'
 import { at } from '../setup/parts'
+import { useStockMenu } from '../stock/StockMenu'
 import { ConfirmButton } from './Confirm'
 import {
   callsPerReportOf,
@@ -317,6 +319,8 @@ export interface LineStripProps {
 }
 
 export function LineStrip({ line, runId, perReport, onRemove, onAdd, onCancelAll, onCarryOn, onOpen, adder, onRecheck }: LineStripProps) {
+  // A waiting company's stock menu also takes it out of the line.
+  const stockMenu = useStockMenu()
   const [allChips, setAllChips] = useState(false)
   const [allDone, setAllDone] = useState(false)
   const ours = line.writing?.run_id === runId || line.finished.some((item) => item.run_id === runId)
@@ -359,7 +363,7 @@ export function LineStrip({ line, runId, perReport, onRemove, onAdd, onCancelAll
           <>
             <ul className="chips" aria-label="Waiting">
               {chips.map((item) => (
-                <li key={item.ticker} title={item.name}>
+                <li key={item.ticker} title={item.name} {...stockMenu.bind({ ticker: item.ticker, name: item.name }, { more: [{ kind: 'item', label: 'Take out of the line', onSelect: () => onRemove(item.ticker) }] })}>
                   <b>{item.ticker}</b>
                   <button className="x4" aria-label={`Take ${item.ticker} out of the line`} onClick={() => onRemove(item.ticker)}>
                     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -427,8 +431,9 @@ export function LineStrip({ line, runId, perReport, onRemove, onAdd, onCancelAll
 
 function DoneRow({ item, onOpen }: { item: LineItem; onOpen: (reportId: string) => void }) {
   const tone = item.outcome === 'ready' ? 'ok' : item.outcome === 'cancelled' ? 'muted' : 'bad'
+  const stockMenu = useStockMenu()
   return (
-    <li>
+    <li {...stockMenu.bind({ ticker: item.ticker, name: item.name, ...(item.report_id ? { reportId: item.report_id } : {}) })}>
       <i className={tone} aria-hidden="true" />
       <b>{item.ticker}</b>
       <span title={item.message ?? undefined}>{outcomeText(item)}</span>

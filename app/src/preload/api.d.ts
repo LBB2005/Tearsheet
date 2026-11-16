@@ -65,6 +65,8 @@ export interface TearsheetApi {
   // launch isn't off. Always answers, even with the build's switch off.
   getInstallButton(): Promise<boolean>
   openExternal(url: string): Promise<boolean>
+  // Puts a ticker on the clipboard (a stock's right-click menu); false for anything that isn't one.
+  copyTicker(ticker: string): Promise<boolean>
   // The version numbers for Settings → About and help (main/about.ts).
   about(): Promise<import('../main/about').AboutInfo>
   // Opens the person's own Mail with a feedback email holding those numbers; nothing is sent.

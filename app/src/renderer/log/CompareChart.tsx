@@ -5,6 +5,7 @@ import { COMPARE_RANGES, plot, type CompareRange, type CompareSeries } from './c
 import { signedPct } from './screen'
 import { shortDate } from '../nav'
 import { Spinner } from '../setup/parts'
+import { useStockMenu } from '../stock/StockMenu'
 
 const W = 730
 const H = 200
@@ -21,6 +22,8 @@ export interface CompareChartProps {
 }
 
 export function CompareChart({ series, range, loading, stale = false, picked, onRange, onRemove }: CompareChartProps) {
+  // A company's line in the legend has the stock menu too; its Stop comparing takes the line off.
+  const stockMenu = useStockMenu()
   const drawn = plot(series, W, H, (x) => (x.startsWith('day ') ? x : shortDate(x)))
   return (
     <section className={stale ? 'p glass mv compare stale' : 'p glass mv compare'} aria-label="Compare" aria-busy={loading}>
@@ -64,7 +67,7 @@ export function CompareChart({ series, range, loading, stale = false, picked, on
       {series.lines.length > 0 && (
         <ul className="legend">
           {series.lines.map((l) => (
-            <li key={l.key}>
+            <li key={l.key} {...(l.spy ? {} : stockMenu.bind({ ticker: l.label, cik: Number(l.key) }, { compare: { on: true, toggle: () => onRemove(l.key) } }))}>
               <i className={l.spy ? 'spy' : undefined} style={{ color: l.colour }} aria-hidden="true" />
               <b>{l.label}</b>
               <span className={l.last === null ? '' : l.last >= 0 ? 'up' : 'down'}>{signedPct(l.last, 1)}</span>

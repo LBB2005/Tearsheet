@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import { isAllowedExternal, isSignInLink, SIGN_IN_HOSTS } from './external'
+import { isAllowedExternal, isSignInLink, isTicker, SIGN_IN_HOSTS } from './external'
 
 test('isAllowedExternal', () => {
   expect(isAllowedExternal('https://massive.com/dashboard')).toBe(true)
@@ -8,6 +8,8 @@ test('isAllowedExternal', () => {
   expect(isAllowedExternal('https://fred.stlouisfed.org/docs/api/api_key.html')).toBe(true)
   expect(isAllowedExternal('https://fredaccount.stlouisfed.org/apikeys')).toBe(true)
   expect(isAllowedExternal('https://claude.ai/')).toBe(true)
+  expect(isAllowedExternal('https://www.sec.gov/edgar/browse/?CIK=320193')).toBe(true)
+  expect(isAllowedExternal('https://sec.gov.evil.com/')).toBe(false)
   expect(isAllowedExternal('http://massive.com')).toBe(false)
   expect(isAllowedExternal('https://evil.com')).toBe(false)
   expect(isAllowedExternal('https://massive.com.evil.com')).toBe(false)
@@ -52,4 +54,9 @@ describe('the sign-in hosts', () => {
     expect(isSignInLink('https://sign-in.example/start', ['sign-in.example'])).toBe(true)
     expect(isSignInLink('https://claude.ai/', ['sign-in.example'])).toBe(false)
   })
+})
+
+test('isTicker takes a ticker and nothing else', () => {
+  for (const t of ['AAPL', 'F', 'BRK.B', 'BF-B']) expect(isTicker(t)).toBe(true)
+  for (const t of ['', 'aapl', 'TOOLONGTICKER', 'A B', 'AAPL\n', '$(rm)', 42, null]) expect(isTicker(t)).toBe(false)
 })
