@@ -80,7 +80,8 @@ def index_page(cik: str, folder: str) -> str:
     form, primary = FORMS[folder]
     rows = [(form, primary)]
     if form == "8-K":
-        rows.append(("EX-99.1", "ex99-1.htm"))
+        # Filers may add an unofficial PDF copy under the same type (UDR, Nov 2026).
+        rows += [("EX-99.1", "ex99-1.htm"), ("EX-99.1", "ex99-1.pdf")]
     cells = "".join(
         f'<tr><td>{n}</td><td>doc</td><td><a href="/ix?doc=/Archives/edgar/data/{cik}/{folder}/{name}">'
         f"{name}</a></td><td>{doc_type}</td><td>100</td></tr>"
@@ -104,6 +105,8 @@ def archive(request: httpx.Request) -> httpx.Response:
         bought = re.match(r"buy-(\d{4}-\d{2}-\d{2})\.xml$", name)
         xml = form4_xml("P", bought.group(1)) if bought else form4_xml("S", "2026-08-29")
         return httpx.Response(200, content=xml, headers={"content-type": "text/xml"})
+    if name.endswith(".pdf"):
+        return httpx.Response(200, content=b"%PDF-1.7", headers={"content-type": "application/pdf"})
     return httpx.Response(200, html=f"<html><body><p>{name}</p></body></html>")
 
 
@@ -389,10 +392,27 @@ def test_filing_index_reads_document_types_and_ixbrl_links():
     assert [(e.doc_type, e.name) for e in entries] == [
         ("8-K", "earn-20261030.htm"),
         ("EX-99.1", "ex99-1.htm"),
+        ("EX-99.1", "ex99-1.pdf"),
     ]
     assert entries[0].url == (
         f"https://www.sec.gov/Archives/edgar/data/{COMPANY}/{COMPANY:010d}26000008/earn-20261030.htm"
     )
+
+
+@pytest.mark.parametrize(
+    ("name", "expected"),
+    [
+        ("ex99-1.htm", True),
+        ("EX99.HTML", True),
+        ("d10k.txt", True),
+        ("ex99-1.pdf", False),
+        ("g1.jpg", False),
+    ],
+)
+def test_only_html_and_text_files_are_read(name, expected):
+    from tearsheet.data.sec import is_text_document
+
+    assert is_text_document(name) is expected
 
 
 @pytest.mark.parametrize(("code", "expected"), [("P", {10}), ("S", set())])

@@ -54,6 +54,15 @@ YEAR_TOLERANCE_DAYS = 45
 
 EX_99_1 = re.compile(r"^EX-99(\.0?1)?$", re.IGNORECASE)
 EX_13 = re.compile(r"^EX-13(\.\d+)?$", re.IGNORECASE)
+# The exhibit files a report can read. A filer may add an unofficial PDF copy of an exhibit under
+# the same type (UDR, STZ and DOC did with their earnings releases, Nov 2026); SEC serves it as
+# application/pdf, which the text fetch refuses, so the copy is skipped and the HTML one is read.
+TEXT_DOCUMENT = re.compile(r"\.(htm|html|txt)$", re.IGNORECASE)
+
+
+def is_text_document(name: str) -> bool:
+    """Whether a filing's file is one the report reads as text (HTML or plain text)."""
+    return bool(TEXT_DOCUMENT.search(name))
 
 
 @dataclass(frozen=True)
@@ -464,7 +473,11 @@ class SECClient:
         if primary and filing.primary_document:
             wanted.append((filing.form, filing.url(filing.primary_document)))
         if exhibit is not None:
-            wanted += [(e.doc_type, e.url) for e in index if exhibit.match(e.doc_type)]
+            wanted += [
+                (e.doc_type, e.url)
+                for e in index
+                if exhibit.match(e.doc_type) and is_text_document(e.name)
+            ]
         docs = []
         for doc_type, url in wanted:
             kind = "filing_document" if doc_type == filing.form else "exhibit"

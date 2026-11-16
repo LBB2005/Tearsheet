@@ -169,7 +169,7 @@ class StoredData:
             if index is None:
                 return None
             for entry in sec_data.parse_filing_index(index.decode("utf-8", errors="replace")):
-                if sec_data.EX_13.match(entry.doc_type):
+                if sec_data.EX_13.match(entry.doc_type) and sec_data.is_text_document(entry.name):
                     return self._body(entry.url)
             return None
 
@@ -179,7 +179,11 @@ class StoredData:
             if index is None:
                 continue
             entries = sec_data.parse_filing_index(index.decode("utf-8", errors="replace"))
-            wanted = [e for e in entries if sec_data.EX_99_1.match(e.doc_type)]
+            wanted = [
+                e
+                for e in entries
+                if sec_data.EX_99_1.match(e.doc_type) and sec_data.is_text_document(e.name)
+            ]
             if not wanted and role.startswith("press "):
                 wanted = [e for e in entries if e.doc_type == filing.form]
             for entry in wanted[:1]:
