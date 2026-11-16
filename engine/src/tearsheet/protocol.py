@@ -94,6 +94,12 @@ class ExportParams(Strict):
     kind: Literal["pdf", "pptx", "xlsx"]
 
 
+class ExportAllParams(Strict):
+    # Export all data (export/all_data.py): one Excel file of every company. The app's version,
+    # for the file's About tab.
+    app_version: str | None = Field(default=None, max_length=40)
+
+
 class ListReportsParams(Strict):
     limit: int = 50
     offset: int = 0
@@ -269,6 +275,7 @@ METHODS: dict[str, type[Strict]] = {
     "get_report_numbers": NumbersParams,
     "get_analysts": AnalystsParams,
     "export_report": ExportParams,
+    "export_all": ExportAllParams,
     "hide_reports": ReportIdsParams,
     "show_reports": ReportIdsParams,
     "erase_reports": ReportIdsParams,
@@ -686,6 +693,15 @@ class ExportResult(Strict):
     html: str | None
     data_base64: str | None
     footer: str
+
+
+class ExportAllResult(Strict):
+    """export_all's answer: the Excel file of all data in base64, and each tab's row count
+    (not counting its header row)."""
+
+    file_name: str
+    data_base64: str
+    rows: dict[str, int]
 
 
 class ReportAnalysts(Strict):
@@ -1331,6 +1347,7 @@ ALL_MODELS: tuple[type[BaseModel], ...] = (
     AnalystCheck,
     ReportAnalysts,
     ExportResult,
+    ExportAllResult,
     ReportSummary,
     HideResult,
     ShowResult,

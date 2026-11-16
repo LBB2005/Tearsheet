@@ -430,6 +430,7 @@ function makeBridge(): FakeBridge {
     listPredictions: vi.fn<TearsheetApi['listPredictions']>(async () => ok(PREDICTIONS)),
     predictionPrices: vi.fn<TearsheetApi['predictionPrices']>(async (ciks: number[]) => ok(comparePrices(ciks))),
     saveCsv: vi.fn<TearsheetApi['saveCsv']>(async (name: string) => ({ ok: true as const, name, path: `/Users/liam/Downloads/${name}` })),
+    exportAll: vi.fn<TearsheetApi['exportAll']>(async () => ({ state: 'saved' as const, kind: 'xlsx' as const, reportId: '', all: true, name: 'Tearsheet all data 16 Nov 2026.xlsx', path: '/Users/liam/Downloads/Tearsheet all data 16 Nov 2026.xlsx' })),
     flagClaim: vi.fn<TearsheetApi['flagClaim']>(async () => ok({ review_id: 'rv-1' })),
     rereadFiling: vi.fn<TearsheetApi['rereadFiling']>(async () => ok({ deleted: 3 })),
     getTools: vi.fn<TearsheetApi['getTools']>(async () => TOOLS),

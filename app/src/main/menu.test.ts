@@ -56,3 +56,15 @@ test('Help has Tearsheet Help and Send Feedback, last, as on every Mac app', () 
   for (const i of items) (i.click as () => void)()
   expect(send.mock.calls).toEqual([['help'], ['feedback']])
 })
+
+test('File > Export All Data… sends exportAll, before Close window', () => {
+  const send = vi.fn<(c: MenuCommand) => void>()
+  const file = menuTemplate(send, false).find((i) => i.label === 'File')
+  const items = Array.isArray(file?.submenu) ? file.submenu : []
+  const exportAll = items.find((i) => i.label === 'Export All Data…')
+  expect(exportAll).toBeDefined()
+  expect(exportAll!.accelerator).toBeUndefined()
+  ;(exportAll!.click as () => void)()
+  expect(send).toHaveBeenCalledWith('exportAll')
+  expect(items.indexOf(exportAll!)).toBeLessThan(items.findIndex((i) => i.role === 'close'))
+})

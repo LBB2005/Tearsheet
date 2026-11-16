@@ -486,6 +486,7 @@ export function App() {
     else if (command === 'settings') go('settings')
     else if (command === 'log') go('log')
     else if (command === 'watch') go('watch')
+    else if (command === 'exportAll') void window.tearsheet.exportAll()
     else if (command === 'help') {
       setSettingsTopic('about')
       go('settings')

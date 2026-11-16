@@ -2,7 +2,7 @@
 
 import type { MenuItemConstructorOptions } from 'electron'
 
-export type MenuCommand = 'new' | 'lookup' | 'summary' | 'full' | 'chart' | 'prev' | 'next' | 'log' | 'watch' | 'sidebar' | 'find' | 'settings' | 'help' | 'feedback'
+export type MenuCommand = 'new' | 'lookup' | 'summary' | 'full' | 'chart' | 'prev' | 'next' | 'log' | 'watch' | 'sidebar' | 'find' | 'settings' | 'help' | 'feedback' | 'exportAll'
 
 export function menuTemplate(send: (c: MenuCommand) => void, isDev: boolean): MenuItemConstructorOptions[] {
   const item = (label: string, accelerator: string, command: MenuCommand): MenuItemConstructorOptions => ({
@@ -27,7 +27,15 @@ export function menuTemplate(send: (c: MenuCommand) => void, isDev: boolean): Me
     },
     {
       label: 'File',
-      submenu: [item('New report', 'CmdOrCtrl+N', 'new'), item('Look up', 'CmdOrCtrl+K', 'lookup'), { type: 'separator' }, { role: 'close', accelerator: 'CmdOrCtrl+W' }]
+      // Export All Data…: one Excel file with everything Tearsheet has (main/downloads.ts).
+      submenu: [
+        item('New report', 'CmdOrCtrl+N', 'new'),
+        item('Look up', 'CmdOrCtrl+K', 'lookup'),
+        { type: 'separator' },
+        item('Export All Data…', '', 'exportAll'),
+        { type: 'separator' },
+        { role: 'close', accelerator: 'CmdOrCtrl+W' }
+      ]
     },
     {
       label: 'Edit',

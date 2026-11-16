@@ -135,7 +135,7 @@ ICLOUD_FOLDERS = ("Documents", "Desktop", "Library/Mobile Documents")
 # in the same queue.
 # get_analysts may wait up to analystdb's time limit (data/analystdb.py), so it never holds up
 # the requests behind it.
-OFF_LOOP = frozenset({"grade_due", "fetch_history", "check_key", "get_analysts"})
+OFF_LOOP = frozenset({"grade_due", "fetch_history", "check_key", "get_analysts", "export_all"})
 # How often the price backfill looks again while a report, grading, a history download or the
 # safety check is under way (it never makes them wait).
 BACKFILL_POLL_S = 2.0
@@ -1489,6 +1489,21 @@ class Server:
             blob = workbook.build(d) if p.kind == "xlsx" else deck.build(d)
             answer["data_base64"] = base64.b64encode(blob).decode("ascii")
         return answer
+
+    async def m_export_all(self, p) -> dict[str, Any]:
+        """Export all data (export/all_data.py): one Excel file of every company, from what is
+        stored, read-only, with no AI. It runs in a thread on a read-only connection of its
+        own, so the engine keeps answering while it is made."""
+        import base64
+
+        from tearsheet.export import all_data
+
+        made = await asyncio.to_thread(all_data.build, self.paths.db, app_version=p.app_version)
+        return {
+            "file_name": made.file_name,
+            "data_base64": base64.b64encode(made.data).decode("ascii"),
+            "rows": made.rows,
+        }
 
     def _report_day(self, run_id: str, created_at: str):
         """The day a report is as of: its price date, else the Eastern day it was made."""

@@ -312,7 +312,8 @@ WATCH_METHODS = {
 def test_the_watchlist_methods_are_declared_and_handled_with_no_new_error_codes():
     assert WATCH_METHODS <= set(METHODS)
     assert all(callable(getattr(Server, f"m_{name}", None)) for name in WATCH_METHODS)
-    assert PROTOCOL_VERSION == 7
+    # 7 brought the watchlist; 8 added export_all.
+    assert PROTOCOL_VERSION >= 7
     # Refusals are INVALID_PARAMS with a sentence; the codes stay as they were.
     assert "WATCH" not in " ".join(ERROR_CODES)
     s = schema()

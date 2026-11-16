@@ -3,7 +3,8 @@
 // PDF, a slide deck or an Excel workbook straight to ~/Downloads. The engine makes each file from
 // the saved report, with no AI (export_report); for the PDF it gives a print page, which a hidden
 // window here prints. The window hears how each one went on 'tearsheet:download', and can ask to
-// show a file it saved in Finder.
+// show a file it saved in Finder. Export all data (File → Export All Data…, or the prediction log's
+// Export) saves one Excel file with everything Tearsheet has on every company, the same way.
 
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -16,12 +17,20 @@ export const KIND_NAMES: Record<DownloadKind, string> = { pdf: 'PDF', pptx: 'sli
 export interface DownloadNote {
   state: 'saving' | 'saved' | 'failed'
   kind: DownloadKind
+  // The report's id; '' for the file of all data.
   reportId: string
+  // True for Export all data.
+  all?: boolean
   // The file's name and full path, once saved.
   name?: string
   path?: string
   // Why it failed, in plain words.
   message?: string
+}
+
+interface AllAnswer {
+  file_name: string
+  data_base64: string
 }
 
 interface ExportAnswer {
@@ -39,6 +48,8 @@ export interface DownloadDeps {
   write(path: string, data: Buffer): Promise<void>
   printPdf(html: string, footer: string): Promise<Buffer>
   notify(note: DownloadNote): void
+  // The app's version, for the About tab of the file of all data.
+  appVersion?: string
 }
 
 // "JPM Tearsheet 7 Nov 2026.pdf", or with " (2)", " (3)" … before the extension if taken.
@@ -55,10 +66,10 @@ export function freeName(name: string, taken: (name: string) => boolean): string
 }
 
 // The engine's name, kept to plain characters, so it can never point outside the folder.
-export function safeName(name: unknown, kind: DownloadKind): string {
+export function safeName(name: unknown, kind: DownloadKind, fallback = 'Tearsheet report'): string {
   const plain = typeof name === 'string' ? basename(name).replace(/[^A-Za-z0-9 .()_-]/g, '').trim() : ''
-  const withExt = plain.toLowerCase().endsWith(`.${kind}`) ? plain : `${plain || 'Tearsheet report'}.${kind}`
-  return withExt.startsWith('.') ? `Tearsheet report${withExt}` : withExt
+  const withExt = plain.toLowerCase().endsWith(`.${kind}`) ? plain : `${plain || fallback}.${kind}`
+  return withExt.startsWith('.') ? `${fallback}${withExt}` : withExt
 }
 
 const escapeHtml = (text: string) => text.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`)
@@ -113,6 +124,33 @@ export class Downloads {
       return { ok: true, name: file, path }
     } catch (error) {
       return { ok: false, message: failureMessage(error) }
+    }
+  }
+
+  // Export all data: one Excel file with everything Tearsheet has, made by the engine from what
+  // it has stored (export_all), saved under a new name. A second ask while it is made is ignored.
+  async startAll(): Promise<DownloadNote | null> {
+    const key = 'all'
+    if (this.busy.has(key)) return null
+    this.busy.add(key)
+    const base = { kind: 'xlsx' as const, reportId: '', all: true }
+    this.deps.notify({ state: 'saving', ...base })
+    try {
+      const answer = (await this.deps.request('export_all', this.deps.appVersion ? { app_version: this.deps.appVersion } : {})) as AllAnswer
+      if (typeof answer?.data_base64 !== 'string' || !answer.data_base64) throw new Error('the engine sent no file')
+      const name = freeName(safeName(answer.file_name, 'xlsx', 'Tearsheet all data'), (n) => this.deps.exists(join(this.deps.dir, n)))
+      const path = join(this.deps.dir, name)
+      await this.deps.write(path, Buffer.from(answer.data_base64, 'base64'))
+      this.saved.add(path)
+      const note: DownloadNote = { state: 'saved', ...base, name, path }
+      this.deps.notify(note)
+      return note
+    } catch (error) {
+      const note: DownloadNote = { state: 'failed', ...base, message: failureMessage(error) }
+      this.deps.notify(note)
+      return note
+    } finally {
+      this.busy.delete(key)
     }
   }
 

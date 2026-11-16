@@ -4,7 +4,8 @@
 // its bear-to-bull bar, and a chart comparing the ticked ones with the S&P 500. It only reads:
 // predictions are write-once, and nothing here writes them. Only real predictions and real grades
 // show. A right-click on a card or a row (or ⇧F10 in it) opens the stock menu (stock/menu.ts),
-// whose Compare ticks it for the chart.
+// whose Compare ticks it for the chart. Export offers the rows shown as a CSV, or one Excel file of
+// all data (main/downloads.ts, the same as File → Export All Data…).
 
 import '../log/log.css'
 
@@ -48,6 +49,7 @@ import { shortDate } from '../nav'
 import { PopUp, rangeFill } from '../settings/General'
 import { at, Changes, Spinner } from '../setup/parts'
 import { money } from '../shell/Sidebar'
+import { Menu } from '../shell/Menu'
 import { useStockMenu } from '../stock/StockMenu'
 
 export interface LogProps {
@@ -128,6 +130,10 @@ export function Log({ grading, refresh, onGrade, onSubtitle, onOpenReport }: Log
   const [moreCards, setMoreCards] = useState(false)
   const [prices, setPrices] = useState<{ key: string; data: PredictionPrices | null } | null>(null)
   const [saved, setSaved] = useState<{ text: string; path?: string } | null>(null)
+  // The Export menu, open under its button; and the Excel file of all data being made, from here
+  // or from the File menu (its notes say when it starts and ends).
+  const [exportAt, setExportAt] = useState<{ left: number; top: number } | null>(null)
+  const [allBusy, setAllBusy] = useState(false)
   // The chart last drawn: it stays up, dimmed, while the next one's prices load, so the panel
   // never collapses to a line of text and springs back on every tick.
   const drawnLast = useRef<CompareSeries | null>(null)
@@ -152,6 +158,14 @@ export function Log({ grading, refresh, onGrade, onSubtitle, onOpenReport }: Log
       live = false
     }
   }, [refresh, tries])
+
+  useEffect(
+    () =>
+      window.tearsheet.onDownload((note) => {
+        if (note.all) setAllBusy(note.state === 'saving')
+      }),
+    []
+  )
 
   const rows = useMemo(() => logRows(all ?? [], rule), [all, rule])
   // The chart opens on the good picks (up to 6), until Liam ticks something himself.
@@ -198,9 +212,37 @@ export function Log({ grading, refresh, onGrade, onSubtitle, onOpenReport }: Log
   const head = (count: number | null) => (
     <span className="acts">
       {count !== null && (
-        <button className="btn2" type="button" disabled={count === 0} onClick={() => void exportCsv()}>
-          Export {count} {count === 1 ? 'row' : 'rows'} (CSV)
+        <button
+          className="btn2"
+          type="button"
+          aria-haspopup="menu"
+          aria-expanded={exportAt !== null}
+          disabled={allBusy}
+          onClick={(e) => {
+            const r = e.currentTarget.getBoundingClientRect()
+            setExportAt(exportAt ? null : { left: r.left, top: r.bottom + 6 })
+          }}
+        >
+          {allBusy ? (
+            <>
+              <Spinner />
+              Making the Excel file…
+            </>
+          ) : (
+            'Export…'
+          )}
         </button>
+      )}
+      {count !== null && exportAt && (
+        <Menu
+          label="Export"
+          at={exportAt}
+          onClose={() => setExportAt(null)}
+          entries={[
+            { kind: 'item', label: `CSV, the ${count} ${count === 1 ? 'row' : 'rows'} shown`, onSelect: () => void exportCsv(), disabled: count === 0, note: count === 0 ? 'No rows shown' : undefined },
+            { kind: 'item', label: 'Excel, all data', onSelect: () => void exportAll(), note: 'Every company and price' }
+          ]}
+        />
       )}
       <button className="btn2" type="button" disabled={grading} onClick={() => void grade()}>
         {grading ? (
@@ -226,6 +268,14 @@ export function Log({ grading, refresh, onGrade, onSubtitle, onOpenReport }: Log
     setSaved(null)
     const answer = await window.tearsheet.saveCsv(csvFileName(), csvText(shown))
     setSaved(answer.ok ? { text: `Saved ${answer.name} to Downloads.`, path: answer.path } : { text: `The CSV wasn’t saved. ${answer.message}` })
+  }
+
+  async function exportAll() {
+    setSaved(null)
+    setAllBusy(true)
+    // Its toast says when it is saved, with Show in Finder (App, report/downloads.ts).
+    const note = await window.tearsheet.exportAll()
+    if (note) setAllBusy(false)
   }
 
   if (!all) {

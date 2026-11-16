@@ -147,6 +147,9 @@ export interface TearsheetApi {
   markWatchSeen(ciks?: number[]): Promise<CallResult<import('../shared/protocol').WatchCounts>>
   // Saves the log's CSV to ~/Downloads under a free name; then showDownload(path) works on it.
   saveCsv(name: string, text: string): Promise<{ ok: true; name: string; path: string } | { ok: false; message: string }>
+  // Export all data: one Excel file with everything Tearsheet has, to ~/Downloads. Its progress
+  // comes on onDownload (with `all`); null if one is already being made.
+  exportAll(): Promise<import('../main/downloads').DownloadNote | null>
   flagClaim(claimId: string, note: string): Promise<CallResult<{ review_id: string }>>
   rereadFiling(accession: string): Promise<CallResult<{ deleted: number }>>
   getTools(force?: boolean): Promise<ToolStatus[]>

@@ -449,3 +449,18 @@ describe('downloads from the end of the report', () => {
     expect(screen.getByText('Tearsheet isn’t allowed to save in Downloads.')).toBeInTheDocument()
   })
 })
+
+describe('File → Export All Data…', () => {
+  test('makes the Excel file of all data and its toast offers Show in Finder', async () => {
+    const { user } = await renderApp()
+    menu('exportAll')
+    expect(bridge.exportAll).toHaveBeenCalledTimes(1)
+    download({ state: 'saving', kind: 'xlsx', reportId: '', all: true })
+    expect(await screen.findByText('Making the Excel file of all data…')).toBeInTheDocument()
+    download({ state: 'saved', kind: 'xlsx', reportId: '', all: true, name: 'Tearsheet all data 16 Nov 2026.xlsx', path: '/Users/liam/Downloads/Tearsheet all data 16 Nov 2026.xlsx' })
+    expect(await screen.findByText('Tearsheet all data 16 Nov 2026.xlsx')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Show in Finder' }))
+    expect(bridge.showDownload).toHaveBeenCalledWith('/Users/liam/Downloads/Tearsheet all data 16 Nov 2026.xlsx')
+  })
+})
+

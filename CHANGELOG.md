@@ -8,6 +8,11 @@ All notable changes to Tearsheet are listed here. The format follows
 
 ### Added
 
+- Export all data: **File → Export All Data…**, or **Export… → Excel, all data** in the
+  prediction log, saves one Excel file to Downloads with every company's latest prediction, every
+  prediction, the report's key numbers with peer medians and percentiles, the factor scores, and
+  the stored daily closes. It is made from what Tearsheet has stored, with no AI. The log's CSV is
+  unchanged, under **Export… → CSV**.
 - An update banner: at launch and at most once a day, Tearsheet asks GitHub for the newest version
   and shows "Tearsheet X is out · Download · What's new · Dismiss" when a newer one is out. Turn it
   off with **Check for updates** in Settings → About and help.

@@ -109,7 +109,8 @@ describe('the calls', () => {
     ['getSettings', [], ['tearsheet:call', 'getSettings', {}]],
     ['setSetting', ['raw_cap', '20'], ['tearsheet:call', 'setSetting', { key: 'raw_cap', value: '20' }]],
     ['gradeDue', [], ['tearsheet:call', 'gradeDue', {}]],
-    ['showDownload', ['/Users/x/Downloads/JPM Tearsheet 7 Nov 2026.pdf'], ['tearsheet:showDownload', '/Users/x/Downloads/JPM Tearsheet 7 Nov 2026.pdf']]
+    ['showDownload', ['/Users/x/Downloads/JPM Tearsheet 7 Nov 2026.pdf'], ['tearsheet:showDownload', '/Users/x/Downloads/JPM Tearsheet 7 Nov 2026.pdf']],
+    ['exportAll', [], ['tearsheet:exportAll']]
   ])('%s(%j) goes to the main process as it should', async (name, args, sent) => {
     await api[name](...args)
     expect(invoke).toHaveBeenCalledWith(...sent)
@@ -159,6 +160,6 @@ test('the update banner asks main for its status, the setting, Dismiss and its t
 
 test('the window gets nothing but these calls and listeners', () => {
   expect(Object.keys(api).sort()).toEqual(
-    ['addToLine', 'cancel', 'carryOnLine', 'checkKey', 'clearLine', 'getLine', 'lineGroups', 'planLine', 'removeFromLine', 'fetchHistory', 'find', 'flagClaim', 'getAnalysts', 'getChart', 'getReport', 'getReportNumbers', 'eraseReports', 'getSettings', 'getTools', 'gradeDue', 'hideReports', 'listCompanies', 'listPredictions', 'listReports', 'predictionPrices', 'saveCsv', 'onFlagRequested', 'onMenu', 'onNotification', 'onOpenView', 'openExternal', 'copyTicker', 'pinCompany', 'rereadFiling', 'resume', 'runReport', 'runSafetyCheck', 'searchCompanies', 'setKey', 'setSetting', 'showReports', 'stopFind', 'setLook', 'openTheme', 'saveTheme', 'onDownload', 'showDownload', 'about', 'sendFeedback', 'copyDiagnostics', 'cancelSafetyCheck', 'windowState', 'copyAndOpenTerminal', 'commandsFor', 'showSetupLog', 'install', 'cancelInstall', 'openSignInPage', 'getInstallButton', 'updates', 'setUpdateCheck', 'dismissUpdate', 'openUpdate', 'onUpdate', 'getWatchlist', 'watchCounts', 'watchEvents', 'watchPrices', 'createWatchlist', 'renameWatchlist', 'orderWatchlists', 'deleteWatchlist', 'restoreWatchlist', 'eraseWatchlist', 'addToWatchlist', 'removeFromWatchlist', 'restoreWatchItems', 'orderWatchlist', 'setWatchNote', 'setWatchAlerts', 'markWatchSeen', 'onOpenWatch'].sort()
+    ['addToLine', 'cancel', 'carryOnLine', 'checkKey', 'clearLine', 'getLine', 'lineGroups', 'planLine', 'removeFromLine', 'fetchHistory', 'find', 'flagClaim', 'getAnalysts', 'getChart', 'getReport', 'getReportNumbers', 'eraseReports', 'getSettings', 'getTools', 'gradeDue', 'hideReports', 'listCompanies', 'listPredictions', 'listReports', 'predictionPrices', 'saveCsv', 'exportAll', 'onFlagRequested', 'onMenu', 'onNotification', 'onOpenView', 'openExternal', 'copyTicker', 'pinCompany', 'rereadFiling', 'resume', 'runReport', 'runSafetyCheck', 'searchCompanies', 'setKey', 'setSetting', 'showReports', 'stopFind', 'setLook', 'openTheme', 'saveTheme', 'onDownload', 'showDownload', 'about', 'sendFeedback', 'copyDiagnostics', 'cancelSafetyCheck', 'windowState', 'copyAndOpenTerminal', 'commandsFor', 'showSetupLog', 'install', 'cancelInstall', 'openSignInPage', 'getInstallButton', 'updates', 'setUpdateCheck', 'dismissUpdate', 'openUpdate', 'onUpdate', 'getWatchlist', 'watchCounts', 'watchEvents', 'watchPrices', 'createWatchlist', 'renameWatchlist', 'orderWatchlists', 'deleteWatchlist', 'restoreWatchlist', 'eraseWatchlist', 'addToWatchlist', 'removeFromWatchlist', 'restoreWatchItems', 'orderWatchlist', 'setWatchNote', 'setWatchAlerts', 'markWatchSeen', 'onOpenWatch'].sort()
   )
 })

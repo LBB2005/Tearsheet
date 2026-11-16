@@ -1,14 +1,15 @@
 // The prediction log as Liam uses it (docs/superpowers/specs/2026-11-08-prediction-log-page-design.md):
 // the good-pick consensus picks the cards and opens the chart on them, the filters narrow the
 // table with counts, "see all" is always one click away, ticking adds a line, Since prediction
-// says plainly when nothing has moved yet, Export saves the shown rows, and a row opens its report.
+// says plainly when nothing has moved yet, Export saves the shown rows as a CSV or all data as one
+// Excel file, and a row opens its report.
 
 import { screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, test } from 'vitest'
 
 import type { PredictionSummary } from '../../shared/protocol'
 import { renderApp } from '../test/app'
-import { bridge, ok } from '../test/bridge'
+import { bridge, download, ok } from '../test/bridge'
 import { dragAreas, describe as named } from '../test/dragMap'
 
 const p = (ticker: string, cik: number, over: Partial<PredictionSummary> = {}): PredictionSummary => ({
@@ -136,7 +137,8 @@ describe('export and reports', () => {
   test('Export saves the shown rows to Downloads and offers Show in Finder', async () => {
     const { user } = await openLog()
     await user.click(within(screen.getByRole('complementary', { name: 'Filters' })).getByRole('checkbox', { name: /Financials/ }))
-    await user.click(screen.getByRole('button', { name: 'Export 1 row (CSV)' }))
+    await user.click(screen.getByRole('button', { name: 'Export…' }))
+    await user.click(screen.getByRole('menuitem', { name: 'CSV, the 1 row shown' }))
     const [name, text] = bridge.saveCsv.mock.calls[0]
     expect(name).toMatch(/^Tearsheet predictions \w{3} \d+ \d{4}\.csv$/)
     expect((text as string).trim().split('\n')).toHaveLength(2)
@@ -144,6 +146,53 @@ describe('export and reports', () => {
     expect(await screen.findByText(`Saved ${name} to Downloads.`)).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Show in Finder' }))
     expect(bridge.showDownload).toHaveBeenCalledWith(`/Users/liam/Downloads/${name}`)
+  })
+
+  test('Export offers the CSV or one Excel file of all data', async () => {
+    const { user } = await openLog()
+    await user.click(screen.getByRole('button', { name: 'Export…' }))
+    const menu = screen.getByRole('menu', { name: 'Export' })
+    expect(within(menu).getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['CSV, the 4 rows shown', 'Excel, all dataEvery company and price'])
+    await user.click(within(menu).getByRole('menuitem', { name: /Excel, all data/ }))
+    expect(bridge.exportAll).toHaveBeenCalledTimes(1)
+    expect(bridge.saveCsv).not.toHaveBeenCalled()
+    expect(screen.queryByRole('menu', { name: 'Export' })).not.toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Export…' })).toBeEnabled())
+  })
+
+  test('the CSV can’t be picked when no rows are shown, but all data still can', async () => {
+    const { user } = await openLog()
+    const filters = within(screen.getByRole('complementary', { name: 'Filters' }))
+    await user.click(filters.getByRole('checkbox', { name: /Financials/ }))
+    await user.click(filters.getByRole('checkbox', { name: /^Buy/ }))
+    expect(await screen.findByText('No predictions match')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Export…' }))
+    const csv = screen.getByRole('menuitem', { name: /^CSV, the 0 rows shown/ })
+    expect(csv).toHaveAttribute('aria-disabled', 'true')
+    expect(csv).toHaveTextContent('No rows shown')
+    await user.click(csv)
+    expect(bridge.saveCsv).not.toHaveBeenCalled()
+    expect(screen.getByRole('menuitem', { name: /Excel, all data/ })).not.toHaveAttribute('aria-disabled')
+  })
+
+  test('Export shows it is busy while the Excel file is made, from here or the File menu', async () => {
+    let finish: (v: null) => void = () => undefined
+    bridge.exportAll.mockImplementationOnce(() => new Promise((done) => (finish = done)))
+    const { user } = await openLog()
+    await user.click(screen.getByRole('button', { name: 'Export…' }))
+    await user.click(screen.getByRole('menuitem', { name: /Excel, all data/ }))
+    const busy = screen.getByRole('button', { name: 'Making the Excel file…' })
+    expect(busy).toBeDisabled()
+    // The engine was already making one (from the File menu): its notes end the busy state.
+    finish(null)
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Making the Excel file…' })).toBeDisabled())
+    download({ state: 'saved', kind: 'xlsx', reportId: '', all: true, name: 'a.xlsx', path: '/d/a.xlsx' })
+    expect(screen.getByRole('button', { name: 'Export…' })).toBeEnabled()
+    download({ state: 'saving', kind: 'xlsx', reportId: '', all: true })
+    expect(screen.getByRole('button', { name: 'Making the Excel file…' })).toBeDisabled()
+    download({ state: 'saving', kind: 'pdf', reportId: 'rep-1' })
+    download({ state: 'failed', kind: 'xlsx', reportId: '', all: true, message: 'No room.' })
+    expect(screen.getByRole('button', { name: 'Export…' })).toBeEnabled()
   })
 
   test('a row’s arrow opens its report', async () => {

@@ -20,7 +20,7 @@ from pathlib import Path
 log = logging.getLogger(__name__)
 
 # Folders made with tempfile.mkdtemp(prefix=...).
-STALE_PREFIXES = ("tearsheet-launcher-",)
+STALE_PREFIXES = ("tearsheet-launcher-", "tearsheet-export-")
 # The calls folder: one sub-folder per AI call or Codex home, each removed when done.
 CALLS_FOLDER = "tearsheet-calls"
 STALE_AFTER_S = 24 * 60 * 60

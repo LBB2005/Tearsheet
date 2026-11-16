@@ -94,6 +94,8 @@ contextBridge.exposeInMainWorld('tearsheet', {
   markWatchSeen: (ciks?: number[]) => call('markWatchSeen', ciks === undefined ? {} : { ciks }),
   // The prediction log's Export: a CSV the window made, saved to ~/Downloads (main/downloads.ts).
   saveCsv: (name: string, text: string) => ipcRenderer.invoke('tearsheet:saveCsv', name, text),
+  // Export all data: one Excel file of every company, saved to ~/Downloads (main/downloads.ts).
+  exportAll: () => ipcRenderer.invoke('tearsheet:exportAll'),
   flagClaim: (claimId: string, note: string) => call('flagClaim', { claim_id: claimId, note }),
   rereadFiling: (accession: string) => call('rereadFiling', { accession }),
   getTools: (force = false) => ipcRenderer.invoke('tearsheet:getTools', force),

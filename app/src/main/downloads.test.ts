@@ -159,3 +159,60 @@ describe('the prediction log’s CSV', () => {
     expect(await downloads.saveCsv('a.csv', 42)).toEqual({ ok: false, message: 'There was nothing to save.' })
   })
 })
+
+describe('export all data', () => {
+  const answer = { file_name: 'Tearsheet all data 16 Nov 2026.xlsx', data_base64: Buffer.from('all bytes').toString('base64'), rows: { Prices: 3 } }
+
+  it('asks the engine for the file with the app’s version and saves it to Downloads', async () => {
+    const { all, notes, written } = deps({ request: vi.fn(async () => answer), appVersion: '0.1.0' })
+    const downloads = new Downloads(all)
+    const note = await downloads.startAll()
+    expect(all.request).toHaveBeenCalledWith('export_all', { app_version: '0.1.0' })
+    const path = `${DIR}/Tearsheet all data 16 Nov 2026.xlsx`
+    expect(written.get(path)?.toString()).toBe('all bytes')
+    expect(notes).toEqual([
+      { state: 'saving', kind: 'xlsx', reportId: '', all: true },
+      { state: 'saved', kind: 'xlsx', reportId: '', all: true, name: 'Tearsheet all data 16 Nov 2026.xlsx', path }
+    ])
+    expect(note).toEqual(notes[1])
+    expect(downloads.isSaved(path)).toBe(true)
+  })
+
+  it('takes a new name each time, never replacing the last one', async () => {
+    const { all, written } = deps({ request: vi.fn(async () => answer) })
+    const downloads = new Downloads(all)
+    await downloads.startAll()
+    const second = await downloads.startAll()
+    expect(second?.name).toBe('Tearsheet all data 16 Nov 2026 (2).xlsx')
+    expect(written.size).toBe(2)
+    expect(all.request).toHaveBeenCalledWith('export_all', {})
+  })
+
+  it('keeps the engine’s name inside the folder', async () => {
+    const { all } = deps({ request: vi.fn(async () => ({ ...answer, file_name: '../../evil/all.xlsx' })) })
+    expect((await new Downloads(all).startAll())?.name).toBe('all.xlsx')
+    const blank = deps({ request: vi.fn(async () => ({ ...answer, file_name: '' })) })
+    expect((await new Downloads(blank.all).startAll())?.name).toBe('Tearsheet all data.xlsx')
+  })
+
+  it('ignores a second ask while the file is being made', async () => {
+    let release: () => void = () => undefined
+    const { all } = deps({ request: vi.fn(() => new Promise((done) => (release = () => done(answer)))) })
+    const downloads = new Downloads(all)
+    const first = downloads.startAll()
+    expect(await downloads.startAll()).toBeNull()
+    release()
+    expect((await first)?.state).toBe('saved')
+    expect(all.request).toHaveBeenCalledTimes(1)
+  })
+
+  it('says why when the engine fails or sends nothing, and saves nothing', async () => {
+    const { all, notes, written } = deps({ request: vi.fn(async () => Promise.reject(new Error('database is locked'))) })
+    const note = await new Downloads(all).startAll()
+    expect(note).toEqual({ state: 'failed', kind: 'xlsx', reportId: '', all: true, message: 'It couldn’t be made: database is locked' })
+    expect(notes.at(-1)).toEqual(note)
+    expect(written.size).toBe(0)
+    const empty = deps({ request: vi.fn(async () => ({ file_name: 'a.xlsx', data_base64: '' })) })
+    expect((await new Downloads(empty.all).startAll())?.message).toBe('It couldn’t be made: the engine sent no file')
+  })
+})

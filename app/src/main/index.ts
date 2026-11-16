@@ -262,11 +262,14 @@ async function createWindow(): Promise<void> {
     exists: fileExists,
     write: writeNew,
     printPdf: printHtmlToPdf,
+    appVersion: app.getVersion(),
     notify: (note) => {
       if (!window.isDestroyed() && !window.webContents.isDestroyed()) window.webContents.send('tearsheet:download', note)
     }
   })
   ipcMain.handle('tearsheet:saveCsv', (_event, name: unknown, text: unknown) => downloads.saveCsv(name, text))
+  // Export all data (File → Export All Data…, or the log's Export): its progress comes as notes.
+  ipcMain.handle('tearsheet:exportAll', () => downloads.startAll())
   ipcMain.handle('tearsheet:showDownload', (_event, path: unknown) => {
     if (!downloads.isSaved(path)) return false
     shell.showItemInFolder(path)

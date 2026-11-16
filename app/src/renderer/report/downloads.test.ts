@@ -28,4 +28,16 @@ describe('the download toast', () => {
       tone: 'stop'
     })
   })
+
+  it('names the Excel file of all data while it is made, saved or failed', () => {
+    const base = { kind: 'xlsx' as const, reportId: '', all: true }
+    expect(downloadToast({ state: 'saving', ...base }, vi.fn())).toMatchObject({ title: 'Making the Excel file of all data…', text: 'From everything Tearsheet has stored. It stays here until it’s saved.', busy: true })
+    const show = vi.fn()
+    const saved = downloadToast({ state: 'saved', ...base, name: 'Tearsheet all data 16 Nov 2026.xlsx', path: '/d/Tearsheet all data 16 Nov 2026.xlsx' }, show)
+    expect(saved).toMatchObject({ title: 'Saved to Downloads', text: 'Tearsheet all data 16 Nov 2026.xlsx' })
+    expect(saved.action?.label).toBe('Show in Finder')
+    saved.action?.run()
+    expect(show).toHaveBeenCalledWith('/d/Tearsheet all data 16 Nov 2026.xlsx')
+    expect(downloadToast({ state: 'failed', ...base, message: 'No room.' }, vi.fn()).title).toBe('The Excel file of all data wasn’t saved')
+  })
 })

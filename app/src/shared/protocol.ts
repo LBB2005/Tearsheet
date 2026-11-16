@@ -56,6 +56,7 @@ export type ReportId3 = string;
 export type ReportId4 = string;
 export type ReportId5 = string;
 export type Kind = "pdf" | "pptx" | "xlsx";
+export type AppVersion = string | null;
 /**
  * @minItems 1
  * @maxItems 1000
@@ -326,6 +327,8 @@ export type FileName = string;
 export type Html1 = string | null;
 export type DataBase64 = string | null;
 export type Footer = string;
+export type FileName1 = string;
+export type DataBase641 = string;
 export type ReportId12 = string;
 export type RunId3 = string;
 export type Cik9 = number | null;
@@ -564,7 +567,7 @@ export type Watched = number;
 export type NeedsLook = number;
 export type NoReport = number;
 export type Lists1 = WatchList[];
-export type Rows3 = WatchRow[];
+export type Rows4 = WatchRow[];
 export type AsOf = string | null;
 export type PricesNote = string | null;
 export type Query3 = string;
@@ -599,7 +602,7 @@ export type Events = WatchEvent[];
 export type Notify = boolean;
 
 /**
- * App-engine protocol, version 7.
+ * App-engine protocol, version 8.
  */
 export interface TearsheetProtocol {
   [k: string]: unknown;
@@ -744,6 +747,13 @@ export interface AnalystsParams {
 export interface ExportParams {
   report_id: ReportId5;
   kind: Kind;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "ExportAllParams".
+ */
+export interface ExportAllParams {
+  app_version?: AppVersion;
 }
 /**
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
@@ -1348,6 +1358,21 @@ export interface ExportResult {
   footer: Footer;
 }
 /**
+ * export_all's answer: the Excel file of all data in base64, and each tab's row count
+ * (not counting its header row).
+ *
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "ExportAllResult".
+ */
+export interface ExportAllResult {
+  file_name: FileName1;
+  data_base64: DataBase641;
+  rows: Rows3;
+}
+export interface Rows3 {
+  [k: string]: number;
+}
+/**
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
  * via the `definition` "ReportSummary".
  */
@@ -1885,7 +1910,7 @@ export interface WatchCounts {
  */
 export interface WatchPage {
   lists: Lists1;
-  rows: Rows3;
+  rows: Rows4;
   counts: WatchCounts;
   as_of: AsOf;
   prices_note: PricesNote;
@@ -1979,4 +2004,4 @@ export interface WatchChanged {
   notify: Notify;
 }
 
-export const PROTOCOL_VERSION = 7
+export const PROTOCOL_VERSION = 8
