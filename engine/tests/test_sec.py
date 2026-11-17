@@ -623,3 +623,45 @@ def test_offline_runs_read_a_stored_exhibit_13(tmp_path):
     [ten_k] = [d for d in docs if d.role == "10-K"]
     assert ten_k.accession == accession  # not the 10-K filed after the run date
     assert ten_k.exhibit_13 == b"<html>the annual report</html>"
+
+
+def amounts_xml(*rows: tuple[str, str, str, str, str], owner: str = "Jane Doe") -> bytes:
+    """A Form 4 in SEC's XML shape: (date, code, shares, price, acquired or disposed)."""
+    trades = "".join(
+        "<nonDerivativeTransaction>"
+        f"<transactionDate><value>{day}</value></transactionDate>"
+        f"<transactionCoding><transactionCode>{code}</transactionCode></transactionCoding>"
+        "<transactionAmounts>"
+        f"<transactionShares><value>{shares}</value></transactionShares>"
+        f"<transactionPricePerShare><value>{price}</value></transactionPricePerShare>"
+        f"<transactionAcquiredDisposedCode><value>{side}</value></transactionAcquiredDisposedCode>"
+        "</transactionAmounts></nonDerivativeTransaction>"
+        for day, code, shares, price, side in rows
+    )
+    return (
+        "<ownershipDocument><reportingOwner><reportingOwnerId>"
+        f"<rptOwnerName>{owner}</rptOwnerName></reportingOwnerId></reportingOwner>"
+        f"<nonDerivativeTable>{trades}</nonDerivativeTable>"
+        "<derivativeTable><derivativeTransaction><transactionCoding><transactionCode>M"
+        "</transactionCode></transactionCoding></derivativeTransaction></derivativeTable>"
+        "</ownershipDocument>"
+    ).encode()
+
+
+def test_form4_amounts_reads_shares_price_and_side():
+    from tearsheet.data.sec import Form4Trade, form4_amounts
+
+    xml = amounts_xml(
+        ("2026-11-02", "P", "1,000", "12.50", "A"),
+        ("", "S", "250.5", "", "D"),
+    )
+    assert form4_amounts(xml, date(2026, 11, 4)) == [
+        Form4Trade("Jane Doe", date(2026, 11, 2), "P", 1000.0, 12.5, "A"),
+        Form4Trade("Jane Doe", date(2026, 11, 4), "S", 250.5, None, "D"),
+    ]
+
+
+def test_form4_amounts_on_a_broken_file_is_empty():
+    from tearsheet.data.sec import form4_amounts
+
+    assert form4_amounts(b"<ownershipDocument>", date(2026, 11, 4)) == []

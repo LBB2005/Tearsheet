@@ -479,20 +479,19 @@ class LiveData:
                     )
         return out
 
-    async def form4_trades(self, cik: int, *, today: date) -> list[tuple[str, date, str]]:
-        """Form 4 trades: the last 6 months, plus older filings in the purchase months when a
-        recent purchase appears (the routine test, item 25)."""
+    async def _form4_rows(self, cik: int, today: date, parse, purchased) -> list:
+        """Form 4 rows read by `parse`: the last 6 months, plus older filings in the purchase
+        months when a recent purchase appears (the routine test, item 25). `purchased(row)`
+        is a purchase's date, else None."""
         recent_cut = today - timedelta(days=sec_data.FORM4_RECENT_DAYS)
         filings = await self.sec.filings(
             cik, since=recent_cut - timedelta(days=sec_data.FORM4_HISTORY_DAYS)
         )
         recent = [f for f in filings if f.form == "4" and f.filed >= recent_cut]
-        trades = [
-            t
-            for f, body in await self.sec.form4_documents(recent)
-            for t in sec_data.form4_trades(body, f.filed)
+        rows = [
+            r for f, body in await self.sec.form4_documents(recent) for r in parse(body, f.filed)
         ]
-        months = {d.month for _, d, code in trades if code == "P"}
+        months = {d.month for d in map(purchased, rows) if d is not None}
         if months:
             older = [
                 f
@@ -501,12 +500,23 @@ class LiveData:
                 and f.filed < recent_cut
                 and sec_data.filed_for_months(f.filed, months)
             ]
-            trades += [
-                t
-                for f, body in await self.sec.form4_documents(older)
-                for t in sec_data.form4_trades(body, f.filed)
+            rows += [
+                r for f, body in await self.sec.form4_documents(older) for r in parse(body, f.filed)
             ]
-        return trades
+        return rows
+
+    async def form4_trades(self, cik: int, *, today: date) -> list[tuple[str, date, str]]:
+        """Form 4 trades: the last 6 months, plus older filings in the purchase months when a
+        recent purchase appears (the routine test, item 25)."""
+        return await self._form4_rows(
+            cik, today, sec_data.form4_trades, lambda t: t[1] if t[2] == "P" else None
+        )
+
+    async def form4_amounts(self, cik: int, *, today: date) -> list[sec_data.Form4Trade]:
+        """The same Form 4 filings as form4_trades, read with their share amounts (Dig deeper)."""
+        return await self._form4_rows(
+            cik, today, sec_data.form4_amounts, lambda t: t.day if t.code == "P" else None
+        )
 
     async def macro(self, day: date) -> dict[str, tuple[str, float, date]]:
         """The FRED series for section 8: rates as percents, and 12-month changes for the

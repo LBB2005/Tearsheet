@@ -302,6 +302,55 @@ def form4_trades(xml: bytes, filed: date) -> list[tuple[str, date, str]]:
     return trades
 
 
+@dataclass(frozen=True)
+class Form4Trade:
+    """One non-derivative trade on a Form 4, with its amounts where the filing gives them."""
+
+    owner: str
+    day: date
+    code: str
+    shares: float | None
+    price: float | None
+    acquired: str | None  # "A" (acquired) or "D" (disposed)
+
+
+def _amount(text: str | None) -> float | None:
+    cleaned = (text or "").strip().replace(",", "")
+    try:
+        return float(cleaned) if cleaned else None
+    except ValueError:
+        return None
+
+
+def form4_amounts(xml: bytes, filed: date) -> list[Form4Trade]:
+    """Each non-derivative trade on a Form 4 with its shares, price per share and side, for
+    Dig deeper. The same rows form4_trades reads; a trade with no date takes the filing date."""
+    try:
+        root = ET.fromstring(xml)
+    except ET.ParseError:
+        return []
+    owner = (
+        root.findtext(".//reportingOwner/reportingOwnerId/rptOwnerName") or ""
+    ).strip() or "an insider"
+    trades = []
+    for trade in root.iterfind(".//nonDerivativeTable/nonDerivativeTransaction"):
+        traded = _date((trade.findtext("transactionDate/value") or "").strip()[:10] or None)
+        side = (
+            trade.findtext("transactionAmounts/transactionAcquiredDisposedCode/value") or ""
+        ).strip()
+        trades.append(
+            Form4Trade(
+                owner,
+                traded or filed,
+                (trade.findtext("transactionCoding/transactionCode") or "").strip(),
+                _amount(trade.findtext("transactionAmounts/transactionShares/value")),
+                _amount(trade.findtext("transactionAmounts/transactionPricePerShare/value")),
+                side or None,
+            )
+        )
+    return trades
+
+
 def filed_for_months(filed: date, months: set[int]) -> bool:
     """Whether a Form 4 filed on `filed` can report a trade in one of `months`."""
     previous = 12 if filed.month == 1 else filed.month - 1
