@@ -259,3 +259,12 @@ describe('long lists', () => {
     expect(within(sources).getAllByText('Prices from Massive')).toHaveLength(1)
   })
 })
+
+test('a number no member has (a bank’s left-out ratios) gets no column', async () => {
+  const s = digSnapshot()
+  const rows = s.peers.rows.map((r) => ({ ...r, numbers: { ...r.numbers, operating_margin: null } }))
+  const { region } = await openDig(fresh({ peers: { ...s.peers, rows } }))
+  const peers = within(region).getByRole('region', { name: 'Peers' })
+  expect(within(peers).queryByRole('columnheader', { name: 'Operating margin' })).toBeNull()
+  expect(within(peers).getByRole('columnheader', { name: 'Free cash flow yield' })).toBeInTheDocument()
+})

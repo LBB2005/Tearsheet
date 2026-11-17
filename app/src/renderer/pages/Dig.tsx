@@ -315,6 +315,8 @@ function Peers({ snap, menu }: { snap: DigSnapshot; menu: ReturnType<typeof useS
   const [all, setAll] = useState(false)
   const peerCount = p.rows.filter((r) => !r.is_company).length
   const shownRows = all ? p.rows : p.rows.filter((r, i) => r.is_company || i <= FIRST_ROWS)
+  // A number no member has (the ratios the method leaves out for banks and insurers) gets no column.
+  const columns = p.columns.filter((c) => p.rows.some((r) => (r.numbers[c.key] ?? null) !== null))
   return (
     <Part title="Peers" part={p} source="The report’s stored numbers" wide>
       {p.rows.length > 0 && (
@@ -326,7 +328,7 @@ function Peers({ snap, menu }: { snap: DigSnapshot; menu: ReturnType<typeof useS
                   <th>Company</th>
                   <th className="r">Score</th>
                   <th>Our rating</th>
-                  {p.columns.map((c) => (
+                  {columns.map((c) => (
                     <th key={c.key} className="r">
                       {c.label}
                     </th>
@@ -344,7 +346,7 @@ function Peers({ snap, menu }: { snap: DigSnapshot; menu: ReturnType<typeof useS
                     </th>
                     <td className="r">{r.score === null ? '—' : Math.round(r.score)}</td>
                     <td>{r.rating ? <span className={`tag4 ${r.rating.toLowerCase()}`}>{r.rating}</span> : <span className="faint">—</span>}</td>
-                    {p.columns.map((c) => (
+                    {columns.map((c) => (
                       <td key={c.key} className="r">
                         {metricText(c.key, r.numbers[c.key] ?? null)}
                       </td>
@@ -359,7 +361,7 @@ function Peers({ snap, menu }: { snap: DigSnapshot; menu: ReturnType<typeof useS
                   <th scope="row">Peers’ median</th>
                   <td className="r">{p.median.score === undefined || p.median.score === null ? '—' : Math.round(p.median.score)}</td>
                   <td />
-                  {p.columns.map((c) => (
+                  {columns.map((c) => (
                     <td key={c.key} className="r">
                       {metricText(c.key, p.median[c.key] ?? null)}
                     </td>
