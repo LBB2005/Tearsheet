@@ -5,7 +5,7 @@ import { act, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, test, vi } from 'vitest'
 
 import { renderApp } from '../test/app'
-import { bridge, emit, endInstall, fail, inState, menu, ok, progress, settings, TOOLS } from '../test/bridge'
+import { bridge, download, emit, endInstall, fail, inState, menu, ok, progress, settings, TOOLS } from '../test/bridge'
 
 const openSettings = async (over: Parameters<typeof settings>[0] = {}) => {
   bridge.getSettings.mockResolvedValue(ok(settings(over)))
@@ -436,6 +436,18 @@ describe('Storage, Privacy and Advanced', () => {
     await user.clear(screen.getByRole('textbox', { name: 'Backup folder' }))
     await user.click(screen.getByRole('button', { name: 'Save' }))
     expect(screen.getByRole('alert')).toHaveTextContent('Give the folder’s path')
+  })
+
+  test('storage has Export all data, which makes the Excel file and waits while it is made', async () => {
+    const { user } = await openSettings()
+    await user.click(topic('Storage and backup'))
+    expect(screen.getByText('Export all data')).toBeInTheDocument()
+    bridge.exportAll.mockResolvedValueOnce(null)
+    await user.click(screen.getByRole('button', { name: 'Export…' }))
+    expect(bridge.exportAll).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('button', { name: /Making the Excel file/ })).toBeDisabled()
+    act(() => download({ state: 'saved', kind: 'xlsx', reportId: '', all: true, name: 'Tearsheet all data 16 Nov 2026.xlsx', path: '/Users/x/Downloads/Tearsheet all data 16 Nov 2026.xlsx' }))
+    expect(await screen.findByRole('button', { name: 'Export…' })).toBeEnabled()
   })
 
   test('privacy lists every service and what it is sent', async () => {

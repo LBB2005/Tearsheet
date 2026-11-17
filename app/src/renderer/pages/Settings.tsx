@@ -602,7 +602,44 @@ function StoragePage({ s, onSaved }: { s: SettingsResult; onSaved: () => Promise
           onSaved={onSaved}
         />
       </div>
+      <div className="sgrp">
+        <ExportAllRow />
+      </div>
     </>
+  )
+}
+
+// Export all data: the same Excel file as File → Export All Data… and the prediction log's
+// Export… → Excel, all data. The app-wide toast says when it is saved, with Show in Finder; the
+// button waits while the file is being made.
+function ExportAllRow() {
+  const [busy, setBusy] = useState(false)
+  useEffect(
+    () =>
+      window.tearsheet.onDownload((note) => {
+        if (note.all) setBusy(note.state === 'saving')
+      }),
+    []
+  )
+  const start = async () => {
+    setBusy(true)
+    const note = await window.tearsheet.exportAll()
+    if (note) setBusy(false)
+  }
+  return (
+    <div className="sline">
+      <Label title="Export all data" help="One Excel file of every company: predictions, key numbers, factor scores and daily prices. Saved to Downloads." />
+      <button className="pb" disabled={busy} onClick={() => void start()}>
+        {busy ? (
+          <>
+            <Spinner />
+            Making the Excel file…
+          </>
+        ) : (
+          'Export…'
+        )}
+      </button>
+    </div>
   )
 }
 
