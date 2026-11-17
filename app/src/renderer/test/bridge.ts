@@ -17,6 +17,7 @@ import type { InstallProgress, InstallStatus, RunResult } from '../../shared/ins
 import type { ChartSeries, CompanyRow, KeyNumbers, KeyRow, LineGroups, LineItem, LinePlan, LineState, PredictionPrices, PredictionSummary, ReportBar, ReportNumbers, ReportResult, ReportSummary, SearchHit, SettingsResult } from '../../shared/protocol'
 import { toolFlags, type ToolCommands, type ToolKind, type ToolState } from '../../shared/tools'
 import { analysts } from './analysts'
+import { digPage } from './dig'
 import { WATCH_EVENTS, watchStore } from './watch'
 
 export type FakeBridge = { [K in keyof TearsheetApi]: Mock<TearsheetApi[K]> }
@@ -370,6 +371,8 @@ function makeBridge(): FakeBridge {
     getChart: vi.fn<TearsheetApi['getChart']>(async () => ok(chart())),
     getReportNumbers: vi.fn<TearsheetApi['getReportNumbers']>(async (reportId: string) => ok(numbers(reportId))),
     getAnalysts: vi.fn<TearsheetApi['getAnalysts']>(async (reportId: string) => ok(analysts(reportId))),
+    getDigDeeper: vi.fn<TearsheetApi['getDigDeeper']>(async (cik: number) => ok(digPage(cik))),
+    refreshDigDeeper: vi.fn<TearsheetApi['refreshDigDeeper']>(async (cik: number) => ok(digPage(cik))),
     fetchHistory: vi.fn<TearsheetApi['fetchHistory']>(async () => ok({ first_date: '2021-11-08', days: 1260 })),
     checkKey: vi.fn<TearsheetApi['checkKey']>(async (service: 'massive' | 'fred') => ok({ proof: service === 'massive' ? 'Works: AAPL closed at $230.10 on Nov 6' : 'Works: inflation was 2.9% in September' })),
     runSafetyCheck: vi.fn<TearsheetApi['runSafetyCheck']>(async () => ok({ started: true })),

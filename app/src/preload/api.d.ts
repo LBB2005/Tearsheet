@@ -33,6 +33,9 @@ export interface TearsheetApi {
   getReportNumbers(reportId: string): Promise<CallResult<import('../shared/protocol').ReportNumbers>>
   // analystdb's view of the report's company, as of its price date, for the Analyst ratings view.
   getAnalysts(reportId: string): Promise<CallResult<import('../shared/protocol').ReportAnalysts>>
+  // Dig deeper: the company's newest snapshot at once, or a fresh one (fetches; a few seconds).
+  getDigDeeper(cik: number): Promise<CallResult<import('../shared/protocol').DigPage>>
+  refreshDigDeeper(cik: number): Promise<CallResult<import('../shared/protocol').DigPage>>
   fetchHistory(reportId: string): Promise<CallResult<import('../shared/protocol').FetchHistoryResult>>
   checkKey(service: 'massive' | 'fred', key: string): Promise<CallResult<import('../shared/protocol').KeyChecked>>
   runSafetyCheck(tool: 'claude' | 'codex'): Promise<CallResult<import('../shared/protocol').SafetyStarted>>

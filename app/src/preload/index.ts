@@ -25,6 +25,8 @@ contextBridge.exposeInMainWorld('tearsheet', {
   getChart: (reportId: string) => call('getChart', { report_id: reportId }),
   getReportNumbers: (reportId: string) => call('getReportNumbers', { report_id: reportId }),
   getAnalysts: (reportId: string) => call('getAnalysts', { report_id: reportId }),
+  getDigDeeper: (cik: number) => call('getDigDeeper', { cik }),
+  refreshDigDeeper: (cik: number) => call('refreshDigDeeper', { cik }),
   fetchHistory: (reportId: string) => call('fetchHistory', { report_id: reportId }),
   checkKey: (service: string, key: string) => call('checkKey', { service, key }),
   runSafetyCheck: (tool: string) => call('runSafetyCheck', { tool }),

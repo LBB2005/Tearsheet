@@ -1,6 +1,10 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+
 import { describe, expect, test } from 'vitest'
 
 import { isAllowedExternal, isSignInLink, isTicker, SIGN_IN_HOSTS } from './external'
+import { NEWS_SITES } from './newsSites'
 
 test('isAllowedExternal', () => {
   expect(isAllowedExternal('https://massive.com/dashboard')).toBe(true)
@@ -59,4 +63,34 @@ describe('the sign-in hosts', () => {
 test('isTicker takes a ticker and nothing else', () => {
   for (const t of ['AAPL', 'F', 'BRK.B', 'BF-B']) expect(isTicker(t)).toBe(true)
   for (const t of ['', 'aapl', 'TOOLONGTICKER', 'A B', 'AAPL\n', '$(rm)', 42, null]) expect(isTicker(t)).toBe(false)
+})
+
+describe('news links from Dig deeper', () => {
+  test('open for https sites on the news allowlist, and their www. form', () => {
+    expect(isAllowedExternal('https://www.reuters.com/markets/x')).toBe(true)
+    expect(isAllowedExternal('https://reuters.com/markets/x')).toBe(true)
+    expect(isAllowedExternal('https://www.fool.com/investing/2026/11/17/x/')).toBe(true)
+    expect(isAllowedExternal('https://www.bbc.com/news/business/x')).toBe(true)
+    expect(isAllowedExternal('https://www.bbc.com/news/business')).toBe(true)
+    expect(isAllowedExternal('https://www.goldmansachs.com/insights/x')).toBe(true)
+  })
+
+  test('stay closed off the list, off a listed section, or without https', () => {
+    expect(isAllowedExternal('https://www.bbc.com/sport/x')).toBe(false)
+    expect(isAllowedExternal('https://www.bbc.com/news/businessx')).toBe(false)
+    expect(isAllowedExternal('https://www.goldmansachs.com/careers')).toBe(false)
+    expect(isAllowedExternal('https://reuters.com.evil.io/x')).toBe(false)
+    expect(isAllowedExternal('https://evilreuters.com/x')).toBe(false)
+    expect(isAllowedExternal('https://news.reuters.com/x')).toBe(false)
+    expect(isAllowedExternal('http://www.reuters.com/x')).toBe(false)
+    expect(isAllowedExternal('https://www.reuters.com:444/x')).toBe(false)
+    expect(isAllowedExternal('https://user@www.reuters.com/x')).toBe(false)
+  })
+
+  test('the list is the engine\'s shipped news allowlist, every group, as written', () => {
+    const yaml = readFileSync(resolve(__dirname, '../../../engine/src/tearsheet/methodology/allowlist.yaml'), 'utf8')
+    const shipped = [...yaml.matchAll(/^\s+-\s+(\S+)\s*$/gm)].map((m) => m[1])
+    expect(shipped.length).toBeGreaterThan(60)
+    expect([...NEWS_SITES]).toEqual(shipped)
+  })
 })

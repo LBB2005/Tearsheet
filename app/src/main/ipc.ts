@@ -75,7 +75,10 @@ export const CALLS: Record<string, string> = {
   orderWatchlist: 'order_watchlist',
   setWatchNote: 'set_watch_note',
   setWatchAlerts: 'set_watch_alerts',
-  markWatchSeen: 'mark_watch_seen'
+  markWatchSeen: 'mark_watch_seen',
+  // Dig deeper (engine dig/).
+  getDigDeeper: 'get_dig_deeper',
+  refreshDigDeeper: 'refresh_dig_deeper'
 }
 
 // The closed allowlist: only the names above, never inherited object properties.

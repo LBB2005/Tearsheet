@@ -2,6 +2,8 @@
 // and, separately, the tool makers' sign-in pages, which only the installer opens (first-run
 // design item 14).
 
+import { NEWS_SITES } from './newsSites'
+
 // www.sec.gov: a company's filings on EDGAR, from a stock's right-click menu (renderer/stock).
 const HOSTS = new Set(['massive.com', 'www.massive.com', 'fred.stlouisfed.org', 'fredaccount.stlouisfed.org', 'claude.ai', 'www.sec.gov'])
 
@@ -21,9 +23,27 @@ function onHost(url: string, hosts: { has(host: string): boolean }): boolean {
   }
 }
 
-// The pages the window may ask to open (tearsheet:openExternal).
+// A news site on the engine's allowlist, as its Allowlist.allows reads one: the site or its www.
+// form, and, for a section ("bbc.com/news/business"), that path or one under it.
+const NEWS = NEWS_SITES.map((site) => {
+  const [host, ...path] = site.toLowerCase().split('/')
+  return { host, path: path.length ? `/${path.join('/').replace(/\/+$/, '')}` : '/' }
+})
+function onNewsSite(url: string): boolean {
+  if (!onHost(url, { has: () => true })) return false
+  const parsed = new URL(url)
+  const path = parsed.pathname || '/'
+  return NEWS.some(
+    (site) =>
+      (parsed.hostname === site.host || parsed.hostname === `www.${site.host}`) &&
+      (site.path === '/' || path === site.path || path.startsWith(`${site.path}/`))
+  )
+}
+
+// The pages the window may ask to open (tearsheet:openExternal): the fixed hosts above, and Dig
+// deeper's news links on the news allowlist.
 export function isAllowedExternal(url: string): boolean {
-  return onHost(url, HOSTS)
+  return onHost(url, HOSTS) || onNewsSite(url)
 }
 
 // A sign-in page the installer may open. The window never sends these links.
