@@ -15,6 +15,7 @@ import sqlite3
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
+from functools import cache
 from pathlib import Path
 from typing import Any
 
@@ -31,6 +32,7 @@ from tearsheet.dig.peers import peers_part
 from tearsheet.dig.sector import sector_part
 from tearsheet.dig.target import Target
 from tearsheet.http import EASTERN
+from tearsheet.methodology import load as load_methodology
 from tearsheet.protocol import DigSnapshot
 
 log = logging.getLogger(__name__)
@@ -100,6 +102,14 @@ class Sources:
     analystdb: Any
     fred_key: bool
     massive_key: bool
+
+
+@cache
+def shipped_news_sites() -> tuple[str, ...]:
+    """The news allowlist as shipped, without the user's allowlist.local.yaml: the app's main
+    process opens links only for these (app/src/main/newsSites.ts), so a news link is marked
+    openable only for these too."""
+    return tuple(load_methodology().allowlist_sites())
 
 
 def new_snapshot_id(cik: int, now: datetime) -> str:
@@ -206,7 +216,7 @@ async def build(
             ticker,
             since=_news_since(target, today),
             today=today,
-            allowlist=Allowlist(method.allowlist_sites()),
+            allowlist=Allowlist(shipped_news_sites()),
             has_key=sources.massive_key,
         ),
     )

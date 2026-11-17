@@ -192,3 +192,26 @@ def test_snapshot_json_is_what_was_built(stock, database, rawstore):
     assert json.loads(row["json"]) == built
     assert json.loads(row["versions_json"]) == built["versions"]
     assert (row["report_id"], row["run_id"]) == ("rep-a", "run-a")
+
+
+def test_news_links_open_only_for_the_shipped_allowlist(stock, database, rawstore):
+    """The app's main process knows only the shipped list, so a site from the user's own
+    allowlist.local.yaml shows as plain text rather than a link that won't open."""
+    local = load()
+    local.allowlist["news_outlets"] = [*local.allowlist["news_outlets"], "news.example.net"]
+    holdings = membership.load_bundled()
+    t = target(stock, AAPL, holdings)
+    built = asyncio.run(
+        snap.build(
+            stock,
+            rawstore.raw_dir,
+            holdings,
+            local,
+            t,
+            sources(database, rawstore),
+            now=NOW,
+            snapshot_id=snap.new_snapshot_id(AAPL, NOW),
+        )
+    )
+    recall = next(i for i in built["news"]["items"] if "recall" in i["title"])
+    assert recall["url"].startswith("https://news.example.net/") and recall["openable"] is False
