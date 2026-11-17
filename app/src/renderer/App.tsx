@@ -33,6 +33,7 @@ import { downloadToast } from './report/downloads'
 import { Home } from './pages/Home'
 import { Log } from './pages/Log'
 import { Watch } from './pages/Watch'
+import { Dig } from './pages/Dig'
 import { Report, ReportSubtitle, ReportTools } from './pages/Report'
 import { Settings } from './pages/Settings'
 import { Setup } from './pages/Setup'
@@ -103,6 +104,9 @@ export function App() {
   const [watchRefresh, setWatchRefresh] = useState(0)
   const [watchFocus, setWatchFocus] = useState<{ cik: number; n: number } | null>(null)
   const [watchCount, setWatchCount] = useState(0)
+  // Dig deeper (pages/Dig.tsx): the company on show, and its toolbar line.
+  const [digOf, setDigOf] = useState<{ cik: number; ticker: string } | null>(null)
+  const [digLine, setDigLine] = useState<string | undefined>(undefined)
   // The Settings topic shown. It stays put between visits, and the toolbar names it.
   const [settingsTopic, setSettingsTopic] = useState<Topic>('general')
   // The safety chip's popover in the toolbar, after setup.
@@ -137,6 +141,16 @@ export function App() {
       setLeaving(false)
     }, away)
   }, [])
+  // Dig deeper on a company, from any surface: its page, freshly loaded.
+  const openDig = useCallback(
+    (stock: { cik: number; ticker: string }) => {
+      setDigOf(stock)
+      setDigLine(undefined)
+      setSideOver(false)
+      go('dig')
+    },
+    [go]
+  )
   // How the page frame comes in, asked once each time it does (its key changes): built up part
   // by part (`enter`), or with one quick fade (`quiet`).
   const frameKey = useRef<string | null>(null)
@@ -577,6 +591,8 @@ export function App() {
         ? { title: 'Prediction log', subtitle: logLine }
         : page === 'watch'
           ? { title: 'Watchlist', subtitle: watchLine }
+        : page === 'dig'
+          ? { title: 'Dig deeper', subtitle: digLine }
         : page === 'settings'
           ? { title: 'Settings', subtitle: topicName(settingsTopic) }
           : runView
@@ -685,6 +701,20 @@ export function App() {
           setOpenReport(reportId)
           go('report')
         }}
+        onDig={openDig}
+      />
+    )
+  else if (page === 'dig' && digOf)
+    content = (
+      <Dig
+        key={digOf.cik}
+        cik={digOf.cik}
+        ticker={digOf.ticker}
+        onSubtitle={setDigLine}
+        onOpenReport={(reportId) => {
+          setOpenReport(reportId)
+          go('report')
+        }}
       />
     )
   else if (page === 'settings')
@@ -771,6 +801,7 @@ export function App() {
       companies={companies}
       line={report.line}
       onOpen={openReportPage}
+      onDig={openDig}
       onWrite={(asked) => {
         setSideOver(false)
         setRefreshing([asked])
@@ -847,7 +878,14 @@ export function App() {
                 {runView && report.running && (
                   <ConfirmButton label="Cancel run" question="Stop this report?" yes="Cancel run" no="Keep going" onConfirm={() => void report.cancel()} />
                 )}
-                {page === 'report' && <ReportTools page={reportPage} wide={wide} onRefresh={refreshShown ? () => setRefreshing([refreshShown]) : undefined} />}
+                {page === 'report' && (
+                  <ReportTools
+                    page={reportPage}
+                    wide={wide}
+                    onRefresh={refreshShown ? () => setRefreshing([refreshShown]) : undefined}
+                    onDig={shownCik !== null && shownTicker ? () => openDig({ cik: shownCik, ticker: shownTicker }) : undefined}
+                  />
+                )}
               </Toolbar>
               {chipView && safety && chipOpen && (
                 <div className="tsafe">

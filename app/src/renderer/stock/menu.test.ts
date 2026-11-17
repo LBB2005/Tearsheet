@@ -8,7 +8,7 @@ import type { MenuEntry } from '../shell/Menu'
 import { edgarUrl, stockEntries, stockFacts, type StockActions, type StockFacts } from './menu'
 
 const facts = (over: Partial<StockFacts> = {}): StockFacts => ({ reportId: 'r-1', latest: '2026-11-05T14:00:00Z', official: false, line: null, lists: [], ...over })
-const actions = (): StockActions => ({ open: vi.fn(), write: vi.fn(), watch: vi.fn(), unwatch: vi.fn(), log: vi.fn(), copy: vi.fn(), edgar: vi.fn() })
+const actions = (): StockActions => ({ open: vi.fn(), dig: vi.fn(), write: vi.fn(), watch: vi.fn(), unwatch: vi.fn(), log: vi.fn(), copy: vi.fn(), edgar: vi.fn() })
 const AAPL = { ticker: 'AAPL', cik: 320193 }
 
 // Each entry as one line: "Open report", "Compare (Six at most)", "✓ Core", "Watchlists:", "—".
@@ -27,14 +27,15 @@ const pick = (entries: MenuEntry[], label: string) => {
 
 describe('stockEntries', () => {
   test('a company with a report and no lists yet', () => {
-    expect(lines(stockEntries(AAPL, facts(), actions()))).toEqual(['Open report', 'Refresh report…', '—', 'Add to watchlist', '—', 'Copy ticker', 'Open on SEC EDGAR'])
+    expect(lines(stockEntries(AAPL, facts(), actions()))).toEqual(['Open report', 'Dig deeper', 'Refresh report…', '—', 'Add to watchlist', '—', 'Copy ticker', 'Open on SEC EDGAR'])
   })
 
   test('each option does its action', () => {
     const act = actions()
     const entries = stockEntries(AAPL, facts({ official: true }), act)
-    for (const label of ['Open report', 'Refresh report…', 'Add to watchlist', 'Show in Prediction log', 'Copy ticker', 'Open on SEC EDGAR']) pick(entries, label)
+    for (const label of ['Open report', 'Dig deeper', 'Refresh report…', 'Add to watchlist', 'Show in Prediction log', 'Copy ticker', 'Open on SEC EDGAR']) pick(entries, label)
     expect(act.open).toHaveBeenCalledWith('r-1')
+    expect(act.dig).toHaveBeenCalled()
     expect(act.write).toHaveBeenCalled()
     expect(act.watch).toHaveBeenCalledWith(null)
     expect(act.log).toHaveBeenCalled()
@@ -42,21 +43,31 @@ describe('stockEntries', () => {
     expect(act.edgar).toHaveBeenCalled()
   })
 
-  test('with no report, Open is greyed and Write a report… takes its place', () => {
+  test('with no report, Open and Dig deeper are greyed and Write a report… takes their place', () => {
     const act = actions()
     const entries = stockEntries({ ticker: 'LULU' }, facts({ reportId: null, latest: null }), act)
-    expect(lines(entries).slice(0, 2)).toEqual(['Open report (No report yet)', 'Write a report…'])
+    expect(lines(entries).slice(0, 3)).toEqual(['Open report (No report yet)', 'Dig deeper (No report yet)', 'Write a report…'])
     pick(entries, 'Open report')
+    pick(entries, 'Dig deeper')
     expect(act.open).not.toHaveBeenCalled()
+    expect(act.dig).not.toHaveBeenCalled()
   })
 
   test('in the line, writing is greyed with where it is', () => {
-    expect(lines(stockEntries(AAPL, facts({ line: 'writing' }), actions()))[1]).toBe('Refresh report… (Being written now)')
-    expect(lines(stockEntries(AAPL, facts({ line: 'waiting', reportId: null, latest: null }), actions()))[1]).toBe('Write a report… (In the line)')
+    expect(lines(stockEntries(AAPL, facts({ line: 'writing' }), actions()))[2]).toBe('Refresh report… (Being written now)')
+    expect(lines(stockEntries(AAPL, facts({ line: 'waiting', reportId: null, latest: null }), actions()))[2]).toBe('Write a report… (In the line)')
   })
 
   test('on the open report, Open report says so', () => {
     expect(lines(stockEntries(AAPL, facts(), actions(), { here: 'report' }))[0]).toBe('Open report (Open now)')
+  })
+
+  test('on its Dig deeper page, Dig deeper says so and Open report still opens', () => {
+    const act = actions()
+    const entries = stockEntries(AAPL, facts(), act, { here: 'dig' })
+    expect(lines(entries).slice(0, 2)).toEqual(['Open report', 'Dig deeper (Open now)'])
+    pick(entries, 'Dig deeper')
+    expect(act.dig).not.toHaveBeenCalled()
   })
 
   test('one list: Add, or Remove once it is on it', () => {
@@ -78,7 +89,7 @@ describe('stockEntries', () => {
       { list_id: 2, name: 'Chips', on: false }
     ]
     const entries = stockEntries(AAPL, facts({ lists }), act)
-    expect(lines(entries).slice(2, 6)).toEqual(['—', 'Watchlists:', '✓ Core', '· Chips'])
+    expect(lines(entries).slice(3, 7)).toEqual(['—', 'Watchlists:', '✓ Core', '· Chips'])
     pick(entries, 'Core')
     expect(act.unwatch).toHaveBeenCalledWith(lists[0])
     pick(entries, 'Chips')

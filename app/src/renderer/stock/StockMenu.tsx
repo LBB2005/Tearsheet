@@ -28,6 +28,8 @@ export interface StockMenuProviderProps {
   companies: CompanyRow[]
   line: LineState | null
   onOpen: (reportId: string) => void
+  // Dig deeper on the company (it has a report, so the engine knows its CIK).
+  onDig: (stock: { cik: number; ticker: string }) => void
   // Refresh report… and Write a report…: the Refresh confirm, then the line.
   onWrite: (asked: Refreshing) => void
   onLog: () => void
@@ -38,7 +40,7 @@ export interface StockMenuProviderProps {
   children: ReactNode
 }
 
-export function StockMenuProvider({ companies, line, onOpen, onWrite, onLog, onShowWatch, onWatchChanged, notify, children }: StockMenuProviderProps) {
+export function StockMenuProvider({ companies, line, onOpen, onDig, onWrite, onLog, onShowWatch, onWatchChanged, notify, children }: StockMenuProviderProps) {
   const [opened, setOpened] = useState<{ n: number; stock: Stock; at: At; options: StockOptions } | null>(null)
   const [watched, setWatched] = useState<Watched | null>(null)
   const count = useRef(0)
@@ -78,6 +80,7 @@ export function StockMenuProvider({ companies, line, onOpen, onWrite, onLog, onS
     }
     const actions: StockActions = {
       open: onOpen,
+      dig: () => (facts.cik === null ? notify('Couldn’t open Dig deeper', 'Tearsheet doesn’t know this company’s SEC number yet.', 'stop') : onDig({ cik: facts.cik, ticker })),
       write: () => onWrite({ ticker, created_at: facts.latest }),
       watch: (listId) =>
         void window.tearsheet.addToWatchlist(listId, [ticker]).then((r) => {
@@ -107,6 +110,7 @@ export function StockMenuProvider({ companies, line, onOpen, onWrite, onLog, onS
       facts,
       {
         open: picked(actions.open),
+        dig: picked(actions.dig),
         write: picked(actions.write),
         watch: picked(actions.watch),
         unwatch: picked(actions.unwatch),

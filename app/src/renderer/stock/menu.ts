@@ -1,6 +1,7 @@
 // A stock's right-click menu: the one set of options for a company wherever it shows (the sidebar,
 // the prediction log, the watchlist, the home page, the report line, the look-up box and the
-// report's top bar). Each option is an action the app already has: open the report, refresh it
+// report's top bar). Each option is an action the app already has: open the report, dig deeper
+// into the stock (pages/Dig.tsx), refresh it
 // or write the first one (through the Refresh confirm, then the line), add to or take out of a
 // watchlist, compare it (on a page with a compare chart), show it in the prediction log, copy the
 // ticker, and open its filings on SEC EDGAR. An option that doesn't apply is greyed with a short
@@ -44,6 +45,8 @@ export interface StockFacts {
 
 export interface StockActions {
   open: (reportId: string) => void
+  // Dig deeper: the stock's research page, today's picture beside its report.
+  dig: () => void
   write: () => void
   // `listId` null: the first list, made if there is none.
   watch: (listId: number | null) => void
@@ -57,8 +60,8 @@ export interface StockActions {
 export interface StockExtras {
   // The page's compare chart (the prediction log, the watchlist): ticked or not, and why not.
   compare?: { on: boolean; toggle: () => void; why?: string }
-  // The surface is this company's open report, or the prediction log itself.
-  here?: 'report' | 'log'
+  // The surface is this company's open report or its Dig deeper page, or the prediction log.
+  here?: 'report' | 'log' | 'dig'
   // The surface's own options, after the shared ones (the sidebar's Pin, Select and Delete).
   more?: MenuEntry[]
 }
@@ -73,6 +76,8 @@ export function stockEntries(stock: Stock, facts: StockFacts, act: StockActions,
   // The report: open it, or write one.
   if (extras.here === 'report') entries.push(item('Open report', nothing, 'Open now'))
   else entries.push(report ? item('Open report', () => act.open(report)) : item('Open report', nothing, 'No report yet'))
+  if (extras.here === 'dig') entries.push(item('Dig deeper', nothing, 'Open now'))
+  else entries.push(report ? item('Dig deeper', act.dig) : item('Dig deeper', nothing, 'No report yet'))
   const writeLabel = facts.latest || report ? 'Refresh report…' : 'Write a report…'
   if (facts.line === 'writing') entries.push(item(writeLabel, nothing, 'Being written now'))
   else if (facts.line === 'waiting') entries.push(item(writeLabel, nothing, 'In the line'))

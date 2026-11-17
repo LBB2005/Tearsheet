@@ -338,10 +338,19 @@ const REFRESH_ICON = (
   </svg>
 )
 
+// Dig deeper's icon: a magnifier over a line.
+const DIG_ICON = (
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <circle cx="10.5" cy="10.5" r="6" />
+    <path d="M15 15l5 5" />
+    <path d="M7.5 12l2-2 1.5 1.5 2.5-3" />
+  </svg>
+)
+
 // The toolbar's right side on the report page: the Numbers / Text switch while the chart is open
-// beside the report, Refresh (a new report on this company, after a confirm: shell/refresh.ts)
-// and the Chart button.
-export function ReportTools({ page, wide, onRefresh }: { page: ReportPage; wide: boolean; onRefresh?: () => void }) {
+// beside the report, Dig deeper (today's picture of the stock: pages/Dig.tsx), Refresh (a new
+// report on this company, after a confirm: shell/refresh.ts) and the Chart button.
+export function ReportTools({ page, wide, onRefresh, onDig }: { page: ReportPage; wide: boolean; onRefresh?: () => void; onDig?: () => void }) {
   // The switch settles in when the chart brings it (opening, or leaving Full). A resize that
   // brings it (the window widened past 1,100 px, or the report narrowed to one column) shows it
   // at once, as the rest of the window moves at once.
@@ -353,6 +362,12 @@ export function ReportTools({ page, wide, onRefresh }: { page: ReportPage; wide:
   return (
     <>
       {page.chartOpen && wide && page.split?.mode !== 'full' && page.oneColumn && <SideSwitch page={page} still={byResize} />}
+      {onDig && (
+        <button className="plain cbtn" aria-label="Dig deeper" title="Today’s picture of this stock: its sector, market, peers, analysts, insiders and news" onClick={onDig}>
+          {DIG_ICON}
+          {wide && 'Dig deeper'}
+        </button>
+      )}
       {onRefresh && (
         <button className="plain cbtn" aria-label="Refresh" title="Write a new report on this company. You’re asked first." onClick={onRefresh}>
           {REFRESH_ICON}

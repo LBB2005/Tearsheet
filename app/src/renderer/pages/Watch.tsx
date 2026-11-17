@@ -54,6 +54,8 @@ export interface WatchProps {
   // click on the same company count.
   focus: { cik: number; n: number } | null
   onOpenReport: (reportId: string) => void
+  // Dig deeper on a company with a report (pages/Dig.tsx).
+  onDig: (stock: { cik: number; ticker: string }) => void
   onNotify: (title: string, text?: string, tone?: Notice['tone'], extra?: Pick<Notice, 'action' | 'ms'>) => void
   // The toolbar's line under the title.
   onSubtitle: (text: string) => void
@@ -90,7 +92,7 @@ function Bar({ row }: { row: WatchRow }) {
   )
 }
 
-export function Watch({ refresh, focus, onOpenReport, onNotify, onSubtitle }: WatchProps) {
+export function Watch({ refresh, focus, onOpenReport, onDig, onNotify, onSubtitle }: WatchProps) {
   const [page, setPage] = useState<WatchPage | null>(null)
   const [failed, setFailed] = useState<string | null>(null)
   const [tries, setTries] = useState(0)
@@ -606,6 +608,7 @@ export function Watch({ refresh, focus, onOpenReport, onNotify, onSubtitle }: Wa
               onStop={() => void stopWatching(row)}
               onAlert={(c) => void setAlert(row, c)}
               onOpenReport={onOpenReport}
+              onDig={() => onDig({ cik: row.cik, ticker: row.ticker })}
               onQueue={() => {
                 setQueueAsk(null)
                 void window.tearsheet.planLine([row.ticker], { skipRecent: false }).then((p) => {
@@ -642,11 +645,12 @@ interface DetailProps {
   // The stock menu's handlers, for the heading.
   menu?: ReturnType<StockMenu['bind']>
   onOpenReport: (reportId: string) => void
+  onDig: () => void
   onQueue: () => void
   onSaved: () => void
 }
 
-function Detail({ row, lists, listsOpen, onListsOpen, newFor, onNewFor, newField, onToggleIn, onTakeOut, onStop, onAlert, onOpenReport, onQueue, onSaved, menu }: DetailProps) {
+function Detail({ row, lists, listsOpen, onListsOpen, newFor, onNewFor, newField, onToggleIn, onTakeOut, onStop, onAlert, onOpenReport, onDig, onQueue, onSaved, menu }: DetailProps) {
   const lv = row.levels
   const [span, setSpan] = useState(252)
   const [series, setSeries] = useState<{ dates: string[]; close: number[] } | null>(null)
@@ -787,9 +791,14 @@ function Detail({ row, lists, listsOpen, onListsOpen, newFor, onNewFor, newField
             <h4>
               <span>Key numbers</span>
               {reportId && (
-                <button className="link" onClick={() => onOpenReport(reportId)}>
-                  Open report
-                </button>
+                <span className="wlinks">
+                  <button className="link" onClick={onDig}>
+                    Dig deeper
+                  </button>
+                  <button className="link" onClick={() => onOpenReport(reportId)}>
+                    Open report
+                  </button>
+                </span>
               )}
             </h4>
             <dl className="kv">

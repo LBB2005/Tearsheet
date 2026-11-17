@@ -343,6 +343,8 @@ describe('the keys', () => {
     const rowMenu = screen.getByRole('menu', { name: 'MSFT options' })
     expect(within(rowMenu).getByRole('menuitem', { name: 'Open report' })).toHaveFocus()
     await user.keyboard('{ArrowDown}')
+    expect(within(rowMenu).getByRole('menuitem', { name: 'Dig deeper' })).toHaveFocus()
+    await user.keyboard('{ArrowDown}')
     expect(within(rowMenu).getByRole('menuitem', { name: 'Refresh report…' })).toHaveFocus()
     // MSFT is on neither of the fake's two lists (Core, Chips): a tick for each.
     await user.keyboard('{ArrowDown}')

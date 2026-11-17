@@ -141,6 +141,8 @@
 
 /* the panels under the chart */
 .watchv .wgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; }
+/* The Key numbers heading's two links: Dig deeper, then Open report. */
+.watchv .wlinks { display: inline-flex; align-items: center; gap: 12px; }
 .watchv .kv { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; margin: 0 0 8px; font-size: var(--fs-sm); }
 .watchv .kv dt { color: var(--muted); }
 .watchv .kv dd { margin: 0; text-align: right; font-weight: calc(600 + var(--wt)); }
