@@ -22,6 +22,8 @@ the ticker and the date.
 from __future__ import annotations
 
 import asyncio
+import contextvars
+import json
 import logging
 import math
 import re
@@ -347,6 +349,12 @@ def _check(ticker: str, asof_text: str, envelope: dict) -> tuple[dict | None, st
 # --- the client -----------------------------------------------------------------------------------
 
 
+# The answers a saved_view read, by request (path and sorted query), for this task only.
+_RECORDING: contextvars.ContextVar[dict[str, Any] | None] = contextvars.ContextVar(
+    "analystdb_recording", default=None
+)
+
+
 class AnalystDB:
     """analystdb's answers, kept in memory. One per engine; `transport` and `clock` are for
     tests."""
@@ -379,6 +387,7 @@ class AnalystDB:
         if kept is not None and self._clock() - kept[0] < KEEP_S:
             if kept[1] is _MISSING:
                 raise _Missing
+            self._record(key, kept[1])
             return kept[1]
         if resting:
             raise _Gone
@@ -406,7 +415,14 @@ class AnalystDB:
             self._rest()
             raise _Gone from exc
         self._kept[key] = (self._clock(), envelope)
+        self._record(key, envelope)
         return envelope
+
+    @staticmethod
+    def _record(key: str, envelope: Any) -> None:
+        recording = _RECORDING.get()
+        if recording is not None:
+            recording[key] = envelope
 
     async def panel(self, ticker: str, day: date) -> dict:
         """The numbers column's panel: the firm count, Buy / Hold / Sell, and the targets, as
@@ -424,6 +440,22 @@ class AnalystDB:
         except Exception:  # noqa: BLE001 - an odd answer gives the quiet line, never an error
             log.info("analystdb: no usable consensus for %s", symbol, exc_info=True)
             return _quiet("down", symbol, day)
+
+    async def saved_view(self, ticker: str, day: date, rawstore, run_id: str) -> dict:
+        """view()'s answer, with every analystdb answer it read stored in the raw-data folder
+        under `run_id` before it returns, so what Dig deeper shows (and, from Phase 2, gives
+        its AI take) can be checked later. Nothing is stored when analystdb doesn't answer.
+        Never raises."""
+        recording: dict[str, Any] = {}
+        token = _RECORDING.set(recording)
+        try:
+            out = await self.view(ticker, day)
+        finally:
+            _RECORDING.reset(token)
+        for key in sorted(recording):
+            body = json.dumps(recording[key], sort_keys=True, separators=(",", ":")).encode()
+            rawstore.put(body, BASE_URL + key, "analystdb", "application/json", run_id)
+        return out
 
     async def view(self, ticker: str, day: date) -> dict:
         """The side panel's view: the panel's figures, every firm with its track record, the
