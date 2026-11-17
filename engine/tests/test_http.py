@@ -64,6 +64,18 @@ def test_rate_limiter_is_shared_by_parallel_callers(clock):
     assert clock.sleeps == pytest.approx([12.0, 12.0])
 
 
+def test_clients_given_one_sec_limiter_share_it(rawstore, clock):
+    limiter = RateLimiter.per_second(8, clock=clock, sleep=clock.sleep)
+    one = HttpClient(rawstore, "a", sec_limiter=limiter)
+    two = HttpClient(rawstore, "b", sec_limiter=limiter)
+    assert one.services["sec"].limiter is limiter is two.services["sec"].limiter
+
+
+def test_a_client_without_a_shared_sec_limiter_gets_its_own(rawstore):
+    one, two = HttpClient(rawstore, "a"), HttpClient(rawstore, "b")
+    assert one.services["sec"].limiter is not two.services["sec"].limiter
+
+
 def test_rate_limiter_does_not_wait_after_a_pause(clock):
     limiter = RateLimiter(1.0, clock=clock, sleep=clock.sleep)
 

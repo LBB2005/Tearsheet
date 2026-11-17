@@ -438,6 +438,7 @@ class HttpClient:
         sec_user_agent: str | None = None,
         massive_key: str | None = None,
         massive_limiter: RateLimiter | None = None,
+        sec_limiter: RateLimiter | None = None,
         transport: httpx.AsyncBaseTransport | None = None,
         sleep: Callable[[float], Awaitable[Any]] = asyncio.sleep,
         clock: Callable[[], float] = time.monotonic,
@@ -469,9 +470,8 @@ class HttpClient:
         self.services = {
             "sec": Service(
                 "sec",
-                limiter=RateLimiter.per_second(
-                    config.SEC_REQUESTS_PER_SECOND, clock=clock, sleep=sleep
-                ),
+                limiter=sec_limiter
+                or RateLimiter.per_second(config.SEC_REQUESTS_PER_SECOND, clock=clock, sleep=sleep),
                 headers={"User-Agent": sec_user_agent} if sec_user_agent else {},
             ),
             "massive": Service(

@@ -463,6 +463,27 @@ def test_server_clients_share_one_massive_limiter(tmp_path, database, rawstore):
     h.server.close()
 
 
+def test_every_live_client_shares_one_sec_limiter(tmp_path):
+    """A Dig deeper refresh beside a running report can't push the engine past SEC's limit."""
+    h = Harness(tmp_path)
+    conn = h.server.db.conn
+    config.Settings(conn).set("sec_contact_email", "someone@example.com")
+    limiter = h.server.sec_limiter()
+    assert h.server.sec_limiter() is limiter
+
+    async def go():
+        found = []
+        for name in ("a", "b"):
+            async with h.server._live_data(name, conn, h.server.rawstore) as live:
+                found.append(live.http.services["sec"].limiter)
+            async with h.server._live_http(name, conn, h.server.rawstore) as http:
+                found.append(http.services["sec"].limiter)
+        return found
+
+    assert all(found is limiter for found in run(go()))
+    h.server.close()
+
+
 # --- the company a run resolved (the run view's title and the sidebar's "writing…" row) -----
 
 

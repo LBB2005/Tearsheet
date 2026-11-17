@@ -315,6 +315,7 @@ class Server:
         # Requests answered off the loop (OFF_LOOP), until their reply is written.
         self.background: set[asyncio.Task] = set()
         self._massive_limiter = None
+        self._sec_limiter = None
         self.active = None  # the Run in progress
         # The one-time price backfill (Technical Plan §5): on for the live engine; tests with
         # injected data ask for it. Never in a test copy, so it doesn't share the free Massive
@@ -369,6 +370,15 @@ class Server:
             self._massive_limiter = RateLimiter.per_minute(per_minute)
         return self._massive_limiter
 
+    def sec_limiter(self):
+        """One SEC limiter for every client this server builds, so a Dig deeper refresh beside a
+        running report keeps the engine as a whole under SEC's limit."""
+        from tearsheet.http import RateLimiter
+
+        if self._sec_limiter is None:
+            self._sec_limiter = RateLimiter.per_second(config.SEC_REQUESTS_PER_SECOND)
+        return self._sec_limiter
+
     @asynccontextmanager
     async def _live_data(self, run_id: str, conn, rawstore):
         from tearsheet.http import HttpClient
@@ -382,6 +392,7 @@ class Server:
             sec_user_agent=config.sec_user_agent(settings),
             massive_key=config.get_key("massive"),
             massive_limiter=self.massive_limiter(conn),
+            sec_limiter=self.sec_limiter(),
         ) as http:
             try:
                 yield LiveData(http, rawstore, conn, fred_key=config.get_key("fred"))
@@ -401,6 +412,7 @@ class Server:
             settings=settings,
             massive_key=config.get_key("massive"),
             massive_limiter=self.massive_limiter(conn),
+            sec_limiter=self.sec_limiter(),
         ) as http:
             try:
                 yield http
