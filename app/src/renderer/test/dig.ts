@@ -1,7 +1,7 @@
 // A Dig deeper page for the fake engine: Apple, made up in the engine's own shape
 // (protocol.DigPage). Every number, name, headline and address here is invented.
 
-import type { DigPage, DigSnapshot } from '../../shared/protocol'
+import type { DigPage, DigPeerRow, DigSnapshot } from '../../shared/protocol'
 import { analysts } from './analysts'
 
 const AS_OF = '2026-11-17T22:30:00+00:00'
@@ -95,11 +95,13 @@ export function digSnapshot(cik = 320193, changes: Partial<DigSnapshot> = {}): D
         { key: 'operating_margin', label: 'Operating margin' },
         { key: 'free_cash_flow_yield', label: 'Free cash flow yield' }
       ],
-      rows: [
+      rows: (
+        [
         { cik, ticker: 'AAPL', name: 'Apple Inc.', is_company: true, numbers: { operating_margin: 0.31, free_cash_flow_yield: 0.034 }, score: 72.5, rating: 'Buy', rated_at: '2026-11-05', since_report: 0.031, return_12m: 0.123 },
         { cik: 1045810, ticker: 'NVDA', name: 'NVIDIA Corp', is_company: false, numbers: { operating_margin: 0.62, free_cash_flow_yield: 0.021 }, score: 90, rating: null, rated_at: null, since_report: 0.05, return_12m: 0.41 },
         { cik: 789019, ticker: 'MSFT', name: 'Microsoft Corp', is_company: false, numbers: { operating_margin: 0.45, free_cash_flow_yield: null }, score: 60, rating: 'Hold', rated_at: '2026-11-03', since_report: -0.01, return_12m: 0.08 }
-      ],
+        ] satisfies DigPeerRow[]
+      ).filter((r) => r.is_company || r.cik !== cik),
       median: { operating_margin: 0.535, free_cash_flow_yield: 0.021, score: 75, since_report: 0.02, return_12m: 0.245 },
       recomputed_note: 'Scores recomputed from the report’s stored numbers.'
     },

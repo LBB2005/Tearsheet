@@ -129,7 +129,7 @@ export function barSpot(row: WatchRow): BarSpot | null {
 
 // The rating-change price to show, if the report has one the price can reach: its price, which
 // way the price has to go, and what the rating would turn to.
-export function flipOf(row: WatchRow): { price: number; above: boolean; to: 'Buy' | 'Hold' | 'Sell' } | null {
+export function flipOf(row: Pick<WatchRow, 'levels' | 'price'>): { price: number; above: boolean; to: 'Buy' | 'Hold' | 'Sell' } | null {
   const lv = row.levels
   if (!lv || !lv.rating || row.price === null) return null
   const pick: { price: number; kind: 'buy' | 'sell' }[] = []
