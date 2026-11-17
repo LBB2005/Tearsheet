@@ -67,8 +67,12 @@ export function rangeSpots(lv: WatchLevels, close: number): RangeSpots | null {
 const MULTIPLES = new Set(['interest_coverage', 'operating_cash_flow_to_net_income'])
 export function metricText(key: string, v: number | null): string {
   if (v === null) return '—'
-  return MULTIPLES.has(key) ? `${v.toFixed(1)}×` : `${(v * 100).toFixed(1)}%`
+  const text = MULTIPLES.has(key) ? `${Math.abs(v).toFixed(1)}×` : `${Math.abs(v * 100).toFixed(1)}%`
+  return v < 0 ? `−${text}` : text
 }
+
+// How many peers and articles show before Show all.
+export const FIRST_ROWS = 12
 
 export const plainPct = (v: number | null, digits = 1): string => (v === null ? '—' : `${(v * 100).toFixed(digits)}%`)
 

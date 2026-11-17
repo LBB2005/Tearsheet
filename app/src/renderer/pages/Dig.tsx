@@ -7,7 +7,7 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react'
 
 import type { DigPage, DigSnapshot, WatchLevels } from '../../shared/protocol'
 import { ADVICE_SHORT } from '../../shared/wording'
-import { asOfLine, compact, metricText, needsRefresh, partNote, plainPct, rangeSpots, subtitle, toneLine, tradeLine, type PartState } from '../dig/dig'
+import { asOfLine, compact, FIRST_ROWS, metricText, needsRefresh, partNote, plainPct, rangeSpots, subtitle, toneLine, tradeLine, type PartState } from '../dig/dig'
 import '../dig/dig.css'
 import { RangeBar, type Mark } from '../dig/RangeBar'
 import { SectorChart } from '../dig/SectorChart'
@@ -160,7 +160,7 @@ function Parts({ snap, menu }: { snap: DigSnapshot; menu: ReturnType<typeof useS
       <News snap={snap} />
       <Part title="Sources" wide>
         <ul className="dsrc">
-          {snap.sources.map((s) => (
+          {snap.sources.filter((s, i, all) => all.findIndex((o) => o.name === s.name) === i).map((s) => (
             <li key={s.part}>
               <span>{s.name}</span>
               <small>{s.state === 'ok' ? (s.as_of ? shortDate(s.as_of) : '') : s.state === 'stale' ? `from ${s.as_of ? shortDate(s.as_of) : 'earlier'}` : s.state === 'off' ? 'not used' : 'didn’t answer'}</small>
@@ -289,8 +289,8 @@ function Market({ snap }: { snap: DigSnapshot }) {
   const m = snap.market
   const r = snap.rates
   return (
-    <Part title="Market" part={m} source="Prices">
-      <dl className="kv">
+    <Part title="Market" part={m} source="Prices" wide>
+      <dl className="kv dmarket">
         <dt>SPY, 12 months</dt>
         <dd className={tone(m.spy_12m)}>{signedPct(m.spy_12m, 1)}</dd>
         <dt>SPY’s 1-month swings</dt>
@@ -312,6 +312,9 @@ function Market({ snap }: { snap: DigSnapshot }) {
 
 function Peers({ snap, menu }: { snap: DigSnapshot; menu: ReturnType<typeof useStockMenu> }) {
   const p = snap.peers
+  const [all, setAll] = useState(false)
+  const peerCount = p.rows.filter((r) => !r.is_company).length
+  const shownRows = all ? p.rows : p.rows.filter((r, i) => r.is_company || i <= FIRST_ROWS)
   return (
     <Part title="Peers" part={p} source="The report’s stored numbers" wide>
       {p.rows.length > 0 && (
@@ -333,7 +336,7 @@ function Peers({ snap, menu }: { snap: DigSnapshot; menu: ReturnType<typeof useS
                 </tr>
               </thead>
               <tbody>
-                {p.rows.map((r) => (
+                {shownRows.map((r) => (
                   <tr key={r.cik} className={r.is_company ? 'me' : undefined} {...menu.bind({ ticker: r.ticker, cik: r.cik })}>
                     <th scope="row">
                       <b>{r.ticker}</b>
@@ -367,6 +370,11 @@ function Peers({ snap, menu }: { snap: DigSnapshot; menu: ReturnType<typeof useS
               </tfoot>
             </table>
           </div>
+          {!all && peerCount > FIRST_ROWS && (
+            <button className="link dmore" onClick={() => setAll(true)}>
+              Show all {peerCount} peers
+            </button>
+          )}
           <p className="fine">
             Numbers as of the report{p.report_date ? ` of ${shortDate(p.report_date)}` : ''}; returns to today. {p.recomputed_note}
           </p>
@@ -392,7 +400,7 @@ function Analysts({ snap }: { snap: DigSnapshot }) {
       ...(ours?.base ? [{ key: 'ours', at: x(ours.base), title: `Our base ${usd(ours.base)}` }] : []),
       ...(snap.header.close ? [{ key: 'now', at: x(snap.header.close), title: `Close ${usd(snap.header.close)}` }] : [])
     ]
-    bar = <RangeBar from={x(t.low)} to={x(t.high)} marks={marks} label={`Analysts’ targets ${usd(t.low)} to ${usd(t.high)}, average ${usd(t.mean)}; our base ${usd(ours?.base)}`} />
+    bar = <RangeBar plain from={x(t.low)} to={x(t.high)} marks={marks} label={`Analysts’ targets ${usd(t.low)} to ${usd(t.high)}, average ${usd(t.mean)}; our base ${usd(ours?.base)}`} />
   }
   return (
     <Part title="Analysts" part={a} source="analystdb">
@@ -474,6 +482,8 @@ function Insiders({ snap }: { snap: DigSnapshot }) {
 
 function News({ snap }: { snap: DigSnapshot }) {
   const n = snap.news
+  const [all, setAll] = useState(false)
+  const items = all ? n.items : n.items.slice(0, FIRST_ROWS)
   const open = (url: string) => void window.tearsheet.openExternal(url)
   return (
     <Part title="News" part={n} source="Massive news" wide>
@@ -484,7 +494,7 @@ function News({ snap }: { snap: DigSnapshot }) {
             {toneLine(n.tone)}
           </p>
           <ul className="dnews">
-            {n.items.map((item, i) => (
+            {items.map((item, i) => (
               <li key={`${item.url}-${i}`}>
                 <span className={`dtone ${item.tone ?? 'none'}`} title={item.tone_why ?? undefined}>
                   {item.tone ?? 'no tone'}
@@ -511,6 +521,11 @@ function News({ snap }: { snap: DigSnapshot }) {
               </li>
             ))}
           </ul>
+          {!all && n.items.length > FIRST_ROWS && (
+            <button className="link dmore" onClick={() => setAll(true)}>
+              Show all {n.items.length} articles
+            </button>
+          )}
         </>
       )}
     </Part>

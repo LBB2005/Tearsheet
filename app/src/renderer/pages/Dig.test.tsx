@@ -198,7 +198,7 @@ describe('a thin snapshot', () => {
     expect(within(region).getByText('Withheld')).toBeInTheDocument()
     expect(within(region).getByText(/2 earlier looks are saved\./)).toBeInTheDocument()
     expect(within(region).queryByRole('button', { name: 'Open report' })).toBeNull()
-    expect(within(region).getAllByText('didn’t answer').length).toBe(5)
+    expect(within(region).getAllByText('didn’t answer').length).toBe(4) // the sector and the market share one source
     expect(within(region).getAllByText('not used').length).toBe(2)
   })
 
@@ -226,5 +226,36 @@ describe('a thin snapshot', () => {
     expect(within(today).getByText('−5.0%')).toHaveClass('down')
     expect(within(region).getByText('not by price alone')).toBeInTheDocument()
     expect(within(region).getByText(/1 earlier look is saved\./)).toBeInTheDocument()
+  })
+})
+
+describe('long lists', () => {
+  const many = <T,>(n: number, make: (i: number) => T) => Array.from({ length: n }, (_, i) => make(i))
+
+  test('the peers table shows the first 12 peers, then all of them on asking', async () => {
+    const s = digSnapshot()
+    const rows = [s.peers.rows[0], ...many(20, (i) => ({ ...s.peers.rows[1], cik: 5000 + i, ticker: `P${i}`, name: `Peer ${i}` }))]
+    const { user, region } = await openDig(fresh({ peers: { ...s.peers, rows } }))
+    const peers = within(region).getByRole('region', { name: 'Peers' })
+    expect(within(peers).getAllByRole('row')).toHaveLength(1 + 13 + 1)
+    await user.click(within(peers).getByRole('button', { name: 'Show all 20 peers' }))
+    expect(within(peers).getAllByRole('row')).toHaveLength(1 + 21 + 1)
+    expect(within(peers).queryByRole('button', { name: /Show all/ })).toBeNull()
+  })
+
+  test('the news shows the newest 12 articles, then all of them on asking', async () => {
+    const s = digSnapshot()
+    const items = many(30, (i) => ({ ...s.news.items[1], title: `Story ${i}`, url: `https://news.example.net/${i}` }))
+    const { user, region } = await openDig(fresh({ news: { ...s.news, items } }))
+    const news = within(region).getByRole('region', { name: 'News' })
+    expect(within(news).getAllByRole('listitem')).toHaveLength(12)
+    await user.click(within(news).getByRole('button', { name: 'Show all 30 articles' }))
+    expect(within(news).getAllByRole('listitem')).toHaveLength(30)
+  })
+
+  test('the sources name each source once', async () => {
+    const { region } = await openDig()
+    const sources = within(region).getByRole('region', { name: 'Sources' })
+    expect(within(sources).getAllByText('Prices from Massive')).toHaveLength(1)
   })
 })

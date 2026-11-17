@@ -64,6 +64,8 @@ test('metricText: multiples with a ×, the rest as percents, and a dash for none
   expect(metricText('operating_cash_flow_to_net_income', 1.197)).toBe('1.2×')
   expect(metricText('operating_margin', 0.3112)).toBe('31.1%')
   expect(metricText('operating_margin', null)).toBe('—')
+  expect(metricText('accruals_to_assets', -0.018)).toBe('−1.8%')
+  expect(metricText('interest_coverage', -2.5)).toBe('−2.5×')
 })
 
 test('compact money', () => {

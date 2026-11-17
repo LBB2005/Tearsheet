@@ -28,6 +28,11 @@
 .digv .kv dd.big { font-size: var(--fs-xl); line-height: 1.1; }
 .digv .kv small { font-size: var(--fs-xs); font-weight: calc(400 + var(--wt)); color: var(--faint2); }
 .digv .kv .drate { display: contents; }
+/* the market's figures in two columns of pairs across the row */
+.digv .kv.dmarket { grid-template-columns: 1fr auto 1fr auto; column-gap: 12px; }
+.digv .kv.dmarket dt:nth-of-type(odd) { padding-right: 0; }
+@container (max-width: 820px) { .digv .kv.dmarket { grid-template-columns: 1fr auto; } }
+.digv .dmore { justify-self: start; font-size: var(--fs-sm); }
 .digv .kv .tag4 { display: inline-block; }
 
 /* the range bar: the report's low to high, the base, the price at the report, the rating-change
@@ -35,6 +40,7 @@
 .digv .dbar { position: relative; height: 34px; margin: 4px 6px 0; }
 .digv .dbar i { position: absolute; display: block; }
 .digv .dbar .band { top: 14px; height: 6px; border-radius: var(--r-xs); background: linear-gradient(90deg, rgb(var(--down-rgb) / .55), rgb(var(--hold-rgb) / .35) 50%, rgb(var(--up-rgb) / .55)); }
+.digv .dbar.plain .band { background: rgb(var(--ink) / .16); }
 .digv .dbar .mk { top: 8px; width: 2px; height: 18px; margin-left: -1px; border-radius: var(--r-xs); }
 .digv .dbar .base { background: var(--text); }
 .digv .dbar .ours { background: var(--accent); }
