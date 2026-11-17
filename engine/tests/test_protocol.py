@@ -282,6 +282,7 @@ def test_every_method_and_error_code_is_declared():
         "AI_UNAVAILABLE",
         "BUDGET_EXHAUSTED",
         "SEC_BLOCKED",
+        "NO_REPORT",
         "ENGINE_ERROR",
     }
     s = schema()
@@ -529,3 +530,17 @@ def test_the_safety_checks_stop_and_progress_and_the_test_copy_code():
     assert SettingsResult.model_validate(old).safety_running is None
     with_check = SettingsResult.model_validate({**old, "safety_running": running.model_dump()})
     assert with_check.safety_running == running
+
+
+def test_the_dig_deeper_methods_are_declared_and_handled():
+    from tearsheet.protocol import DigPage, DigSnapshot
+
+    assert {"get_dig_deeper", "refresh_dig_deeper"} <= set(METHODS)
+    assert callable(getattr(Server, "m_get_dig_deeper", None))
+    assert callable(getattr(Server, "m_refresh_dig_deeper", None))
+    # 9 brought Dig deeper.
+    assert PROTOCOL_VERSION >= 9
+    assert {"DigPage", "DigSnapshot", "DigNewsItem"} <= set(schema()["$defs"])
+    # Every field is always sent, so the app's types have no optional fields.
+    for model in (DigPage, DigSnapshot):
+        assert set(model.model_json_schema()["required"]) == set(model.model_fields)

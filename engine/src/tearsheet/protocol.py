@@ -24,6 +24,8 @@ ERROR_CODES = (
     "AI_UNAVAILABLE",
     "BUDGET_EXHAUSTED",
     "SEC_BLOCKED",
+    # Dig deeper needs a report or an official prediction to dig from.
+    "NO_REPORT",
     "ENGINE_ERROR",
 )
 ENGINE_ERROR_CODE = -32000
@@ -155,6 +157,12 @@ class ReportIdsParams(Strict):
 class PinParams(Strict):
     cik: int
     pinned: bool
+
+
+class DigParams(Strict):
+    """Dig deeper's company."""
+
+    cik: int
 
 
 class QueriesParams(Strict):
@@ -306,6 +314,9 @@ METHODS: dict[str, type[Strict]] = {
     "set_watch_note": WatchNoteParams,
     "set_watch_alerts": WatchAlertsParams,
     "mark_watch_seen": WatchSeenParams,
+    # Dig deeper (dig/): today's picture of one stock beside its newest report.
+    "get_dig_deeper": DigParams,
+    "refresh_dig_deeper": DigParams,
 }
 
 
@@ -1309,8 +1320,238 @@ class WatchChanged(Strict):
     notify: bool
 
 
+# --- Dig deeper (dig/) -------------------------------------------------------------------------
+# Every part of a snapshot has a state: "ok" (fresh), "stale" (carried from an earlier snapshot,
+# since the refresh couldn't reach its source; `as_of` is that snapshot's time), "off" (no key,
+# or not on the plan) or "down" (failed, with no earlier copy). `note` says why when not ok.
+
+DigPartState = Literal["ok", "stale", "off", "down"]
+
+
+class DigHeader(Strict):
+    cik: int
+    ticker: str
+    name: str
+    sector: str | None
+    close: float | None
+    close_date: str | None
+    # The move from the close the report (or prediction) was priced at, splits taken out.
+    since_report: float | None
+    # When the report (or prediction) was made.
+    made_at: str | None
+    # The report's levels in the last close's shares; from the prediction when no report is on
+    # show (no triggers then).
+    levels: WatchLevels | None
+
+
+class DigReturn(Strict):
+    """Total return (splits and dividends) over one period to the snapshot's close."""
+
+    period: Literal["1M", "3M", "6M", "12M"]
+    stock: float | None
+    sector_median: float | None
+    spy: float | None
+
+
+class DigSector(Strict):
+    state: DigPartState
+    note: str | None
+    as_of: str | None
+    sector: str | None
+    # Members in the equal-weighted line; those without a year of closes are left out of it.
+    members: int
+    left_out: int
+    dates: list[str]
+    # Each line is 100 at the first date.
+    stock: list[float | None]
+    sector_line: list[float | None]
+    spy: list[float | None]
+    returns: list[DigReturn]
+    # The stock's 12-month rank among the members with a 12-month return; 1 is best.
+    rank: int | None
+    rank_of: int | None
+
+
+class DigMarket(Strict):
+    state: DigPartState
+    note: str | None
+    as_of: str | None
+    spy_12m: float | None
+    volatility_percentile: float | None
+    # Whether the method's momentum scaling would be on today (methodology item 26).
+    scaling_on: bool | None
+    scaling_note: str | None
+
+
+class DigRate(Strict):
+    id: str
+    label: str
+    value: float
+    date: str
+
+
+class DigRates(Strict):
+    state: DigPartState
+    note: str | None
+    as_of: str | None
+    rates: list[DigRate]
+
+
+class DigColumn(Strict):
+    key: str
+    label: str
+
+
+class DigPeerRow(Strict):
+    cik: int
+    ticker: str
+    name: str
+    is_company: bool
+    # The report run's stored numbers, by DigColumn key ("as of the report").
+    numbers: dict[str, float | None]
+    # The composite percentile in the group, recomputed from the run's stored numbers.
+    score: float | None
+    # The member's newest official prediction made before the snapshot.
+    rating: Literal["Buy", "Hold", "Sell"] | None
+    rated_at: str | None
+    since_report: float | None
+    return_12m: float | None
+
+
+class DigPeers(Strict):
+    state: DigPartState
+    note: str | None
+    as_of: str | None
+    run_id: str | None
+    report_date: str | None
+    price_date: str | None
+    columns: list[DigColumn]
+    # The company first, then its peers by score, highest first.
+    rows: list[DigPeerRow]
+    # The peers' medians, by column key plus score, since_report and return_12m.
+    median: dict[str, float | None]
+    recomputed_note: str | None
+
+
+class DigOurs(Strict):
+    bear: float | None
+    base: float | None
+    bull: float | None
+    buy_trigger: float | None
+    sell_trigger: float | None
+
+
+class DigAnalysts(Strict):
+    state: DigPartState
+    note: str | None
+    as_of: str | None
+    view: ReportAnalysts | None
+    ours: DigOurs | None
+
+
+class DigTradeSide(Strict):
+    trades: int
+    people: int
+    shares: float
+    # Shares times price, where a filing gives both.
+    value: float
+
+
+class DigTrade(Strict):
+    owner: str
+    date: str
+    code: Literal["P", "S"]
+    shares: float | None
+    price: float | None
+
+
+class DigInsiders(Strict):
+    state: DigPartState
+    note: str | None
+    as_of: str | None
+    days: int
+    buys: DigTradeSide | None
+    sells: DigTradeSide | None
+    rows: list[DigTrade]
+    # Insiders who bought in the window and don't buy in that month every year.
+    routine_free_buyers: list[str]
+
+
+class DigNewsItem(Strict):
+    title: str
+    publisher: str
+    published: str
+    url: str
+    # Only https links to sites on the news allowlist open.
+    openable: bool
+    tone: Literal["positive", "neutral", "negative"] | None
+    tone_why: str | None
+
+
+class DigTone(Strict):
+    positive: int
+    neutral: int
+    negative: int
+    unknown: int
+
+
+class DigNews(Strict):
+    state: DigPartState
+    note: str | None
+    as_of: str | None
+    since: str | None
+    items: list[DigNewsItem]
+    tone: DigTone
+    source: str
+
+
+class DigSource(Strict):
+    part: str
+    name: str
+    state: DigPartState
+    as_of: str | None
+
+
+class DigSnapshot(Strict):
+    """One saved snapshot (dig_snapshots.json). Write-once."""
+
+    snapshot_id: str
+    cik: int
+    created_at: str
+    close_date: str | None
+    # The report on show and its run (the prediction's run when its report is hidden).
+    report_id: str | None
+    run_id: str | None
+    versions: dict[str, str | int]
+    header: DigHeader
+    sector: DigSector
+    market: DigMarket
+    rates: DigRates
+    peers: DigPeers
+    analysts: DigAnalysts
+    insiders: DigInsiders
+    news: DigNews
+    sources: list[DigSource]
+
+
+class DigPage(Strict):
+    """get_dig_deeper's and refresh_dig_deeper's answer: the newest snapshot, if any."""
+
+    cik: int
+    ticker: str
+    name: str
+    # A report on show or an official prediction to dig from.
+    has_report: bool
+    snapshot: DigSnapshot | None
+    # How many earlier snapshots are saved.
+    older: int
+    refreshing: bool
+
+
 ALL_MODELS: tuple[type[BaseModel], ...] = (
     *METHODS.values(),
+    DigSnapshot,
+    DigPage,
     Candidate,
     RunStarted,
     Ok,

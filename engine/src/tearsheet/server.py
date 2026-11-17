@@ -135,7 +135,16 @@ ICLOUD_FOLDERS = ("Documents", "Desktop", "Library/Mobile Documents")
 # in the same queue.
 # get_analysts may wait up to analystdb's time limit (data/analystdb.py), so it never holds up
 # the requests behind it.
-OFF_LOOP = frozenset({"grade_due", "fetch_history", "check_key", "get_analysts", "export_all"})
+OFF_LOOP = frozenset(
+    {
+        "grade_due",
+        "fetch_history",
+        "check_key",
+        "get_analysts",
+        "export_all",
+        "refresh_dig_deeper",
+    }
+)
 # How often the price backfill looks again while a report, grading, a history download or the
 # safety check is under way (it never makes them wait).
 BACKFILL_POLL_S = 2.0
@@ -297,6 +306,8 @@ class Server:
         self.ai_factory = ai_factory or self._live_ai
         self.checker_factory = checker_factory or self._live_checker
         self.http_factory = http_factory or self._live_http
+        # Where a Dig deeper refresh fetches through (tests swap it).
+        self.dig_factory = self._dig_live
         self.safety_connector_factory = safety_connector_factory or self._live_connector
         self.safety_job: asyncio.Task | None = None
         # The check under way: the stop cancel_safety_check sets (read before each probe), and
@@ -312,6 +323,8 @@ class Server:
         self.grading_job: asyncio.Task | None = None
         # Full price-history downloads under way, by company.
         self.history_jobs: dict[int, asyncio.Task] = {}
+        # Dig deeper refreshes, one job per company (a second ask joins it).
+        self.dig_jobs: dict[int, asyncio.Task] = {}
         # Requests answered off the loop (OFF_LOOP), until their reply is written.
         self.background: set[asyncio.Task] = set()
         self._massive_limiter = None
@@ -396,6 +409,46 @@ class Server:
         ) as http:
             try:
                 yield LiveData(http, rawstore, conn, fred_key=config.get_key("fred"))
+            finally:
+                config.note_key_answers(
+                    settings, refused=http.keys_refused, worked=http.keys_worked
+                )
+
+    @asynccontextmanager
+    async def _dig_live(self, snapshot_id: str, conn, rawstore):
+        """A Dig deeper refresh's sources. Its fetches are logged under the snapshot's id and
+        go through the shared SEC and Massive limiters, so a refresh beside a running report
+        keeps both under their limits. Without the SEC contact email only the insiders part
+        is missing."""
+        from tearsheet.dig.snapshot import Sources
+        from tearsheet.http import HttpClient
+        from tearsheet.sources import LiveData
+
+        settings = config.Settings(conn)
+        try:
+            agent = config.sec_user_agent(settings)
+        except config.SettingMissing:
+            agent = None
+        massive, fred = config.get_key("massive"), config.get_key("fred")
+        async with HttpClient(
+            rawstore,
+            snapshot_id,
+            settings=settings,
+            sec_user_agent=agent,
+            massive_key=massive,
+            massive_limiter=self.massive_limiter(conn),
+            sec_limiter=self.sec_limiter(),
+        ) as http:
+            try:
+                yield Sources(
+                    http=http,
+                    live=LiveData(http, rawstore, conn, fred_key=fred),
+                    settings=settings,
+                    rawstore=rawstore,
+                    analystdb=self.analystdb,
+                    fred_key=bool(fred),
+                    massive_key=bool(massive),
+                )
             finally:
                 config.note_key_answers(
                     settings, refused=http.keys_refused, worked=http.keys_worked
@@ -1622,6 +1675,91 @@ class Server:
         ticker = str(json.loads(stored[0]).get("ticker") or "")
         view = await self.analystdb.view(ticker, self._report_day(row["run_id"], row["created_at"]))
         return {**view, "report_id": row["report_id"], "ticker": ticker}
+
+    # --- Dig deeper (dig/) -------------------------------------------------------------------
+
+    def _dig_page(self, cik: int) -> dict[str, Any]:
+        from tearsheet.data.membership import load_bundled
+        from tearsheet.dig import snapshot
+        from tearsheet.dig.target import NoReport, target
+
+        conn = self.db.conn
+        holdings = load_bundled()
+        try:
+            t = target(conn, cik, holdings)
+            ticker, name, has_report = t.ticker, t.name, True
+        except NoReport:
+            from tearsheet.companies import display_name
+
+            stored = conn.execute("SELECT name FROM companies WHERE cik = ?", (cik,)).fetchone()
+            ticker = holdings.tickers_of(cik)[0] if holdings.has(cik) else str(cik)
+            name = display_name(holdings, cik, stored[0] if stored else None) or ticker
+            has_report = False
+        job = self.dig_jobs.get(cik)
+        return {
+            "cik": cik,
+            "ticker": ticker,
+            "name": name,
+            "has_report": has_report,
+            "snapshot": snapshot.newest(conn, cik),
+            "older": max(snapshot.count(conn, cik) - 1, 0),
+            "refreshing": job is not None and not job.done(),
+        }
+
+    async def m_get_dig_deeper(self, p) -> dict[str, Any]:
+        """The company's newest Dig deeper snapshot (protocol.DigPage). Reads only, at once."""
+        return self._dig_page(p.cik)
+
+    async def m_refresh_dig_deeper(self, p) -> dict[str, Any]:
+        """Fetches today's picture and saves a new snapshot. Answered off the request loop
+        (OFF_LOOP) as one job per company: a second ask joins the first. It runs beside a
+        report, since the SEC and Massive limiters are shared, and it never writes a run, a
+        prediction or a report."""
+        job = self.dig_jobs.get(p.cik)
+        if job is not None and not job.done():
+            await asyncio.shield(job)
+            return self._dig_page(p.cik)
+        from tearsheet.data.membership import load_bundled
+        from tearsheet.dig.target import NoReport, target
+
+        holdings = load_bundled()
+        try:
+            t = target(self.db.conn, p.cik, holdings)
+        except NoReport:
+            raise EngineError(
+                "NO_REPORT", "Dig deeper needs a report on this company first."
+            ) from None
+        job = asyncio.create_task(self._dig(t, holdings))
+        self.dig_jobs[p.cik] = job
+
+        def forget(task: asyncio.Task, cik: int = p.cik) -> None:
+            if self.dig_jobs.get(cik) is task:
+                del self.dig_jobs[cik]
+
+        job.add_done_callback(forget)
+        await asyncio.shield(job)
+        return self._dig_page(p.cik)
+
+    async def _dig(self, t, holdings) -> None:
+        from tearsheet.dig import snapshot
+
+        conn = self.db.conn
+        now = self.now()
+        snapshot_id = snapshot.new_snapshot_id(t.cik, now)
+        previous = snapshot.newest(conn, t.cik)
+        async with self.dig_factory(snapshot_id, conn, self.rawstore) as sources:
+            built = await snapshot.build(
+                conn,
+                self.paths.raw,
+                holdings,
+                self.method,
+                t,
+                sources,
+                now=now,
+                snapshot_id=snapshot_id,
+                previous=previous,
+            )
+        snapshot.save(conn, built)
 
     async def m_fetch_history(self, p) -> dict[str, Any]:
         """The company's full daily history with its splits and dividends. It is answered off
