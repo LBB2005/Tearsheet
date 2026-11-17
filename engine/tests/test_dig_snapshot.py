@@ -71,13 +71,17 @@ def sources(database, rawstore, *, sec_fails=False, news=True):
     )
 
 
-@pytest.fixture
-def stock(database):
-    conn = database.conn
+def seed_stock(conn):
+    """AAPL with a report and a few closes, and SPY."""
     report(conn)
     closes(conn, AAPL, [("2026-11-03", 100.0), ("2026-11-06", 104.0), ("2026-11-09", 105.0)])
     closes(conn, SPY_CIK, [("2026-11-03", 500.0), ("2026-11-09", 510.0)])
     return conn
+
+
+@pytest.fixture
+def stock(database):
+    return seed_stock(database.conn)
 
 
 def build(conn, src, *, previous=None, when=NOW):

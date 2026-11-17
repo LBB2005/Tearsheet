@@ -347,6 +347,42 @@ def cmd_replay(args: argparse.Namespace) -> int:
     return worst
 
 
+def cmd_replay_dig(args: argparse.Namespace) -> int:
+    from tearsheet.dig.replay import replay_snapshot, snapshot_ids
+    from tearsheet.replay import ReplayError, _copy_read_only
+
+    paths = config.Paths(config.resolve_data_dir(getattr(args, "data_dir", None)))
+    if not args.all and not args.snapshot_id:
+        print("Name a snapshot ID, or use --all.", file=sys.stderr)
+        return 2
+    conn = _copy_read_only(paths.db)
+    try:
+        ids = snapshot_ids(conn) if args.all else [args.snapshot_id]
+        worst = 0
+        for snapshot_id in ids:
+            try:
+                result = replay_snapshot(conn, paths.raw, snapshot_id)
+            except ReplayError as exc:
+                print(str(exc), file=sys.stderr)
+                worst = max(worst, 2)
+                continue
+            if result.identical:
+                print(
+                    f"Replayed {snapshot_id}: identical in {len(result.compared)} parts"
+                    f" ({', '.join(result.compared) or 'none fresh'})."
+                )
+                continue
+            print(f"Replayed {snapshot_id}: {len(result.differences)} differences.")
+            for line in result.differences[:50]:
+                print(f"  - {line}")
+            worst = max(worst, 1)
+        if not ids:
+            print("No Dig deeper snapshots to replay.")
+        return worst
+    finally:
+        conn.close()
+
+
 def _goal1_round(database) -> int:
     value = config.Settings(database.conn).get("goal1_round")
     return int(float(value)) if value else 1
@@ -780,6 +816,15 @@ def build_parser() -> argparse.ArgumentParser:
     again.add_argument("run_id", nargs="?")
     again.add_argument("--all", action="store_true", help="replay every finished run")
     again.set_defaults(handler=cmd_replay)
+
+    dig_again = commands.add_parser(
+        "replay-dig",
+        parents=[common],
+        help="rebuild Dig deeper snapshots from what they stored, and compare",
+    )
+    dig_again.add_argument("snapshot_id", nargs="?")
+    dig_again.add_argument("--all", action="store_true", help="replay every snapshot")
+    dig_again.set_defaults(handler=cmd_replay_dig)
 
     evaluate = commands.add_parser(
         "eval", parents=[common], help="the golden set: hand-checked numbers and rating changes"
