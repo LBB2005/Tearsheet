@@ -680,6 +680,82 @@ def _levels_from_prediction(p: sqlite3.Row, then: tuple[date, float] | None) -> 
     )
 
 
+# The report on show for each company in `{ciks}` (an SQL list or subquery): its newest report
+# not deleted from the sidebar.
+_SHOWN = (
+    " shown AS ("
+    "  SELECT u.cik, r.report_id, r.run_id, r.created_at, u.started_at,"
+    "   ROW_NUMBER() OVER (PARTITION BY u.cik ORDER BY r.created_at DESC, r.rowid DESC) AS n"
+    "  FROM reports r JOIN runs u ON u.run_id = r.run_id"
+    "  WHERE u.cik IN ({ciks})"
+    "   AND r.report_id NOT IN (SELECT report_id FROM hidden_reports))"
+)
+# Its levels (report_levels), as _levels_from_row reads them.
+_LEVEL_COLUMNS = (
+    " s.report_id, s.run_id, s.created_at AS report_created_at, s.started_at,"
+    " EXISTS (SELECT 1 FROM predictions p WHERE p.run_id = s.run_id) AS official,"
+    " lv.price_date AS lv_price_date, lv.price AS lv_price, lv.rating AS lv_rating,"
+    " lv.capped AS lv_capped, lv.uncertainty AS lv_uncertainty,"
+    " lv.score_percentile AS lv_score_percentile, lv.bear AS lv_bear, lv.base AS lv_base,"
+    " lv.bull AS lv_bull, lv.buy_trigger AS lv_buy_trigger,"
+    " lv.sell_trigger AS lv_sell_trigger, lv.buy_reachable AS lv_buy_reachable,"
+    " lv.sell_reachable AS lv_sell_reachable, lv.source AS lv_source"
+)
+
+
+def _choose(
+    conn: sqlite3.Connection, cik: int, row: sqlite3.Row | None, prediction: sqlite3.Row | None
+) -> tuple[Levels | None, tuple[date, float] | None, str | None]:
+    """What a company is measured against (its report on show, else its newest official
+    prediction), the close that was priced at, and when it was made."""
+    levels = _levels_from_row(row) if row is not None else None
+    then = None
+    made_at = None
+    if row is not None and row["report_id"] is not None:
+        made_at = row["report_created_at"]
+        # As the sidebar measures its move (companies.since_report): the last close in
+        # when the run started.
+        then = _close_up_to(conn, cik, last_completed_session(_when(row["started_at"])))
+    elif prediction is not None:
+        made_at = prediction["run_at"]
+        then = _close_up_to(conn, cik, last_completed_session(_when(prediction["run_at"])))
+        levels = _levels_from_prediction(prediction, then)
+    return levels, (then if then is not None and then[1] > 0 else None), made_at
+
+
+@dataclass(frozen=True)
+class Shown:
+    """One company's report on show (or newest official prediction), as the watchlist measures
+    it. `run_id` is the report's run, else the prediction's."""
+
+    levels: Levels | None
+    then: tuple[date, float] | None
+    made_at: str | None
+    report_id: str | None
+    run_id: str | None
+    prediction: sqlite3.Row | None
+
+
+def levels_for(conn: sqlite3.Connection, cik: int) -> Shown:
+    """Any company's report on show, watched or not, chosen as the watchlist page chooses it.
+    Reads only."""
+    row = conn.execute(
+        f"WITH {_SHOWN.format(ciks='?')} SELECT {_LEVEL_COLUMNS} FROM shown s"
+        " LEFT JOIN report_levels lv ON lv.report_id = s.report_id WHERE s.n = 1",
+        (cik,),
+    ).fetchone()
+    prediction = conn.execute(
+        "SELECT * FROM predictions WHERE cik = ? ORDER BY run_at DESC, prediction_id DESC LIMIT 1",
+        (cik,),
+    ).fetchone()
+    levels, then, made_at = _choose(conn, cik, row, prediction)
+    if row is not None:
+        report_id, run_id = row["report_id"], row["run_id"]
+    else:
+        report_id, run_id = None, prediction["run_id"] if prediction is not None else None
+    return Shown(levels, then, made_at, report_id, run_id, prediction)
+
+
 def _companies(conn: sqlite3.Connection, ciks: Iterable[int] | None = None) -> list[_Company]:
     """Every watched company (or those of `ciks` that are watched), oldest added first."""
     items: dict[int, list[sqlite3.Row]] = {}
@@ -692,26 +768,13 @@ def _companies(conn: sqlite3.Connection, ciks: Iterable[int] | None = None) -> l
     only = set(ciks) if ciks is not None else None
     rows = conn.execute(
         f"WITH watched AS ({_WATCHED}),"
-        " shown AS ("
-        "  SELECT u.cik, r.report_id, r.run_id, r.created_at, u.started_at,"
-        "   ROW_NUMBER() OVER (PARTITION BY u.cik ORDER BY r.created_at DESC, r.rowid DESC) AS n"
-        "  FROM reports r JOIN runs u ON u.run_id = r.run_id"
-        "  WHERE u.cik IN (SELECT cik FROM watched)"
-        "   AND r.report_id NOT IN (SELECT report_id FROM hidden_reports))"
-        " SELECT w.cik, c.*, s.report_id, s.run_id, s.created_at AS report_created_at,"
-        "  s.started_at,"
-        "  EXISTS (SELECT 1 FROM predictions p WHERE p.run_id = s.run_id) AS official,"
+        f"{_SHOWN.format(ciks='SELECT cik FROM watched')}"
+        f" SELECT w.cik, c.*, {_LEVEL_COLUMNS},"
         "  EXISTS (SELECT 1 FROM reports r JOIN runs u ON u.run_id = r.run_id"
         "   WHERE u.cik = w.cik) AS any_report,"
         "  (SELECT name FROM companies m WHERE m.cik = w.cik) AS stored_name,"
         "  (SELECT COUNT(*) FROM watch_events e WHERE e.cik = w.cik AND e.seen_at IS NULL)"
-        "   AS unseen,"
-        "  lv.price_date AS lv_price_date, lv.price AS lv_price, lv.rating AS lv_rating,"
-        "  lv.capped AS lv_capped, lv.uncertainty AS lv_uncertainty,"
-        "  lv.score_percentile AS lv_score_percentile, lv.bear AS lv_bear, lv.base AS lv_base,"
-        "  lv.bull AS lv_bull, lv.buy_trigger AS lv_buy_trigger,"
-        "  lv.sell_trigger AS lv_sell_trigger, lv.buy_reachable AS lv_buy_reachable,"
-        "  lv.sell_reachable AS lv_sell_reachable, lv.source AS lv_source"
+        "   AS unseen"
         " FROM watched w JOIN watch_companies c ON c.cik = w.cik"
         " LEFT JOIN shown s ON s.cik = w.cik AND s.n = 1"
         " LEFT JOIN report_levels lv ON lv.report_id = s.report_id"
@@ -729,18 +792,7 @@ def _companies(conn: sqlite3.Connection, ciks: Iterable[int] | None = None) -> l
         mine = items[cik]
         first = min(mine, key=lambda r: (r["added_at"], r["position"]))
         prediction = newest.get(cik)
-        levels = _levels_from_row(row)
-        then = None
-        made_at = None
-        if row["report_id"] is not None:
-            made_at = row["report_created_at"]
-            # As the sidebar measures its move (companies.since_report): the last close in
-            # when the run started.
-            then = _close_up_to(conn, cik, last_completed_session(_when(row["started_at"])))
-        elif prediction is not None:
-            made_at = prediction["run_at"]
-            then = _close_up_to(conn, cik, last_completed_session(_when(prediction["run_at"])))
-            levels = _levels_from_prediction(prediction, then)
+        levels, then, made_at = _choose(conn, cik, row, prediction)
         out.append(
             _Company(
                 cik=cik,
@@ -750,7 +802,7 @@ def _companies(conn: sqlite3.Connection, ciks: Iterable[int] | None = None) -> l
                 order=(first["added_at"], first["position"], cik),
                 added_as=first["added_as"],
                 levels=levels,
-                then=then if then is not None and then[1] > 0 else None,
+                then=then,
                 made_at=made_at,
                 prediction=prediction,
             )

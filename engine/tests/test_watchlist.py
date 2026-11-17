@@ -3,7 +3,7 @@ the alerts, which fire once per crossing on daily closes."""
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 
@@ -769,3 +769,44 @@ def test_a_watched_company_that_left_the_index_joins_the_price_top_up(database):
     closes(conn, 77, [("2026-11-06", 10.0)])
     closes(conn, 78, [("2026-10-01", 10.0)])  # stopped trading: it would pull the top-up back
     assert watchlist.extra_price_tickers(conn, wanted) == {"OLD.A": (77, "")}
+
+
+# --- the report on show for any company (Dig deeper uses it) ------------------------------------
+
+
+def test_levels_for_matches_the_watchlist_page(database):
+    conn = database.conn
+    report(conn)
+    closes(conn, AAPL, [("2026-11-03", 100.0), ("2026-11-09", 104.0)])
+    watch(conn, "AAPL")
+    [company] = watchlist._companies(conn, [AAPL])
+    shown = watchlist.levels_for(conn, AAPL)
+    assert shown.levels == company.levels
+    assert shown.then == company.then and shown.made_at == company.made_at
+    assert (shown.report_id, shown.run_id) == ("rep-a", "run-a")
+
+
+def test_levels_for_a_company_nobody_watches(database):
+    conn = database.conn
+    report(conn, NVDA, "NVDA", run_id="run-n", report_id="rep-n")
+    closes(conn, NVDA, [("2026-11-03", 50.0)])
+    shown = watchlist.levels_for(conn, NVDA)
+    assert shown.levels.report_id == "rep-n" and shown.then == (date(2026, 11, 3), 50.0)
+
+
+def test_levels_for_falls_back_to_the_prediction_when_the_report_is_hidden(database):
+    conn = database.conn
+    report(conn)
+    with conn:
+        insert_prediction(conn, run_id="run-a", run_at=STARTED, score=71.6, base=120.0)
+        conn.execute("INSERT INTO hidden_reports VALUES ('rep-a', 'x')")
+    closes(conn, AAPL, [("2026-11-03", 100.0)])
+    shown = watchlist.levels_for(conn, AAPL)
+    assert shown.levels.source == "prediction" and shown.levels.base == 120.0
+    assert shown.report_id is None and shown.run_id == "run-a"
+    assert shown.prediction["prediction_id"] == "p1"
+
+
+def test_levels_for_a_company_with_nothing_is_empty(database):
+    shown = watchlist.levels_for(database.conn, AAPL)
+    assert shown.levels is None and shown.report_id is None and shown.prediction is None
