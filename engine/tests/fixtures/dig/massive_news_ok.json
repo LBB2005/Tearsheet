@@ -1,0 +1,41 @@
+{
+  "status": "OK",
+  "request_id": "example-request",
+  "count": 3,
+  "results": [
+    {
+      "id": "example-1",
+      "publisher": {"name": "Example Wire", "homepage_url": "https://www.example.com/"},
+      "title": "Testco raises its yearly outlook",
+      "author": "Example Staff",
+      "published_utc": "2026-11-06T13:30:00Z",
+      "article_url": "https://www.reuters.com/markets/testco-raises-outlook",
+      "tickers": ["TST", "OTHR"],
+      "description": "An invented article for Tearsheet's tests.",
+      "keywords": ["outlook"],
+      "insights": [
+        {"ticker": "OTHR", "sentiment": "negative", "sentiment_reasoning": "A rival loses share."},
+        {"ticker": "tst", "sentiment": "positive", "sentiment_reasoning": "The outlook went up."}
+      ]
+    },
+    {
+      "id": "example-2",
+      "publisher": {"name": "Not On The List", "homepage_url": "https://news.example.net/"},
+      "title": "Testco faces a recall",
+      "published_utc": "2026-11-05T09:00:00Z",
+      "article_url": "https://news.example.net/testco-recall",
+      "tickers": ["TST"],
+      "insights": [
+        {"ticker": "TST", "sentiment": "negative", "sentiment_reasoning": "A product recall."}
+      ]
+    },
+    {
+      "id": "example-3",
+      "publisher": {"name": "Example Daily"},
+      "title": "Five stocks to watch",
+      "published_utc": "2026-11-04T20:15:00Z",
+      "article_url": "http://www.reuters.com/markets/five-stocks",
+      "tickers": ["TST"]
+    }
+  ]
+}
