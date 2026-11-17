@@ -199,6 +199,7 @@ In the Status column, "Liam, Nov 2" means Liam decided it. "Drafter default" mea
 | Valuation methods in v1 | All three: DCF, residual income and peer multiples. Disagreement between them raises the uncertainty level. | Liam, Nov 2 |
 | How the three are combined | The median of the methods that are valid for this company (§8) | Drafter default |
 | Analyst ratings source | analystdb, Liam's local read-only API, shown beside the report and never part of its numbers (§9) | Liam, Nov 7 |
+| Analyst data and the AI | Only Dig deeper's AI take may read analystdb's answer, saved before the call. Reports and the score never do (§9) | Liam, Nov 17 |
 
 ### 1. The parts and how they connect
 
@@ -554,6 +555,7 @@ The engine can also run from the terminal (`tearsheet-engine run GOOGL`) and wri
 *   **Click:** every part opens the side panel's Analyst ratings view. Its tabs are every firm with its track record (rank among ranked firms, average excess return; "not ranked" and "not enough data" where analystdb says so), the 20 latest changes, and the trust check of our targets and counts against S&P Global's.
 *   **When analystdb can't answer:** the report opens as normal, and the panel is one quiet line. The engine waits at most half a second, then leaves analystdb alone for a minute. Answers are kept in memory for four hours. The side panel always asks again on Try again.
 *   **Not touched:** the rating, score, range, prediction, narrative and checks. Section 1's stored line "Analyst consensus is not available…" stays in the stored report, but is hidden on screen while the panel shows its figures.
+*   **Dig deeper's AI take (Liam, Nov 17).** This one place may give analystdb's answer to the AI. Dig deeper is the research page for one stock (`docs/superpowers/specs/2026-11-17-dig-deeper-design.md`), and its take reads the consensus, the recent changes and the trust check. The answer is saved in the raw-data folder **before** the AI call, so every take can be checked against exactly what the AI read. Reports, the score, the rating, the range, the prediction and the report narrative still never read analyst data.
 
 **Next earnings date.** Estimated from the dates of the company's past earnings 8-Ks (Item 2.02; rule in item 7) and labelled "estimated." It is replaced when a press release or article quotes an announced date.
 

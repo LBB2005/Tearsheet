@@ -182,6 +182,9 @@ MASSIVE_DAILY_BARS = "/v2/aggs/ticker/{ticker}/range/1/day/{start}/{end}"
 MASSIVE_DIVIDENDS = "/v3/reference/dividends"
 MASSIVE_SPLITS = "/v3/reference/splits"
 MASSIVE_DAILY_SUMMARY = "/v2/aggs/grouped/locale/us/market/stocks/{day}"
+# Ticker news with per-ticker tone (`insights`), for Dig deeper. Polygon's path; whether the
+# plan includes it is checked by scripts/phase0/massive_news.py.
+MASSIVE_NEWS = "/v2/reference/news"
 # Massive's largest page for dividends and splits.
 MASSIVE_PAGE_LIMIT = 1000
 # Whole-market dividends a session, for planning: on 7 Nov 2026 the free key returned 3 pages
