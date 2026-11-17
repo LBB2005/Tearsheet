@@ -133,7 +133,7 @@ def test_a_snapshot_is_built_validated_and_saved_once(stock, database, rawstore)
 def test_one_failing_part_does_not_stop_the_others(stock, database, rawstore):
     built = build(stock, sources(database, rawstore, sec_fails=True))
     assert (
-        built["insiders"]["state"] == "down" and built["insiders"]["note"] == "SEC didn't answer."
+        built["insiders"]["state"] == "down" and built["insiders"]["note"] == "SEC didn’t answer."
     )
     assert built["news"]["state"] == "ok" and built["rates"]["state"] == "ok"
 
@@ -148,7 +148,7 @@ def test_a_failed_part_comes_back_stale_from_the_previous_snapshot(stock, databa
     insiders, news = second["insiders"], second["news"]
     assert insiders["state"] == "stale" and insiders["as_of"] == first["insiders"]["as_of"]
     assert (
-        insiders["rows"] == first["insiders"]["rows"] and insiders["note"] == "SEC didn't answer."
+        insiders["rows"] == first["insiders"]["rows"] and insiders["note"] == "SEC didn’t answer."
     )
     assert news["state"] == "stale" and news["items"] == first["news"]["items"]
     assert second["rates"]["as_of"] == "2026-11-11T01:00:00+00:00"

@@ -27,7 +27,7 @@ from tearsheet.report_numbers import METRIC_LABELS, run_price_date
 from tearsheet.scoring import SLICE_METRICS, momentum_scaling, score_group
 
 FINANCIAL_SECTORS = ("Financials", "Real Estate")
-RECOMPUTED_NOTE = "Scores recomputed from the report's stored numbers."
+RECOMPUTED_NOTE = "Scores recomputed from the report’s stored numbers."
 
 
 class NoMethodCopy(LookupError):
@@ -188,7 +188,7 @@ def peers_part(
         return {"state": "off", "note": "No report run to compare peers from."}
     stored = _Stored(conn, run_id, target.cik)
     if not stored.values and not stored.peers:
-        return {"state": "off", "note": "The report's run stored no peer numbers."}
+        return {"state": "off", "note": "The report’s run stored no peer numbers."}
     price_date = run_price_date(conn, run_id)
     note = RECOMPUTED_NOTE
     try:
@@ -199,7 +199,7 @@ def peers_part(
         )
     except NoMethodCopy:
         scores = {}
-        note = "Scores couldn't be recomputed: the report's run kept no methodology copy."
+        note = "Scores couldn’t be recomputed: the report’s run kept no methodology copy."
     members = [target.cik, *stored.peers]
     marks = ", ".join("?" for _ in members)
     newest: dict[int, sqlite3.Row] = {}

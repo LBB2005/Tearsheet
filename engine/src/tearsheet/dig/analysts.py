@@ -17,6 +17,6 @@ def analysts_part(view: dict[str, Any], levels_today: dict[str, Any] | None) -> 
     elif state == "missing":
         part = {"state": "off", "note": "analystdb has no ratings for this company."}
     else:
-        part = {"state": "down", "note": "analystdb didn't answer."}
+        part = {"state": "down", "note": "analystdb didn’t answer."}
     ours = {k: levels_today.get(k) for k in OURS} if levels_today else None
     return {**part, "view": view, "ours": ours}

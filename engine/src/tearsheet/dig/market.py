@@ -39,7 +39,7 @@ def rates_part(
     if not fred_key:
         return {"state": "off", "note": "Add a FRED key in Settings to see rates.", "rates": []}
     if macro is None:
-        return {"state": "down", "note": "FRED didn't answer.", "rates": []}
+        return {"state": "down", "note": "FRED didn’t answer.", "rates": []}
     rates = [
         {"id": sid, "label": label, "value": macro[sid][1], "date": macro[sid][2].isoformat()}
         for sid, label in FRED_LABELS.items()

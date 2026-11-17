@@ -56,7 +56,7 @@ def test_only_the_newest_20_trades_are_listed():
 
 def test_insiders_are_down_when_sec_failed():
     part = insiders_part(None, today=TODAY)
-    assert part["state"] == "down" and part["note"] == "SEC didn't answer."
+    assert part["state"] == "down" and part["note"] == "SEC didn’t answer."
 
 
 def test_no_trades_is_ok_and_empty():

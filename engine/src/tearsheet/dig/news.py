@@ -110,7 +110,7 @@ async def news_part(
             again = today + timedelta(days=NEWS_RETRY_DAYS)
             settings.set_internal(NEWS_OFF_SETTING, again.isoformat())
             return {"state": "off", "note": _off_note(again), **base}
-        return {"state": "down", "note": "Massive didn't answer.", **base}
+        return {"state": "down", "note": "Massive didn’t answer.", **base}
     if off_until:
         settings.set_internal(NEWS_OFF_SETTING, "")
     items = parse_news(json.loads(fetched.body), ticker, allowlist)
@@ -118,4 +118,4 @@ async def news_part(
 
 
 def _off_note(again: date) -> str:
-    return f"Massive's plan doesn't include news. Tearsheet checks again on {_day(again)}."
+    return f"Massive’s plan doesn’t include news. Tearsheet checks again on {_day(again)}."

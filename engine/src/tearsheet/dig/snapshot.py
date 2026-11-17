@@ -42,7 +42,7 @@ SOURCE_NAMES = {
     "sector": "Prices from Massive",
     "market": "Prices from Massive",
     "rates": "FRED",
-    "peers": "The report's stored numbers",
+    "peers": "The report’s stored numbers",
     "analysts": "analystdb",
     "insiders": "SEC Form 4 filings",
     "news": "Massive news",
@@ -117,7 +117,7 @@ def new_snapshot_id(cik: int, now: datetime) -> str:
 
 
 def _down(part: str, note: str | None = None) -> dict[str, Any]:
-    return {"state": "down", "note": note or f"{SOURCE_NAMES[part]} couldn't be read."}
+    return {"state": "down", "note": note or f"{SOURCE_NAMES[part]} couldn’t be read."}
 
 
 def _built(part: str, make: Callable[[], dict[str, Any]]) -> dict[str, Any]:

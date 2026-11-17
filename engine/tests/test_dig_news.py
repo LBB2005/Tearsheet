@@ -108,7 +108,7 @@ def test_a_plan_without_news_turns_it_off_for_a_week_and_leaves_the_key_alone(
     respx.get(url__startswith=NEWS).mock(return_value=answer)
     part, refused = fetch_news(database, rawstore)
     assert part["state"] == "off" and part["items"] == []
-    assert part["note"] == "Massive's plan doesn't include news. Tearsheet checks again on 16 Nov."
+    assert part["note"] == "Massive’s plan doesn’t include news. Tearsheet checks again on 16 Nov."
     assert config.Settings(database.conn).get(NEWS_OFF_SETTING) == "2026-11-16"
     assert refused == set()
 
@@ -137,7 +137,7 @@ def test_news_is_down_when_massive_fails(database, rawstore, monkeypatch):
     monkeypatch.setattr("tearsheet.http.RETRY_WAITS_S", ())
     respx.get(url__startswith=NEWS).mock(return_value=httpx.Response(500))
     part, _ = fetch_news(database, rawstore)
-    assert part["state"] == "down" and part["note"] == "Massive didn't answer."
+    assert part["state"] == "down" and part["note"] == "Massive didn’t answer."
     assert config.Settings(database.conn).get(NEWS_OFF_SETTING) is None
 
 

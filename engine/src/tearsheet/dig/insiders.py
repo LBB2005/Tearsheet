@@ -28,7 +28,7 @@ def _side(trades: list[Form4Trade]) -> dict[str, Any]:
 def insiders_part(trades: list[Form4Trade] | None, *, today: date) -> dict[str, Any]:
     """`trades` is LiveData.form4_amounts' answer, None when SEC failed."""
     if trades is None:
-        return {"state": "down", "note": "SEC didn't answer."}
+        return {"state": "down", "note": "SEC didn’t answer."}
     window = [
         t for t in trades if t.code in ("P", "S") and 0 <= (today - t.day).days <= INSIDER_DAYS
     ]

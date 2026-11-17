@@ -71,4 +71,4 @@ def test_no_coverage_is_off_and_down_is_down():
     assert analysts_part(missing, None)["ours"] is None
     down = {**missing, "state": "down"}
     assert analysts_part(down, None)["state"] == "down"
-    assert analysts_part(down, None)["note"] == "analystdb didn't answer."
+    assert analysts_part(down, None)["note"] == "analystdb didn’t answer."

@@ -82,4 +82,4 @@ def test_rates_are_off_without_a_fred_key():
 
 def test_rates_are_down_when_fred_failed():
     part = rates_part(None, fred_key=True)
-    assert part["state"] == "down" and part["note"] == "FRED didn't answer."
+    assert part["state"] == "down" and part["note"] == "FRED didn’t answer."

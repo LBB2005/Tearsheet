@@ -86,7 +86,7 @@ def test_peer_rows_carry_the_reports_numbers_and_newest_predictions(ran):
     assert part["median"]["operating_margin"] == pytest.approx(statistics.median(peer_values))
     assert part["median"]["score"] == pytest.approx(statistics.median(scores))
     assert peers[0]["rating"] is None  # no peer has a report of its own
-    assert part["recomputed_note"] == "Scores recomputed from the report's stored numbers."
+    assert part["recomputed_note"] == "Scores recomputed from the report’s stored numbers."
 
 
 def test_a_prediction_after_the_snapshot_time_is_not_shown(ran):
