@@ -251,7 +251,7 @@ def test_a_version_5_database_upgrades_with_its_data(tmp_path, monkeypatch):
     old.close()
     monkeypatch.setattr(db_module, "migrations", lambda: real)
     db = db_module.open_database(path)
-    assert db.version == 6
+    assert db.version == real[-1][0]
     assert WATCH_TABLES <= tables(db.conn)
     assert db.conn.execute("SELECT value FROM settings WHERE key = 'k'").fetchone()[0] == "v"
     assert db.conn.execute("SELECT cik FROM pinned_companies").fetchone()[0] == 320193
@@ -325,6 +325,42 @@ def test_an_alert_fires_once_per_company_kind_reference_side_and_close(tmp_path)
         conn.execute("INSERT INTO watch_companies (cik, first_added_at) VALUES (1, 'x')")
         assert conn.execute(event).rowcount == 1
         assert conn.execute(event).rowcount == 0
+    db.close()
+
+
+def test_the_dig_deeper_table_exists(tmp_path):
+    db = open_database(tmp_path / "t.sqlite")
+    assert "dig_snapshots" in tables(db.conn)
+    assert "dig_snapshots_by_cik" in indexes(db.conn)
+    columns = [r[1] for r in db.conn.execute("PRAGMA table_info(dig_snapshots)")]
+    assert columns == [
+        "snapshot_id",
+        "cik",
+        "created_at",
+        "close_date",
+        "report_id",
+        "run_id",
+        "versions_json",
+        "inputs_hash",
+        "json",
+    ]
+    db.close()
+
+
+def test_dig_snapshots_are_write_once(tmp_path):
+    db = open_database(tmp_path / "t.sqlite")
+    row = "INSERT INTO dig_snapshots VALUES ('dig-1', 1, 'x', NULL, NULL, NULL, '{}', 'h', '{}')"
+    with db.conn:
+        db.conn.execute(row)
+    for change in (
+        "UPDATE dig_snapshots SET json = '[]'",
+        "DELETE FROM dig_snapshots",
+        row.replace("INSERT", "INSERT OR REPLACE"),
+    ):
+        with pytest.raises(sqlite3.IntegrityError, match="write-once"):
+            with db.conn:
+                db.conn.execute(change)
+    assert db.conn.execute("SELECT json FROM dig_snapshots").fetchone()[0] == "{}"
     db.close()
 
 
