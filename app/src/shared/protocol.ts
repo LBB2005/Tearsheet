@@ -119,6 +119,11 @@ export type Ciks3 = number[] | null;
 export type Cik5 = number;
 export type Cik6 = number;
 export type Tool2 = ("claude" | "codex") | null;
+/**
+ * @minItems 1
+ * @maxItems 1000
+ */
+export type Ciks4 = [number, ...number[]];
 export type Date = string;
 export type DateText = string;
 export type Firm = string;
@@ -677,7 +682,7 @@ export type Message2 = string | null;
 export type Resumable1 = boolean | null;
 export type Query2 = string;
 export type Reason1 = string;
-export type Kind2 = "unknown" | "twice" | "in_line" | "recent";
+export type Kind2 = "unknown" | "twice" | "in_line" | "recent" | "no_report";
 export type Code5 = string;
 export type Message3 = string;
 export type ResetAt2 = string | null;
@@ -701,7 +706,7 @@ export type ListId5 = number;
 export type WatchName2 = string;
 export type Position1 = number;
 export type Count2 = number;
-export type Ciks4 = number[];
+export type Ciks5 = number[];
 export type Range1 = boolean;
 export type Trigger2 = boolean;
 export type Move1 = number | null;
@@ -729,6 +734,8 @@ export type OfficialFrom = string | null;
 export type SlotOpen = boolean;
 export type ReportAgeDays = number | null;
 export type Queued = ("waiting" | "writing") | null;
+export type TakeAt = string | null;
+export type TakeQueued = ("waiting" | "writing") | null;
 export type Note13 = string;
 export type Unseen = number;
 export type Reasons1 = WatchReason[];
@@ -771,7 +778,7 @@ export type Events = WatchEvent[];
 export type Notify = boolean;
 
 /**
- * App-engine protocol, version 10.
+ * App-engine protocol, version 11.
  */
 export interface TearsheetProtocol {
   [k: string]: unknown;
@@ -1081,6 +1088,15 @@ export interface DigParams {
 export interface TakeParams {
   cik: Cik6;
   tool?: Tool2;
+}
+/**
+ * Write takes: the Watchlist's companies on show, in its order.
+ *
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "TakeLineParams".
+ */
+export interface TakeLineParams {
+  ciks: Ciks4;
 }
 /**
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
@@ -2432,7 +2448,7 @@ export interface WatchList {
   name: WatchName2;
   position: Position1;
   count: Count2;
-  ciks: Ciks4;
+  ciks: Ciks5;
 }
 /**
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
@@ -2480,6 +2496,8 @@ export interface WatchRow {
   slot_open: SlotOpen;
   report_age_days: ReportAgeDays;
   queued: Queued;
+  take_at: TakeAt;
+  take_queued: TakeQueued;
   note: Note13;
   alerts: WatchAlertSettings;
   unseen: Unseen;
@@ -2594,4 +2612,4 @@ export interface WatchChanged {
   notify: Notify;
 }
 
-export const PROTOCOL_VERSION = 10
+export const PROTOCOL_VERSION = 11

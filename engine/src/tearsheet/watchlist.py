@@ -979,9 +979,12 @@ def page(
     *,
     queued: dict[int, str] | None = None,
     prices_note: str | None = None,
+    takes: dict[int, str] | None = None,
+    take_queued: dict[int, str] | None = None,
 ) -> dict[str, Any]:
     """The whole watchlist page (protocol.WatchPage): the lists, and one row per watched company,
-    oldest added first. `queued` is the report line's companies ("waiting" or "writing").
+    oldest added first. `queued` is the report line's companies ("waiting" or "writing");
+    `takes` each company's newest Dig deeper take time, and `take_queued` the take line's.
     Reads only."""
     from tearsheet.companies import display_name
 
@@ -989,6 +992,7 @@ def page(
     splits = _splits(conn)
     stored = _stored_tickers(conn)
     queued = queued or {}
+    takes, take_queued = takes or {}, take_queued or {}
     rows = []
     for company in _companies(conn):
         cik, row, levels = company.cik, company.row, company.levels
@@ -1055,6 +1059,8 @@ def page(
                 if company.made_at is not None
                 else None,
                 "queued": queued.get(cik),
+                "take_at": takes.get(cik),
+                "take_queued": take_queued.get(cik),
                 "note": row["note"],
                 "alerts": {
                     "range": bool(row["alert_range"]),

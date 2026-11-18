@@ -151,9 +151,11 @@ const SKIP_HEAD: Record<LineSkip['kind'], [string, string]> = {
   unknown: ['wasn’t found', 'weren’t found'],
   recent: ['has a report from the last 30 days', 'have a report from the last 30 days'],
   in_line: ['is already in the line', 'are already in the line'],
-  twice: ['was listed twice', 'were listed twice']
+  twice: ['was listed twice', 'were listed twice'],
+  // The take line's (Write takes on the Watchlist): no report to write a take from.
+  no_report: ['has no report yet', 'have no report yet']
 }
-const SKIP_ORDER: LineSkip['kind'][] = ['unknown', 'recent', 'in_line', 'twice']
+const SKIP_ORDER: LineSkip['kind'][] = ['unknown', 'no_report', 'recent', 'in_line', 'twice']
 
 export interface SkipGroup {
   kind: LineSkip['kind']

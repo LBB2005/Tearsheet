@@ -49,6 +49,8 @@ const row = (over: Partial<WatchRow>): WatchRow => ({
   slot_open: false,
   report_age_days: 5,
   queued: null,
+  take_at: null,
+  take_queued: null,
   note: '',
   alerts: { ...ALERTS },
   unseen: 0,

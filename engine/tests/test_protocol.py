@@ -564,3 +564,23 @@ def test_the_dig_take_methods_and_notes_are_declared_and_handled():
         for name, info in model.model_fields.items():
             assert info.is_required(), f"{model.__name__}.{name}"
     assert TakeParams.model_validate({"cik": 1}).tool is None
+
+
+def test_the_take_line_methods_and_note_are_declared_and_handled():
+    from tearsheet.protocol import LineSkip, TakeLineParams, WatchRow
+
+    names = {
+        "start_take_line",
+        "get_take_line",
+        "carry_on_take_line",
+        "clear_take_line",
+        "remove_from_take_line",
+    }
+    assert names <= set(METHODS)
+    assert METHODS["start_take_line"] is TakeLineParams
+    for name in names:
+        assert callable(getattr(Server, f"m_{name}", None))
+    # 11 brought the take line.
+    assert PROTOCOL_VERSION >= 11
+    assert "no_report" in LineSkip.model_json_schema()["properties"]["kind"]["enum"]
+    assert {"take_at", "take_queued"} <= set(WatchRow.model_fields)

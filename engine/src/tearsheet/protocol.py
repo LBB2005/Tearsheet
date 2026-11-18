@@ -174,6 +174,12 @@ class TakeParams(Strict):
     tool: Literal["claude", "codex"] | None = None
 
 
+class TakeLineParams(Strict):
+    """Write takes: the Watchlist's companies on show, in its order."""
+
+    ciks: list[int] = Field(min_length=1, max_length=1000)
+
+
 class QueriesParams(Strict):
     # Tickers or names, one company each (the line: batch.py); spaces may separate tickers.
     queries: list[str] = Field(default_factory=list)
@@ -330,6 +336,12 @@ METHODS: dict[str, type[Strict]] = {
     "write_take": TakeParams,
     "cancel_take": DigParams,
     "list_takes": DigParams,
+    # The Watchlist's Write takes (dig/take_line.py): one take after another, as the line.
+    "start_take_line": TakeLineParams,
+    "get_take_line": NoParams,
+    "carry_on_take_line": NoParams,
+    "clear_take_line": NoParams,
+    "remove_from_take_line": TickerParams,
 }
 
 
@@ -1034,6 +1046,9 @@ class WatchRow(Strict):
     report_age_days: int | None
     # In the report line now.
     queued: Literal["waiting", "writing"] | None
+    # The newest Dig deeper take's time (ISO, UTC), and its place in the take line now.
+    take_at: str | None
+    take_queued: Literal["waiting", "writing"] | None
     note: str
     alerts: WatchAlertSettings
     # Alerts that fired and haven't been seen.
@@ -1259,7 +1274,8 @@ class LineSkip(Strict):
 
     query: str
     reason: str
-    kind: Literal["unknown", "twice", "in_line", "recent"]
+    # no_report: the take line (dig/take_line.py) needs a report to dig from.
+    kind: Literal["unknown", "twice", "in_line", "recent", "no_report"]
 
 
 class LinePause(Strict):

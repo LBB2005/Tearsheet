@@ -360,6 +360,17 @@ class Server:
 
         # The line as Tearsheet left it: paused, if anything was waiting.
         self.line = ReportLine.loads(config.Settings(self.db.conn).get(SETTING))
+        from tearsheet.dig.take_line import SETTING as TAKE_LINE_SETTING
+        from tearsheet.dig.take_line import TakeLine
+
+        # The Watchlist's Write takes (dig/take_line.py): as the line, a take at a time.
+        self.take_line = TakeLine.loads(config.Settings(self.db.conn).get(TAKE_LINE_SETTING))
+        self.take_line_job: asyncio.Task | None = None
+        self.take_line_wake: asyncio.Task | None = None
+        self.take_line_wake_for = None
+        # How the last take ended (take id, its take_done fields) and the plan's usage then.
+        self.last_take_end: tuple[str, dict[str, Any]] | None = None
+        self.last_take_usage: tuple[str, dict[str, Any]] | None = None
         self.line_job: asyncio.Task | None = None
         self.line_poll_s = LINE_POLL_S
         # The wait for a usage limit (or the plan's 5-hour window) to reset, and the pause it
@@ -1899,6 +1910,7 @@ class Server:
     def _take_done(self, take_id: str, cik: int, **done: Any) -> None:
         self.take_running = None
         fields = {"saved": False, "code": None, "message": None, "reset_at": None} | done
+        self.last_take_end = (take_id, fields)
         self.notify("take_done", TakeDone(take_id=take_id, cik=cik, **fields))
 
     async def _take_off(self, take_id: str, cik: int) -> None:
@@ -1948,6 +1960,15 @@ class Server:
             code, data = error_code(exc)
             done = {"code": code, "message": str(exc), "reset_at": data.get("reset_at")}
         finally:
+            from tearsheet.batch import usage_readings
+
+            calls = [
+                record.rate_limit
+                for client in (ai, checker)
+                if client is not None
+                for record in getattr(client, "calls", None) or []
+            ]
+            self.last_take_usage = (take_id, usage_readings(calls))
             for client in (ai, checker):
                 if client is None:
                     continue
@@ -1956,6 +1977,189 @@ class Server:
                 except Exception:  # noqa: BLE001 - cleanup only
                     log.exception("closing the AI tool after take %s", take_id)
             self._take_done(take_id, cik, **done)
+
+    # --- the take line: Write takes on the Watchlist (dig/take_line.py) -----------------------
+
+    def _take_line_state(self) -> dict[str, Any]:
+        return {**self.take_line.state(), "typical": None}
+
+    def _take_line_changed(self) -> None:
+        from tearsheet.dig.take_line import SETTING as TAKE_LINE_SETTING
+        from tearsheet.protocol import LineState
+
+        config.Settings(self.db.conn).set_internal(TAKE_LINE_SETTING, self.take_line.dumps())
+        self.notify("take_line_changed", LineState(**self._take_line_state()))
+        self._watch_take_line_pause()
+
+    def _watch_take_line_pause(self) -> None:
+        """A pause that ends by itself gets its wait; any other change ends the wait."""
+        pause = self.take_line.paused
+        want = pause if pause is not None and pause.wait_until else None
+        waiting = self.take_line_wake is not None and not self.take_line_wake.done()
+        if waiting and self.take_line_wake_for is want:
+            return
+        if waiting and self.take_line_wake is not asyncio.current_task():
+            self.take_line_wake.cancel()
+        self.take_line_wake, self.take_line_wake_for = None, want
+        if want is not None:
+            self.take_line_wake = asyncio.create_task(self._wake_take_line(want))
+
+    async def _wake_take_line(self, pause) -> None:
+        """Wait until the pause's time, then go on (a take is written again from the start)."""
+        until = datetime.fromisoformat(pause.wait_until)
+        while (left := (until - self.now()).total_seconds()) > 0:
+            await self.line_sleep(min(left, self.line_sleep_s))
+        if self.take_line.paused is not pause:
+            return
+        self.take_line_wake, self.take_line_wake_for = None, None
+        self.take_line.wake()
+        self._take_line_changed()
+        self._kick_take_line()
+
+    def _report_line_going(self) -> bool:
+        """The report line writes a report, or has reports waiting and no pause: it goes first."""
+        line = self.line
+        return line.writing is not None or (bool(line.waiting) and line.paused is None)
+
+    def _kick_take_line(self) -> None:
+        if self.take_line_job is None or self.take_line_job.done():
+            self.take_line_job = asyncio.create_task(self._run_take_line())
+
+    async def _run_take_line(self) -> None:
+        """Write the take line's takes one at a time. An error in the line itself pauses it
+        with a sentence, for Carry on, as the report line does."""
+        from tearsheet.batch import LINE_ERROR, Pause
+
+        try:
+            await self._take_line_loop()
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # noqa: BLE001 - logged; the line pauses instead of stopping unseen
+            log.exception("the take line stopped on an error")
+            line = self.take_line
+            if line.writing is not None:
+                line.end(
+                    line.writing, {"how": "failed", "code": "ENGINE_ERROR", "resumable": False}
+                )
+            if line.paused is None and line.waiting:
+                line.paused = Pause(
+                    LINE_ERROR,
+                    "The take line stopped on an unexpected error (it’s in the engine log). "
+                    "Carry on to go on.",
+                )
+            self._take_line_changed()
+
+    async def _take_line_loop(self) -> None:
+        """Each take once nothing else runs and the report line isn't going."""
+        from tearsheet.dig.take_line import TakeLine
+        from tearsheet.protocol import TakeParams
+
+        busy = {"RUN_IN_PROGRESS", "SAFETY_CHECK_RUNNING", "TAKE_IN_PROGRESS"}
+        line = self.take_line
+        while True:
+            round_ = line.round
+            entry = line.writing
+            if entry is None:
+                while (
+                    (self._something_running() or self._report_line_going())
+                    and line.waiting
+                    and line.paused is None
+                ):
+                    await asyncio.sleep(self.line_poll_s)
+                if not line.waiting or line.paused is not None:
+                    return
+                entry = line.take_next()
+                self._take_line_changed()
+                try:
+                    started = await self.m_write_take(TakeParams(cik=entry.cik))
+                except Exception as exc:  # noqa: BLE001 - that company ends failed, or waits
+                    code, data = (
+                        (exc.code, exc.data) if isinstance(exc, EngineError) else error_code(exc)
+                    )
+                    if line.round == round_:
+                        if code in busy:  # something started meanwhile: it waits its turn
+                            line.writing = None
+                            line.waiting.insert(0, entry)
+                        else:
+                            line.end(
+                                entry,
+                                {
+                                    "how": "failed",
+                                    "code": code,
+                                    "message": str(exc),
+                                    **data,
+                                    "resumable": False,
+                                },
+                                now=self.now(),
+                            )
+                        self._take_line_changed()
+                    continue
+                if line.round != round_:  # Cancel all meanwhile
+                    running = self.take_running
+                    if running is not None and running["take_id"] == started["take_id"]:
+                        self.take_job.cancel()
+                    continue
+                entry.run_id = started["take_id"]
+                self._take_line_changed()
+            if self.take_job is not None:
+                await asyncio.wait({self.take_job})
+            if line.round != round_:
+                continue
+            ended = (
+                self.last_take_end[1]
+                if self.last_take_end and self.last_take_end[0] == entry.run_id
+                else {"saved": False, "code": "ENGINE_ERROR", "message": "The take ended unseen."}
+            )
+            line.end(entry, TakeLine.ended(ended), now=self.now())
+            if self.last_take_usage and self.last_take_usage[0] == entry.run_id:
+                line.check_usage(self.last_take_usage[1], self.now())
+            self._take_line_changed()
+
+    async def m_start_take_line(self, p) -> dict[str, Any]:
+        """Write takes: the companies given (the Watchlist on show), each in turn."""
+        from tearsheet.data.membership import load_bundled
+
+        entries, skipped = self.take_line.plan_ciks(
+            self.db.conn, p.ciks, holdings=load_bundled(), now=self.now()
+        )
+        if entries:
+            self.take_line.add(entries)
+            self._take_line_changed()
+            self._kick_take_line()
+        return {
+            "items": [e.item() for e in entries],
+            "skipped": [{"query": s.query, "reason": s.reason, "kind": s.kind} for s in skipped],
+            "line": self._take_line_state(),
+        }
+
+    async def m_get_take_line(self, p) -> dict[str, Any]:
+        return self._take_line_state()
+
+    async def m_remove_from_take_line(self, p) -> dict[str, Any]:
+        if self.take_line.remove(p.ticker):
+            self._take_line_changed()
+        return self._take_line_state()
+
+    async def m_clear_take_line(self, p) -> dict[str, Any]:
+        """Cancel all: the take under way stops, and nothing is left waiting."""
+        writing = self.take_line.writing
+        self.take_line.clear()
+        running = self.take_running
+        if writing and self._taking() and running and running["take_id"] == writing.run_id:
+            self.take_job.cancel()
+        self._take_line_changed()
+        return self._take_line_state()
+
+    async def m_carry_on_take_line(self, p) -> dict[str, Any]:
+        self.take_line.carry_on(self.now())
+        self._take_line_changed()
+        self._kick_take_line()
+        return self._take_line_state()
+
+    async def wait_for_take_line(self) -> None:
+        """Until the take line has nothing more to start (it is empty or paused)."""
+        while self.take_line_job is not None and not self.take_line_job.done():
+            await asyncio.wait({self.take_line_job})
 
     async def m_fetch_history(self, p) -> dict[str, Any]:
         """The company's full daily history with its splits and dividends. It is answered off
@@ -2252,6 +2456,13 @@ class Server:
         except Exception:  # noqa: BLE001 - logged; the next check tries again
             log.exception("the watchlist's alert check failed")
 
+    def _watch_take_queued(self) -> dict[int, str]:
+        """The take line's companies: waiting, or being written."""
+        out = {e.cik: "waiting" for e in self.take_line.waiting}
+        if self.take_line.writing is not None:
+            out[self.take_line.writing.cik] = "writing"
+        return out
+
     def _watch_queued(self) -> dict[int, str]:
         """The report line's companies: waiting, or being written."""
         out = {e.cik: "waiting" for e in self.line.waiting}
@@ -2283,12 +2494,15 @@ class Server:
     async def m_get_watchlist(self, p) -> dict[str, Any]:
         """The whole watchlist page in one call (protocol.WatchPage). Reads only."""
         from tearsheet import watchlist
+        from tearsheet.dig.take_line import newest_takes
 
         return watchlist.page(
             self.db.conn,
             self.now(),
             queued=self._watch_queued(),
             prices_note=self._watch_prices_note(),
+            takes=newest_takes(self.db.conn),
+            take_queued=self._watch_take_queued(),
         )
 
     async def m_watch_counts(self, p) -> dict[str, int]:
@@ -2709,6 +2923,10 @@ async def serve(paths: config.Paths) -> int:
             server.line_job.cancel()
         if server.line_wake is not None:
             server.line_wake.cancel()
+        # The take line too: it comes back paused next time, its take written again.
+        for task in (server.take_line_job, server.take_line_wake):
+            if task is not None:
+                task.cancel()
         if server.active is not None:
             # Interrupted, not cancelled: the line resumes it next time instead of starting
             # the company again (whose official prediction may already be logged).
