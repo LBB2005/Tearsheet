@@ -1568,7 +1568,7 @@ class DigPage(Strict):
 
 class TakeCitation(Strict):
     id: str
-    # "Report source: Item 7", "Tearsheet data: Sector", "News: Example Wire, 16 Nov".
+    # "Report source: Item 7", "Tearsheet data: Sector", "News: Example Wire, Nov 16".
     label: str
     text: str
     # A link that opens (an allowlisted news article, a filing); None otherwise.

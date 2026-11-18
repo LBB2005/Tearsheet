@@ -155,11 +155,11 @@ def test_news_gets_its_description_from_the_stored_answer(database, rawstore, sn
     assert "Massive’s tone for AAPL: positive. Reviewers liked the chip." in texts
     first = news[0]
     assert got.labels[first.id] == (
-        "News: Example Wire, 16 Nov",
+        "News: Example Wire, Nov 16",
         "https://www.reuters.com/technology/apple-chip-example",
     )
     off_list = next(p for p in news if p.text == "A supplier warns on orders")
-    assert got.labels[off_list.id] == ("News: Not On The List, 12 Nov", None)
+    assert got.labels[off_list.id] == ("News: Not On The List, Nov 12", None)
 
 
 def test_news_that_reads_like_instructions_is_marked(database, rawstore, snap):

@@ -71,7 +71,7 @@ def _day(text: str | None) -> str:
 
 def _short_day(text: str) -> str:
     d = date.fromisoformat(text[:10])
-    return f"{d.day} {d:%b}"
+    return f"{d:%b} {d.day}"  # as the app writes a day ("Nov 16")
 
 
 def _nth(n: float) -> str:
