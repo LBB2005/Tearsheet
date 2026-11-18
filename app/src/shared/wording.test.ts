@@ -4,7 +4,7 @@ import { join } from 'node:path'
 
 import { expect, test } from 'vitest'
 
-import { ADVICE_LINE, ADVICE_SHORT } from './wording'
+import { ADVICE_LINE, ADVICE_SHORT, TAKE_LINE } from './wording'
 
 const ROOT = join(__dirname, '..', '..', '..')
 
@@ -12,6 +12,11 @@ test('the app and the engine use the same "not advice" words', () => {
   const py = readFileSync(join(ROOT, 'engine/src/tearsheet/wording.py'), 'utf8')
   expect(py).toContain(`ADVICE_SHORT = "${ADVICE_SHORT}"`)
   expect(ADVICE_LINE.startsWith(ADVICE_SHORT)).toBe(true)
+})
+
+test('the app and the engine use the same line under Dig deeper’s AI take', () => {
+  const py = readFileSync(join(ROOT, 'engine/src/tearsheet/wording.py'), 'utf8')
+  expect(py).toContain(`TAKE_LINE = "${TAKE_LINE}"`)
 })
 
 test('no older "not advice" wording is left in the app, the engine, the README or the release notes', () => {

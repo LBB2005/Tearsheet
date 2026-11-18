@@ -139,6 +139,8 @@ def refused_keys(settings: Settings) -> list[str]:
 # 60 (was 50): the most a run can need is about 56 (14 filing sections, 2 more parts, 15
 # articles, and 4 calls per section with a rewrite in every one), and 5 runs used 35-44.
 CALL_BUDGET = 60
+# A Dig deeper take: its draft, the skeptic, one rewrite and its re-check, with room for retries.
+TAKE_CALL_BUDGET = 8
 # 5 at a time (was 3): the same calls, finishing about a minute sooner per report (7 Nov 2026).
 AI_CALLS_IN_PARALLEL = 5
 AI_CALL_TIME_LIMIT_S = 300
@@ -152,6 +154,7 @@ CLAUDE_MODELS = {
     "narrate": "sonnet",
     "skeptic": "sonnet",
     "link_search": "sonnet",
+    "dig_take": "sonnet",
 }
 # The model for each step on Codex. Empty means Codex's own default model for the user's
 # plan; the live lock-down check records which model that is (docs/phase0-results.md), and a

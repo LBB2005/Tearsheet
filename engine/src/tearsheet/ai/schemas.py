@@ -89,6 +89,30 @@ class SectionDraft(Strict):
     sentences: list[DraftSentence]
 
 
+class TakeQuestion(StrEnum):
+    """Dig deeper's take: the one investor checklist, the same for every stock (Liam, Nov 17)."""
+
+    BUSINESS = "business"  # Is it a great business?
+    PRICE = "price"  # Is the price below what it's worth, with room to spare?
+    RISKS = "risks"  # What could kill it?
+    BACKDROP = "backdrop"  # Are the sector and the market behind it?
+    SELL = "sell"  # What would make you sell?
+
+
+class TakeAnswer(Strict):
+    question: TakeQuestion
+    sentences: list[DraftSentence]
+
+
+class TakeDraft(Strict):
+    """The take's one answer: the five questions, then the Next move's two lists. The Buy price
+    in the Next move box is code's, never the AI's."""
+
+    answers: list[TakeAnswer]
+    check_first: list[DraftSentence]
+    proven_wrong: list[DraftSentence]
+
+
 class SkepticFinding(Strict):
     sentence_id: str
     mark: Literal["unsupported", "tone"]

@@ -11,3 +11,6 @@ ADVICE_LINE = ADVICE_SHORT + " Check the sources and make your own decisions."
 
 # Massive's terms forbid passing its data on (S1), and the PDF, deck and workbook hold prices.
 PRICES_LINE = "Prices from Massive, for your own use."
+
+# Under Dig deeper's AI take, in its Next move box (Liam, 17 Nov 2026).
+TAKE_LINE = "The Buy price is the report’s, worked out by code. The AI never sets a price."
