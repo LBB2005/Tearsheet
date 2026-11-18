@@ -142,12 +142,14 @@ def price_line(snapshot: dict[str, Any]) -> tuple[str, str | None]:
         return "A red flag holds our rating at Hold, whatever the price.", None
     buy = levels_of(lv).trigger("buy")
     if buy is not None:
-        line = f"Our numbers turn Buy at {format_value('price', buy)}"
-        close = head["close"]
+        price, close = format_value("price", buy), head["close"]
         if close is None:
-            return line, None
+            return f"Our numbers turn Buy at {price}", None
         today = f"Today’s close: {format_value('price', close)}"
-        return line, f"{today}, below that price" if close <= buy else today
+        # Already below it, the numbers say Buy now (Liam, 17 Nov: "turn" read as not yet).
+        if close < buy:
+            return f"Our numbers say Buy below {price}", today
+        return f"Our numbers turn Buy at {price}", today
     if lv["buy_reachable"] is False:
         return "No price alone turns our numbers to Buy: the score is below the Buy line.", None
     return "The report has no Buy price.", None

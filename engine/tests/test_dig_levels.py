@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from tearsheet.dig.levels import levels_of, placeholders, price_line
 from tests.dig_sample import levels, part_off, sample_snapshot
 
@@ -29,11 +27,19 @@ def test_the_buy_price_line_above_the_trigger():
     )
 
 
-@pytest.mark.parametrize("close", [238.0, 236.5])
-def test_the_buy_price_line_at_or_below_the_trigger(close):
-    line, today = price_line(with_levels(close=close))
-    assert line == "Our numbers turn Buy at $238.00"
-    assert today == f"Today’s close: ${close:,.2f}, below that price"
+def test_the_buy_price_line_at_the_trigger():
+    assert price_line(with_levels(close=238.0)) == (
+        "Our numbers turn Buy at $238.00",
+        "Today’s close: $238.00",
+    )
+
+
+def test_below_the_trigger_the_numbers_already_say_buy():
+    # Liam, 17 Nov: "turn" read as if it hadn't happened yet.
+    assert price_line(with_levels(close=236.5)) == (
+        "Our numbers say Buy below $238.00",
+        "Today’s close: $236.50",
+    )
 
 
 def test_a_red_flag_holds_the_rating_whatever_the_price():

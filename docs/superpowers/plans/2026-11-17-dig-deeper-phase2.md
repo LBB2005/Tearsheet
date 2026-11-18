@@ -23,7 +23,7 @@
   4. Are the sector and the market behind it?
   5. What would make you sell?
 - Next move box (Liam, 17 Nov: title "Next move"), code-written price line:
-  - a reachable Buy trigger: "Our numbers turn Buy at $238.00", then "Today’s close: $250.10" (or "Today’s close: $236.50, below that price" at or under it);
+  - a reachable Buy trigger: "Our numbers turn Buy at $238.00", then "Today’s close: $250.10"; with the close already under it, "Our numbers say Buy below $238.00", then "Today’s close: $236.50" (Liam, 17 Nov, after the first real takes);
   - a red-flag cap: "A red flag holds our rating at Hold, whatever the price.";
   - Buy not reachable by price: "No price alone turns our numbers to Buy: the score is below the Buy line.";
   - no Buy price at all: "The report has no Buy price."

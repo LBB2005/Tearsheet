@@ -193,8 +193,8 @@ export function digTake(cik = 320193, changes: Partial<DigTake> = {}): DigTake {
       { key: 'sell', question: 'What would make you sell?', sentences: [sentence('sell.1', 'A close above $290.00 would take it past the bull case.')] }
     ],
     next_move: {
-      price_line: 'Our numbers turn Buy at $238.00',
-      close_line: 'Today’s close: $236.50, below that price',
+      price_line: 'Our numbers say Buy below $238.00',
+      close_line: 'Today’s close: $236.50',
       check_first: [sentence('check_first.1', 'What the next filing says about supplier orders.', [article])],
       proven_wrong: [sentence('proven_wrong.1', 'Services growth slowing in the next quarter.', [filing])]
     },
