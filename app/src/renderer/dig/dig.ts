@@ -21,13 +21,23 @@ export function needsRefresh(page: DigPage, now: Date = new Date()): boolean {
 // earlier snapshot; the engine's reason when it is off or down.
 export function partNote(part: { state: PartState; note: string | null; as_of: string | null }, source: string, now: Date = new Date()): string | null {
   if (part.state === 'ok') return null
-  if (part.state === 'stale') return `From ${part.as_of ? shortDate(part.as_of, now) : 'an earlier look'}: ${source} didn’t answer this time.`
+  if (part.state === 'stale') return `From ${part.as_of ? dayOf(part.as_of, now) : 'an earlier look'}: ${source} didn’t answer this time.`
   return part.note ?? `${source} didn’t answer.`
+}
+
+// A moment the engine stamped (UTC, "2026-11-18T01:04:24+00:00") as the reader's own day, so an
+// evening's look isn't dated tomorrow; a plain date ("2026-11-16") as it is.
+export function dayOf(iso: string, now: Date = new Date()): string {
+  if (!iso.includes('T')) return shortDate(iso, now)
+  const at = new Date(iso)
+  if (Number.isNaN(at.getTime())) return shortDate(iso, now)
+  const two = (n: number) => String(n).padStart(2, '0')
+  return shortDate(`${at.getFullYear()}-${two(at.getMonth() + 1)}-${two(at.getDate())}`, now)
 }
 
 export function asOfLine(s: DigSnapshot, now: Date = new Date()): string {
   const close = s.close_date ? `Prices to the close of ${shortDate(s.close_date, now)}. ` : ''
-  return `${close}Gathered ${shortDate(s.created_at, now)}.`
+  return `${close}Gathered ${dayOf(s.created_at, now)}.`
 }
 
 export const subtitle = (page: DigPage): string => page.name

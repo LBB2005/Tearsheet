@@ -4,10 +4,10 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, test } from 'vitest'
 
-import { ADVICE_SHORT } from '../../shared/wording'
+import { ADVICE_SHORT, TAKE_LINE } from '../../shared/wording'
 import { openReport, renderApp } from '../test/app'
-import { bridge, fail, ok } from '../test/bridge'
-import { digPage, digSnapshot } from '../test/dig'
+import { bridge, emit, fail, ok } from '../test/bridge'
+import { digPage, digSnapshot, digTake, takeList } from '../test/dig'
 
 const sidebar = () => within(screen.getByRole('complementary', { name: 'Sidebar' }))
 const digRegion = () => screen.findByRole('region', { name: /^Dig deeper/ })
@@ -73,9 +73,10 @@ describe('the page', () => {
   test('shows its parts in order, with the advice line', async () => {
     const { region } = await openDig()
     expect(await within(region).findByRole('heading', { level: 3, name: /^Today/ })).toBeInTheDocument()
-    expect(headings(region)).toEqual(['Today', 'The report’s range', 'Sector', 'Market', 'Peers', 'Analysts', 'Insiders', 'News', 'Sources'])
+    expect(headings(region)).toEqual(['Today', 'The report’s range', 'AI take', 'Sector', 'Market', 'Peers', 'Analysts', 'Insiders', 'News', 'Sources'])
     expect(within(region).getByText(ADVICE_SHORT)).toBeInTheDocument()
-    expect(within(region).getByText('Prices to the close of Nov 16. Gathered Nov 17.', { exact: false })).toBeInTheDocument()
+    const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    expect(within(region).getByText(`Prices to the close of Nov 16. Gathered ${today}.`, { exact: false })).toBeInTheDocument()
     expect(bridge.refreshDigDeeper).not.toHaveBeenCalled()
   })
 
@@ -267,4 +268,130 @@ test('a number no member has (a bank’s left-out ratios) gets no column', async
   const peers = within(region).getByRole('region', { name: 'Peers' })
   expect(within(peers).queryByRole('columnheader', { name: 'Operating margin' })).toBeNull()
   expect(within(peers).getByRole('columnheader', { name: 'Free cash flow yield' })).toBeInTheDocument()
+})
+
+// ---------- the AI take ----------
+
+const takePart = (region: HTMLElement) => within(within(region).getByRole('region', { name: 'AI take' }))
+const withTakes = (changes: Parameters<typeof takeList>[1]) => bridge.listTakes.mockResolvedValue(ok(takeList(320193, changes)))
+const progress = (step: string) => emit('take_progress', { take_id: 'take-new', cik: 320193, step })
+const takeDone = (over: object = {}) => emit('take_done', { take_id: 'take-new', cik: 320193, saved: true, code: null, message: null, reset_at: null, ...over })
+
+describe('the AI take', () => {
+  test('with no take yet, it says what the AI reads and offers to write one', async () => {
+    const { region } = await openDig()
+    const take = takePart(region)
+    expect(await take.findByRole('button', { name: 'Write the take' })).toBeEnabled()
+    expect(take.getByText(/answers five questions from this page, the report and the news/)).toBeInTheDocument()
+    expect(bridge.listTakes).toHaveBeenCalledWith(320193)
+  })
+
+  test('the button is greyed with the engine’s reason when a take can’t start', async () => {
+    withTakes({ blocked: 'A report is running. You can write the take when it’s done.' })
+    const { region } = await openDig()
+    const take = takePart(region)
+    expect(await take.findByRole('button', { name: 'Write the take' })).toBeDisabled()
+    expect(take.getByText('A report is running. You can write the take when it’s done.')).toBeInTheDocument()
+  })
+
+  test('writing shows each step, then the take with its five questions', async () => {
+    const { region, user } = await openDig()
+    const take = takePart(region)
+    await user.click(await take.findByRole('button', { name: 'Write the take' }))
+    expect(bridge.writeTake).toHaveBeenCalledWith(320193)
+    progress('refreshing')
+    expect(await take.findByText('Getting today’s numbers…')).toBeInTheDocument()
+    progress('writing')
+    expect(await take.findByText('Writing the take…')).toBeInTheDocument()
+    expect(take.getByRole('button', { name: 'Cancel' })).toBeInTheDocument()
+    withTakes({ takes: [digTake()] })
+    takeDone()
+    expect(await take.findByText('Written Nov 17 by Claude Code, checked by Codex', { exact: false })).toBeInTheDocument()
+    expect(take.getAllByRole('heading', { level: 4 }).map((h) => h.textContent)).toEqual([
+      'Is it a great business?',
+      'Is the price below what it’s worth, with room to spare?',
+      'What could kill it?',
+      'Are the sector and the market behind it?',
+      'What would make you sell?',
+      'Next move'
+    ])
+    expect(take.getByText('No sentence on this question passed the checks.')).toBeInTheDocument()
+    expect(take.getByRole('button', { name: 'Write a new take' })).toBeEnabled()
+    // The take may have fetched today's numbers first, so the page reads them again.
+    await waitFor(() => expect(bridge.getDigDeeper).toHaveBeenCalledTimes(2))
+  })
+
+  test('a take under way when the page opens shows its step, and Cancel stops it', async () => {
+    withTakes({ running: { take_id: 'take-old', cik: 320193, ticker: 'AAPL', step: 'checking' } })
+    const { region, user } = await openDig()
+    const take = takePart(region)
+    expect(await take.findByText('Checking it…')).toBeInTheDocument()
+    await user.click(take.getByRole('button', { name: 'Cancel' }))
+    expect(bridge.cancelTake).toHaveBeenCalledWith(320193)
+  })
+
+  test('a take that ends without saving says why and offers the button again', async () => {
+    const { region, user } = await openDig()
+    const take = takePart(region)
+    await user.click(await take.findByRole('button', { name: 'Write the take' }))
+    progress('writing')
+    takeDone({ saved: false, code: 'USAGE_LIMIT', message: 'Usage limit reached.', reset_at: null })
+    expect(await take.findByText('Your plan’s usage limit is reached. Try again later.')).toBeInTheDocument()
+    expect(take.getByRole('button', { name: 'Write the take' })).toBeEnabled()
+  })
+
+  test('a take that won’t start says why', async () => {
+    bridge.writeTake.mockResolvedValueOnce(fail('Neither Claude Code nor Codex was found.'))
+    const { region, user } = await openDig()
+    const take = takePart(region)
+    await user.click(await take.findByRole('button', { name: 'Write the take' }))
+    expect(await take.findByText('The take didn’t start: Neither Claude Code nor Codex was found.')).toBeInTheDocument()
+  })
+
+  test('each sentence’s numbered sources open their cited text', async () => {
+    withTakes({ takes: [digTake()] })
+    const { region, user } = await openDig()
+    const take = takePart(region)
+    await user.click((await take.findAllByRole('button', { name: 'Source 1: Report source: Item 7' }))[0])
+    const cited = take.getByRole('note', { name: 'Report source: Item 7' })
+    expect(cited).toHaveTextContent('We sell iPhone, Mac and services.')
+    await user.click(take.getAllByRole('button', { name: 'Source 1: News: Example Wire, Nov 16' })[0])
+    const news = take.getByRole('note', { name: 'News: Example Wire, Nov 16' })
+    await user.click(within(news).getByRole('button', { name: 'Open' }))
+    expect(bridge.openExternal).toHaveBeenCalledWith('https://www.reuters.com/technology/apple-chip-example')
+    expect(take.getByText('Checker’s note: One article; others are calmer.')).toBeInTheDocument()
+  })
+
+  test('the Next move box gives code’s Buy price, both lists and the two fixed lines', async () => {
+    withTakes({ takes: [digTake()] })
+    const { region } = await openDig()
+    const box = within(await takePart(region).findByRole('group', { name: 'Next move' }))
+    expect(box.getByText('Our numbers turn Buy at $238.00')).toBeInTheDocument()
+    expect(box.getByText('Today’s close: $236.50, below that price')).toBeInTheDocument()
+    expect(box.getByRole('heading', { name: 'Check first' })).toBeInTheDocument()
+    expect(box.getByText('What the next filing says about supplier orders.', { exact: false })).toBeInTheDocument()
+    expect(box.getByRole('heading', { name: 'What would prove it wrong' })).toBeInTheDocument()
+    expect(box.getByText(TAKE_LINE)).toBeInTheDocument()
+    expect(box.getByText(ADVICE_SHORT)).toBeInTheDocument()
+  })
+
+  test('the removed sentences are counted and can be shown', async () => {
+    withTakes({ takes: [digTake()] })
+    const { region, user } = await openDig()
+    const take = takePart(region)
+    await user.click(await take.findByText('1 sentence was removed by the checks.'))
+    expect(take.getByText('Revenue grew 12% last year.', { exact: false })).toBeVisible()
+    expect(take.getByText(/a number outside a placeholder/)).toBeVisible()
+  })
+
+  test('an earlier take opens from the list', async () => {
+    const older = digTake(320193, { take_id: 'take-older', created_at: '2026-11-12T15:00:00+00:00', writer: 'Codex', checked_by: 'self', checker: null })
+    withTakes({ takes: [digTake(), older] })
+    const { region, user } = await openDig()
+    const take = takePart(region)
+    await user.click(await take.findByRole('button', { name: /^Nov 12/ }))
+    expect(take.getByText('Written Nov 12 by Codex, self-checked', { exact: false })).toBeInTheDocument()
+    await user.click(take.getByRole('button', { name: 'Newest' }))
+    expect(take.getByText('Written Nov 17 by Claude Code, checked by Codex', { exact: false })).toBeInTheDocument()
+  })
 })

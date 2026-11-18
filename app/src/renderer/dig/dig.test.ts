@@ -4,7 +4,7 @@
 import { describe, expect, test } from 'vitest'
 
 import { digPage, digSnapshot } from '../test/dig'
-import { asOfLine, compact, metricText, needsRefresh, partNote, rangeSpots, subtitle, toneLine, tradeLine } from './dig'
+import { asOfLine, compact, dayOf, metricText, needsRefresh, partNote, rangeSpots, subtitle, toneLine, tradeLine } from './dig'
 
 const AT = (iso: string) => new Date(iso)
 
@@ -85,4 +85,17 @@ test('tradeLine', () => {
   expect(tradeLine({ trades: 1, people: 1, shares: 1000, value: 0 })).toBe('1 trade by 1 person: 1,000 shares')
   expect(tradeLine({ trades: 0, people: 0, shares: 0, value: 0 })).toBe('None')
   expect(tradeLine(null)).toBe('—')
+})
+
+test('dayOf gives a moment’s day where the reader is, and a plain date as it is', () => {
+  // Late evening here is often the next day in UTC: the reader's own day is the one shown.
+  const late = new Date(2026, 10, 17, 23, 30)
+  expect(dayOf(late.toISOString(), late)).toBe('Nov 17')
+  expect(dayOf('2026-11-16', late)).toBe('Nov 16')
+  expect(dayOf('not a date', late)).toBe('not a date')
+})
+
+test('asOfLine gives the gathering’s day where the reader is', () => {
+  const late = new Date(2026, 10, 17, 23, 30)
+  expect(asOfLine(digSnapshot(320193, { created_at: late.toISOString() }), late)).toBe('Prices to the close of Nov 16. Gathered Nov 17.')
 })

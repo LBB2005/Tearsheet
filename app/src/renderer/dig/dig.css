@@ -1,5 +1,5 @@
 /* Dig deeper (pages/Dig.tsx): the stock's heading, then its parts in reading order, two to a row
-   where they fit and the wide ones (sector, peers, news, sources) across. The shared panels,
+   where they fit and the wide ones (the AI take, sector, peers, news, sources) across. The shared panels,
    buttons, tables and rating tags come from styles.css. One bold thing: the range bar, where
    today's close sits on the report's low-to-high range. */
 
@@ -101,3 +101,36 @@
 .digv .dsrc { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 4px 16px; font-size: var(--fs-sm); }
 .digv .dsrc li { display: flex; justify-content: space-between; gap: 8px; color: var(--text2); }
 .digv .dsrc small { font-size: var(--fs-xs); color: var(--faint2); }
+
+/* the AI take (dig/Take.tsx): the five answers beside the Next move box, which stacks under them
+   when the page is narrow. Numbered buttons after each sentence open its cited text below. */
+.digv .dtbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.digv .dtbar .fine { margin: 0; }
+.digv .dtake button.sm { padding: 4px 10px; font-size: var(--fs-sm); }
+.digv .dtintro { max-width: 70ch; margin: 0; }
+.digv .dtbody { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(260px, 1fr); gap: 18px; align-items: start; }
+@container (max-width: 820px) { .digv .dtbody { grid-template-columns: minmax(0, 1fr); } }
+.digv .danswers { display: grid; gap: 14px; }
+.digv .dq { display: grid; gap: 4px; }
+.digv .dtake h4 { margin: 0; font: var(--fs-md) var(--ui); font-weight: calc(600 + var(--wt)); color: var(--text); }
+.digv .dtake h5 { margin: 6px 0 0; font: var(--fs-sm) var(--ui); font-weight: calc(600 + var(--wt)); color: var(--muted); }
+.digv .dsents { margin: 0; max-width: 72ch; font-size: var(--fs-md); line-height: 1.55; color: var(--text2); }
+.digv .dsent.positive { color: var(--text); }
+.digv .dchip { all: unset; display: inline-grid; place-items: center; min-width: 16px; height: 16px; margin-left: 3px; padding: 0 3px; border-radius: var(--r-xs); border: 1px solid var(--chipline); background: rgb(var(--accent-rgb) / .08); color: var(--accent-fg); font: var(--fs-xs) var(--ui); font-weight: calc(600 + var(--wt)); line-height: 1; vertical-align: 2px; cursor: pointer; box-sizing: border-box; }
+.digv .dchip:hover, .digv .dchip[aria-expanded='true'] { background: rgb(var(--accent-rgb) / .18); }
+.digv .dchip:focus-visible { outline: var(--focus); outline-offset: 2px; }
+.digv .dnote { margin-left: 6px; font-size: var(--fs-xs); color: var(--hold); font-style: italic; }
+.digv .dcite { display: grid; gap: 4px; justify-items: start; padding: 8px 10px; border-left: 2px solid var(--chipline); background: rgb(var(--ink) / .03); border-radius: var(--r-xs); font-size: var(--fs-sm); }
+.digv .dcite b { font-weight: calc(600 + var(--wt)); color: var(--muted); font-size: var(--fs-xs); }
+.digv .dcite p { margin: 0; max-width: 72ch; color: var(--text2); }
+.digv .dremoved summary { cursor: pointer; }
+.digv .dremoved ul { margin: 6px 0 0; padding-left: 18px; font-size: var(--fs-sm); color: var(--muted); }
+.digv .dremoved small { color: var(--faint2); }
+/* the Next move box: code's Buy price first, larger, then the AI's two lists and the fixed lines */
+.digv .dnext { display: grid; gap: 6px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--r-md); background: rgb(var(--accent-rgb) / .05); }
+.digv .dnext .dprice { margin: 0; font: var(--fs-xl)/1.15 var(--ui); font-weight: calc(650 + var(--wt)); color: var(--text); }
+.digv .dnext .fine { margin: 0; }
+.digv .dnext .dsents { font-size: var(--fs-sm); }
+.digv .dearlier { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.digv .dearlier .fine { margin: 0; }
+.digv .dearlier button[aria-pressed='true'] { border-color: var(--chipline); background: rgb(var(--accent-rgb) / .10); }

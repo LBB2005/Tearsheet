@@ -167,7 +167,7 @@ export function digPage(cik = 320193, changes: Partial<DigPage> = {}): DigPage {
 
 const today: TakeCitation = { id: 'dig:today#p1', label: 'Tearsheet data: Today', text: 'Apple Inc. (AAPL) closed at $236.50 on 16 Nov 2026.', url: null }
 const filing: TakeCitation = { id: '0000320193-26-000010#Item_7#p3@1', label: 'Report source: Item 7', text: 'We sell iPhone, Mac and services.', url: 'https://www.sec.gov/Archives/edgar/data/320193/x.htm' }
-const article: TakeCitation = { id: 'news-1a2b3c4d5e#article#p1@1', label: 'News: Example Wire, 16 Nov', text: 'Apple’s new chip gets an early look', url: 'https://www.reuters.com/technology/apple-chip-example' }
+const article: TakeCitation = { id: 'news-1a2b3c4d5e#article#p1@1', label: 'News: Example Wire, Nov 16', text: 'Apple’s new chip gets an early look', url: 'https://www.reuters.com/technology/apple-chip-example' }
 
 function sentence(id: string, text: string, citations: TakeCitation[] = [today], over: Partial<TakeSentence> = {}): TakeSentence {
   return { id, text, stance: 'neutral', note: null, citations, ...over }

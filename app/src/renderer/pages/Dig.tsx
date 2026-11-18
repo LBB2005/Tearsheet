@@ -1,16 +1,18 @@
 // Dig deeper: the research step for one stock, after its report and before buying anywhere. Today's
 // picture beside the report: the sector, the market, the peers, the analysts, insiders and news,
 // all worked out by the engine (engine dig/) and saved as a dated snapshot. It opens from the stock
-// menu, a Watchlist company's panel and the report's toolbar.
+// menu, a Watchlist company's panel and the report's toolbar. On a click, the AI writes a take on it
+// (dig/Take.tsx).
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
 
 import type { DigPage, DigSnapshot, WatchLevels } from '../../shared/protocol'
 import { ADVICE_SHORT } from '../../shared/wording'
-import { asOfLine, compact, FIRST_ROWS, metricText, needsRefresh, partNote, plainPct, rangeSpots, subtitle, toneLine, tradeLine, type PartState } from '../dig/dig'
+import { asOfLine, compact, dayOf, FIRST_ROWS, metricText, needsRefresh, partNote, plainPct, rangeSpots, subtitle, toneLine, tradeLine, type PartState } from '../dig/dig'
 import '../dig/dig.css'
 import { RangeBar, type Mark } from '../dig/RangeBar'
 import { SectorChart } from '../dig/SectorChart'
+import { Take } from '../dig/Take'
 import { signedPct } from '../log/screen'
 import { shortDate } from '../nav'
 import { Spinner } from '../setup/parts'
@@ -38,6 +40,8 @@ export function Dig({ cik, ticker, onOpenReport, onSubtitle }: DigProps) {
   const [refreshing, setRefreshing] = useState(false)
   const [refreshFailed, setRefreshFailed] = useState<string | null>(null)
   const menu = useStockMenu()
+  // A finished take may have fetched today's numbers first: read the page again.
+  const reread = useCallback(() => setTries((n) => n + 1), [])
 
   const refresh = useCallback(() => {
     setRefreshing(true)
@@ -123,7 +127,7 @@ export function Dig({ cik, ticker, onOpenReport, onSubtitle }: DigProps) {
           <b>No report on {shown} yet. Write one first, then dig deeper beside it.</b>
         </div>
       ) : snap ? (
-        <Parts snap={snap} menu={menu} />
+        <Parts snap={snap} menu={menu} onTakeDone={reread} />
       ) : null}
     </div>
   )
@@ -137,7 +141,7 @@ function Part({ title, part, source, wide, children }: { title: string; part?: {
     <section className={wide ? 'glass p dpart wide' : 'glass p dpart'} aria-label={title}>
       <h3>
         <span>{title}</span>
-        {part?.as_of && part.state !== 'stale' && <small>{shortDate(part.as_of)}</small>}
+        {part?.as_of && part.state !== 'stale' && <small>{dayOf(part.as_of)}</small>}
       </h3>
       {note && <p className={part?.state === 'stale' ? 'fine hold' : 'fine'}>{note}</p>}
       {children}
@@ -145,13 +149,14 @@ function Part({ title, part, source, wide, children }: { title: string; part?: {
   )
 }
 
-function Parts({ snap, menu }: { snap: DigSnapshot; menu: ReturnType<typeof useStockMenu> }) {
+function Parts({ snap, menu, onTakeDone }: { snap: DigSnapshot; menu: ReturnType<typeof useStockMenu>; onTakeDone: () => void }) {
   const h = snap.header
   const lv = h.levels
   return (
     <div className="dgrid">
       <Today snap={snap} />
       <Range levels={lv} close={h.close} />
+      <Take cik={snap.cik} onDone={onTakeDone} />
       <Sector snap={snap} />
       <Market snap={snap} />
       <Peers snap={snap} menu={menu} />
@@ -163,7 +168,7 @@ function Parts({ snap, menu }: { snap: DigSnapshot; menu: ReturnType<typeof useS
           {snap.sources.filter((s, i, all) => all.findIndex((o) => o.name === s.name) === i).map((s) => (
             <li key={s.part}>
               <span>{s.name}</span>
-              <small>{s.state === 'ok' ? (s.as_of ? shortDate(s.as_of) : '') : s.state === 'stale' ? `from ${s.as_of ? shortDate(s.as_of) : 'earlier'}` : s.state === 'off' ? 'not used' : 'didn’t answer'}</small>
+              <small>{s.state === 'ok' ? (s.as_of ? dayOf(s.as_of) : '') : s.state === 'stale' ? `from ${s.as_of ? dayOf(s.as_of) : 'earlier'}` : s.state === 'off' ? 'not used' : 'didn’t answer'}</small>
             </li>
           ))}
         </ul>
@@ -517,7 +522,7 @@ function News({ snap }: { snap: DigSnapshot }) {
                   )}
                   <small>
                     {item.publisher}
-                    {item.published ? `, ${shortDate(item.published)}` : ''}
+                    {item.published ? `, ${dayOf(item.published)}` : ''}
                   </small>
                 </span>
               </li>
