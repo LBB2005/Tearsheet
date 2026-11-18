@@ -117,6 +117,8 @@ export type Move = number | null;
 export type Age = boolean | null;
 export type Ciks3 = number[] | null;
 export type Cik5 = number;
+export type Cik6 = number;
+export type Tool2 = ("claude" | "codex") | null;
 export type Date = string;
 export type DateText = string;
 export type Firm = string;
@@ -192,7 +194,7 @@ export type BuyTrigger = number | null;
 export type SellTrigger = number | null;
 export type Key3 = string;
 export type Label2 = string;
-export type Cik6 = number;
+export type Cik7 = number;
 export type Ticker1 = string;
 export type Name = string;
 export type Sector = string | null;
@@ -256,7 +258,7 @@ export type Neutral = number;
 export type Negative = number;
 export type Unknown = number;
 export type Source1 = string;
-export type Cik7 = number;
+export type Cik8 = number;
 export type Ticker2 = string;
 export type Name1 = string;
 export type IsCompany = boolean;
@@ -304,23 +306,72 @@ export type Name2 = string;
 export type State8 = "ok" | "stale" | "off" | "down";
 export type AsOf7 = string | null;
 export type SnapshotId = string;
-export type Cik8 = number;
+export type Cik9 = number;
 export type CreatedAt = string;
 export type CloseDate1 = string | null;
 export type ReportId8 = string | null;
 export type RunId2 = string | null;
 export type Sources = DigSource[];
-export type Cik9 = number;
+export type Cik10 = number;
 export type Ticker3 = string;
 export type Name3 = string;
 export type HasReport = boolean;
 export type Older = number;
 export type Refreshing = boolean;
-export type Cik10 = number;
-export type Name4 = string;
+export type PriceLine = string;
+export type CloseLine = string | null;
+export type Id1 = string;
+export type Text = string;
+export type Stance = "positive" | "negative" | "neutral";
+export type Note10 = string | null;
+export type Id2 = string;
+export type Label4 = string;
+export type Text1 = string;
+export type Url1 = string | null;
+export type Citations = TakeCitation[];
+export type CheckFirst = TakeSentence[];
+export type ProvenWrong = TakeSentence[];
+export type Key4 = "business" | "price" | "risks" | "backdrop" | "sell";
+export type Question = string;
+export type Sentences = TakeSentence[];
+export type Id3 = string;
+export type Text2 = string;
+export type Reasons = string[];
+export type TakeId = string;
+export type Cik11 = number;
+export type SnapshotId1 = string;
+export type ReportId9 = string | null;
+export type CreatedAt1 = string;
+export type Writer = string;
+export type CheckedBy = "other" | "self" | "code";
+export type Checker = string | null;
+export type Answers = DigTakeAnswer[];
+export type Removed = DigTakeRemoved[];
+export type Rewritten = boolean;
+export type Notes = string[];
+export type TakeId1 = string;
+export type Cik12 = number;
 export type Ticker4 = string;
+export type Step = "refreshing" | "writing" | "checking" | "rewriting" | "saving";
+export type Cik13 = number;
+export type Takes = DigTake[];
+export type Blocked = string | null;
+export type TakeId2 = string;
+export type Cik14 = number;
+export type TakeId3 = string;
+export type Cik15 = number;
+export type Step1 = "refreshing" | "writing" | "checking" | "rewriting" | "saving";
+export type TakeId4 = string;
+export type Cik16 = number;
+export type Saved = boolean;
+export type Code1 = string | null;
+export type Message = string | null;
+export type ResetAt = string | null;
+export type Cik17 = number;
+export type Name4 = string;
+export type Ticker5 = string;
 export type RunId3 = string;
-export type Ticker5 = string | null;
+export type Ticker6 = string | null;
 export type Name5 = string | null;
 export type Ok1 = boolean;
 export type Bear2 = number;
@@ -334,14 +385,14 @@ export type Capped1 = boolean;
 export type RedFlags = string[];
 export type Percentile = number | null;
 export type Peers = number | null;
-export type Key4 = string;
-export type Label4 = string;
-export type Text = string | null;
+export type Key5 = string;
+export type Label5 = string;
+export type Text3 = string | null;
 export type PeerText = string | null;
-export type Note10 = string | null;
+export type Note11 = string | null;
 export type Tone1 = ("up" | "down") | null;
 export type Working = string;
-export type Key5 = "trading" | "value" | "profit" | "debt";
+export type Key6 = "trading" | "value" | "profit" | "debt";
 export type Name6 = string;
 export type Summary = string;
 export type Rows3 = KeyRow[];
@@ -350,21 +401,21 @@ export type ReportDate2 = string | null;
 export type Peers1 = number | null;
 export type Groups = KeyGroup[];
 export type Source2 = string;
-export type ReportId9 = string;
+export type ReportId10 = string;
 export type RunId4 = string;
-export type Ticker6 = string;
-export type Cik11 = number | null;
+export type Ticker7 = string;
+export type Cik18 = number | null;
 export type Name7 = string | null;
-export type CreatedAt1 = string;
+export type CreatedAt2 = string;
 export type NarrativeComplete = boolean;
 export type Kept = number | null;
 export type Html = string;
-export type Cik12 = number;
-export type Ticker7 = string;
+export type Cik19 = number;
+export type Ticker8 = string;
 export type Name8 = string;
-export type ReportId10 = string;
+export type ReportId11 = string;
 export type ReportDate3 = string;
-export type CreatedAt2 = string;
+export type CreatedAt3 = string;
 export type Reports = number;
 export type ReportIds1 = string[];
 export type Price1 = number | null;
@@ -374,11 +425,11 @@ export type Rating3 = string | null;
 export type Official1 = boolean;
 export type Sector2 = string | null;
 export type Pinned1 = boolean;
-export type Ticker8 = string;
+export type Ticker9 = string;
 export type Name9 = string;
 export type Sector3 = string | null;
-export type Cik13 = number;
-export type ReportId11 = string | null;
+export type Cik20 = number;
+export type ReportId12 = string | null;
 export type ReportDate4 = string | null;
 export type PeerRule = string | null;
 export type Date4 = string;
@@ -398,21 +449,21 @@ export type Name10 = string;
 export type Percentile1 = number;
 export type Weight = number;
 export type Readout3 = string;
-export type Ticker9 = string;
+export type Ticker10 = string;
 export type Value3 = number;
-export type Text1 = string;
+export type Text4 = string;
 export type Readout4 = string;
 export type Name11 = string;
-export type Label5 = string;
+export type Label6 = string;
 export type Value4 = number;
-export type Text2 = string;
+export type Text5 = string;
 export type PeerMedian = number | null;
 export type MedianText = string | null;
 export type Percentile2 = number | null;
 export type Peers3 = PeerValue[];
 export type Readout5 = string;
 export type Method = string;
-export type Label6 = string;
+export type Label7 = string;
 export type Value5 = number;
 export type Readout6 = string;
 export type Value6 = number;
@@ -426,27 +477,27 @@ export type Value7 = number | null;
 export type Readout9 = string;
 export type Years = 1 | 3 | 5;
 export type EachPeer = ReturnRow[];
-export type Code1 = string;
-export type Label7 = string;
+export type Code2 = string;
+export type Label8 = string;
 export type Found = boolean;
 export type Readout10 = string;
 export type Series = string;
-export type Label8 = string;
+export type Label9 = string;
 export type Value8 = string;
 export type Date5 = string;
 export type Readout11 = string;
-export type Key6 = "buy" | "hold" | "sell" | "kept" | "removed";
-export type Label9 = string;
+export type Key7 = "buy" | "hold" | "sell" | "kept" | "removed";
+export type Label10 = string;
 export type Count = number;
 export type Readout12 = string;
 export type Items2 = string[] | null;
 export type Total1 = number;
 export type Slices = Slice[];
-export type Key7 = string;
+export type Key8 = string;
 export type Title1 = string;
 export type Rows4 = string[][];
-export type ReportId12 = string;
-export type Ticker10 = string;
+export type ReportId13 = string;
+export type Ticker11 = string;
 export type ScoreReadout = string | null;
 export type Factors = FactorItem[] | null;
 export type Metrics = MetricItem[] | null;
@@ -456,7 +507,7 @@ export type RedFlags1 = RedFlagItem[] | null;
 export type RedFlagsReadout = string | null;
 export type Economy = EconomyItem[] | null;
 export type Tables = ReportTable[];
-export type ReportId13 = string;
+export type ReportId14 = string;
 export type Kind1 = "pdf" | "pptx" | "xlsx";
 export type FileName = string;
 export type Html1 = string | null;
@@ -464,12 +515,12 @@ export type DataBase64 = string | null;
 export type Footer = string;
 export type FileName1 = string;
 export type DataBase641 = string;
-export type ReportId14 = string;
+export type ReportId15 = string;
 export type RunId5 = string;
-export type Cik14 = number | null;
-export type Ticker11 = string | null;
+export type Cik21 = number | null;
+export type Ticker12 = string | null;
 export type Name13 = string | null;
-export type CreatedAt3 = string;
+export type CreatedAt4 = string;
 export type Rating4 = string | null;
 export type NarrativeComplete1 = boolean;
 export type KeptBecause = ("official" | "reviewed") | null;
@@ -488,8 +539,8 @@ export type CompanyReturn = number | null;
 export type EndDate = string | null;
 export type InsideRange = boolean | null;
 export type PredictionId = string;
-export type Cik15 = number;
-export type Ticker12 = string;
+export type Cik22 = number;
+export type Ticker13 = string;
 export type RunAt = string;
 export type Rating5 = string;
 export type Bear4 = number | null;
@@ -502,20 +553,20 @@ export type ShareClass = string;
 export type Score1 = number | null;
 export type Probability = number | null;
 export type Uncertainty1 = string | null;
-export type ReportId15 = string | null;
+export type ReportId16 = string | null;
 export type Price2 = number | null;
 export type PriceDate3 = string | null;
-export type Cik16 = number;
+export type Cik23 = number;
 export type Total2 = (number | null)[];
 export type Dates2 = string[];
 export type Spy3 = (number | null)[];
-export type Series1 = PriceLine[];
+export type Series1 = PriceLine1[];
 export type ReviewId = string;
 export type Deleted = number;
 export type Graded = number;
-export type Note11 = string | null;
+export type Note12 = string | null;
 export type Name15 = string;
-export type Key8 = string;
+export type Key9 = string;
 export type Cost = string;
 export type Sent = string;
 export type Stopping = boolean;
@@ -550,12 +601,12 @@ export type Services = Service2[];
 export type WatchNotifications = boolean;
 export type Proof = string;
 export type Started = boolean;
-export type Tool2 = "claude" | "codex";
+export type Tool3 = "claude" | "codex";
 export type N1 = number;
 export type Total3 = number;
 export type Name16 = string;
 export type Ok2 = boolean;
-export type Tool3 = "claude" | "codex";
+export type Tool4 = "claude" | "codex";
 export type Passed1 = boolean;
 export type Reason = string | null;
 export type Finished = boolean;
@@ -564,14 +615,14 @@ export type ProtocolVersion = number;
 export type MethodologyHash = string;
 export type MethodCodeVersion = number;
 export type RunId6 = string;
-export type Step = number;
+export type Step2 = number;
 export type StepName = string;
 export type State9 = "started" | "done" | "skipped" | "retrying" | "failed";
 export type Typical = {
   [k: string]: number;
 } | null;
-export type Writer = string | null;
-export type Checker = string | null;
+export type Writer1 = string | null;
+export type Checker1 = string | null;
 export type Parallel = number | null;
 export type Companies1 = number | null;
 export type Fetching = ("prices" | "facts" | "filings" | "peer filings" | "rates" | "insider trades") | null;
@@ -595,11 +646,11 @@ export type ClaimsRemoved = number | null;
 export type Now = string[] | null;
 export type RunId7 = string;
 export type RunId8 = string;
-export type ReportId16 = string;
+export type ReportId17 = string;
 export type RunId9 = string;
-export type Step1 = string | null;
-export type Message = string;
-export type Code2 =
+export type Step3 = string | null;
+export type Message1 = string;
+export type Code3 =
   | "NOT_COVERED"
   | "RUN_IN_PROGRESS"
   | "NO_TOOL"
@@ -612,24 +663,24 @@ export type Code2 =
   | "SEC_BLOCKED"
   | "ENGINE_ERROR"
   | "TEST_COPY";
-export type ResetAt = string | null;
+export type ResetAt1 = string | null;
 export type FixCommand = string | null;
 export type Resumable = boolean;
-export type Ticker13 = string;
+export type Ticker14 = string;
 export type Name17 = string;
 export type Official2 = boolean;
 export type RunId10 = string | null;
 export type Outcome = ("ready" | "stopped" | "failed" | "cancelled") | null;
-export type ReportId17 = string | null;
-export type Code3 = string | null;
-export type Message1 = string | null;
+export type ReportId18 = string | null;
+export type Code4 = string | null;
+export type Message2 = string | null;
 export type Resumable1 = boolean | null;
 export type Query2 = string;
 export type Reason1 = string;
 export type Kind2 = "unknown" | "twice" | "in_line" | "recent";
-export type Code4 = string;
-export type Message2 = string;
-export type ResetAt1 = string | null;
+export type Code5 = string;
+export type Message3 = string;
+export type ResetAt2 = string | null;
 export type FixCommand1 = string | null;
 export type RunId11 = string | null;
 export type WaitUntil = string | null;
@@ -657,8 +708,8 @@ export type Move1 = number | null;
 export type Age1 = boolean;
 export type Kind3 =
   "outside" | "trigger" | "near_trigger" | "moved" | "slot_open" | "no_report" | "stale" | "left_index";
-export type Text3 = string;
-export type Cik17 = number;
+export type Text6 = string;
+export type Cik24 = number;
 export type WatchTicker = string;
 export type WatchCompany = string;
 export type WatchSector = string | null;
@@ -678,9 +729,9 @@ export type OfficialFrom = string | null;
 export type SlotOpen = boolean;
 export type ReportAgeDays = number | null;
 export type Queued = ("waiting" | "writing") | null;
-export type Note12 = string;
+export type Note13 = string;
 export type Unseen = number;
-export type Reasons = WatchReason[];
+export type Reasons1 = WatchReason[];
 export type Watched = number;
 export type NeedsLook = number;
 export type NoReport = number;
@@ -691,28 +742,28 @@ export type PricesNote = string | null;
 export type Query3 = string;
 export type Reason2 = string;
 export type Kind4 = "unknown" | "twice" | "in_list";
-export type Cik18 = number;
+export type Cik25 = number;
 export type WatchTicker1 = string;
 export type WatchCompany1 = string;
-export type Note13 = string | null;
+export type Note14 = string | null;
 export type Added = WatchAdded[];
 export type Skipped1 = WatchSkip[];
-export type Removed = WatchItemBack[];
+export type Removed1 = WatchItemBack[];
 export type ListId6 = number;
 export type Leaving = number[];
 export type WithNotes = number[];
-export type Cik19 = number;
+export type Cik26 = number;
 export type NoteAt = string;
 export type EventId = number;
-export type Cik20 = number;
+export type Cik27 = number;
 export type WatchTicker2 = string;
 export type Kind5 = "range" | "trigger_buy" | "trigger_sell" | "move" | "age";
 export type Side2 = string;
 export type CloseDate4 = string;
 export type Price4 = number | null;
 export type Level = number | null;
-export type Text4 = string;
-export type CreatedAt4 = string;
+export type Text7 = string;
+export type CreatedAt5 = string;
 export type Seen = boolean;
 export type Dates3 = string[];
 export type Close3 = number[];
@@ -720,7 +771,7 @@ export type Events = WatchEvent[];
 export type Notify = boolean;
 
 /**
- * App-engine protocol, version 9.
+ * App-engine protocol, version 10.
  */
 export interface TearsheetProtocol {
   [k: string]: unknown;
@@ -1022,6 +1073,16 @@ export interface DigParams {
   cik: Cik5;
 }
 /**
+ * Dig deeper's AI take on one company, on the chosen AI tool (else the usual one).
+ *
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "TakeParams".
+ */
+export interface TakeParams {
+  cik: Cik6;
+  tool?: Tool2;
+}
+/**
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
  * via the `definition` "AnalystChange".
  */
@@ -1171,7 +1232,7 @@ export interface DigColumn {
  * via the `definition` "DigHeader".
  */
 export interface DigHeader {
-  cik: Cik6;
+  cik: Cik7;
   ticker: Ticker1;
   name: Name;
   sector: Sector;
@@ -1296,7 +1357,7 @@ export interface DigTone {
  * via the `definition` "DigPeerRow".
  */
 export interface DigPeerRow {
-  cik: Cik7;
+  cik: Cik8;
   ticker: Ticker2;
   name: Name1;
   is_company: IsCompany;
@@ -1398,7 +1459,7 @@ export interface DigSource {
  */
 export interface DigSnapshot {
   snapshot_id: SnapshotId;
-  cik: Cik8;
+  cik: Cik9;
   created_at: CreatedAt;
   close_date: CloseDate1;
   report_id: ReportId8;
@@ -1424,7 +1485,7 @@ export interface Versions {
  * via the `definition` "DigPage".
  */
 export interface DigPage {
-  cik: Cik9;
+  cik: Cik10;
   ticker: Ticker3;
   name: Name3;
   has_report: HasReport;
@@ -1434,12 +1495,144 @@ export interface DigPage {
 }
 /**
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "DigNextMove".
+ */
+export interface DigNextMove {
+  price_line: PriceLine;
+  close_line: CloseLine;
+  check_first: CheckFirst;
+  proven_wrong: ProvenWrong;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "TakeSentence".
+ */
+export interface TakeSentence {
+  id: Id1;
+  text: Text;
+  stance: Stance;
+  note: Note10;
+  citations: Citations;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "TakeCitation".
+ */
+export interface TakeCitation {
+  id: Id2;
+  label: Label4;
+  text: Text1;
+  url: Url1;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "DigTakeAnswer".
+ */
+export interface DigTakeAnswer {
+  key: Key4;
+  question: Question;
+  sentences: Sentences;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "DigTakeRemoved".
+ */
+export interface DigTakeRemoved {
+  id: Id3;
+  text: Text2;
+  reasons: Reasons;
+}
+/**
+ * One saved take (dig_takes.json). Write-once.
+ *
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "DigTake".
+ */
+export interface DigTake {
+  take_id: TakeId;
+  cik: Cik11;
+  snapshot_id: SnapshotId1;
+  report_id: ReportId9;
+  created_at: CreatedAt1;
+  writer: Writer;
+  checked_by: CheckedBy;
+  checker: Checker;
+  versions: Versions1;
+  answers: Answers;
+  next_move: DigNextMove;
+  removed: Removed;
+  rewritten: Rewritten;
+  notes: Notes;
+  direction_split: DirectionSplit;
+}
+export interface Versions1 {
+  [k: string]: string | number;
+}
+export interface DirectionSplit {
+  [k: string]: number;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "TakeRunning".
+ */
+export interface TakeRunning {
+  take_id: TakeId1;
+  cik: Cik12;
+  ticker: Ticker4;
+  step: Step;
+}
+/**
+ * list_takes's answer: the company's takes, newest first, the take being written now (any
+ * company's), and why a take can't start now (None when it can).
+ *
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "TakeList".
+ */
+export interface TakeList {
+  cik: Cik13;
+  takes: Takes;
+  running: TakeRunning | null;
+  blocked: Blocked;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "TakeStarted".
+ */
+export interface TakeStarted {
+  take_id: TakeId2;
+  cik: Cik14;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "TakeProgress".
+ */
+export interface TakeProgress {
+  take_id: TakeId3;
+  cik: Cik15;
+  step: Step1;
+}
+/**
+ * The take ended: saved, or not, with the reason (the protocol's error code).
+ *
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
+ * via the `definition` "TakeDone".
+ */
+export interface TakeDone {
+  take_id: TakeId4;
+  cik: Cik16;
+  saved: Saved;
+  code: Code1;
+  message: Message;
+  reset_at: ResetAt;
+}
+/**
+ * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
  * via the `definition` "Candidate".
  */
 export interface Candidate {
-  cik: Cik10;
+  cik: Cik17;
   name: Name4;
-  ticker: Ticker4;
+  ticker: Ticker5;
 }
 /**
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
@@ -1447,7 +1640,7 @@ export interface Candidate {
  */
 export interface RunStarted {
   run_id: RunId3;
-  ticker: Ticker5;
+  ticker: Ticker6;
   name: Name5;
 }
 /**
@@ -1492,11 +1685,11 @@ export interface ReportBar {
  * via the `definition` "KeyRow".
  */
 export interface KeyRow {
-  key: Key4;
-  label: Label4;
-  text: Text;
+  key: Key5;
+  label: Label5;
+  text: Text3;
   peer_text: PeerText;
-  note: Note10;
+  note: Note11;
   tone: Tone1;
   working: Working;
 }
@@ -1505,7 +1698,7 @@ export interface KeyRow {
  * via the `definition` "KeyGroup".
  */
 export interface KeyGroup {
-  key: Key5;
+  key: Key6;
   name: Name6;
   summary: Summary;
   rows: Rows3;
@@ -1529,12 +1722,12 @@ export interface KeyNumbers {
  * via the `definition` "ReportResult".
  */
 export interface ReportResult {
-  report_id: ReportId9;
+  report_id: ReportId10;
   run_id: RunId4;
-  ticker: Ticker6;
-  cik: Cik11;
+  ticker: Ticker7;
+  cik: Cik18;
   name: Name7;
-  created_at: CreatedAt1;
+  created_at: CreatedAt2;
   narrative_complete: NarrativeComplete;
   kept: Kept;
   bar: ReportBar | null;
@@ -1546,12 +1739,12 @@ export interface ReportResult {
  * via the `definition` "CompanyRow".
  */
 export interface CompanyRow {
-  cik: Cik12;
-  ticker: Ticker7;
+  cik: Cik19;
+  ticker: Ticker8;
   name: Name8;
-  report_id: ReportId10;
+  report_id: ReportId11;
   report_date: ReportDate3;
-  created_at: CreatedAt2;
+  created_at: CreatedAt3;
   reports: Reports;
   report_ids: ReportIds1;
   price: Price1;
@@ -1567,11 +1760,11 @@ export interface CompanyRow {
  * via the `definition` "SearchHit".
  */
 export interface SearchHit {
-  ticker: Ticker8;
+  ticker: Ticker9;
   name: Name9;
   sector: Sector3;
-  cik: Cik13;
-  report_id: ReportId11;
+  cik: Cik20;
+  report_id: ReportId12;
   report_date: ReportDate4;
   peer_rule?: PeerRule;
 }
@@ -1622,9 +1815,9 @@ export interface FactorItem {
  * via the `definition` "PeerValue".
  */
 export interface PeerValue {
-  ticker: Ticker9;
+  ticker: Ticker10;
   value: Value3;
-  text: Text1;
+  text: Text4;
   readout: Readout4;
 }
 /**
@@ -1633,9 +1826,9 @@ export interface PeerValue {
  */
 export interface MetricItem {
   name: Name11;
-  label: Label5;
+  label: Label6;
   value: Value4;
-  text: Text2;
+  text: Text5;
   peer_median: PeerMedian;
   median_text: MedianText;
   percentile: Percentile2;
@@ -1648,7 +1841,7 @@ export interface MetricItem {
  */
 export interface MethodItem {
   method: Method;
-  label: Label6;
+  label: Label7;
   value: Value5;
   readout: Readout6;
 }
@@ -1695,8 +1888,8 @@ export interface ReturnSpan {
  * via the `definition` "RedFlagItem".
  */
 export interface RedFlagItem {
-  code: Code1;
-  label: Label7;
+  code: Code2;
+  label: Label8;
   found: Found;
   readout: Readout10;
 }
@@ -1706,7 +1899,7 @@ export interface RedFlagItem {
  */
 export interface EconomyItem {
   series: Series;
-  label: Label8;
+  label: Label9;
   value: Value8;
   date: Date5;
   readout: Readout11;
@@ -1716,8 +1909,8 @@ export interface EconomyItem {
  * via the `definition` "Slice".
  */
 export interface Slice {
-  key: Key6;
-  label: Label9;
+  key: Key7;
+  label: Label10;
   count: Count;
   readout: Readout12;
   items: Items2;
@@ -1735,7 +1928,7 @@ export interface Ring {
  * via the `definition` "ReportTable".
  */
 export interface ReportTable {
-  key: Key7;
+  key: Key8;
   title: Title1;
   rows: Rows4;
 }
@@ -1748,8 +1941,8 @@ export interface ReportTable {
  * via the `definition` "ReportNumbers".
  */
 export interface ReportNumbers {
-  report_id: ReportId12;
-  ticker: Ticker10;
+  report_id: ReportId13;
+  ticker: Ticker11;
   score_readout: ScoreReadout;
   factors: Factors;
   metrics: Metrics;
@@ -1773,7 +1966,7 @@ export interface ReportNumbers {
  * via the `definition` "ExportResult".
  */
 export interface ExportResult {
-  report_id: ReportId13;
+  report_id: ReportId14;
   kind: Kind1;
   file_name: FileName;
   html: Html1;
@@ -1800,12 +1993,12 @@ export interface Rows5 {
  * via the `definition` "ReportSummary".
  */
 export interface ReportSummary {
-  report_id: ReportId14;
+  report_id: ReportId15;
   run_id: RunId5;
-  cik: Cik14;
-  ticker: Ticker11;
+  cik: Cik21;
+  ticker: Ticker12;
   name: Name13;
-  created_at: CreatedAt3;
+  created_at: CreatedAt4;
   rating: Rating4;
   narrative_complete: NarrativeComplete1;
   kept_because: KeptBecause;
@@ -1856,8 +2049,8 @@ export interface Grade {
  */
 export interface PredictionSummary {
   prediction_id: PredictionId;
-  cik: Cik15;
-  ticker: Ticker12;
+  cik: Cik22;
+  ticker: Ticker13;
   run_at: RunAt;
   rating: Rating5;
   bear: Bear4;
@@ -1870,7 +2063,7 @@ export interface PredictionSummary {
   score?: Score1;
   probability?: Probability;
   uncertainty?: Uncertainty1;
-  report_id?: ReportId15;
+  report_id?: ReportId16;
   price?: Price2;
   price_date?: PriceDate3;
 }
@@ -1878,8 +2071,8 @@ export interface PredictionSummary {
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
  * via the `definition` "PriceLine".
  */
-export interface PriceLine {
-  cik: Cik16;
+export interface PriceLine1 {
+  cik: Cik23;
   total: Total2;
 }
 /**
@@ -1911,7 +2104,7 @@ export interface RereadResult {
  */
 export interface GradeResult {
   graded: Graded;
-  note?: Note11;
+  note?: Note12;
 }
 /**
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
@@ -1919,7 +2112,7 @@ export interface GradeResult {
  */
 export interface Service2 {
   name: Name15;
-  key: Key8;
+  key: Key9;
   cost: Cost;
   sent: Sent;
 }
@@ -2033,7 +2226,7 @@ export interface SafetyStarted {
  * via the `definition` "SafetyProgress".
  */
 export interface SafetyProgress {
-  tool: Tool2;
+  tool: Tool3;
   n: N1;
   total: Total3;
   name: Name16;
@@ -2044,7 +2237,7 @@ export interface SafetyProgress {
  * via the `definition` "SafetyDone".
  */
 export interface SafetyDone {
-  tool: Tool3;
+  tool: Tool4;
   passed: Passed1;
   reason?: Reason;
   finished?: Finished;
@@ -2065,7 +2258,7 @@ export interface Hello {
  */
 export interface Progress {
   run_id: RunId6;
-  step: Step;
+  step: Step2;
   step_name: StepName;
   state: State9;
 }
@@ -2078,8 +2271,8 @@ export interface Progress {
  */
 export interface Tally {
   typical?: Typical;
-  writer?: Writer;
-  checker?: Checker;
+  writer?: Writer1;
+  checker?: Checker1;
   parallel?: Parallel;
   companies?: Companies1;
   fetching?: Fetching;
@@ -2116,7 +2309,7 @@ export interface RunTally {
  */
 export interface ReportReady {
   run_id: RunId8;
-  report_id: ReportId16;
+  report_id: ReportId17;
 }
 /**
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
@@ -2124,10 +2317,10 @@ export interface ReportReady {
  */
 export interface RunFailedNote {
   run_id: RunId9;
-  step: Step1;
-  message: Message;
-  code: Code2;
-  reset_at?: ResetAt;
+  step: Step3;
+  message: Message1;
+  code: Code3;
+  reset_at?: ResetAt1;
   fix_command?: FixCommand;
   resumable?: Resumable;
 }
@@ -2138,14 +2331,14 @@ export interface RunFailedNote {
  * via the `definition` "LineItem".
  */
 export interface LineItem {
-  ticker: Ticker13;
+  ticker: Ticker14;
   name: Name17;
   official: Official2;
   run_id?: RunId10;
   outcome?: Outcome;
-  report_id?: ReportId17;
-  code?: Code3;
-  message?: Message1;
+  report_id?: ReportId18;
+  code?: Code4;
+  message?: Message2;
   resumable?: Resumable1;
 }
 /**
@@ -2168,9 +2361,9 @@ export interface LineSkip {
  * via the `definition` "LinePause".
  */
 export interface LinePause {
-  code: Code4;
-  message: Message2;
-  reset_at?: ResetAt1;
+  code: Code5;
+  message: Message3;
+  reset_at?: ResetAt2;
   fix_command?: FixCommand1;
   run_id?: RunId11;
   wait_until?: WaitUntil;
@@ -2259,14 +2452,14 @@ export interface WatchAlertSettings {
  */
 export interface WatchReason {
   kind: Kind3;
-  text: Text3;
+  text: Text6;
 }
 /**
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
  * via the `definition` "WatchRow".
  */
 export interface WatchRow {
-  cik: Cik17;
+  cik: Cik24;
   ticker: WatchTicker;
   name: WatchCompany;
   sector?: WatchSector;
@@ -2287,10 +2480,10 @@ export interface WatchRow {
   slot_open: SlotOpen;
   report_age_days: ReportAgeDays;
   queued: Queued;
-  note: Note12;
+  note: Note13;
   alerts: WatchAlertSettings;
   unseen: Unseen;
-  reasons: Reasons;
+  reasons: Reasons1;
 }
 /**
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
@@ -2326,10 +2519,10 @@ export interface WatchSkip {
  * via the `definition` "WatchAdded".
  */
 export interface WatchAdded {
-  cik: Cik18;
+  cik: Cik25;
   ticker: WatchTicker1;
   name: WatchCompany1;
-  note?: Note13;
+  note?: Note14;
 }
 /**
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
@@ -2345,7 +2538,7 @@ export interface WatchAdd {
  * via the `definition` "WatchRemoved".
  */
 export interface WatchRemoved {
-  removed: Removed;
+  removed: Removed1;
 }
 /**
  * This interface was referenced by `TearsheetProtocol`'s JSON-Schema
@@ -2361,7 +2554,7 @@ export interface WatchDeleted {
  * via the `definition` "WatchNoteSaved".
  */
 export interface WatchNoteSaved {
-  cik: Cik19;
+  cik: Cik26;
   note_at: NoteAt;
 }
 /**
@@ -2370,15 +2563,15 @@ export interface WatchNoteSaved {
  */
 export interface WatchEvent {
   event_id: EventId;
-  cik: Cik20;
+  cik: Cik27;
   ticker: WatchTicker2;
   kind: Kind5;
   side: Side2;
   close_date: CloseDate4;
   price: Price4;
   level: Level;
-  text: Text4;
-  created_at: CreatedAt4;
+  text: Text7;
+  created_at: CreatedAt5;
   seen: Seen;
 }
 /**
@@ -2401,4 +2594,4 @@ export interface WatchChanged {
   notify: Notify;
 }
 
-export const PROTOCOL_VERSION = 9
+export const PROTOCOL_VERSION = 10

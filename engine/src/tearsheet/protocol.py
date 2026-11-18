@@ -26,6 +26,8 @@ ERROR_CODES = (
     "SEC_BLOCKED",
     # Dig deeper needs a report or an official prediction to dig from.
     "NO_REPORT",
+    # Tearsheet is writing a Dig deeper take: a report (or the safety check) waits for it.
+    "TAKE_IN_PROGRESS",
     "ENGINE_ERROR",
 )
 ENGINE_ERROR_CODE = -32000
@@ -163,6 +165,13 @@ class DigParams(Strict):
     """Dig deeper's company."""
 
     cik: int
+
+
+class TakeParams(Strict):
+    """Dig deeper's AI take on one company, on the chosen AI tool (else the usual one)."""
+
+    cik: int
+    tool: Literal["claude", "codex"] | None = None
 
 
 class QueriesParams(Strict):
@@ -317,6 +326,10 @@ METHODS: dict[str, type[Strict]] = {
     # Dig deeper (dig/): today's picture of one stock beside its newest report.
     "get_dig_deeper": DigParams,
     "refresh_dig_deeper": DigParams,
+    # Dig deeper's AI take (dig/take.py): one at a time, never beside a report.
+    "write_take": TakeParams,
+    "cancel_take": DigParams,
+    "list_takes": DigParams,
 }
 
 
@@ -1548,10 +1561,125 @@ class DigPage(Strict):
     refreshing: bool
 
 
+# --- Dig deeper's AI take (dig/take.py) --------------------------------------------------------
+# Five answers to one investor checklist and a Next move. Every sentence passed the code checks
+# (and the skeptic, unless `checked_by` is "code"); its figures were filled in by code.
+
+
+class TakeCitation(Strict):
+    id: str
+    # "Report source: Item 7", "Tearsheet data: Sector", "News: Example Wire, 16 Nov".
+    label: str
+    text: str
+    # A link that opens (an allowlisted news article, a filing); None otherwise.
+    url: str | None
+
+
+class TakeSentence(Strict):
+    id: str
+    text: str
+    stance: Literal["positive", "negative", "neutral"]
+    # The skeptic's tone note, shown beside the sentence.
+    note: str | None
+    citations: list[TakeCitation]
+
+
+class DigTakeAnswer(Strict):
+    key: Literal["business", "price", "risks", "backdrop", "sell"]
+    question: str
+    # Empty when no sentence on this question passed the checks.
+    sentences: list[TakeSentence]
+
+
+class DigNextMove(Strict):
+    # Written by code from the report's numbers: "Our numbers turn Buy at $238.00".
+    price_line: str
+    close_line: str | None
+    check_first: list[TakeSentence]
+    proven_wrong: list[TakeSentence]
+
+
+class DigTakeRemoved(Strict):
+    id: str
+    text: str
+    reasons: list[str]
+
+
+class DigTake(Strict):
+    """One saved take (dig_takes.json). Write-once."""
+
+    take_id: str
+    cik: int
+    snapshot_id: str
+    report_id: str | None
+    created_at: str
+    # The AI tool that wrote it, by name.
+    writer: str
+    # "other": the other AI tool checked it (`checker`); "self": a fresh session of the writer;
+    # "code": only the code checks ran (the check couldn't).
+    checked_by: Literal["other", "self", "code"]
+    checker: str | None
+    versions: dict[str, str | int]
+    answers: list[DigTakeAnswer]
+    next_move: DigNextMove
+    removed: list[DigTakeRemoved]
+    rewritten: bool
+    notes: list[str]
+    # Removed sentences by the stance the writer gave them.
+    direction_split: dict[str, int]
+
+
+TakeStep = Literal["refreshing", "writing", "checking", "rewriting", "saving"]
+
+
+class TakeRunning(Strict):
+    take_id: str
+    cik: int
+    ticker: str
+    step: TakeStep
+
+
+class TakeList(Strict):
+    """list_takes's answer: the company's takes, newest first, the take being written now (any
+    company's), and why a take can't start now (None when it can)."""
+
+    cik: int
+    takes: list[DigTake]
+    running: TakeRunning | None
+    blocked: str | None
+
+
+class TakeStarted(Strict):
+    take_id: str
+    cik: int
+
+
+class TakeProgress(Strict):
+    take_id: str
+    cik: int
+    step: TakeStep
+
+
+class TakeDone(Strict):
+    """The take ended: saved, or not, with the reason (the protocol's error code)."""
+
+    take_id: str
+    cik: int
+    saved: bool
+    code: str | None
+    message: str | None
+    reset_at: str | None
+
+
 ALL_MODELS: tuple[type[BaseModel], ...] = (
     *METHODS.values(),
     DigSnapshot,
     DigPage,
+    DigTake,
+    TakeList,
+    TakeStarted,
+    TakeProgress,
+    TakeDone,
     Candidate,
     RunStarted,
     Ok,

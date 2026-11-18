@@ -5,6 +5,7 @@ together from what passed. The AI is the scripted fake connector."""
 from __future__ import annotations
 
 import asyncio
+import json
 from datetime import UTC, datetime
 
 import pytest
@@ -270,3 +271,24 @@ def test_the_drafts_are_kept_so_the_take_can_be_checked_again(database, rawstore
         created_at=written.take["created_at"],
     )
     assert again == written.take
+
+
+def test_a_take_is_saved_once_and_listed_newest_first(database, rawstore):
+    import sqlite3
+
+    first = write(database, rawstore, client(database.conn, [answer(draft()), answer(clean())]))
+    tk.save(database.conn, first)
+    later = write(database, rawstore, client(database.conn, [answer(draft()), answer(clean())]))
+    later.take["take_id"] = "take-320193-20261118T090000Z-bbbbbb"
+    later.take["created_at"] = "2026-11-18T09:00:00+00:00"
+    tk.save(database.conn, later)
+    listed = tk.takes(database.conn, 320193)
+    assert [t["take_id"] for t in listed] == [later.take["take_id"], first.take["take_id"]]
+    assert listed[1] == first.take
+    stored = database.conn.execute(
+        "SELECT snapshot_id, draft_json FROM dig_takes WHERE take_id = ?", (first.take["take_id"],)
+    ).fetchone()
+    assert stored[0] == sample_snapshot()["snapshot_id"]
+    assert json.loads(stored[1])["first"] == first.drafts["first"]
+    with pytest.raises(sqlite3.IntegrityError, match="write-once"):
+        tk.save(database.conn, first)

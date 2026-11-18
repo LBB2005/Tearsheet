@@ -283,6 +283,7 @@ def test_every_method_and_error_code_is_declared():
         "BUDGET_EXHAUSTED",
         "SEC_BLOCKED",
         "NO_REPORT",
+        "TAKE_IN_PROGRESS",
         "ENGINE_ERROR",
     }
     s = schema()
@@ -544,3 +545,22 @@ def test_the_dig_deeper_methods_are_declared_and_handled():
     # Every field is always sent, so the app's types have no optional fields.
     for model in (DigPage, DigSnapshot):
         assert set(model.model_json_schema()["required"]) == set(model.model_fields)
+
+
+def test_the_dig_take_methods_and_notes_are_declared_and_handled():
+    from tearsheet.protocol import DigTake, TakeDone, TakeList, TakeParams, TakeProgress
+
+    assert {"write_take", "cancel_take", "list_takes"} <= set(METHODS)
+    assert METHODS["write_take"] is TakeParams
+    for name in ("write_take", "cancel_take", "list_takes"):
+        assert callable(getattr(Server, f"m_{name}", None))
+    # 10 brought the AI take.
+    assert PROTOCOL_VERSION >= 10
+    assert {"DigTake", "TakeList", "TakeStarted", "TakeProgress", "TakeDone"} <= set(
+        schema()["$defs"]
+    )
+    # Every field is always sent, so the app's types have no optional fields.
+    for model in (DigTake, TakeList, TakeProgress, TakeDone):
+        for name, info in model.model_fields.items():
+            assert info.is_required(), f"{model.__name__}.{name}"
+    assert TakeParams.model_validate({"cik": 1}).tool is None

@@ -457,3 +457,38 @@ def test_a_failed_backup_leaves_no_half_copy(tmp_path, monkeypatch):
         db_module.backup(Broken(), folder, stamp="20261106T000000Z")  # type: ignore[arg-type]
     assert [p.name for p in folder.glob("*.sqlite")] == ["tearsheet-20261105T000000Z.sqlite"]
     db.close()
+
+
+def test_the_dig_takes_table_exists(tmp_path):
+    db = open_database(tmp_path / "t.sqlite")
+    assert "dig_takes" in tables(db.conn)
+    assert "dig_takes_by_cik" in indexes(db.conn)
+    columns = [r[1] for r in db.conn.execute("PRAGMA table_info(dig_takes)")]
+    assert columns == [
+        "take_id",
+        "cik",
+        "snapshot_id",
+        "report_id",
+        "created_at",
+        "versions_json",
+        "draft_json",
+        "json",
+    ]
+    db.close()
+
+
+def test_dig_takes_are_write_once(tmp_path):
+    db = open_database(tmp_path / "t.sqlite")
+    row = "INSERT INTO dig_takes VALUES ('take-1', 1, 'dig-1', NULL, 'x', '{}', '{}', '{}')"
+    with db.conn:
+        db.conn.execute(row)
+    for change in (
+        "UPDATE dig_takes SET json = '[]'",
+        "DELETE FROM dig_takes",
+        row.replace("INSERT", "INSERT OR REPLACE"),
+    ):
+        with pytest.raises(sqlite3.IntegrityError, match="dig takes are write-once"):
+            with db.conn:
+                db.conn.execute(change)
+    assert db.conn.execute("SELECT json FROM dig_takes").fetchone()[0] == "{}"
+    db.close()

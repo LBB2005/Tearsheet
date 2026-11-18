@@ -51,6 +51,8 @@ NEXT_MOVE = ("check_first", "proven_wrong")
 SKEPTIC_SECTION = "Dig deeper take (five questions and the Next move)"
 # A rewrite needs its own call and its re-check.
 REWRITE_CALLS = 2
+# A snapshot older than this is fetched again before a take (the page's own refresh age).
+SNAPSHOT_HOURS = 6
 
 
 def new_take_id(cik: int, now: datetime) -> str:

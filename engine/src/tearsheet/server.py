@@ -25,7 +25,7 @@ import threading
 import uuid
 from collections.abc import Callable
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple
 
@@ -47,6 +47,8 @@ from tearsheet.protocol import (
     RunTally,
     SafetyDone,
     SafetyProgress,
+    TakeDone,
+    TakeProgress,
     Tally,
 )
 from tearsheet.rawstore import RawStore
@@ -82,7 +84,8 @@ SERVICES = [
         "key": "Your own sign-in",
         "cost": "Your existing plan",
         "sent": "The text of filings and press releases, the numbers sent with that text, draft "
-        "sections, and a web search for recent news about the company. Your plan's own privacy "
+        "sections, a web search for recent news about the company, and, when you ask for a Dig "
+        "deeper take, that page's numbers, news and analysts' ratings. Your plan's own privacy "
         "terms apply. Codex also loads your own ~/.codex/AGENTS.md and sends it to OpenAI with "
         "each call (Codex has no setting to stop it)",
     },
@@ -308,6 +311,12 @@ class Server:
         self.http_factory = http_factory or self._live_http
         # Where a Dig deeper refresh fetches through (tests swap it).
         self.dig_factory = self._dig_live
+        # Dig deeper's AI take (dig/take.py): one at a time, in its own job slot, never beside a
+        # report or the safety check. Its client has the take's own call budget.
+        self.take_ai_factory = self._live_take_ai
+        self.take_job: asyncio.Task | None = None
+        # The take under way: its id, company, ticker and step, for list_takes.
+        self.take_running: dict[str, Any] | None = None
         self.safety_connector_factory = safety_connector_factory or self._live_connector
         self.safety_job: asyncio.Task | None = None
         # The check under way: the stop cancel_safety_check sets (read before each probe), and
@@ -481,6 +490,21 @@ class Server:
         try:
             return client_for(
                 conn, config.Settings(conn), tool=tool, signal_dir=self.paths.logs / "ai-signals"
+            )
+        except AIUnavailable as exc:
+            raise EngineError("NO_TOOL", str(exc)) from exc
+
+    def _live_take_ai(self, conn, tool: str | None):
+        from tearsheet.ai import client_for
+        from tearsheet.ai.client import AIUnavailable
+
+        try:
+            return client_for(
+                conn,
+                config.Settings(conn),
+                tool=tool,
+                signal_dir=self.paths.logs / "ai-signals",
+                budget=config.TAKE_CALL_BUDGET,
             )
         except AIUnavailable as exc:
             raise EngineError("NO_TOOL", str(exc)) from exc
@@ -862,6 +886,16 @@ class Server:
                 "The safety check is running. Wait for it to finish, then start the report.",
             )
 
+    def _taking(self) -> bool:
+        return self.take_job is not None and not self.take_job.done()
+
+    def _refuse_during_take(self) -> None:
+        if self._taking():
+            raise EngineError(
+                "TAKE_IN_PROGRESS",
+                "Tearsheet is writing a Dig deeper take. Wait for it, or cancel it on its page.",
+            )
+
     def _progress(self, run_id: str):
         from tearsheet.pipeline import STEPS
 
@@ -1032,6 +1066,7 @@ class Server:
             raise EngineError(
                 "RUN_IN_PROGRESS", "A report is already running. Wait for it, or cancel it."
             )
+        self._refuse_during_take()
         self._refuse_during_grading()
         self._refuse_during_history()
         return await self._begin_report(p.query, p.tool)
@@ -1097,6 +1132,7 @@ class Server:
         self._refuse_during_safety_check()
         if self._busy():
             raise EngineError("RUN_IN_PROGRESS", "A report is already running.")
+        self._refuse_during_take()
         self._refuse_during_grading()
         self._refuse_during_history()
         row = self.db.conn.execute(
@@ -1204,7 +1240,13 @@ class Server:
             self.line_job = asyncio.create_task(self._run_line())
 
     def _something_running(self) -> bool:
-        return self._busy() or self._grading() or self._downloading() or self._safety_running()
+        return (
+            self._busy()
+            or self._grading()
+            or self._downloading()
+            or self._safety_running()
+            or self._taking()
+        )
 
     async def _run_line(self) -> None:
         """Write the line's reports one at a time. An error in the line itself (not in a
@@ -1426,6 +1468,10 @@ class Server:
     async def wait_for_job(self) -> None:
         if self.job is not None:
             await self.job
+
+    async def wait_for_take(self) -> None:
+        if self.take_job is not None:
+            await self.take_job
 
     async def wait_for_line(self) -> None:
         """Until the line has nothing more to start (it is empty or paused)."""
@@ -1719,26 +1765,37 @@ class Server:
         if job is not None and not job.done():
             await asyncio.shield(job)
             return self._dig_page(p.cik)
+        t, holdings = self._dig_target(p.cik)
+        await asyncio.shield(self._dig_job(t, holdings))
+        return self._dig_page(p.cik)
+
+    def _dig_target(self, cik: int):
+        """The company to dig into and the bundled holdings; NO_REPORT without a report."""
         from tearsheet.data.membership import load_bundled
         from tearsheet.dig.target import NoReport, target
 
         holdings = load_bundled()
         try:
-            t = target(self.db.conn, p.cik, holdings)
+            return target(self.db.conn, cik, holdings), holdings
         except NoReport:
             raise EngineError(
                 "NO_REPORT", "Dig deeper needs a report on this company first."
             ) from None
-        job = asyncio.create_task(self._dig(t, holdings))
-        self.dig_jobs[p.cik] = job
 
-        def forget(task: asyncio.Task, cik: int = p.cik) -> None:
+    def _dig_job(self, t, holdings) -> asyncio.Task:
+        """The company's refresh: the one under way, or a new one."""
+        job = self.dig_jobs.get(t.cik)
+        if job is not None and not job.done():
+            return job
+        job = asyncio.create_task(self._dig(t, holdings))
+        self.dig_jobs[t.cik] = job
+
+        def forget(task: asyncio.Task, cik: int = t.cik) -> None:
             if self.dig_jobs.get(cik) is task:
                 del self.dig_jobs[cik]
 
         job.add_done_callback(forget)
-        await asyncio.shield(job)
-        return self._dig_page(p.cik)
+        return job
 
     async def _dig(self, t, holdings) -> None:
         from tearsheet.dig import snapshot
@@ -1760,6 +1817,145 @@ class Server:
                 previous=previous,
             )
         snapshot.save(conn, built)
+
+    # --- Dig deeper's AI take (dig/take.py) -------------------------------------------------
+
+    def _take_blocked(self, cik: int) -> str | None:
+        """Why a take on this company can't start now, in words; None when it can."""
+        try:
+            self._dig_target(cik)
+        except EngineError:
+            return "Dig deeper needs a report on this company first."
+        if self._busy():
+            return "A report is running. You can write the take when it’s done."
+        if self._safety_running():
+            return "The safety check is running. You can write the take when it’s done."
+        running = self.take_running
+        if self._taking() and running is not None and running["cik"] != cik:
+            return f"Tearsheet is writing a take on {running['ticker']}. One take at a time."
+        return None
+
+    async def m_list_takes(self, p) -> dict[str, Any]:
+        """The company's takes, newest first, the take under way and why one can't start."""
+        from tearsheet.dig import take
+
+        running = dict(self.take_running) if self._taking() and self.take_running else None
+        return {
+            "cik": p.cik,
+            "takes": take.takes(self.db.conn, p.cik),
+            "running": running,
+            "blocked": self._take_blocked(p.cik),
+        }
+
+    async def m_write_take(self, p) -> dict[str, Any]:
+        """Start a take and answer at once; take_progress and take_done follow. A second ask
+        for the same company gets the take under way."""
+        from tearsheet.dig import take
+
+        running = self.take_running
+        if self._taking() and running is not None:
+            if running["cik"] == p.cik:
+                return {"take_id": running["take_id"], "cik": p.cik}
+            raise EngineError(
+                "TAKE_IN_PROGRESS",
+                f"Tearsheet is writing a take on {running['ticker']}. One take at a time.",
+            )
+        if self._busy():
+            raise EngineError(
+                "RUN_IN_PROGRESS", "A report is running. You can write the take when it’s done."
+            )
+        if self._safety_running():
+            raise EngineError(
+                "SAFETY_CHECK_RUNNING",
+                "The safety check is running. You can write the take when it’s done.",
+            )
+        t, holdings = self._dig_target(p.cik)
+        take_id = take.new_take_id(p.cik, self.now())
+        self.take_running = {
+            "take_id": take_id,
+            "cik": p.cik,
+            "ticker": t.ticker,
+            "step": "writing",
+        }
+        if config.test_mode():  # a test copy writes no take, as it writes no report
+            self.take_job = asyncio.create_task(self._take_off(take_id, p.cik))
+            return {"take_id": take_id, "cik": p.cik}
+        try:
+            ai = self.take_ai_factory(self.db.conn, p.tool)
+            checker = self.checker_factory(self.db.conn, ai)
+        except BaseException:
+            self.take_running = None
+            raise
+        self.take_job = asyncio.create_task(self._take(take_id, t, holdings, ai, checker))
+        return {"take_id": take_id, "cik": p.cik}
+
+    async def m_cancel_take(self, p) -> dict[str, Any]:
+        running = self.take_running
+        if self._taking() and running is not None and running["cik"] == p.cik:
+            self.take_job.cancel()
+            return {"ok": True}
+        return {"ok": False}
+
+    def _take_done(self, take_id: str, cik: int, **done: Any) -> None:
+        self.take_running = None
+        fields = {"saved": False, "code": None, "message": None, "reset_at": None} | done
+        self.notify("take_done", TakeDone(take_id=take_id, cik=cik, **fields))
+
+    async def _take_off(self, take_id: str, cik: int) -> None:
+        self._take_done(take_id, cik, code=TEST_COPY, message="AI takes are off in a test copy.")
+
+    async def _take(self, take_id: str, t, holdings, ai, checker) -> None:
+        from tearsheet.ai import close_connector
+        from tearsheet.dig import snapshot, take
+
+        conn, cik = self.db.conn, t.cik
+
+        def step(name: str) -> None:
+            if self.take_running is not None:
+                self.take_running["step"] = name
+            self.notify("take_progress", TakeProgress(take_id=take_id, cik=cik, step=name))
+
+        done: dict[str, Any] = {}
+        try:
+            snap = snapshot.newest(conn, cik)
+            if snap is None or self.now() - datetime.fromisoformat(snap["created_at"]) > timedelta(
+                hours=take.SNAPSHOT_HOURS
+            ):
+                step("refreshing")
+                await asyncio.shield(self._dig_job(t, holdings))
+                snap = snapshot.newest(conn, cik)
+            written = await take.write_take(
+                conn,
+                self.paths.raw,
+                self.method,
+                snap,
+                ai=ai,
+                checker=checker,
+                now=self.now(),
+                take_id=take_id,
+                progress=step,
+            )
+            step("saving")
+            take.save(conn, written)
+            done = {"saved": True}
+        except asyncio.CancelledError:
+            task = asyncio.current_task()
+            if task is not None:
+                task.uncancel()
+            done = {"code": "CANCELLED", "message": "The take was cancelled."}
+        except Exception as exc:  # noqa: BLE001 - said in take_done, logged here
+            log.warning("the take %s ended: %s", take_id, exc)
+            code, data = error_code(exc)
+            done = {"code": code, "message": str(exc), "reset_at": data.get("reset_at")}
+        finally:
+            for client in (ai, checker):
+                if client is None:
+                    continue
+                try:
+                    await close_connector(client.connector)
+                except Exception:  # noqa: BLE001 - cleanup only
+                    log.exception("closing the AI tool after take %s", take_id)
+            self._take_done(take_id, cik, **done)
 
     async def m_fetch_history(self, p) -> dict[str, Any]:
         """The company's full daily history with its splits and dividends. It is answered off
@@ -2235,6 +2431,7 @@ class Server:
                 "RUN_IN_PROGRESS", "A report is running. Wait for it before the safety check."
             )
         self._refuse_during_safety_check()
+        self._refuse_during_take()
         self._refuse_during_grading()
         # A test copy's check is a canned one, with no AI tool at all.
         connector = (
@@ -2531,6 +2728,8 @@ async def serve(paths: config.Paths) -> int:
             *server.history_jobs.values(),
             *([server.backfill_job] if server.backfill_job else []),
             *([server.watch_job] if server.watch_job else []),
+            *([server.take_job] if server.take_job else []),
+            *server.dig_jobs.values(),
         ]
         for task in jobs:
             task.cancel()
