@@ -3,7 +3,11 @@
 The snapshot's own fetch_log rows (its id is their run id) give back every byte it fetched
 (news, Form 4, FRED, analystdb); prices are read up to its close, and the report it read is
 the one it names. Only the parts that were "ok" are compared: a stale, off or down part has no
-fresh bytes of its own to rebuild from."""
+fresh bytes of its own to rebuild from.
+
+A take is checked again from what it kept: its snapshot and report give back its sources and
+placeholders, and its stored drafts and the skeptic's marks go through the code checks and
+`decide()` again (dig/take.assemble). Nothing calls the AI."""
 
 from __future__ import annotations
 
@@ -190,4 +194,37 @@ def replay_snapshot(conn: sqlite3.Connection, raw_dir: Path, snapshot_id: str) -
             continue
         result.compared.append(part)
         _compare(stored[part], rebuilt[part], result.differences, part)
+    return result
+
+
+def take_ids(conn: sqlite3.Connection) -> list[str]:
+    return [r[0] for r in conn.execute("SELECT take_id FROM dig_takes ORDER BY created_at, rowid")]
+
+
+def replay_take(conn: sqlite3.Connection, raw_dir: Path, take_id: str) -> DigReplay:
+    """Put a saved take together again from its stored drafts and marks, and compare."""
+    from tearsheet.dig import take as tk
+
+    row = conn.execute(
+        "SELECT snapshot_id, draft_json, json FROM dig_takes WHERE take_id = ?", (take_id,)
+    ).fetchone()
+    if row is None:
+        raise ReplayError(f"No Dig deeper take {take_id} in this data folder.")
+    snap = conn.execute(
+        "SELECT json FROM dig_snapshots WHERE snapshot_id = ?", (row[0],)
+    ).fetchone()
+    if snap is None:
+        raise ReplayError(f"The snapshot {row[0]} that {take_id} was written from isn't here.")
+    stored, snapshot = json.loads(row[2]), json.loads(snap[0])
+    method = load()
+    rebuilt = tk.assemble(
+        snapshot,
+        tk.sources_for(conn, raw_dir, method, snapshot),
+        json.loads(row[1]),
+        take_id=take_id,
+        created_at=stored["created_at"],
+        method=method,
+    )
+    result = DigReplay(take_id, compared=["take"])
+    _compare(stored, rebuilt, result.differences, "take")
     return result

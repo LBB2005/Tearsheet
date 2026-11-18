@@ -348,7 +348,7 @@ def cmd_replay(args: argparse.Namespace) -> int:
 
 
 def cmd_replay_dig(args: argparse.Namespace) -> int:
-    from tearsheet.dig.replay import replay_snapshot, snapshot_ids
+    from tearsheet.dig.replay import replay_snapshot, replay_take, snapshot_ids, take_ids
     from tearsheet.replay import ReplayError, _copy_read_only
 
     paths = config.Paths(config.resolve_data_dir(getattr(args, "data_dir", None)))
@@ -357,7 +357,9 @@ def cmd_replay_dig(args: argparse.Namespace) -> int:
         return 2
     conn = _copy_read_only(paths.db)
     try:
-        ids = snapshot_ids(conn) if args.all else [args.snapshot_id]
+        named = [] if args.all else [args.snapshot_id]
+        ids = snapshot_ids(conn) if args.all else [i for i in named if not i.startswith("take-")]
+        takes = take_ids(conn) if args.all else [i for i in named if i.startswith("take-")]
         worst = 0
         for snapshot_id in ids:
             try:
@@ -376,7 +378,22 @@ def cmd_replay_dig(args: argparse.Namespace) -> int:
             for line in result.differences[:50]:
                 print(f"  - {line}")
             worst = max(worst, 1)
-        if not ids:
+        # Each take, checked again from its stored drafts (no AI call).
+        for take_id in takes:
+            try:
+                result = replay_take(conn, paths.raw, take_id)
+            except ReplayError as exc:
+                print(str(exc), file=sys.stderr)
+                worst = max(worst, 2)
+                continue
+            if result.identical:
+                print(f"Re-checked {take_id}: identical.")
+                continue
+            print(f"Re-checked {take_id}: {len(result.differences)} differences.")
+            for line in result.differences[:50]:
+                print(f"  - {line}")
+            worst = max(worst, 1)
+        if not ids and not takes:
             print("No Dig deeper snapshots to replay.")
         return worst
     finally:
@@ -820,10 +837,10 @@ def build_parser() -> argparse.ArgumentParser:
     dig_again = commands.add_parser(
         "replay-dig",
         parents=[common],
-        help="rebuild Dig deeper snapshots from what they stored, and compare",
+        help="rebuild Dig deeper snapshots from what they stored, check their takes again, and compare",
     )
     dig_again.add_argument("snapshot_id", nargs="?")
-    dig_again.add_argument("--all", action="store_true", help="replay every snapshot")
+    dig_again.add_argument("--all", action="store_true", help="replay every snapshot and take")
     dig_again.set_defaults(handler=cmd_replay_dig)
 
     evaluate = commands.add_parser(

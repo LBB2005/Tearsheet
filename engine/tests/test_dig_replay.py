@@ -146,3 +146,74 @@ def test_replay_dig_all_from_the_command_line(stock, rawstore, database, capsys)
     assert cli.main(["--data-dir", data, "replay-dig", "--all"]) == 0
     assert f"Replayed {built['snapshot_id']}: identical" in capsys.readouterr().out
     assert cli.main(["--data-dir", data, "replay-dig", "dig-nope"]) == 2
+
+
+def saved_take(conn, rawstore, snapshot: dict, *, take_id="take-1-20261110T010000Z-aaaaaa"):
+    from tearsheet.dig import take as tk
+    from tests.test_dig_take import answer, clean, client, draft
+
+    ai = client(conn, [answer(draft()), answer(clean())])
+    written = asyncio.run(
+        tk.write_take(
+            conn,
+            rawstore.raw_dir,
+            load(),
+            snapshot,
+            ai=ai,
+            checker=None,
+            now=NOW,
+            take_id=take_id,
+            progress=lambda step: None,
+        )
+    )
+    tk.save(conn, written)
+    return written
+
+
+def test_a_saved_take_is_checked_again_identically(stock, rawstore):
+    from tearsheet.dig.replay import replay_take, take_ids
+
+    built = saved_snapshot(stock, rawstore)
+    written = saved_take(stock, rawstore, built)
+    assert take_ids(stock) == [written.take["take_id"]]
+    result = replay_take(stock, rawstore.raw_dir, written.take["take_id"])
+    assert result.identical, result.differences
+    assert result.compared == ["take"]
+
+
+def test_a_changed_stored_draft_is_a_difference(stock, rawstore):
+    import json
+
+    from tearsheet.dig.replay import replay_take
+
+    built = saved_snapshot(stock, rawstore)
+    written = saved_take(stock, rawstore, built)
+    drafts = json.loads(json.dumps(written.drafts))
+    drafts["first"]["answers"][0]["sentences"][0]["text"] = "Revenue grew 12% last year."
+    with stock:
+        stock.execute(
+            "INSERT INTO dig_takes VALUES ('take-tampered', ?, ?, ?, ?, '{}', ?, ?)",
+            (
+                built["cik"],
+                built["snapshot_id"],
+                built["report_id"],
+                written.take["created_at"],
+                json.dumps(drafts),
+                json.dumps({**written.take, "take_id": "take-tampered"}),
+            ),
+        )
+    result = replay_take(stock, rawstore.raw_dir, "take-tampered")
+    assert not result.identical
+    assert any(
+        d.startswith("take.removed") or d.startswith("take.answers") for d in result.differences
+    )
+
+
+def test_replay_dig_all_checks_the_takes_too(stock, rawstore, database, capsys):
+    data = str(database.path.parent)
+    built = saved_snapshot(stock, rawstore)
+    written = saved_take(stock, rawstore, built)
+    assert cli.main(["--data-dir", data, "replay-dig", "--all"]) == 0
+    out = capsys.readouterr().out
+    assert f"Replayed {built['snapshot_id']}: identical" in out
+    assert f"Re-checked {written.take['take_id']}: identical." in out
