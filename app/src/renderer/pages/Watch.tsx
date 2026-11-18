@@ -5,14 +5,15 @@
 // Every number comes from the engine (get_watchlist, engine watchlist.py); alerts arrive as
 // watch_changed notes, which App turns into a fresh `refresh`. A right-click on a company (its
 // row, the needs-a-look strip, the detail's heading, the compare table) opens the stock menu
-// (stock/menu.ts), whose Compare ticks it.
+// (stock/menu.ts), whose Compare ticks it. Write takes asks Dig deeper's AI for a take on each
+// company, one after another (the take line, watch/TakeStrip.tsx); each row shows its take's day.
 
 import '../watch/watch.css'
 
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 
 import type { CallResult } from '../../preload/api'
-import type { FactorItem, PredictionPrices, WatchEvent, WatchItemBack, WatchList, WatchPage, WatchRow } from '../../shared/protocol'
+import type { FactorItem, LineState, PredictionPrices, WatchEvent, WatchItemBack, WatchList, WatchPage, WatchRow } from '../../shared/protocol'
 import { ADVICE_SHORT } from '../../shared/wording'
 import { CompareChart } from '../log/CompareChart'
 import { compareSeries, sinceFor, type CompareRange, type CompareSeries } from '../log/compare'
@@ -23,6 +24,7 @@ import { Spinner } from '../setup/parts'
 import { money } from '../shell/Sidebar'
 import { useStockMenu, type StockMenu } from '../stock/StockMenu'
 import { PriceChart } from '../watch/PriceChart'
+import { TakeStrip } from '../watch/TakeStrip'
 import {
   attention,
   averageSince,
@@ -38,6 +40,8 @@ import {
   readable,
   rowsOf,
   saveKey,
+  takeChip,
+  toTake,
   savePick,
   SMART,
   toQueue,
@@ -108,6 +112,8 @@ export function Watch({ refresh, focus, onOpenReport, onDig, onNotify, onSubtitl
   const [lists, setListsOpen] = useState(false)
   const [newFor, setNewFor] = useState(false)
   const [queueAsk, setQueueAsk] = useState<{ tickers: string[]; text: string } | null>(null)
+  const [takeAsk, setTakeAsk] = useState<{ ciks: number[]; text: string } | null>(null)
+  const [takeLine, setTakeLine] = useState<LineState | null>(null)
   const subtitle = useRef(onSubtitle)
   subtitle.current = onSubtitle
   const reload = useCallback(() => setAgain((n) => n + 1), [])
@@ -132,12 +138,33 @@ export function Watch({ refresh, focus, onOpenReport, onDig, onNotify, onSubtitl
     }
   }, [refresh, tries, again])
 
+  // The take line as the engine last said, and every change to it; a finished take changes a
+  // row's take day.
+  useEffect(() => {
+    let live = true
+    window.tearsheet.getTakeLine().then(
+      (r) => live && r.ok && r.result && setTakeLine(r.result),
+      () => undefined
+    )
+    const off = window.tearsheet.onNotification((note) => {
+      if (note.method === 'take_line_changed') {
+        setTakeLine(note.params as unknown as LineState)
+        reload()
+      } else if (note.method === 'take_done') reload()
+    })
+    return () => {
+      live = false
+      off()
+    }
+  }, [reload])
+
   const setKey = (k: ListKey) => {
     setKeyState(k)
     saveKey(k)
     setTicked([])
     setNaming(null)
     setQueueAsk(null)
+    setTakeAsk(null)
   }
   const setPick = useCallback((cik: number) => {
     setPickState(cik)
@@ -319,6 +346,24 @@ export function Watch({ refresh, focus, onOpenReport, onDig, onNotify, onSubtitl
     reload()
   }
 
+  const askTake = () => {
+    const ciks = toTake(rows).map((r) => r.cik)
+    if (!ciks.length) return
+    setQueueAsk(null)
+    setTakeAsk({ ciks, text: `Write AI takes on ${ciks.length} ${ciks.length === 1 ? 'company' : 'companies'}, one after another? About a minute each, on your AI plan.` })
+  }
+  const writeTakes = async () => {
+    if (!takeAsk) return
+    const r = await window.tearsheet.startTakeLine(takeAsk.ciks)
+    setTakeAsk(null)
+    if (!r.ok || !r.result) return onNotify('Couldn’t start the takes', why(r), 'stop')
+    setTakeLine(r.result.line)
+    const left = r.result.skipped.map((s) => s.reason).join(' ')
+    onNotify(`Writing ${r.result.items.length} ${r.result.items.length === 1 ? 'take' : 'takes'}`, left || 'One after another; each opens on its company’s Dig deeper page.')
+    reload()
+  }
+  const answer = (r: CallResult<LineState>) => r.ok && r.result && setTakeLine(r.result)
+
   const exportCsv = async () => {
     if (!page) return
     const r = await window.tearsheet.saveCsv(watchCsvName(listName(page, shownKey)), watchCsv(rows, page.lists))
@@ -367,6 +412,7 @@ export function Watch({ refresh, focus, onOpenReport, onDig, onNotify, onSubtitl
 
   const current = typeof shownKey === 'number' ? page.lists.find((l) => l.list_id === shownKey) ?? null : null
   const queueN = toQueue(rows).length
+  const takeN = toTake(rows).length
   const nameField = (onSave: () => void, label: string) => (
     <span className="inl">
       <input
@@ -412,6 +458,9 @@ export function Watch({ refresh, focus, onOpenReport, onDig, onNotify, onSubtitl
         <span className="px">{r.price === null ? '—' : money.format(r.price)}</span>
         <span className={`chg ${r.since_report === null ? '' : r.since_report >= 0 ? 'up' : 'down'}`}>{r.since_report === null ? '' : signedPct(r.since_report, 1)}</span>
         {r.queued ? <span className="tag4 none">{r.queued === 'writing' ? 'Writing' : 'Queued'}</span> : <Tag rating={r.levels?.rating} />}
+        <span className={takeChip(r) ? `wtake${r.take_queued ? ' q' : ''}` : 'wtake none'} title={r.take_at && !r.take_queued ? `AI take from ${takeChip(r)}` : undefined}>
+          {takeChip(r) ?? ''}
+        </span>
       </button>
     </div>
   )
@@ -550,10 +599,26 @@ export function Watch({ refresh, focus, onOpenReport, onDig, onNotify, onSubtitl
               Cancel
             </button>
           </span>
+        ) : takeAsk ? (
+          <span className="confirm">
+            <span>{takeAsk.text}</span>
+            <button className="btn2 sm primary2" onClick={() => void writeTakes()}>
+              Write takes
+            </button>
+            <button className="btn2 sm quiet" onClick={() => setTakeAsk(null)}>
+              Cancel
+            </button>
+          </span>
         ) : (
           <button className="btn2 sm" disabled={queueN === 0} onClick={() => void askQueue()} title="Companies with no report, or whose next report would be an official prediction">
             Queue {queueN ? `${queueN} ` : ''}
             {queueN === 1 ? 'report' : 'reports'}
+          </button>
+        )}
+        {!queueAsk && !takeAsk && (
+          <button className="btn2 sm" disabled={takeN === 0} onClick={askTake} title="Dig deeper’s AI take on each company with a report and no take from the last 7 days">
+            Write {takeN ? `${takeN} ` : ''}
+            {takeN === 1 ? 'take' : 'takes'}
           </button>
         )}
         <button className="btn2 sm quiet" disabled={!rows.length} onClick={() => void exportCsv()}>
@@ -576,6 +641,15 @@ export function Watch({ refresh, focus, onOpenReport, onDig, onNotify, onSubtitl
           </>
         )}
       </div>
+
+      {takeLine && (
+        <TakeStrip
+          line={takeLine}
+          onRemove={(ticker) => void window.tearsheet.removeFromTakeLine(ticker).then(answer)}
+          onCarryOn={() => void window.tearsheet.carryOnTakeLine().then(answer)}
+          onClear={() => void window.tearsheet.clearTakeLine().then(answer)}
+        />
+      )}
 
       {page.rows.length === 0 ? (
         <section className="glass p wfirst">

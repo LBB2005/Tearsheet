@@ -307,3 +307,78 @@ describe('the rest of the page', () => {
     expect(screen.queryByText(/MU: a report/)).toBeNull()
   })
 })
+
+// ---------- Write takes (Dig deeper's AI take on each company, one after another) ----------
+
+const takeLine = (over: object = {}) => ({ waiting: [], writing: null, finished: [], paused: null, typical: null, ...over })
+const item = (ticker: string, over: object = {}) => ({ ticker, name: `${ticker} Inc.`, official: false, run_id: null, outcome: null, report_id: null, code: null, message: null, resumable: null, ...over })
+
+describe('Write takes', () => {
+  test('counts the companies with a report and no recent take, asks first, then starts the line', async () => {
+    const { user } = await openWatch_()
+    // AMD and MU have reports; LULU has none.
+    await user.click(screen.getByRole('button', { name: 'Write 2 takes' }))
+    expect(await screen.findByText('Write AI takes on 2 companies, one after another? About a minute each, on your AI plan.')).toBeInTheDocument()
+    expect(bridge.startTakeLine).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'Write takes' }))
+    expect(bridge.startTakeLine).toHaveBeenCalledWith([2488, 723125])
+  })
+
+  test('is off when every company has a recent take or no report', async () => {
+    const page = (await bridge.getWatchlist()).result!
+    bridge.getWatchlist.mockResolvedValue({ ok: true, result: { ...page, rows: page.rows.map((r) => ({ ...r, take_at: new Date().toISOString() })) } })
+    await openWatch_()
+    expect(screen.getByRole('button', { name: /^Write( \d+)? takes?$/ })).toBeDisabled()
+  })
+
+  test('the strip shows the take under way and the ones waiting, which can be taken out or all cancelled', async () => {
+    bridge.getTakeLine.mockResolvedValue({ ok: true, result: takeLine({ writing: item('AMD', { run_id: 'take-1' }), waiting: [item('MU')] }) })
+    bridge.removeFromTakeLine.mockResolvedValue({ ok: true, result: takeLine({ writing: item('AMD', { run_id: 'take-1' }) }) })
+    const { user } = await openWatch_()
+    const strip = within(await screen.findByRole('region', { name: 'Takes' }))
+    expect(strip.getByText('Writing takes')).toBeInTheDocument()
+    expect(strip.getByText('1 of 2: AMD now')).toBeInTheDocument()
+    await user.click(strip.getByRole('button', { name: 'Take MU out of the takes' }))
+    expect(bridge.removeFromTakeLine).toHaveBeenCalledWith('MU')
+    await user.click(strip.getByRole('button', { name: 'Cancel all' }))
+    await user.click(await screen.findByRole('button', { name: 'Cancel all takes' }))
+    expect(bridge.clearTakeLine).toHaveBeenCalled()
+  })
+
+  test('a paused take line says why and carries on', async () => {
+    bridge.getTakeLine.mockResolvedValue({ ok: true, result: takeLine({ waiting: [item('MU')], paused: { code: 'NO_TOOL', message: 'Neither Claude Code nor Codex was found.', reset_at: null, fix_command: null, run_id: null, wait_until: null, used: null } }) })
+    const { user } = await openWatch_()
+    const strip = within(await screen.findByRole('region', { name: 'Takes' }))
+    expect(strip.getByText('Takes are paused')).toBeInTheDocument()
+    expect(strip.getByText('Neither Claude Code nor Codex was found. MU is waiting.')).toBeInTheDocument()
+    await user.click(strip.getByRole('button', { name: 'Carry on' }))
+    expect(bridge.carryOnTakeLine).toHaveBeenCalled()
+  })
+
+  test('a finished line says how it went, and Done puts it away', async () => {
+    bridge.getTakeLine.mockResolvedValue({ ok: true, result: takeLine({ finished: [item('AMD', { outcome: 'ready' }), item('MU', { outcome: 'failed', message: 'No answer within 300 seconds.' })] }) })
+    const { user } = await openWatch_()
+    const strip = within(await screen.findByRole('region', { name: 'Takes' }))
+    expect(strip.getByText('Takes written')).toBeInTheDocument()
+    expect(strip.getByText('1 of 2 written. MU: No answer within 300 seconds.')).toBeInTheDocument()
+    await user.click(strip.getByRole('button', { name: 'Done' }))
+    expect(bridge.clearTakeLine).toHaveBeenCalled()
+  })
+
+  test('a take_line_changed note updates the strip', async () => {
+    await openWatch_()
+    expect(screen.queryByRole('region', { name: 'Takes' })).toBeNull()
+    emit('take_line_changed', takeLine({ writing: item('AMD', { run_id: 'take-1' }) }))
+    expect(await screen.findByRole('region', { name: 'Takes' })).toBeInTheDocument()
+  })
+
+  test('each row shows its take’s day, or its place in the take line', async () => {
+    const page = (await bridge.getWatchlist()).result!
+    const day = new Date(2026, 10, 17, 15, 0).toISOString()
+    bridge.getWatchlist.mockResolvedValue({ ok: true, result: { ...page, rows: page.rows.map((r) => (r.ticker === 'AMD' ? { ...r, take_at: day } : r.ticker === 'MU' ? { ...r, take_queued: 'waiting' as const } : r)) } })
+    await openWatch_()
+    const rowOf = (t: string) => [...document.querySelectorAll('.watchv .wrow > button')].find((b) => b.querySelector('b')?.childNodes[0]?.textContent === t) as HTMLElement
+    expect(within(rowOf('AMD')).getByText(/^Nov 17/)).toHaveClass('wtake')
+    expect(within(rowOf('MU')).getByText('Next')).toHaveClass('wtake')
+  })
+})

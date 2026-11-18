@@ -55,7 +55,7 @@
 .watchv .wadd input::placeholder { color: var(--dim); }
 
 /* list and detail */
-.watchv .wsplit { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 14px; align-items: start; }
+.watchv .wsplit { display: grid; grid-template-columns: 380px minmax(0, 1fr); gap: 14px; align-items: start; }
 @container (max-width: 820px) { .watchv .wsplit { grid-template-columns: minmax(0, 1fr); } .watchv .wlist { max-height: 340px; } }
 .watchv .wlist { display: grid; gap: 1px; padding: 6px; max-height: calc(100vh - 230px); overflow-y: auto; position: sticky; top: 0; }
 .watchv .wlist .hint { margin: 2px 8px 6px; font-size: var(--fs-xs); color: var(--faint2); }
@@ -67,7 +67,7 @@
 .watchv .wgroup .gh:focus-visible { outline: var(--focus); outline-offset: -2px; }
 .watchv .wrow { display: grid; grid-template-columns: 22px minmax(0, 1fr); align-items: center; }
 .watchv .wrow input { width: 14px; height: 14px; margin: 0; justify-self: center; }
-.watchv .wrow > button { all: unset; box-sizing: border-box; cursor: pointer; display: grid; grid-template-columns: 58px minmax(40px, 1fr) auto 50px minmax(40px, auto); gap: 6px; align-items: center; padding: 5px 8px; border-radius: var(--r-md); color: var(--text2); font-size: var(--fs-sm); transition: background var(--dur-1); }
+.watchv .wrow > button { all: unset; box-sizing: border-box; cursor: pointer; display: grid; grid-template-columns: 58px minmax(40px, 1fr) auto 50px minmax(40px, auto) 44px; gap: 6px; align-items: center; padding: 5px 8px; border-radius: var(--r-md); color: var(--text2); font-size: var(--fs-sm); transition: background var(--dur-1); }
 .watchv .wrow > button:hover { background: rgb(var(--ink) / .045); color: var(--text); }
 .watchv .wrow.on > button { background: rgb(var(--ink) / .085); color: var(--text); }
 .watchv .wrow > button:focus-visible { outline: var(--focus); outline-offset: -2px; }
@@ -162,3 +162,20 @@
 .watchv .events { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; font-size: var(--fs-sm); color: var(--text2); }
 .watchv .wfirst p { margin: 0 0 8px; color: var(--text2); max-width: 70ch; }
 .watchv .logv { max-width: none; }
+
+/* Write takes (watch/TakeStrip.tsx): Dig deeper's AI take on each company in turn. Each row's
+   last column is its take's day, or its place in the take line. */
+.watchv .wrow .wtake { justify-self: end; font-size: var(--fs-xs); color: var(--faint2); white-space: nowrap; }
+.watchv .wrow .wtake.q { color: var(--accent-fg); }
+.watchv .wtakes { display: grid; gap: 8px; padding: 10px 14px; }
+.watchv .wtakes .wth { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+.watchv .wtakes .wth b { font-weight: calc(600 + var(--wt)); }
+.watchv .wtakes .fine { margin: 0; }
+.watchv .wtakes .wtrow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.watchv .wtchips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.watchv .wtchips li { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 9px; border-radius: var(--r-pill); border: 1px solid var(--line); background: rgb(var(--ink) / .035); font-size: var(--fs-sm); }
+.watchv .wtchips b { font-weight: calc(600 + var(--wt)); letter-spacing: .3px; }
+.watchv .wtchips button { all: unset; display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; cursor: pointer; color: var(--muted); }
+.watchv .wtchips button:hover { background: rgb(var(--ink) / .08); color: var(--text); }
+.watchv .wtchips button:focus-visible { outline: var(--focus); outline-offset: 1px; }
+.watchv .wtchips svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; }

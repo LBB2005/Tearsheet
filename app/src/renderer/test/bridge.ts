@@ -379,6 +379,12 @@ function makeBridge(): FakeBridge {
     listTakes: vi.fn<TearsheetApi['listTakes']>(async (cik: number) => ok(takeList(cik))),
     writeTake: vi.fn<TearsheetApi['writeTake']>(async (cik: number) => ok({ take_id: 'take-new', cik })),
     cancelTake: vi.fn<TearsheetApi['cancelTake']>(async () => ok({ ok: true })),
+    // The take line: empty until a test says otherwise (or sends take_line_changed with emit).
+    startTakeLine: vi.fn<TearsheetApi['startTakeLine']>(async () => ok({ items: [], skipped: [], line: line() })),
+    getTakeLine: vi.fn<TearsheetApi['getTakeLine']>(async () => ok(line())),
+    carryOnTakeLine: vi.fn<TearsheetApi['carryOnTakeLine']>(async () => ok(line())),
+    clearTakeLine: vi.fn<TearsheetApi['clearTakeLine']>(async () => ok(line())),
+    removeFromTakeLine: vi.fn<TearsheetApi['removeFromTakeLine']>(async () => ok(line())),
     fetchHistory: vi.fn<TearsheetApi['fetchHistory']>(async () => ok({ first_date: '2021-11-08', days: 1260 })),
     checkKey: vi.fn<TearsheetApi['checkKey']>(async (service: 'massive' | 'fred') => ok({ proof: service === 'massive' ? 'Works: AAPL closed at $230.10 on Nov 6' : 'Works: inflation was 2.9% in September' })),
     runSafetyCheck: vi.fn<TearsheetApi['runSafetyCheck']>(async () => ok({ started: true })),

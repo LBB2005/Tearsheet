@@ -43,6 +43,11 @@ test('the report’s numbers have a call of their own', () => {
   expect(engineMethod('listTakes')).toBe('list_takes')
   expect(engineMethod('writeTake')).toBe('write_take')
   expect(engineMethod('cancelTake')).toBe('cancel_take')
+  expect(engineMethod('startTakeLine')).toBe('start_take_line')
+  expect(engineMethod('getTakeLine')).toBe('get_take_line')
+  expect(engineMethod('carryOnTakeLine')).toBe('carry_on_take_line')
+  expect(engineMethod('clearTakeLine')).toBe('clear_take_line')
+  expect(engineMethod('removeFromTakeLine')).toBe('remove_from_take_line')
 })
 
 test('the sidebar’s delete and pin calls reach the engine', () => {

@@ -41,6 +41,12 @@ export interface TearsheetApi {
   listTakes(cik: number): Promise<CallResult<import('../shared/protocol').TakeList>>
   writeTake(cik: number): Promise<CallResult<import('../shared/protocol').TakeStarted>>
   cancelTake(cik: number): Promise<CallResult<import('../shared/protocol').Ok>>
+  // The Watchlist's Write takes: a take on each company given, one after another (the take line).
+  startTakeLine(ciks: number[]): Promise<CallResult<import('../shared/protocol').LinePlan>>
+  getTakeLine(): Promise<CallResult<import('../shared/protocol').LineState>>
+  carryOnTakeLine(): Promise<CallResult<import('../shared/protocol').LineState>>
+  clearTakeLine(): Promise<CallResult<import('../shared/protocol').LineState>>
+  removeFromTakeLine(ticker: string): Promise<CallResult<import('../shared/protocol').LineState>>
   fetchHistory(reportId: string): Promise<CallResult<import('../shared/protocol').FetchHistoryResult>>
   checkKey(service: 'massive' | 'fred', key: string): Promise<CallResult<import('../shared/protocol').KeyChecked>>
   runSafetyCheck(tool: 'claude' | 'codex'): Promise<CallResult<import('../shared/protocol').SafetyStarted>>

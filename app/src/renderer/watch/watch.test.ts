@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest'
 
 import type { WatchPage, WatchRow } from '../../shared/protocol'
 import { WATCH_ROWS } from '../test/watch'
-import { readable, attention, averageSince, barSpot, flipOf, groups, liveKey, loadKey, loadPick, needsLook, rowsOf, saveKey, savePick, toQueue, topReason, watchCsv, watchCsvName } from './watch'
+import { readable, attention, averageSince, barSpot, flipOf, groups, liveKey, loadKey, loadPick, needsLook, rowsOf, saveKey, savePick, takeChip, toQueue, toTake, topReason, watchCsv, watchCsvName } from './watch'
 
 const { AMD, MU, LULU, TSLA } = WATCH_ROWS
 const page = (rows: WatchRow[], lists: { id: number; name: string; ciks: number[] }[]): WatchPage => ({
@@ -134,5 +134,25 @@ describe('the engine’s sentences', () => {
     expect(readable('Up 23.1% since the 7 Nov 2026 report.', now)).toBe('Up 23.1% since the Nov 7 report.')
     expect(readable('Its last one was made on 20 Oct 2025.', now)).toBe('Its last one was made on Oct 20, 2025.')
     expect(readable('No report yet.', now)).toBe('No report yet.')
+  })
+})
+
+describe('Write takes', () => {
+  const NOW = new Date('2026-11-18T09:00:00Z')
+  const { AMD, MU, LULU, TSLA } = WATCH_ROWS
+
+  test('takes the companies with a report and no take from the last 7 days, once each', () => {
+    const recent = { ...MU, take_at: '2026-11-15T10:00:00+00:00' }
+    const old = { ...TSLA, take_at: '2026-11-10T10:00:00+00:00' }
+    const queued = { ...AMD, cik: 9, take_queued: 'waiting' as const }
+    expect(toTake([AMD, recent, LULU, old, AMD, queued], NOW).map((r) => r.ticker)).toEqual(['AMD', 'TSLA'])
+  })
+
+  test('a row’s take chip: its day, or its place in the line', () => {
+    const late = new Date(2026, 10, 17, 23, 30)
+    expect(takeChip({ ...AMD, take_at: late.toISOString() }, late)).toBe('Nov 17')
+    expect(takeChip({ ...AMD, take_at: late.toISOString(), take_queued: 'waiting' }, late)).toBe('Next')
+    expect(takeChip({ ...AMD, take_queued: 'writing' }, late)).toBe('Writing')
+    expect(takeChip(AMD, late)).toBeNull()
   })
 })

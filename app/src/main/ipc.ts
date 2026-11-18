@@ -82,7 +82,13 @@ export const CALLS: Record<string, string> = {
   // Dig deeper's AI take (engine dig/take.py): one at a time; take_progress and take_done follow.
   listTakes: 'list_takes',
   writeTake: 'write_take',
-  cancelTake: 'cancel_take'
+  cancelTake: 'cancel_take',
+  // The Watchlist's Write takes (engine dig/take_line.py); take_line_changed notes follow.
+  startTakeLine: 'start_take_line',
+  getTakeLine: 'get_take_line',
+  carryOnTakeLine: 'carry_on_take_line',
+  clearTakeLine: 'clear_take_line',
+  removeFromTakeLine: 'remove_from_take_line'
 }
 
 // The closed allowlist: only the names above, never inherited object properties.

@@ -5,6 +5,7 @@
 
 import type { WatchList, WatchPage, WatchReason, WatchRow } from '../../shared/protocol'
 import { dayText } from '../nav'
+import { dayOf } from '../dig/dig'
 
 // An engine sentence with its dates as the app writes them: "the 7 Nov 2026 report" reads "the
 // Nov 7 report" (nav.ts dayText), so the strip and the panel match the rest of the window.
@@ -101,6 +102,22 @@ export function averageSince(rows: WatchRow[]): number | null {
 
 // The rows "Queue reports" would send: no report yet, or a new report would be an official
 // prediction (30 days on). The line itself decides at the end (plan_line, skip_recent).
+// Write takes: the companies with a report to dig from, no take from the last TAKE_DAYS days and
+// not in the take line, once each (the engine checks again: dig/take_line.py).
+export const TAKE_DAYS = 7
+export function toTake(rows: WatchRow[], now: Date = new Date()): WatchRow[] {
+  const seen = new Set<number>()
+  const since = now.getTime() - TAKE_DAYS * 86_400_000
+  return rows.filter((r) => !seen.has(r.cik) && (seen.add(r.cik), r.levels !== null && r.take_queued === null && (r.take_at === null || new Date(r.take_at).getTime() < since)))
+}
+
+// A row's take chip: in the take line, or the newest take's day (the reader's own).
+export function takeChip(r: WatchRow, now: Date = new Date()): string | null {
+  if (r.take_queued === 'writing') return 'Writing'
+  if (r.take_queued === 'waiting') return 'Next'
+  return r.take_at ? dayOf(r.take_at, now) : null
+}
+
 export function toQueue(rows: WatchRow[]): WatchRow[] {
   const seen = new Set<number>()
   return rows.filter((r) => !seen.has(r.cik) && (seen.add(r.cik), r.queued === null && (!r.levels || r.slot_open)))
