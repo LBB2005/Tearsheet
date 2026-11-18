@@ -201,3 +201,27 @@ def test_no_report_sections_still_gives_the_data(database, rawstore, snap):
     got = build(database, rawstore, snap)
     assert got.findings == []
     assert "dig:today#p1" in got.paragraphs
+
+
+def test_each_finding_keeps_a_paragraph_before_any_finding_keeps_a_second(database, rawstore, snap):
+    sentences = [
+        {
+            "id": f"risks.{n}",
+            "text": f"Risk {n}.",
+            "note": None,
+            "citations": [
+                {"id": f"f{n}#Item_1A#p1@1", "text": f"First for {n}.", "url": None},
+                {"id": f"f{n}#Item_1A#p2@1", "text": f"Second for {n}.", "url": None},
+            ],
+        }
+        for n in range(src.REPORT_PARAGRAPHS)
+    ]
+    with database.conn:
+        database.conn.execute(
+            "INSERT INTO sections (report_id, key, json) VALUES (?, 'risks', ?)",
+            (REPORT, json.dumps({"key": "risks", "sentences": sentences})),
+        )
+    got = build(database, rawstore, snap)
+    assert len(got.findings) == src.REPORT_PARAGRAPHS
+    assert all(f"f{n}#Item_1A#p1@1" in got.paragraphs for n in range(src.REPORT_PARAGRAPHS))
+    assert "f0#Item_1A#p2@1" not in got.paragraphs

@@ -30,7 +30,7 @@ from tearsheet.render import format_value
 from tearsheet.text.parse import Paragraph, split_paragraphs
 
 REPORT_KEYS = ("business", "risks", "results", "news", "trends", "watch")
-REPORT_PARAGRAPHS = 40
+REPORT_PARAGRAPHS = 60
 NEWS_ITEMS = 25
 SOURCE_CHARS = 90_000
 PEERS_LISTED = 10
@@ -390,13 +390,19 @@ def _report(out: TakeSources, conn: sqlite3.Connection, report_id: str | None) -
             for c in sentence.get("citations") or []:
                 if c.get("id") and c.get("text"):
                     cited.setdefault(c["id"], (c, key))
+    # Each finding's first paragraph comes before any finding's second, so a cut leaves out
+    # extra support before it leaves out a finding.
+    firsts = [c["id"] for _, sentence in sentences for c in (sentence.get("citations") or [])[:1]]
+    order = list(dict.fromkeys([*(pid for pid in firsts if pid in cited), *cited]))
     room = SOURCE_CHARS - sum(len(p.text) for p in out.paragraphs.values())
     kept: list[str] = []
-    for pid, (c, _) in cited.items():
+    for pid in order:
+        c = cited[pid][0]
         if len(kept) >= REPORT_PARAGRAPHS or len(c["text"]) > room:
             continue
         kept.append(pid)
         room -= len(c["text"])
+    kept.sort(key=list(cited).index)  # in the report's order
     if len(kept) < len(cited):
         out.cuts.append(
             f"Left out {len(cited) - len(kept)} of the report’s {len(cited)} cited paragraphs"
