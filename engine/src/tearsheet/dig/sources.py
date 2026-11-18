@@ -128,10 +128,14 @@ def _today(snapshot: dict[str, Any]) -> list[str]:
         if price is not None
     ]
     lines = []
-    if turns:
+    held = "holding the score and the peers’ values fixed."
+    if turns and lv["capped"]:
         lines.append(
-            f"Our numbers turn {' and '.join(turns)}, holding the score and the peers’ values fixed."
+            "A red flag holds the rating at Hold whatever the price. Without it, our numbers"
+            f" would turn {' and '.join(turns)}, {held}"
         )
+    elif turns:
+        lines.append(f"Our numbers turn {' and '.join(turns)}, {held}")
     if lv["buy_reachable"] is False:
         lines.append("Buy isn’t reachable by price alone: the score is below the Buy line.")
     if lv["sell_reachable"] is False:

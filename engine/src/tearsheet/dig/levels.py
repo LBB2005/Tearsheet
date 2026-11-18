@@ -65,8 +65,10 @@ def placeholders(snapshot: dict[str, Any]) -> dict[str, PlaceholderValue]:
         put("level:report_price", "price", lv["report_price"])
         for name in ("bear", "base", "bull"):
             put(f"level:{name}", "price", lv[name])
-        put("level:buy_trigger", "price", levels.trigger("buy"))
-        put("level:sell_trigger", "price", levels.trigger("sell"))
+        # A red flag holds the rating at Hold whatever the price: no price turns it either way.
+        if not lv["capped"]:
+            put("level:buy_trigger", "price", levels.trigger("buy"))
+            put("level:sell_trigger", "price", levels.trigger("sell"))
         put("level:report_date", "date", lv["report_date"])
 
     sector = snapshot["sector"]

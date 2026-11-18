@@ -99,3 +99,10 @@ def test_a_part_that_is_off_gives_no_placeholders_and_a_stale_one_still_does():
     found = placeholders(snap)
     assert not [k for k in found if k.startswith("macro:")]
     assert "dig:news_positive" in found
+
+
+def test_a_red_flag_cap_gives_no_trigger_placeholders():
+    # The rating stays Hold whatever the price, so no price "turns our numbers" either way.
+    found = placeholders(with_levels(capped=True))
+    assert "level:buy_trigger" not in found and "level:sell_trigger" not in found
+    assert "level:base" in found

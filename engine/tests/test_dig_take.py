@@ -292,3 +292,24 @@ def test_a_take_is_saved_once_and_listed_newest_first(database, rawstore):
     assert json.loads(stored[1])["first"] == first.drafts["first"]
     with pytest.raises(sqlite3.IntegrityError, match="write-once"):
         tk.save(database.conn, first)
+
+
+def test_a_fall_by_a_negative_figure_reads_without_a_double_minus(database, rawstore):
+    body = draft(
+        backdrop=[
+            s("Over the month the sector fell {{dig:sector_1m}} and SPY rose {{dig:spy_1m}}.")
+        ]
+    )
+    take = write(database, rawstore, client(database.conn, [answer(body), answer(clean())])).take
+    assert take["answers"][3]["sentences"][0]["text"] == (
+        "Over the month the sector fell 1.2% and SPY rose 0.8%."
+    )
+
+
+def test_the_prompt_says_how_to_write_figures_and_periods():
+    from tearsheet.prompts import load_prompt
+
+    text = load_prompt("dig_take").text
+    assert "The data paragraphs show figures as numbers" in text
+    assert "keeps its sign" in text
+    assert "the latest quarter" in text

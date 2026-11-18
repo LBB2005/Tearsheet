@@ -28,6 +28,14 @@ Rules:
   such as {{level:base}} or {{dig:sector_12m}}. Code fills in the value. A placeholder that
   isn't on the list removes the sentence. Years in context ("in 2025") and names on the page
   are fine.
+- The data paragraphs show figures as numbers so you can read them. When you use one, write
+  its placeholder from the list instead: a return, a count of trades or firms, a rate, a
+  ratio. A figure with no placeholder can't be used; describe it in words without a number.
+- Quantity words count as numbers too: "double-digit", "billion", "half", "a third". For a
+  period, name it ("the third quarter") or say "the latest results"; "the latest quarter" and
+  "next quarter" are removed.
+- A percent placeholder keeps its sign: write "returned {{dig:stock_1m}}" or "changed by
+  {{dig:stock_1m}}", not "rose" or "fell" before a figure whose sign you can't see.
 - The Buy price is worked out by code and shown beside your take. When you mention it, write
   only {{level:buy_trigger}}. Never suggest a price of your own.
 - Label each sentence's stance about the stock: positive, negative or neutral.

@@ -225,3 +225,13 @@ def test_each_finding_keeps_a_paragraph_before_any_finding_keeps_a_second(databa
     assert len(got.findings) == src.REPORT_PARAGRAPHS
     assert all(f"f{n}#Item_1A#p1@1" in got.paragraphs for n in range(src.REPORT_PARAGRAPHS))
     assert "f0#Item_1A#p2@1" not in got.paragraphs
+
+
+def test_a_red_flag_cap_says_the_prices_would_turn_it_only_without_the_flag(database, rawstore):
+    snap = sample_snapshot()
+    snap["header"]["levels"]["capped"] = True
+    got = build(database, rawstore, snap)
+    assert got.paragraphs["dig:today#p3"].text == (
+        "A red flag holds the rating at Hold whatever the price. Without it, our numbers would"
+        " turn Buy at $238.00 and Sell at $201.00, holding the score and the peers’ values fixed."
+    )

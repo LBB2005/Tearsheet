@@ -18,6 +18,7 @@ skeptic's marks are kept with the take, so replay-dig can put it together again 
 from __future__ import annotations
 
 import json
+import re
 import secrets
 import sqlite3
 from collections.abc import Callable
@@ -151,6 +152,18 @@ def _numbered(draft: TakeDraft, *, rewrite: bool) -> list[tuple[str, str, DraftS
     return out
 
 
+# "fell {{dig:sector_1m}}" with a negative return would read "fell -1.2%": the verb already says
+# which way, so the minus goes.
+_FALLS = re.compile(
+    r"\b(down|fell|fallen|falling|dropped|declined|lost|slid|sank|slipped)(\s+(?:by\s+)?)-(?=\d)",
+    re.I,
+)
+
+
+def _signs(text: str) -> str:
+    return _FALLS.sub(r"\1\2", text)
+
+
 def _checks(
     draft: TakeDraft,
     *,
@@ -165,6 +178,7 @@ def _checks(
         numbers = guard.check(sentence.text, cited=cited)
         citation = check_citations(sentence.citations, sources.paragraphs.keys())
         filled, reason = fill(sentence.text, places)
+        filled = _signs(filled) if filled else filled
         reasons = [
             *numbers.reasons,
             *([reason] if reason else []),
