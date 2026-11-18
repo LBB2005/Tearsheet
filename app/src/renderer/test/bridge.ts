@@ -17,7 +17,7 @@ import type { InstallProgress, InstallStatus, RunResult } from '../../shared/ins
 import type { ChartSeries, CompanyRow, KeyNumbers, KeyRow, LineGroups, LineItem, LinePlan, LineState, PredictionPrices, PredictionSummary, ReportBar, ReportNumbers, ReportResult, ReportSummary, SearchHit, SettingsResult } from '../../shared/protocol'
 import { toolFlags, type ToolCommands, type ToolKind, type ToolState } from '../../shared/tools'
 import { analysts } from './analysts'
-import { digPage, digSnapshot } from './dig'
+import { digPage, digSnapshot, takeList } from './dig'
 import { WATCH_EVENTS, watchStore } from './watch'
 
 export type FakeBridge = { [K in keyof TearsheetApi]: Mock<TearsheetApi[K]> }
@@ -374,6 +374,11 @@ function makeBridge(): FakeBridge {
     // Gathered just now, so opening the page doesn't fetch again.
     getDigDeeper: vi.fn<TearsheetApi['getDigDeeper']>(async (cik: number) => ok(digPage(cik, { snapshot: digSnapshot(cik, { created_at: new Date().toISOString() }) }))),
     refreshDigDeeper: vi.fn<TearsheetApi['refreshDigDeeper']>(async (cik: number) => ok(digPage(cik))),
+    // No take yet, and nothing in the way; a test sets takes and sends take_progress and take_done
+    // with emit.
+    listTakes: vi.fn<TearsheetApi['listTakes']>(async (cik: number) => ok(takeList(cik))),
+    writeTake: vi.fn<TearsheetApi['writeTake']>(async (cik: number) => ok({ take_id: 'take-new', cik })),
+    cancelTake: vi.fn<TearsheetApi['cancelTake']>(async () => ok({ ok: true })),
     fetchHistory: vi.fn<TearsheetApi['fetchHistory']>(async () => ok({ first_date: '2021-11-08', days: 1260 })),
     checkKey: vi.fn<TearsheetApi['checkKey']>(async (service: 'massive' | 'fred') => ok({ proof: service === 'massive' ? 'Works: AAPL closed at $230.10 on Nov 6' : 'Works: inflation was 2.9% in September' })),
     runSafetyCheck: vi.fn<TearsheetApi['runSafetyCheck']>(async () => ok({ started: true })),

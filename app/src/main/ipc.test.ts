@@ -40,6 +40,9 @@ test('the report’s numbers have a call of their own', () => {
   expect(engineMethod('getAnalysts')).toBe('get_analysts')
   expect(engineMethod('getDigDeeper')).toBe('get_dig_deeper')
   expect(engineMethod('refreshDigDeeper')).toBe('refresh_dig_deeper')
+  expect(engineMethod('listTakes')).toBe('list_takes')
+  expect(engineMethod('writeTake')).toBe('write_take')
+  expect(engineMethod('cancelTake')).toBe('cancel_take')
 })
 
 test('the sidebar’s delete and pin calls reach the engine', () => {

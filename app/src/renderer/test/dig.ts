@@ -1,7 +1,7 @@
 // A Dig deeper page for the fake engine: Apple, made up in the engine's own shape
 // (protocol.DigPage). Every number, name, headline and address here is invented.
 
-import type { DigPage, DigPeerRow, DigSnapshot } from '../../shared/protocol'
+import type { DigPage, DigPeerRow, DigSnapshot, DigTake, TakeCitation, TakeList, TakeSentence } from '../../shared/protocol'
 import { analysts } from './analysts'
 
 const AS_OF = '2026-11-17T22:30:00+00:00'
@@ -163,4 +163,49 @@ export function digPage(cik = 320193, changes: Partial<DigPage> = {}): DigPage {
     refreshing: false,
     ...changes
   }
+}
+
+const today: TakeCitation = { id: 'dig:today#p1', label: 'Tearsheet data: Today', text: 'Apple Inc. (AAPL) closed at $236.50 on 16 Nov 2026.', url: null }
+const filing: TakeCitation = { id: '0000320193-26-000010#Item_7#p3@1', label: 'Report source: Item 7', text: 'We sell iPhone, Mac and services.', url: 'https://www.sec.gov/Archives/edgar/data/320193/x.htm' }
+const article: TakeCitation = { id: 'news-1a2b3c4d5e#article#p1@1', label: 'News: Example Wire, 16 Nov', text: 'Apple’s new chip gets an early look', url: 'https://www.reuters.com/technology/apple-chip-example' }
+
+function sentence(id: string, text: string, citations: TakeCitation[] = [today], over: Partial<TakeSentence> = {}): TakeSentence {
+  return { id, text, stance: 'neutral', note: null, citations, ...over }
+}
+
+// A take on Apple, made up in the engine's shape (protocol.DigTake).
+export function digTake(cik = 320193, changes: Partial<DigTake> = {}): DigTake {
+  return {
+    take_id: 'take-320193-20261117T224000Z-aaaaaa',
+    cik,
+    snapshot_id: `dig-${cik}-20261117T223000Z-abc123`,
+    report_id: 'r-aapl-2',
+    created_at: '2026-11-17T22:40:00+00:00',
+    writer: 'Claude Code',
+    checked_by: 'other',
+    checker: 'Codex',
+    versions: { dig_code: 1, prompt: 'dig_take-1', skeptic: 'skeptic-1', engine: '0.1.0-beta' },
+    answers: [
+      { key: 'business', question: 'Is it a great business?', sentences: [sentence('business.1', 'Apple sells phones, computers and services to a loyal base.', [filing, today], { stance: 'positive' })] },
+      { key: 'price', question: 'Is the price below what it’s worth, with room to spare?', sentences: [sentence('price.1', 'The close of $236.50 sits below the base of $250.00, with little room to spare.')] },
+      { key: 'risks', question: 'What could kill it?', sentences: [sentence('risks.1', 'A supplier warned on orders.', [article], { stance: 'negative', note: 'One article; others are calmer.' })] },
+      { key: 'backdrop', question: 'Are the sector and the market behind it?', sentences: [] },
+      { key: 'sell', question: 'What would make you sell?', sentences: [sentence('sell.1', 'A close above $290.00 would take it past the bull case.')] }
+    ],
+    next_move: {
+      price_line: 'Our numbers turn Buy at $238.00',
+      close_line: 'Today’s close: $236.50, below that price',
+      check_first: [sentence('check_first.1', 'What the next filing says about supplier orders.', [article])],
+      proven_wrong: [sentence('proven_wrong.1', 'Services growth slowing in the next quarter.', [filing])]
+    },
+    removed: [{ id: 'business.2', text: 'Revenue grew 12% last year.', reasons: ['a number outside a placeholder'] }],
+    rewritten: false,
+    notes: [],
+    direction_split: { positive: 1 },
+    ...changes
+  }
+}
+
+export function takeList(cik = 320193, changes: Partial<TakeList> = {}): TakeList {
+  return { cik, takes: [], running: null, blocked: null, ...changes }
 }

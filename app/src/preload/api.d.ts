@@ -36,6 +36,11 @@ export interface TearsheetApi {
   // Dig deeper: the company's newest snapshot at once, or a fresh one (fetches; a few seconds).
   getDigDeeper(cik: number): Promise<CallResult<import('../shared/protocol').DigPage>>
   refreshDigDeeper(cik: number): Promise<CallResult<import('../shared/protocol').DigPage>>
+  // Dig deeper's AI take: the company's takes and whether one can start; start one (it answers
+  // at once, then take_progress and take_done notes follow); stop the one under way.
+  listTakes(cik: number): Promise<CallResult<import('../shared/protocol').TakeList>>
+  writeTake(cik: number): Promise<CallResult<import('../shared/protocol').TakeStarted>>
+  cancelTake(cik: number): Promise<CallResult<import('../shared/protocol').Ok>>
   fetchHistory(reportId: string): Promise<CallResult<import('../shared/protocol').FetchHistoryResult>>
   checkKey(service: 'massive' | 'fred', key: string): Promise<CallResult<import('../shared/protocol').KeyChecked>>
   runSafetyCheck(tool: 'claude' | 'codex'): Promise<CallResult<import('../shared/protocol').SafetyStarted>>
