@@ -123,12 +123,17 @@
 .digv .dcite { display: grid; gap: 4px; justify-items: start; padding: 8px 10px; border-left: 2px solid var(--chipline); background: rgb(var(--ink) / .03); border-radius: var(--r-xs); font-size: var(--fs-sm); }
 .digv .dcite b { font-weight: calc(600 + var(--wt)); color: var(--muted); font-size: var(--fs-xs); }
 .digv .dcite p { margin: 0; max-width: 72ch; color: var(--text2); }
-.digv .dremoved summary { cursor: pointer; }
+.digv .dremoved summary { cursor: pointer; list-style: none; }
+.digv .dremoved summary::-webkit-details-marker { display: none; }
+.digv .dremoved summary::before { content: '▸'; display: inline-block; width: 1.1em; color: var(--muted); }
+.digv .dremoved[open] summary::before { content: '▾'; }
+.digv .dremoved summary:hover { color: var(--text2); }
 .digv .dremoved ul { margin: 6px 0 0; padding-left: 18px; font-size: var(--fs-sm); color: var(--muted); }
 .digv .dremoved small { color: var(--faint2); }
 /* the Next move box: code's Buy price first, larger, then the AI's two lists and the fixed lines */
 .digv .dnext { display: grid; gap: 6px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--r-md); background: rgb(var(--accent-rgb) / .05); }
 .digv .dnext .dprice { margin: 0; font: var(--fs-xl)/1.15 var(--ui); font-weight: calc(650 + var(--wt)); color: var(--text); }
+.digv .dnext .dprice.said { font-size: var(--fs-lg); line-height: 1.3; }
 .digv .dnext .fine { margin: 0; }
 .digv .dnext .dsents { font-size: var(--fs-sm); }
 .digv .dearlier { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }

@@ -183,7 +183,8 @@ function TakeBody({ take }: { take: DigTake }) {
       </div>
       <aside className="dnext" role="group" aria-label="Next move">
         <h4>Next move</h4>
-        <p className="dprice">{take.next_move.price_line}</p>
+        {/* A Buy price comes with today's close; a sentence (a cap, no reachable price) is set smaller. */}
+        <p className={take.next_move.close_line ? 'dprice' : 'dprice said'}>{take.next_move.price_line}</p>
         {take.next_move.close_line && <p className="fine">{take.next_move.close_line}</p>}
         <h5>Check first</h5>
         {take.next_move.check_first.length ? lines(take.next_move.check_first) : <p className="fine">{EMPTY_ANSWER}</p>}

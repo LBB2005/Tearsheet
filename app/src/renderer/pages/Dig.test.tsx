@@ -375,6 +375,14 @@ describe('the AI take', () => {
     expect(box.getByText(ADVICE_SHORT)).toBeInTheDocument()
   })
 
+  test('a price line that is a sentence (a red-flag cap) is set smaller than a Buy price', async () => {
+    const capped = digTake(320193, { next_move: { ...digTake().next_move, price_line: 'A red flag holds our rating at Hold, whatever the price.', close_line: null } })
+    withTakes({ takes: [capped] })
+    const { region } = await openDig()
+    const box = within(await takePart(region).findByRole('group', { name: 'Next move' }))
+    expect(box.getByText('A red flag holds our rating at Hold, whatever the price.')).toHaveClass('dprice', 'said')
+  })
+
   test('the removed sentences are counted and can be shown', async () => {
     withTakes({ takes: [digTake()] })
     const { region, user } = await openDig()
